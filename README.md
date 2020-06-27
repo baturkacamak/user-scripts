@@ -15,3 +15,6 @@ This repo contains a few of my UserScripts that I've build since 2010.
 ## Lingualeo
 -   [Lingualeo Speak](https://github.com/baturkacamak/UserScripts/tree/master/lingualeo-speak#readme) - Lingualeo Speaker
 
+## Google
+-   [Google Maps Image Downloader](https://github.com/baturkacamak/UserScripts/tree/master/googlemaps-image-downlaoder#readme) - Google Maps Places image downloader
+
