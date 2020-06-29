@@ -13,16 +13,47 @@
 // @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/eksi-olay#readme
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/eksi-olay.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/eksi-olay.user.js
+// @run-at       document-idle
 // ==/UserScript==
 
-// eslint-disable-next-line func-names
-(function () {
-  setInterval(() => {
-    if (document.querySelector('.tracked .new-update')) {
+class EksiOlay {
+  constructor() {
+    const remoteFile = 'https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/assets/sounds/notifications/juntos.mp3';
+    this.beep = new Audio(remoteFile);
+
+    this.cache();
+    this.mutations();
+    this.init();
+  }
+
+  init() {
+    if (this.eventSelector) {
       const $title = document.querySelector('title');
       if (!$title.innerHTML.includes('OLAY')) {
         $title.innerHTML = `(OLAY) ${$title.innerHTML}`;
+        this.beep.play();
       }
     }
-  }, 2000);
-}());
+  }
+
+  cache() {
+    this.eventSelector = document.querySelector('.tracked .new-update');
+    this.targetSelector = document.querySelector('#top-navigation .tracked > a');
+  }
+
+  mutations() {
+    const observer = new MutationObserver(((mutations) => {
+      // eslint-disable-next-line no-unused-vars
+      mutations.forEach((mutation) => {
+        this.init();
+      });
+    }));
+
+    observer.observe(this.targetSelector, {
+      attributes: true,
+    });
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+const olay = new EksiOlay();
