@@ -12,42 +12,70 @@
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-favori/eksi-favori.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/eksi-favori/eksi-favori.user.js
 // @match        https://eksisozluk.com/*
-// @run-at       document-end
+// @run-at       document-idle
 // @grant        unsafeWindow
 // ==/UserScript==
 
-// eslint-disable-next-line func-names
-(function () {
-  function init() {
+class EksiFavori {
+  static getSeparator() {
     const separator = document.createElement('span');
     separator.innerHTML = ' | ';
+    return separator;
+  }
 
+  static sortEntries(e) {
+    e.target.classList.toggle('nice-on');
+    const entries = Array.from(document.querySelectorAll('[data-favorite-count]'));
+    document.querySelector('#entry-item-list').innerHTML = '';
+    entries.sort((a, b) => {
+      // eslint-disable-next-line radix
+      const aFav = parseInt(a.getAttribute('data-favorite-count'));
+      // eslint-disable-next-line radix
+      const bFav = parseInt(b.getAttribute('data-favorite-count'));
+      return bFav - aFav;
+    }).forEach((item) => {
+      document.querySelector('#entry-item-list').appendChild(item).classList.add('favorite-on');
+    });
+  }
+
+  static getFavButton() {
     const favButton = document.createElement('span');
     favButton.innerText = 'favori';
-    favButton.addEventListener('click', () => {
-      favButton.classList.toggle('nice-on');
-      const entries = Array.from(document.querySelectorAll('[data-favorite-count]'));
-      document.querySelector('#entry-item-list').innerHTML = '';
-      entries.sort((a, b) => {
-        const aFav = parseInt(a.getAttribute('data-favorite-count'));
-        const bFav = parseInt(b.getAttribute('data-favorite-count'));
-        return bFav - aFav;
-      }).forEach((item) => {
-        document.querySelector('#entry-item-list').appendChild(item);
-      });
-    });
-    document.querySelector('.nice-mode-toggler').appendChild(separator);
-    document.querySelector('.nice-mode-toggler').appendChild(favButton);
+    favButton.addEventListener('click', EksiFavori.sortEntries);
+    return favButton;
   }
-  let currentUrl = window.location.href;
-  setInterval(() => {
-    if (currentUrl !== window.location.href) {
-      currentUrl = window.location.href;
-      init();
-    }
-  }, 2000);
 
-  window.addEventListener('load', () => {
-    init();
-  });
-}());
+  static init() {
+    if (!document.querySelector('#entry-item-list.favorite-on')
+        && document.querySelector('.nice-mode-toggler')) {
+      document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getSeparator());
+      document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getFavButton());
+    }
+  }
+
+  constructor() {
+    this.cache();
+    this.mutations();
+    EksiFavori.init();
+  }
+
+  cache() {
+    this.observerTarget = document.querySelector('#main');
+  }
+
+  mutations() {
+    const observer = new MutationObserver((mutations) => {
+      // check for removed target
+      if (mutations[0].removedNodes) {
+        EksiFavori.init();
+      }
+    });
+
+    observer.observe(this.observerTarget, {
+      childList: true,
+    });
+  }
+}
+
+// eslint-disable-next-line no-unused-vars
+const eksiFavori = new EksiFavori();
