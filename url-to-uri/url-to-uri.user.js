@@ -18,7 +18,7 @@
 
 class UrlToUri {
   constructor() {
-    this.regexReplace = new RegExp(/(https:\/\/tidal\.com)((\/browse\/track\/|\/track\/)\d+)/, 'i');
+    this.regexReplace = /https:\/\/tidal\.com(\/browse)?(.*?)(?=")/gmui;
 
     this.mutations();
     this.replace(document.querySelector('body'));
@@ -29,16 +29,6 @@ class UrlToUri {
       // eslint-disable-next-line no-param-reassign
       item.outerHTML = item.outerHTML.replace(this.regexReplace, 'tidal:/$2?play=true');
     });
-    //    const html = el.outerHTML.replace(this.regexReplace, 'tidal:/$2?play=true');
-    //    el.outerHTML = html;
-
-    //    const treeWalker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    //    let textNode;
-    //    while (textNode = treeWalker.nextNode()) {
-    //      if (textNode.nodeValue.match(this.regexReplace)) {
-    //        textNode.nodeValue = textNode.nodeValue.replace(this.regexReplace, '<a href="#">tidal:/$2?play=true</a>');
-    //      }
-    //    }
   }
 
   mutations() {
