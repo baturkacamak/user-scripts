@@ -2,7 +2,7 @@
 // @id           url-to-uri@https://github.com/baturkacamak/userscripts
 // @name         Tidal Converter
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.2
+// @version      0.21
 // @description  This script will replace tidal.com urls to tidal://
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
