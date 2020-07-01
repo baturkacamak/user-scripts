@@ -25,7 +25,7 @@ class UrlToUri {
   }
 
   replace(el) {
-    document.querySelectorAll('a[href^="https://tidal"]').forEach((item) => {
+    el.querySelectorAll('a[href^="https://tidal"]').forEach((item) => {
       // eslint-disable-next-line no-param-reassign
       item.outerHTML = item.outerHTML.replace(this.regexReplace, 'tidal:/$2?play=true');
     });
