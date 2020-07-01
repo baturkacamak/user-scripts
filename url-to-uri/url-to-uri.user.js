@@ -6,7 +6,7 @@
 // @description  This script will replace tidal.com urls to tidal://
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
-// @match        *://*whatsapp.com/*
+// @match        *://*.whatsapp.com/*
 // @grant        none
 // @icon         https://github.githubassets.com/pinned-octocat.svg
 // @homepage     https://github.com/baturkacamak/userscripts/tree/master/url-to-uri#readme
