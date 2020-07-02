@@ -2,7 +2,7 @@
 // @id           googlemaps-image-downloader@https://github.com/baturkacamak/userscripts
 // @name         Google Maps Image Downloader
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.1
+// @version      0.11
 // eslint-disable-next-line max-len
 // @description  This script will add a button to download the current highlighted image from Google Places
 // @author       Batur Kacamak
@@ -35,7 +35,7 @@ class GoogleMapsImageDownloader {
   }
 
   constructor() {
-    this.elementCount = 0;
+    this.initialLoad = true;
     this.imageSelector = '[role=img] > a.gallery-cell';
     this.imageContainersQuery = '#pane .section-layout[style] > div > [role=img]';
     this.anchor = null;
@@ -54,12 +54,18 @@ class GoogleMapsImageDownloader {
             .filter((addedNode) => addedNode
                                    && addedNode.nodeType === 1
                                    && addedNode.querySelectorAll(this.imageSelector).length > 0)
-            .forEach((addedNode) => GoogleMapsImageDownloader.addEventListeners(
-              this.imageSelector,
-              this.getImageUrl.bind(this),
-              'click',
-              addedNode,
-            ));
+            .forEach((addedNode) => {
+              GoogleMapsImageDownloader.addEventListeners(
+                this.imageSelector,
+                this.getImageUrl.bind(this),
+                'click',
+                addedNode,
+              );
+              if (this.initialLoad) {
+                addedNode.querySelectorAll(this.imageSelector)[0].click();
+                this.initialLoad = false;
+              }
+            });
         });
       } else {
         this.removeDownloadButton();
@@ -154,8 +160,8 @@ class GoogleMapsImageDownloader {
 
   getImageUrl() {
     this.addDownloadButton();
-    setTimeout(() => {
-      const selectedImage = document.querySelector('.gallery-cell.selected .gallery-image-high-res');
+    const interval = setInterval(() => {
+      const selectedImage = document.querySelector('.gallery-cell.selected .gallery-image-high-res.loaded');
 
       let backgroundImage = null;
       if (selectedImage) {
@@ -164,13 +170,16 @@ class GoogleMapsImageDownloader {
         backgroundImage = document.querySelector('.gallery-cell[data-photo-index="0"]').style.backgroundImage;
       }
 
-      const regex = /\("(.*)"\)/;
-      const result = backgroundImage.match(regex);
+      if (backgroundImage) {
+        clearInterval(interval);
+        const regex = /\("(.*)"\)/;
+        const result = backgroundImage.match(regex);
 
-      if (result) {
-        this.imageUrl = result[1].replace(/(?<==.)\d*/, '1920');
+        if (result) {
+          this.imageUrl = result[1].replace(/(?<==.)\d*/, '1920');
+        }
       }
-    }, 300);
+    }, 500);
   }
 }
 
