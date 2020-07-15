@@ -12,6 +12,7 @@
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/lingualeo-speak/lingualeo-speak.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/lingualeo-speak/lingualeo-speak.user.js
 // @match        https://lingualeo.com/tr/training/leoSprint
+// @icon         https://lingualeo.com/favicon.ico
 // @grant        none
 // ==/UserScript==
 
