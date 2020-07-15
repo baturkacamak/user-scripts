@@ -13,44 +13,93 @@
 // @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/eksi-olay#readme
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/eksi-olay.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/eksi-olay.user.js
+// @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
 
 class EksiOlay {
   constructor() {
-    const remoteFile = 'https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/assets/sounds/notifications/juntos.mp3';
-    this.beep = new Audio(remoteFile);
+    this.remoteFile = 'https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/assets/sounds/notifications/juntos.mp3';
+    this.beep = new Audio(this.remoteFile);
+    this.observer = null;
 
-    this.cache();
     this.mutations();
     this.init();
   }
 
-  init() {
-    if (this.eventSelector) {
+  sendNotification() {
+    if (typeof Notification !== 'undefined') {
+      Notification.requestPermission().then((result) => {
+        if (result === 'denied') {
+          console.log('Permission wasn\'t granted. Allow a retry.');
+          return;
+        }
+
+        if (result === 'default') {
+          console.log('The permission request was dismissed.');
+          return;
+        }
+
+        const options = {
+          body: 'Takip edilen baslikta yeni entry',
+          icon: 'https://eksisozluk.com/favicon.ico',
+          sound: this.remoteFile,
+        };
+        const n = new Notification('Yeni Entry!', options);
+        n.custom_options = {
+          url: 'https://eksisozluk.com',
+        };
+        n.onclick = (event) => {
+          event.preventDefault(); // prevent the browser from focusing the Notification's tab
+          window.open(n.custom_options.url, '_blank');
+        };
+
+        this.beep.play();
+
+        // set time to notify is show
+        let timeNotify = 1000;
+        if (timeNotify > 0) {
+          timeNotify *= 1000;
+          setTimeout(n.close.bind(n), timeNotify);
+        }
+      });
+    }
+  }
+
+  changeTitle() {
+    if (document.querySelector('.tracked .new-update')) {
       const $title = document.querySelector('title');
       if (!$title.innerHTML.includes('OLAY')) {
         $title.innerHTML = `(OLAY) ${$title.innerHTML}`;
-        this.beep.play();
       }
     }
   }
 
-  cache() {
-    this.eventSelector = document.querySelector('.tracked .new-update');
-    this.targetSelector = document.querySelector('#top-navigation .tracked > a');
+  init() {
+    if (document.querySelector('.tracked .new-update')) {
+      this.beep.play();
+      this.changeTitle();
+      this.sendNotification();
+    }
   }
 
   mutations() {
-    const observer = new MutationObserver(((mutations) => {
-      // eslint-disable-next-line no-unused-vars
-      mutations.forEach((mutation) => {
+    this.observer = new MutationObserver(((mutations) => {
+      if ((mutations[0].attributeName === 'class'
+           && mutations[0].target.classList.contains('new-update'))
+      ) {
         this.init();
-      });
+      }
+
+      if (mutations[0].target.tagName === 'TITLE') {
+        this.changeTitle();
+      }
     }));
 
-    observer.observe(this.targetSelector, {
+    this.observer.observe(document, {
+      childList: true,
       attributes: true,
+      subtree: true,
     });
   }
 }
