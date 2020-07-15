@@ -15,6 +15,7 @@
 // @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/whatsapp-obfuscator#readme
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
+// @icon         https://whatsapp.com/favicon.ico
 // ==/UserScript==
 
 class WhatsappObfuscator {
