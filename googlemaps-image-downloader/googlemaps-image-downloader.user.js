@@ -12,7 +12,7 @@
 // @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/googlemaps-image-downloader#readme
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/googlemaps-image-downloader/googlemaps-image-downloader.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/googlemaps-image-downloader/googlemaps-image-downloader.user.js
-// @match        https://*.google.*/maps/**
+// @match        https://*.google.com/maps/**
 // @require      https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/voca/1.4.0/voca.min.js
