@@ -16,6 +16,7 @@
 // @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/upwork-filter#readme
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/upwork-filter/upwork-filter.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/upwork-filter/upwork-filter.user.js
+// @icon         https://upwork.com/favicon.ico
 // ==/UserScript==
 
 // eslint-disable-next-line func-names
