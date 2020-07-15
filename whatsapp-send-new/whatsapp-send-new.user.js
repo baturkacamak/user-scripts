@@ -23,8 +23,8 @@
 
 class WhatsappSendNew {
   static sendMessageUrl(number) {
-    unsafeWindow.location = `https://web.whatsapp.com/send?phone=${number}`;
-    // unsafeWindow.open(`https://web.whatsapp.com/send?phone=${number}`);
+    const phoneNumber = number.replace(/\s+/g, '');
+    unsafeWindow.location = `https://web.whatsapp.com/send?phone=${phoneNumber}`;
   }
 
   constructor() {
