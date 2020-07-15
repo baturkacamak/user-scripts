@@ -12,6 +12,7 @@
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-favori/eksi-favori.user.js
 // @updateURL    https://github.com/baturkacamak/userscripts/raw/master/eksi-favori/eksi-favori.user.js
 // @match        https://eksisozluk.com/*
+// @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // @grant        unsafeWindow
 // ==/UserScript==
