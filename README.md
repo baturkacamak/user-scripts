@@ -4,6 +4,7 @@ This repo contains a few of my UserScripts that I've build since 2010.
 
 ## Whatsapp
 -   [Whatsapp Obfuscator](https://github.com/baturkacamak/UserScripts/tree/master/whatsapp-obfuscator#readme) - Obfuscate Whatsapp Web chatlist and removes profile photos
+-   [Whatsapp Send New](https://github.com/baturkacamak/UserScripts/tree/master/whatsapp-send-new#readme) - Send Whatsapp messages to people without adding them
 
 ## Upwork
 -   [Upwork Filter](https://github.com/baturkacamak/UserScripts/tree/master/upwork-filter#readme) - Filter jobs by country
