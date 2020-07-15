@@ -24,7 +24,8 @@
 class WhatsappSendNew {
   static sendMessageUrl(number) {
     const win = window || unsafeWindow;
-    const phoneNumber = number.replace(/\s+/g, '');
+    let phoneNumber = number.replace(/\s+/g, '');
+    phoneNumber = number.replace(/^\+/g, '00');
     win.location = `https://web.whatsapp.com/send?phone=${phoneNumber}`;
   }
 
@@ -71,8 +72,7 @@ class WhatsappSendNew {
 
                 const input = document.createElement('input');
                 input.classList.add('wsnu__input');
-                input.setAttribute('title', 'You should write a number starting with 00 rather than +');
-                input.setAttribute('placeholder', 'Write a phone number starting with 00');
+                input.setAttribute('placeholder', 'Write a phone number and hit enter');
                 input.setAttribute('autofocus', 'autofocus');
 
                 // on click button
@@ -135,4 +135,5 @@ class WhatsappSendNew {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 const whatsappSendNew = new WhatsappSendNew();
