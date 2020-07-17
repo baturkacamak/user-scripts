@@ -22,22 +22,30 @@
 /* global unsafeWindow  */
 
 class WhatsappSendNew {
-  static sendMessageUrl(number) {
-    const win = window || unsafeWindow;
-    let phoneNumber = number.replace(/\s+/g, '');
-    phoneNumber = number.replace(/^\+/g, '00');
-    win.location = `https://web.whatsapp.com/send?phone=${phoneNumber}`;
-  }
-
   constructor() {
     this.SELECTORS = {
       mutationObserver: 'div[tabindex="-1"]>div>div>span',
       mutationLeftPanel: 'div[tabindex="-1"]>div>div>span [data-list-scroll-offset]>div',
       searchContactsInput: '[tabindex] [style] div.copyable-text.selectable-text[data-tab="3"][dir]',
     };
+    this.win = unsafeWindow || window;
 
     // start everything
     this.init();
+  }
+
+  sendMessageUrl(number) {
+    if (number) {
+      let phoneNumber = number.replace(/\s+/g, '');
+      phoneNumber = phoneNumber.replace(/^00/g, '');
+      phoneNumber = phoneNumber.replace(/^\+/g, '');
+      this.wchat.openChat(phoneNumber);
+    }
+  }
+
+  startWhatsapp() {
+    this.newWhatsapp();
+    this.mutationClickMessages();
   }
 
   mutationClickMessages() {
@@ -77,13 +85,13 @@ class WhatsappSendNew {
 
                 // on click button
                 button.addEventListener('click',
-                  () => WhatsappSendNew.sendMessageUrl(input.value));
+                  () => this.sendMessageUrl(input.value));
 
                 // input on enter pressed
                 input.addEventListener('keyup',
                   (event) => {
                     if (event.key === 'Enter') {
-                      WhatsappSendNew.sendMessageUrl(input.value);
+                      this.sendMessageUrl(input.value);
                     }
                   });
                 wsnuContainer.appendChild(button);
@@ -115,7 +123,7 @@ class WhatsappSendNew {
             mutation.addedNodes.forEach((node) => {
               if (node.querySelector(this.SELECTORS.mutationObserver)) {
                 // whatsapp is ready
-                this.mutationClickMessages();
+                this.startWhatsapp();
                 this.observer.disconnect();
               }
             });
@@ -128,6 +136,48 @@ class WhatsappSendNew {
       childList: true,
       subtree: true,
     });
+  }
+
+  loadModule() {
+    function getStore(modules) {
+      const storeObjects = [
+        { id: 'Store', conditions: (module) => ((module.default && module.default.Chat && module.default.Msg) ? module.default : null) },
+        { id: 'OpenChat', conditions: (module) => ((module.default && module.default.prototype && module.default.prototype.openChat) ? module.default : null) },
+      ];
+      let foundCount = 0;
+      for (const idx in modules) {
+        if ((typeof modules[idx] === 'object') && (modules[idx] !== null)) {
+          const first = Object.values(modules[idx])[0];
+          if ((typeof first === 'object') && (first.exports)) {
+            for (const idx2 in modules[idx]) {
+              const module = modules(idx2);
+              if (!module) { continue; }
+              storeObjects.forEach((needObj) => {
+                if (!needObj.conditions || needObj.foundedModule) return;
+                const neededModule = needObj.conditions(module);
+                if (neededModule !== null) { foundCount++; needObj.foundedModule = neededModule; }
+              });
+              if (foundCount == storeObjects.length) { break; }
+            }
+            const neededStore = storeObjects.find((needObj) => needObj.id === 'Store');
+            unsafeWindow.Store = neededStore.foundedModule ? neededStore.foundedModule : window.Store;
+            storeObjects.splice(storeObjects.indexOf(neededStore), 1);
+            storeObjects.forEach((needObj) => { if (needObj.foundedModule) unsafeWindow.Store[needObj.id] = needObj.foundedModule; });
+            return unsafeWindow.Store;
+          }
+        }
+      }
+    }
+    (typeof webpackJsonp === 'function') ? webpackJsonp([], { parasite: (x, y, z) => getStore(z) }, ['parasite'])
+      : webpackJsonp.push([['parasite'], { parasite(o, e, t) { getStore(t); } }, [['parasite']]]);
+  }
+
+  newWhatsapp() {
+    /** Load WAPI Module for Send Message & Image */
+
+    this.loadModule();
+
+    this.wchat = new this.win.Store.OpenChat();
   }
 
   init() {
