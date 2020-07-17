@@ -19,16 +19,60 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
-/* global unsafeWindow  */
+/* global webpackJsonp, unsafeWindow  */
 
 class WhatsappSendNew {
+  // eslint-disable-next-line consistent-return
+  static getStore(modules) {
+    const win = window || unsafeWindow;
+
+    const storeObjects = [
+      { id: 'Store', conditions: (module) => ((module.default && module.default.Chat && module.default.Msg) ? module.default : null) },
+      { id: 'OpenChat', conditions: (module) => ((module.default && module.default.prototype && module.default.prototype.openChat) ? module.default : null) },
+    ];
+    let foundCount = 0;
+    // eslint-disable-next-line no-restricted-syntax
+    for (const idx in modules) {
+      if ((typeof modules[idx] === 'object') && (modules[idx] !== null)) {
+        const first = Object.values(modules[idx])[0];
+        if ((typeof first === 'object') && (first.exports)) {
+          // eslint-disable-next-line no-restricted-syntax
+          for (const idx2 in modules[idx]) {
+            const module = modules(idx2);
+            if (!module) { continue; }
+            storeObjects.forEach((needObj) => {
+              if (!needObj.conditions || needObj.foundedModule) return;
+              const neededModule = needObj.conditions(module);
+              if (neededModule !== null) { foundCount++; needObj.foundedModule = neededModule; }
+            });
+            if (foundCount == storeObjects.length) { break; }
+          }
+
+          const neededStore = storeObjects.find((needObj) => needObj.id === 'Store');
+          win.Store = neededStore.foundedModule ? neededStore.foundedModule : window.Store;
+          storeObjects.splice(storeObjects.indexOf(neededStore), 1);
+          storeObjects.forEach((needObj) => { if (needObj.foundedModule) win.Store[needObj.id] = needObj.foundedModule; });
+          return win.Store;
+        }
+      }
+    }
+  }
+
+  static loadModule() {
+    if (typeof webpackJsonp === 'function') {
+      webpackJsonp([], { parasite: (x, y, z) => WhatsappSendNew.getStore(z) }, ['parasite']);
+    } else {
+      webpackJsonp.push([['parasite'], { parasite(o, e, t) { WhatsappSendNew.getStore(t); } }, [['parasite']]]);
+    }
+  }
+
   constructor() {
     this.SELECTORS = {
       mutationObserver: 'div[tabindex="-1"]>div>div>span',
       mutationLeftPanel: 'div[tabindex="-1"]>div>div>span [data-list-scroll-offset]>div',
       searchContactsInput: '[tabindex] [style] div.copyable-text.selectable-text[data-tab="3"][dir]',
     };
-    this.win = unsafeWindow || window;
+    this.win = window || unsafeWindow;
 
     // start everything
     this.init();
@@ -138,44 +182,9 @@ class WhatsappSendNew {
     });
   }
 
-  loadModule() {
-    function getStore(modules) {
-      const storeObjects = [
-        { id: 'Store', conditions: (module) => ((module.default && module.default.Chat && module.default.Msg) ? module.default : null) },
-        { id: 'OpenChat', conditions: (module) => ((module.default && module.default.prototype && module.default.prototype.openChat) ? module.default : null) },
-      ];
-      let foundCount = 0;
-      for (const idx in modules) {
-        if ((typeof modules[idx] === 'object') && (modules[idx] !== null)) {
-          const first = Object.values(modules[idx])[0];
-          if ((typeof first === 'object') && (first.exports)) {
-            for (const idx2 in modules[idx]) {
-              const module = modules(idx2);
-              if (!module) { continue; }
-              storeObjects.forEach((needObj) => {
-                if (!needObj.conditions || needObj.foundedModule) return;
-                const neededModule = needObj.conditions(module);
-                if (neededModule !== null) { foundCount++; needObj.foundedModule = neededModule; }
-              });
-              if (foundCount == storeObjects.length) { break; }
-            }
-            const neededStore = storeObjects.find((needObj) => needObj.id === 'Store');
-            unsafeWindow.Store = neededStore.foundedModule ? neededStore.foundedModule : window.Store;
-            storeObjects.splice(storeObjects.indexOf(neededStore), 1);
-            storeObjects.forEach((needObj) => { if (needObj.foundedModule) unsafeWindow.Store[needObj.id] = needObj.foundedModule; });
-            return unsafeWindow.Store;
-          }
-        }
-      }
-    }
-    (typeof webpackJsonp === 'function') ? webpackJsonp([], { parasite: (x, y, z) => getStore(z) }, ['parasite'])
-      : webpackJsonp.push([['parasite'], { parasite(o, e, t) { getStore(t); } }, [['parasite']]]);
-  }
-
   newWhatsapp() {
     /** Load WAPI Module for Send Message & Image */
-
-    this.loadModule();
+    WhatsappSendNew.loadModule();
 
     this.wchat = new this.win.Store.OpenChat();
   }
