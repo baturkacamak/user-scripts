@@ -55,6 +55,7 @@ class WhatsappObfuscator {
                 || [...node.classList].includes('_2goTk')
               ) {
                 // whatsapp is ready
+                // new image detected
                 this.init();
               }
             });
@@ -74,7 +75,6 @@ class WhatsappObfuscator {
   }
 
   removeInfo() {
-    console.log('this.images.length :>> ', this.images.length);
     if (this.images.length > 0) {
       this.images.forEach((item) => item.remove());
     }
