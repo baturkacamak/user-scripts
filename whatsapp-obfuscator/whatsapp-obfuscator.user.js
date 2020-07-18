@@ -19,15 +19,54 @@
 // ==/UserScript==
 
 class WhatsappObfuscator {
+  static createObfuscatedText(length) {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i += 1) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  }
+
   constructor() {
-    this.IMAGE_QUERY = 'img._2goTk._1Jdop._3Whw5[src][style]';
-    this.TITLE_QUERY = 'span[title][dir]:not(.changed-title)';
+    this.SELECTORS = {
+      mutationObserver: 'div[tabindex="-1"]>div>div>span',
+      titles: 'span[title][dir]:not(.changed-title)',
+      images: 'img._2goTk',
+    };
+
     this.events();
+    this.mutations();
   }
 
   cache() {
-    this.images = document.querySelectorAll(this.IMAGE_QUERY);
-    this.titles = document.querySelectorAll(this.TITLE_QUERY);
+    this.images = document.querySelectorAll(this.SELECTORS.images);
+    this.titles = document.querySelectorAll(this.SELECTORS.titles);
+  }
+
+  mutations() {
+    this.observer = new MutationObserver(((mutations) => {
+      [...mutations].forEach(
+        (mutation) => {
+          if (mutation.addedNodes.length > 0) {
+            mutation.addedNodes.forEach((node) => {
+              if (node.querySelector(this.SELECTORS.titles)
+                || [...node.classList].includes('_2goTk')
+              ) {
+                // whatsapp is ready
+                this.init();
+              }
+            });
+          }
+        },
+      );
+    }));
+
+    this.observer.observe(document, {
+      childList: true,
+      subtree: true,
+    });
   }
 
   events() {
@@ -35,14 +74,15 @@ class WhatsappObfuscator {
   }
 
   removeInfo() {
+    console.log('this.images.length :>> ', this.images.length);
     if (this.images.length > 0) {
-      this.images.forEach((item) => { item.remove(); });
+      this.images.forEach((item) => item.remove());
     }
 
     if (this.titles.length > 0) {
       this.titles.forEach((item) => {
         // eslint-disable-next-line no-param-reassign
-        item.innerText = this.createObfuscatedText(40);
+        item.innerText = WhatsappObfuscator.createObfuscatedText(40);
         item.classList.add('changed-title');
       });
     }
@@ -51,16 +91,6 @@ class WhatsappObfuscator {
   init() {
     this.cache();
     this.removeInfo();
-  }
-
-  createObfuscatedText(length) {
-    let result = '';
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-    const charactersLength = characters.length;
-    for (let i = 0; i < length; i += 1) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    }
-    return result;
   }
 }
 
