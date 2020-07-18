@@ -109,3 +109,7 @@ dist
 .idea/
 
 .DS_Store
+
+.history/
+
+examples/
