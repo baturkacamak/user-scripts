@@ -2,7 +2,7 @@
 // @id           googlemaps-image-downloader@https://github.com/baturkacamak/userscripts
 // @name         Google Maps Image Downloader
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.11
+// @version      0.12
 // eslint-disable-next-line max-len
 // @description  This script will add a button to download the current highlighted image from Google Places
 // @author       Batur Kacamak
