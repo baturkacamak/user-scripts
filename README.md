@@ -19,6 +19,11 @@ This repo contains a few of my UserScripts that I've build since 2010.
 ## Google
 -   [Google Maps Image Downloader](https://github.com/baturkacamak/UserScripts/tree/master/googlemaps-image-downlaoder#readme) - Google Maps Places image downloader
 
+## Youtube
+-   [Youtube Comments Sidebar](https://github.com/baturkacamak/UserScripts/tree/master/youtube-comments-sidebar#readme
+) - Moves Youtube comments to sidebar
+
+
 ## Various
 -   [URL to URI](https://github.com/baturkacamak/UserScripts/tree/master/url-to-url#readme) - URL converter
 
