@@ -39,8 +39,8 @@ class YoutubeCommentsSidebar {
 	init() {
 		if (document.querySelector('#secondary-inner')) {
 			document.querySelector('#secondary-inner').insertAdjacentElement('afterbegin', document.querySelector('#comments'));
-
-			document.querySelector('#comments').style.height = '600px';
+			// set height as player
+			document.querySelector('#comments').style.height = `${document.querySelector('#player.ytd-watch-flexy').offsetHeight}px`;
 			document.querySelector('#comments').style.overflow = 'auto';
 
 
@@ -49,5 +49,4 @@ class YoutubeCommentsSidebar {
 }
 
 // eslint-disable-next-line no-unused-vars
-console.log('YoutubeCommentsSidebar');
 const youtubeCommentsSidebar = new YoutubeCommentsSidebar();
