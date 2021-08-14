@@ -24,6 +24,22 @@ class EksiFavori {
     return separator;
   }
 
+  static getLength(node) {
+    return [...node.querySelector('.content').textContent.matchAll(/(\s+| )/g)].length
+  }
+
+  static sortEntriesByLength(e) {
+    e.target.classList.toggle('nice-on');
+    const entries = Array.from(document.querySelectorAll('[data-favorite-count]'));
+    document.querySelector('#entry-item-list').innerHTML = '';
+    entries
+    .sort((a, b) => EksiFavori.getLength(b) - EksiFavori.getLength(a))
+    .forEach((item) => {
+      item.querySelector('.feedback').insertAdjacentHTML('beforeend', `<span class="favorite-links">Length: <strong>${EksiFavori.getLength(item)}</strong></span>`);
+      document.querySelector('#entry-item-list').appendChild(item).classList.add('favorite-on');
+    });
+  }
+
   static sortEntries(e) {
     e.target.classList.toggle('nice-on');
     const entries = Array.from(document.querySelectorAll('[data-favorite-count]'));
@@ -46,11 +62,20 @@ class EksiFavori {
     return favButton;
   }
 
+  static getLengthButton() {
+    const lengthButton = document.createElement('span');
+    lengthButton.innerText = 'length';
+    lengthButton.addEventListener('click', EksiFavori.sortEntriesByLength);
+    return lengthButton;
+  }
+
   static init() {
     if (!document.querySelector('#entry-item-list.favorite-on')
         && document.querySelector('.nice-mode-toggler')) {
       document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getSeparator());
       document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getFavButton());
+      document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getSeparator());
+      document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getLengthButton());
     }
   }
 
