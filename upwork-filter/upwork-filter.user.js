@@ -3,7 +3,7 @@
 // @name         Upwork Filter
 // @namespace    https://github.com/baturkacamak/userscripts
 // @name         Upwork Filter
-// @version      0.2
+// @version      0.2.1
 // @description  This script will filter upwork jobs by country.
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
