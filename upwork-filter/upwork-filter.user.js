@@ -46,7 +46,7 @@
     });
   };
 
-  setInterval(removeCountries, 1000);
+  setInterval(removeCountries, 5000);
 
   waitFor(['.job-tile', '.client-location']).then(removeCountries);
 }());
