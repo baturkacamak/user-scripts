@@ -2,7 +2,7 @@
 // @id           youtube-comments-sidebar@https://github.com/baturkacamak/userscripts
 // @name         Youtube Comments Sidebar
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.1
+// @version      0.1.1
 // @description  This script will move youtube comments to sidebar before related videos.
 // @author       Batur Kacamak
 // @copyright    2021+, Batur Kacamak (https://batur.info/)
@@ -20,7 +20,7 @@
 
 class YoutubeCommentsSidebar {
 	static waitFor = (...selectors) => new Promise((resolve) => {
-		const delay = 500;
+		const delay = 1000;
 		const f = () => {
 			const elements = selectors.map((selector) => document.querySelector(selector));
 			if (elements.every((element) => element != null)) {
@@ -49,4 +49,5 @@ class YoutubeCommentsSidebar {
 }
 
 // eslint-disable-next-line no-unused-vars
-const youtubeCommentsSidebar = new YoutubeCommentsSidebar();
+new YoutubeCommentsSidebar();
+
