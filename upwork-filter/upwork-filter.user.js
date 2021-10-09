@@ -3,7 +3,7 @@
 // @name         Upwork Filter
 // @namespace    https://github.com/baturkacamak/userscripts
 // @name         Upwork Filter
-// @version      0.2.1
+// @version      0.2.2
 // @description  This script will filter upwork jobs by country.
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
@@ -21,7 +21,7 @@
 
 // eslint-disable-next-line func-names
 (function () {
-  const COUNTRIES = ['India', 'Bangladesh', 'Pakistan'];
+  const COUNTRIES = ['India', 'Bangladesh', 'Pakistan', 'Arab'];
 
   const waitFor = (...selectors) => new Promise((resolve) => {
     const delay = 500;
@@ -40,7 +40,11 @@
     const jobs = document.querySelectorAll('.job-tile');
     document.querySelectorAll('.job-tile .client-location').forEach((el, index) => {
       const country = el.innerHTML;
-      if (country && country !== '' && COUNTRIES.includes(country)) {
+      if (
+          country
+          && country !== ''
+          && COUNTRIES.filter(bannedCountry => country.includes(bannedCountry)).length > 0
+      ) {
         el.closest('.job-tile').parentNode.removeChild(el.closest('.job-tile'));
       }
     });
