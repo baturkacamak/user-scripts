@@ -21,10 +21,11 @@
 
 // eslint-disable-next-line func-names
 (function () {
+
   const COUNTRIES = ['India', 'Bangladesh', 'Pakistan', 'Arab'];
 
   const waitFor = (...selectors) => new Promise((resolve) => {
-    const delay = 500;
+    const delay = 5000;
     const f = () => {
       const elements = selectors.map((selector) => document.querySelector(selector));
       if (elements.every((element) => element != null)) {
