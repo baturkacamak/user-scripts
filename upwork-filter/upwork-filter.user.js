@@ -39,15 +39,14 @@
   });
 
   const removeCountries = () => {
-    const jobs = document.querySelectorAll('.job-tile');
-    document.querySelectorAll('*[data-test="client-country"]').forEach((el, index) => {
+    document.querySelectorAll('*[data-test="client-country"], .job-tile .client-location').forEach((el, index) => {
       const country = el.innerHTML;
       if (
           country
           && country !== ''
           && COUNTRIES.filter(bannedCountry => country.includes(bannedCountry)).length > 0
       ) {
-        el.closest('.up-card-section').parentNode.removeChild(el.closest('.up-card-section'));
+        el.closest('.up-card-section, .job-tile').parentNode.removeChild(el.closest('.up-card-section, .job-tile'));
       }
     });
   };
