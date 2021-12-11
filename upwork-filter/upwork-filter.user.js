@@ -11,6 +11,7 @@
 // @match        https://www.upwork.com/ab/jobs/search/*
 // @match        https://www.upwork.com/o/jobs/browse/*
 // @match        https://www.upwork.com/ab/find-work/
+// @match        https://www.upwork.com/nx/find-work/
 // @icon         https://github.githubassets.com/pinned-octocat.svg
 // @homepage     https://github.com/baturkacamak/userscripts/tree/master/upwork-filter#readme
 // @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/upwork-filter#readme
@@ -39,19 +40,19 @@
 
   const removeCountries = () => {
     const jobs = document.querySelectorAll('.job-tile');
-    document.querySelectorAll('.job-tile .client-location').forEach((el, index) => {
+    document.querySelectorAll('*[data-test="client-country"]').forEach((el, index) => {
       const country = el.innerHTML;
       if (
           country
           && country !== ''
           && COUNTRIES.filter(bannedCountry => country.includes(bannedCountry)).length > 0
       ) {
-        el.closest('.job-tile').parentNode.removeChild(el.closest('.job-tile'));
+        el.closest('.up-card-section').parentNode.removeChild(el.closest('.up-card-section'));
       }
     });
   };
 
   setInterval(removeCountries, 5000);
 
-  waitFor(['.job-tile', '.client-location']).then(removeCountries);
+  waitFor(['.up-card-section', '*[data-test="client-country"]']).then(removeCountries);
 }());
