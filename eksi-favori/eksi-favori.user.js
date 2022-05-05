@@ -40,6 +40,20 @@ class EksiFavori {
     });
   }
 
+  static sortTitles(e) {
+    const titles = Array.from(document.querySelectorAll('.topic-list li:not([id])'));
+    document.querySelector('.topic-list').innerHTML = '';
+    titles.sort((a, b) => {
+      // eslint-disable-next-line radix
+      const aFav = parseInt(a.querySelector('small').innerText);
+      // eslint-disable-next-line radix
+      const bFav = parseInt(b.querySelector('small').innerText);
+      return bFav - aFav;
+    }).forEach((item) => {
+      document.querySelector('.topic-list').appendChild(item);
+    });
+  }
+
   static sortEntries(e) {
     e.target.classList.toggle('nice-on');
     const entries = Array.from(document.querySelectorAll('[data-favorite-count]'));
@@ -76,6 +90,7 @@ class EksiFavori {
       document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getFavButton());
       document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getSeparator());
       document.querySelector('.nice-mode-toggler').appendChild(EksiFavori.getLengthButton());
+      EksiFavori.sortTitles();
     }
   }
 
