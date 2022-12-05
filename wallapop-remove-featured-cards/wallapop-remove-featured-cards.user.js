@@ -17,10 +17,33 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
-(function() {
-	'use strict';
-	const interval = setInterval(() => {
-		document.querySelectorAll('[tsladslotshopping] > a').forEach((card) => card.querySelector('tsl-svg-icon.ItemCardWide__icon--bumped') ? card.remove() : '');
-	}, 5000);
-})();
+/**
+ * The AdsFilter class is used to remove ads that have been bumped from the page.
+ * It provides a static method for initializing the filter and starting an interval
+ * that calls a method for removing the bumped ads.
+ */
+class AdsFilter {
+  // The time to wait before checking for the ads again (in milliseconds)
+  static DELAY = 5000;
 
+  // Removes ads that have been bumped
+  static removeBumpedAds() {
+    // Get all ads that have a 'tsladslotshopping' attribute
+    document.querySelectorAll('[tsladslotshopping] > a').forEach((ad) => {
+      // Check if the ad has a 'tsl-svg-icon.ItemCardWide__icon--bumped' child element
+      if (ad.querySelector('tsl-svg-icon.ItemCardWide__icon--bumped')) {
+        // Remove the ad
+        ad.remove();
+      }
+    });
+  }
+
+  // Initializes the filter by starting an interval that calls the 'removeBumpedAds()' method
+  static init() {
+    // Start an interval that calls the 'removeBumpedAds()' method every 5 seconds
+    setInterval(AdsFilter.removeBumpedAds, AdsFilter.DELAY);
+  }
+}
+
+// Initialize the filter when the script is run
+AdsFilter.init();
