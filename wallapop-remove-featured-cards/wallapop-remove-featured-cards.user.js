@@ -26,12 +26,22 @@ class AdsFilter {
   // The time to wait before checking for the ads again (in milliseconds)
   static DELAY = 5000;
 
-  // Removes ads that have been bumped
-  static removeBumpedAds() {
+  // A string representing the selector for ads that have been bumped
+  static BUMPED_AD_SELECTOR = 'tsl-svg-icon.ItemCardWide__icon--bumped';
+  // A string representing the selector for all ads
+  static ALL_ADS_SELECTOR = '[tsladslotshopping] > a';
+
+  /**
+   * The removeBumpedAds() method is used to remove ads that have been bumped
+   * from the page. It does this by getting all ads that have a 'tsladslotshopping'
+   * attribute and then checking if each ad has a 'tsl-svg-icon.ItemCardWide__icon--bumped'
+   * child element. If it does, the ad is removed from the page.
+   */
+    static removeBumpedAds() {
     // Get all ads that have a 'tsladslotshopping' attribute
-    document.querySelectorAll('[tsladslotshopping] > a').forEach((ad) => {
+    document.querySelectorAll(AdsFilter.ALL_ADS_SELECTOR).forEach((ad) => {
       // Check if the ad has a 'tsl-svg-icon.ItemCardWide__icon--bumped' child element
-      if (ad.querySelector('tsl-svg-icon.ItemCardWide__icon--bumped')) {
+      if (ad.querySelector(AdsFilter.BUMPED_AD_SELECTOR)) {
         // Remove the ad
         ad.remove();
       }
