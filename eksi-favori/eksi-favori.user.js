@@ -194,20 +194,22 @@ class EksiFavori {
         && document.querySelector('.nice-mode-toggler')) {
       // Get the separator element
       const separator = EksiFavori.getSeparator();
-      // Get the "favori" button element
+     // Get the "favori" button element
       const favButton = EksiFavori.getFavButton();
       // Get the "length" button element
       const lengthButton = EksiFavori.getLengthButton();
+      // Get the '.nice-mode-toggler' element
+      const niceModeToggler = document.querySelector('.nice-mode-toggler');
       // Append the separator element to the '.nice-mode-toggler' element
-      document.querySelector('.nice-mode-toggler').appendChild(separator);
+      niceModeToggler.appendChild(EksiFavori.getSeparator());
       // Append the "favori" button element to the '.nice-mode-toggler' element
-      document.querySelector('.nice-mode-toggler').appendChild(favButton);
+      niceModeToggler.appendChild(favButton);
       // Append the separator element to the '.nice-mode-toggler' element
-      document.querySelector('.nice-mode-toggler').appendChild(separator);
+      niceModeToggler.appendChild(EksiFavori.getSeparator());
       // Append the "length" button element to the '.nice-mode-toggler' element
-      document.querySelector('.nice-mode-toggler').appendChild(lengthButton);
+      niceModeToggler.appendChild(lengthButton);
       // Sort the titles by their favorite count
-      EksiFavori.sortTitles();
+      // EksiFavori.sortTitles();
     }
   }
   
