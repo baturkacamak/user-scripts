@@ -60,7 +60,7 @@ class EksiFavori {
    *
    * @param {Event} e - The event object for the click event.
    */
-  static sortEntriesByLength(e) {
+  static sortEntriesByLengthDescending(e) {
     // Toggle the 'nice-on' class on the event target
     e.target.classList.toggle('nice-on');
     // Get all entries in the entry list
@@ -112,7 +112,7 @@ class EksiFavori {
       document.querySelector('.topic-list').appendChild(item);
     });
   }
-  
+
   /**
    * Sorts the entries in the entry list by their favorite count in descending order.
    *
@@ -174,8 +174,8 @@ class EksiFavori {
     // Set the text content of the span element to "length"
     lengthButton.innerText = 'length';
     // Add a click event listener to the span element
-    // (the event listener will call the 'sortEntriesByLength()' method when the button is clicked)
-    lengthButton.addEventListener('click', EksiFavori.sortEntriesByLength);
+    // (the event listener will call the 'sortEntriesByLengthDescending()' method when the button is clicked)
+    lengthButton.addEventListener('click', EksiFavori.sortEntriesByLengthDescending);
     // Return the span element
     return lengthButton;
   }
@@ -212,7 +212,7 @@ class EksiFavori {
       // EksiFavori.sortTitles();
     }
   }
-  
+
   /**
    * Constructs the EksiFavori object.
    *
