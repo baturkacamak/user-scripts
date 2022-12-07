@@ -1,5 +1,27 @@
-# [Eksi Favori Sorter](https://github.com/baturkacamak/userscripts/tree/master/eksi-favori)
-
-## Description
+# Eksi Sorter
 
 This script will sort topic messages by "favori" count.
+
+## Installation Guide
+
+To install the Eksi Sorter userscript, follow these steps:
+
+1. Install a userscript manager like [Tampermonkey](https://tampermonkey.net/) or [Greasemonkey](https://www.greasespot.net/). These programs allow you to manage userscripts and run them on websites.
+
+2. Click on the following link to install the script: [eksi-favori.user.js](https://github.com/baturkacamak/userscripts/raw/master/eksi-favori/eksi-favori.user.js)
+
+3. Your userscript manager should open and display information about the script. Click on the "Install" button to install the script.
+
+4. After the script is installed, visit a topic page on the [Eksisozluk](https://eksisozluk.com/) website. You should see two new buttons labeled "favori" and "length" at the top of the entry list.
+
+5. Clicking on the "favori" button will sort the entries by their "favori" count in descending order, and clicking on the "length" button will sort the entries by their length in descending order. Clicking on the button again will reverse the sorting order.
+
+That's it! You can now use the Eksi Sorter script to sort entries on the Eksisozluk website.
+
+## Usage
+
+After installing the script, visit a topic page on the [Eksisozluk](https://eksisozluk.com/) website. You should see two new buttons labeled "favori" and "length" at the top of the entry list. Clicking on the "favori" button will sort the entries by their "favori" count in descending order, and clicking on the "length" button will sort the entries by their length in descending order. Clicking on the button again will reverse the sorting order.
+
+## License
+
+This script is licensed under the MIT License. See [LICENSE](https://github.com/baturkacamak/userscripts/blob/master/eksi-favori/LICENSE) for more information.
