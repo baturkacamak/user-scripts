@@ -6,7 +6,6 @@
 // @description  This script will sort topic messages by "favori" count.
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
-// @icon         https://github.githubassets.com/pinned-octocat.svg
 // @homepage     https://github.com/baturkacamak/userscripts/tree/master/eksi-favori#readme
 // @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/eksi-favori#readme
 // @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-favori/eksi-favori.user.js
