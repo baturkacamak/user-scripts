@@ -36,6 +36,8 @@
     elem.appendChild(button);
   };
 
+   let chatContainer;
+
   // Set an interval to run a function every 1 second
   const interval = setInterval(() => {
     // Select the chat container element using a class selector
@@ -52,8 +54,9 @@
         for (const mutation of mutations) {
           // Loop through each added node in the mutation
           for (const node of mutation.addedNodes) {
+              console.log(node.querySelector("*[class*='request-:r0']"))
             // Check if the node is a message by searching for a specific class
-            if (node.classList && node.querySelector("*[class*='request-:r0']")) {
+            if (node.classList && node.querySelector("*[class*='request-:']")) {
               // Add the 'relative' class to the node
               node.classList.add('relative');
               // Call the 'addCopyButton' function, passing in the node as an argument
