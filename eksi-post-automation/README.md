@@ -2,7 +2,7 @@
 
 A Tampermonkey script that automatically loads all posts and deletes posts on eksisozluk.com
 
-**Please note that this script is intended for personal use only and use of this script is at your own risk.**
+**Please note that this script is intended for personal use only and use of this script is at your own risk. The developer of this script cannot be held responsible for any damages or issues that may arise from its use. Use at your own discretion.**
 
 ## Installation Guide
 
