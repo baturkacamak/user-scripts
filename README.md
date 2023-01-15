@@ -23,9 +23,6 @@ This repo contains a few of my UserScripts that I've build since 2010.
 -   [Youtube Comments Sidebar](https://github.com/baturkacamak/UserScripts/tree/master/youtube-comments-sidebar#readme
 ) - Moves Youtube comments to sidebar
 
-## OpenAI Chat
--   [Copy to Clipboard Button for Replies](https://github.com/baturkacamak/UserScripts/tree/master/copy-to-clipboard-button-for-replies#readme) - Adds a copy to clipboard button to each of your replies on https://chat.openai.com/chat
-
 ## Various
 -   [URL to URI](https://github.com/baturkacamak/UserScripts/tree/master/url-to-url#readme) - URL converter
 
