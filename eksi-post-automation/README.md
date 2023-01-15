@@ -20,8 +20,8 @@ To install the EksiSözlük - Load More Posts and Delete Posts Automation usersc
 
 ## Features
 
-- Automatically loads all posts on a topic page
-- Automatically deletes all posts on a topic page
+- Automatically loads all posts on profile page
+- Automatically deletes all posts on profile page
 
 ## Note
 
