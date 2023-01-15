@@ -27,3 +27,5 @@ This repo contains a few of my UserScripts that I've build since 2010.
 ## Various
 -   [URL to URI](https://github.com/baturkacamak/UserScripts/tree/master/url-to-url#readme) - URL converter
 
+### Disclaimer
+**Please note that these scripts are intended for personal use only and use of these scripts is at your own risk. I will not be held responsible for any damages or losses that may occur as a result of using these scripts. It is the responsibility of the user to comply with all applicable laws and regulations. Use of these scripts on any unauthorized website or network is strictly prohibited.**
