@@ -1,6 +1,6 @@
 # Userscripts
 
-This repo contains a few of my UserScripts that I've build since 2010.
+This repository contains a collection of my personal userscripts, developed and maintained since 2010. These scripts enhance the functionality of various websites and platforms by automating repetitive tasks, adding new features and improving the overall user experience.
 
 ## Whatsapp
 -   [Whatsapp Obfuscator](https://github.com/baturkacamak/UserScripts/tree/master/whatsapp-obfuscator#readme) - Obfuscate Whatsapp Web chatlist and removes profile photos
