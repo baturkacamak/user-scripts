@@ -7,9 +7,7 @@ A Tampermonkey script that automatically loads all posts and deletes posts on ek
 To install the EksiSözlük - Load More Posts and Delete Posts Automation userscript, follow these steps:
 
 1. Install a userscript manager like [Tampermonkey](https://tampermonkey.net/) or [Greasemonkey](https://www.greasespot.net/). These programs allow you to manage userscripts and run them on websites.
-
 2. Click on the following link to install the script: [eksi-post-automation.user.js](https://github.com/baturkacamak/user-scripts/raw/eksi-post-automation/eksi-post-automation.user.js)
-
 3. Your userscript manager should open and display information about the script. Click on the "Install" button to install the script.
 
 ## How to use
