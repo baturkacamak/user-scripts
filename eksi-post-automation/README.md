@@ -2,8 +2,6 @@
 
 A Tampermonkey script that automatically loads all posts and deletes posts on eksisozluk.com
 
-**Please note that this script is intended for personal use only and use of this script is at your own risk. The developer of this script cannot be held responsible for any damages or issues that may arise from its use. Use at your own discretion.**
-
 ## Installation Guide
 
 To install the EksiSözlük - Load More Posts and Delete Posts Automation userscript, follow these steps:
@@ -26,3 +24,5 @@ To install the EksiSözlük - Load More Posts and Delete Posts Automation usersc
 ## Note
 
 The script is currently only compatible with the website https://eksisozluk.com/
+**Please note that this script is intended for personal use only and use of this script is at your own risk. The developer of this script cannot be held responsible for any damages or issues that may arise from its use. Use at your own discretion.**
+
