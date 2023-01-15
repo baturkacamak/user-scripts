@@ -24,7 +24,3 @@ To install the EksiSözlük - Load More Posts and Delete Posts Automation usersc
 ## Note
 
 The script is currently only compatible with the website https://eksisozluk.com/
-
-## License
-
-MIT
