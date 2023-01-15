@@ -75,14 +75,20 @@
          * @method
          */
         async confirmDeletion() {
+            // Return a new promise, so that we can use the 'await' keyword to wait for this function to complete
             return new Promise(resolve => {
+                // Set an interval to repeatedly check for the presence of the delete button
+                // This allows us to wait for the deletion modal to appear before clicking the button
                 const deleteInterval = setInterval(() => {
+                    // Call the findAndClickButton method to find and click the confirm button
                     this.findAndClickButton("kesin", "button", document);
+                    // Check if the modal is no longer visible by checking the display style property
+                    // If the modal is no longer visible, we clear the interval and resolve the promise
                     if ('none' === document.querySelector('#delete-self-form').style.display) {
                         clearInterval(deleteInterval);
                         resolve();
                     }
-                }, 2000);
+                }, 2000); // interval is set to 2 sec
             });
         }
 
