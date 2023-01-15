@@ -216,16 +216,20 @@
          * @constructor
          */
         constructor() {
+            // Create a new style element to add the item count to each topic item
             const itemCountStyle = document.createElement('style');
             itemCountStyle.innerHTML = `.topic-item::before { content: "Item " counter(my-sec-counter); counter-increment: my-sec-counter -1; } #profile-stats-section-content {counter-increment: my-sec-counter 11;}`;
             document.head.appendChild(itemCountStyle);
 
             this.loadMoreButton = document.querySelector('.load-more-entries');
+            // Initialize the LoadMoreEntries object with the loadMoreButton and itemCountStyle
             this.loadEntries = new LoadMoreEntries(this.loadMoreButton, itemCountStyle);
 
             this.topicItems = document.querySelectorAll('.topic-item');
             this.deletePost = new PostDeleter(this.topicItems);
+            // Initialize the delete button with the text "Delete All Posts" and a callback function that calls the processTopicItems method on the deletePost object
             this.deleteButton = new MenuButton("Delete All Posts", () => this.deletePost.processTopicItems());
+            // Initialize the load all posts button with the text "Load All Posts" and a callback function that calls the loadAllEntries method on the loadEntries object
             this.loadAllPostsButton = new MenuButton('Load All Posts', () => this.loadEntries.loadAllEntries());
         }
 
