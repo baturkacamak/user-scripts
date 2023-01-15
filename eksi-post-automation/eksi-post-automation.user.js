@@ -157,7 +157,7 @@
          */
         clickLoadMoreButton() {
             this.loadMoreButton.click();
-            this.itemCountStyle.innerHTML = `.topic-item::before { content: "Item " counter(my-sec-counter); counter-increment: my-sec-counter -1; } #profile-stats-section-content {counter-increment: my-sec-counter ${document.querySelectorAll('.topic-item').length}};`;
+            this.itemCountStyle.innerHTML = `.topic-item::before { content: "Item " counter(my-sec-counter); counter-increment: my-sec-counter -1; } #profile-stats-section-content {counter-increment: my-sec-counter ${document.querySelectorAll('.topic-item').length + 1}};`;
         }
     }
 
