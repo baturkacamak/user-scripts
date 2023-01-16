@@ -1,9 +1,9 @@
 // ==UserScript==
 // @id           eksi-favori@https://github.com/baturkacamak/userscripts
-// @name         Eksi Sorter
+// @name         Eksi Advanced Topic Sorter
 // @namespace    https://github.com/baturkacamak/userscripts
 // @version      0.1
-// @description  This script will sort topic messages by "favori" count.
+// @description  @description This script provides a feature to sort topics by their number of favorites or length on the Eksisozluk website
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
 // @homepage     https://github.com/baturkacamak/userscripts/tree/master/eksi-favori#readme
