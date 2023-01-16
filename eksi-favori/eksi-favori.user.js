@@ -17,17 +17,20 @@
 // ==/UserScript==
 
 /**
-* An utility class for sorting entries and titles on the Eksisozluk website by favorite count and length.
-* The class provides methods for sorting entries and titles by favorite count or length,
-* and for creating buttons that can be used to trigger the sorting.
-**/
-class EksiFavori {
+ * @class EksiAdvancedTopicSorter
+ * @classdesc An utility class for sorting entries and titles on the Eksisozluk website by favorite count and length.
+ * The class provides methods for sorting entries and titles by favorite count or length,
+ * and for creating buttons that can be used to trigger the sorting.
+ */
+class EksiAdvancedTopicSorter {
   /**
    * Creates and returns a span element with the text " | ".
    *
    * This method creates a new span element, sets its inner HTML to " | ",
    * and returns it. The returned element can be used as a separator
    * between the "favori" and "length" buttons.
+   *
+   * @returns {HTMLElement} The separator element
    */
   static getSeparator() {
     // Create a new span element
@@ -267,4 +270,4 @@ class EksiFavori {
 /**
 * Initializes a new instance of the EksiFavori class, which adds the "favori" and "length" buttons to the page and sorts the topic list and entry list.
 */
-const eksiFavori = new EksiFavori();
+const eksiAdvancedTopicSorter = new EksiAdvancedTopicSorter();
