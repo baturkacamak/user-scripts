@@ -31,6 +31,17 @@
     });
 
     /**
+     * @function delay
+     * @async
+     * @param {number} second - Number of seconds to delay
+     * @return {Promise} A promise that resolves after the specified number of seconds
+     */
+    // Create a delay function that returns a promise
+    // The function takes a second parameter and sets a timeout for that many seconds before resolving the promise
+    const delay = (second) => new Promise((res) => setTimeout(res, second * 1000));
+
+
+    /**
      * @class EksiError
      * @extends Error
      * @desc A custom error class for handling errors in the Eksi Sözlük script.
@@ -409,6 +420,7 @@
                         const userProfileHtml = await this.fetchUserProfile(userUrl);
                         const userId = this.htmlParser.parseUserIdFromProfile(userProfileHtml);
                         await this.blockUser(userId);
+                        await delay(5);
                     }
                 }
             } catch (error) {
