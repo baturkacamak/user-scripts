@@ -2,7 +2,7 @@
 // @id           eksi-block-post-favorited-users@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Block Multiple Users in Bulk
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.1
+// @version      0.2
 // @description  This script allows the user to block multiple users in bulk on by fetching the list of users who have favorited a specific post
 // @author       Batur Kacamak
 // @copyright    2022+, Batur Kacamak (https://batur.info/)
@@ -420,7 +420,7 @@
                         const userProfileHtml = await this.fetchUserProfile(userUrl);
                         const userId = this.htmlParser.parseUserIdFromProfile(userProfileHtml);
                         await this.blockUser(userId);
-                        await delay(5);
+                        await delay(10);
                     }
                 }
             } catch (error) {
@@ -461,10 +461,14 @@
 
         /**
          * @function updateNotification
-         * @desc Updates the notification with the current number of blocked users
+         * @desc Updates the notification with the current number of blocked users. The timeout for the notification to disappear is set to 5 seconds if all users have been blocked, 15 seconds otherwise.
          */
         updateNotification() {
-            this.notification.show(`Engellenen kullanıcılar: ${this.currentBlocked} / ${this.totalUserCount}`);
+            let timeout = 15;
+            if (this.currentBlocked === this.totalUserCount) {
+                timeout = 5;
+            }
+            this.notification.show(`Engellenen kullanıcılar: ${this.currentBlocked} / ${this.totalUserCount}`, {timeout});
             this.currentBlocked++;
         }
 
@@ -483,6 +487,7 @@
             this.cssHandler = new EksiCSS();
             this.domHandler = new EksiDOM();
             this.notificationElement = null;
+            this.timeoutId = null;
         }
 
         /**
@@ -603,12 +608,14 @@
 
         /**
          * @function setAutoCloseTimeout
-         * @desc Sets a timeout to remove the notification element after a certain amount of time
+         * @desc Clears any previously set timeout and sets a new timeout to remove the notification element after the specified number of seconds.
+         * @param {number} timeout - The number of seconds before the notification should disappear. Default value is 10.
          */
-        setAutoCloseTimeout(timeout = 5000) {
-            setTimeout(() => {
+        setAutoCloseTimeout(timeout = 10) {
+            clearTimeout(this.timeoutId);
+            this.timeoutId = setTimeout(() => {
                 this.removeWithTransition();
-            }, timeout);
+            }, timeout * 1000);
         }
 
         /**
