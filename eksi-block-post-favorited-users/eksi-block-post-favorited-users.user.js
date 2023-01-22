@@ -5,7 +5,7 @@
 // @version      0.1
 // @description  This script allows the user to block multiple users in bulk on by fetching the list of users who have favorited a specific post
 // @author       Batur Kacamak
-// @copyright    2020+, Batur Kacamak (https://batur.info/)
+// @copyright    2022+, Batur Kacamak (https://batur.info/)
 // @match        https://eksisozluk.com/*
 // @grant        none
 // @homepage     https://github.com/baturkacamak/userscripts/tree/master/eksi-block-users-in-bulk#readme

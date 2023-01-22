@@ -12,9 +12,9 @@ To install the EksiSözlük - Block Multiple Users in Bulk userscript, follow th
 ## How to use
 
 1. Navigate to a page where posts are listed, such as a topic page or a user's profile page.
-2. Click on the three dots (...) next to a username.
-3. A new menu item titled "favorileyenleri blokla" (block favorites) will appear in the menu.
-4. Click on the "favorileyenleri blokla" button to block all users who have favorited the post. A pop-up will appear to show the current progress of the bulk block process, including the number of users blocked and the total number of users on the list.
+2. Click on the three dots (...) next to an username.
+3. A new menu item titled "favorileyenleri engelle" (block favorites) will appear in the menu.
+4. Click on the "favorileyenleri engelle" button to block all users who have favorited the post. A pop-up will appear to show the current progress of the bulk block process, including the number of users blocked and the total number of users on the list.
 
 ## Features
 
