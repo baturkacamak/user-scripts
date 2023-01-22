@@ -17,12 +17,11 @@
 // ==/UserScript==
 
 (function(url, data) {
-    'use strict';
 
-    const Endpoints = {
+    const Endpoints = Object.freeze({
         BLOCK: 'https://eksisozluk.com/userrelation/addrelation',
         FAVORITES: 'https://eksisozluk.com/entry/favorileyenler'
-    }
+    });
 
     /**
      * @class EksiError
@@ -235,6 +234,129 @@
     }
 
     /**
+     * @class EksiHtmlParser
+     * @desc A class for parsing HTML responses from Eksi Sözlük.
+     */
+    class EksiHtmlParser {
+
+        constructor() {
+            this.domHandler = new EksiDOM();
+        }
+
+        /**
+         * @function parseHtml
+         * @desc Parses the HTML string and returns a document object.
+         * @param {string} html - The HTML string to parse.
+         * @returns {HTMLDocument} - The parsed HTML document object.
+         */
+        parseHtml(html) {
+            return new DOMParser().parseFromString(html, 'text/html');
+        }
+
+        /**
+         * @function parseFavoritesHtml
+         * @desc Parses the HTML response of a request for the list of favorited users, and returns an array of URLs of the favorited users' profiles.
+         * @param {string} html - The HTML response of the request for the list of favorited users.
+         * @returns {Array<string>} - An array of URLs of the favorited users' profiles.
+         */
+        parseFavoritesHtml(html) {
+            const ul = this.parseHtml(html);
+            const anchorTags = this.domHandler.querySelectorAll('li a', ul);
+            const hrefs = [];
+            anchorTags.forEach((a) => {
+                if (a.href.includes('biri')) {
+                    hrefs.push(a.href);
+                }
+            });
+            return hrefs;
+        }
+
+        /**
+         * @function parseUserIdFromProfile
+         * @desc Parses the user id from the user's profile page HTML.
+         * @param {string} html - The HTML of the user's profile page.
+         * @returns {string} - The user id.
+         */
+        parseUserIdFromProfile(html) {
+            try {
+                const doc = this.parseHtml(html);
+                const input = this.domHandler.querySelector('#who');
+                if(input) {
+                    return input.value;
+                } else {
+                    console.log('input not found');
+                }
+            } catch (error) {
+                throw new EksiError(error.message, error.statusCode);
+            }
+        }
+    }
+
+    /**
+     * @class EksiCSS
+     * @desc A class for adding and manipulating CSS styles on the page
+     */
+    class EksiCSS {
+        /**
+         * @constructor
+         * @desc Initializes the class
+         */
+        constructor() {
+            this.styleTagId = 'eksi-css-style';
+            this.domHandler = new EksiDOM();
+        }
+
+        /**
+         * @function getStyleTag
+         * @desc Get the style tag from the page
+         * @returns {HTMLStyleElement} - The existing style tag
+         */
+        getStyleTag() {
+            return document.getElementById(this.styleTagId);
+        }
+
+        /**
+         * @function createStyleTag
+         * @desc Create a new style tag
+         * @returns {HTMLStyleElement} - The newly created style tag
+         */
+        createStyleTag() {
+            const style = this.domHandler.createElement('style');
+            style.id = this.styleTagId;
+            style.type = 'text/css';
+            this.domHandler.appendChild(document.head, style);
+            return style;
+        }
+
+        /**
+         * @function hasCSSAdded
+         * @desc Check if the given css already exists in the style tag
+         * @param {string} css - The css to be checked
+         * @returns {boolean} - Whether the css already exists in the style tag or not
+         */
+        hasCSSAdded(css) {
+            return this.getStyleTag().innerHTML.includes(css);
+        }
+
+        /**
+         * @function addCSS
+         * @desc Adds the given CSS to the page
+         * @param {string} css - The CSS to be added to the page
+         */
+        addCSS(css) {
+            let style = this.getStyleTag();
+            // If the style tag does not exist, create a new one
+            if (!style) {
+                style = this.createStyleTag();
+            }
+            // If the CSS has not been added before, append it to the style tag
+            if (!this.hasCSSAdded(css)) {
+                this.domHandler.appendChild(style, document.createTextNode(css));
+            }
+        }
+    }
+
+    /**
     * @class EksiBlockUsers
     * @desc A class for bulk blocking users on Eksi Sözlük.
     */
@@ -428,129 +550,6 @@
             setTimeout(() => {
                 this.notificationElement.remove();
             }, timeout);
-        }
-    }
-
-    /**
-     * @class EksiHtmlParser
-     * @desc A class for parsing HTML responses from Eksi Sözlük.
-     */
-    class EksiHtmlParser {
-
-        constructor() {
-            this.domHandler = new EksiDOM();
-        }
-
-        /**
-         * @function parseHtml
-         * @desc Parses the HTML string and returns a document object.
-         * @param {string} html - The HTML string to parse.
-         * @returns {HTMLDocument} - The parsed HTML document object.
-         */
-        parseHtml(html) {
-            return new DOMParser().parseFromString(html, 'text/html');
-        }
-
-        /**
-         * @function parseFavoritesHtml
-         * @desc Parses the HTML response of a request for the list of favorited users, and returns an array of URLs of the favorited users' profiles.
-         * @param {string} html - The HTML response of the request for the list of favorited users.
-         * @returns {Array<string>} - An array of URLs of the favorited users' profiles.
-         */
-        parseFavoritesHtml(html) {
-            const ul = this.parseHtml(html);
-            const anchorTags = this.domHandler.querySelectorAll('li a', ul);
-            const hrefs = [];
-            anchorTags.forEach((a) => {
-                if (a.href.includes('biri')) {
-                    hrefs.push(a.href);
-                }
-            });
-            return hrefs;
-        }
-
-        /**
-         * @function parseUserIdFromProfile
-         * @desc Parses the user id from the user's profile page HTML.
-         * @param {string} html - The HTML of the user's profile page.
-         * @returns {string} - The user id.
-         */
-        parseUserIdFromProfile(html) {
-            try {
-                const doc = this.parseHtml(html);
-                const input = this.domHandler.querySelector('#who');
-                if(input) {
-                    return input.value;
-                } else {
-                    console.log('input not found');
-                }
-            } catch (error) {
-                throw new EksiError(error.message, error.statusCode);
-            }
-        }
-    }
-
-    /**
-     * @class EksiCSS
-     * @desc A class for adding and manipulating CSS styles on the page
-     */
-    class EksiCSS {
-        /**
-     * @constructor
-     * @desc Initializes the class
-     */
-        constructor() {
-            this.styleTagId = 'eksi-css-style';
-            this.domHandler = new EksiDOM();
-        }
-
-        /**
-     * @function getStyleTag
-     * @desc Get the style tag from the page
-     * @returns {HTMLStyleElement} - The existing style tag
-     */
-        getStyleTag() {
-            return document.getElementById(this.styleTagId);
-        }
-
-        /**
-     * @function createStyleTag
-     * @desc Create a new style tag
-     * @returns {HTMLStyleElement} - The newly created style tag
-     */
-        createStyleTag() {
-            const style = this.domHandler.createElement('style');
-            style.id = this.styleTagId;
-            style.type = 'text/css';
-            this.domHandler.appendChild(document.head, style);
-            return style;
-        }
-
-        /**
-     * @function hasCSSAdded
-     * @desc Check if the given css already exists in the style tag
-     * @param {string} css - The css to be checked
-     * @returns {boolean} - Whether the css already exists in the style tag or not
-     */
-        hasCSSAdded(css) {
-            return this.getStyleTag().innerHTML.includes(css);
-        }
-
-        /**
-     * @function addCSS
-     * @desc Adds the given CSS to the page
-     * @param {string} css - The CSS to be added to the page
-     */
-        addCSS(css) {
-            let style = this.getStyleTag();
-            // If the style tag does not exist, create a new one
-            if (!style) {
-                style = this.createStyleTag();
-            }
-            // If the CSS has not been added before, append it to the style tag
-            if (!this.hasCSSAdded(css)) {
-                this.domHandler.appendChild(style, document.createTextNode(css));
-            }
         }
     }
 
