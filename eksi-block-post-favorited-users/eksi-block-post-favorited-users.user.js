@@ -280,7 +280,7 @@
         parseUserIdFromProfile(html) {
             try {
                 const doc = this.parseHtml(html);
-                const input = this.domHandler.querySelector('#who');
+                const input = this.domHandler.querySelector('#who', doc);
                 if(input) {
                     return input.value;
                 } else {
@@ -445,7 +445,7 @@
          * @desc Updates the notification with the current number of blocked users
          */
         updateNotification() {
-            this.notification.show(`${this.currentBlocked} blocked out of ${this.totalUserCount}`);
+            this.notification.show(`Engellenen kullanıcılar: ${this.currentBlocked} / ${this.totalUserCount}`);
             this.currentBlocked++;
         }
 
@@ -463,6 +463,7 @@
         constructor() {
             this.cssHandler = new EksiCSS();
             this.domHandler = new EksiDOM();
+            this.notificationElement = null;
         }
 
         /**
@@ -474,11 +475,26 @@
          * @param {number} options.timeout - The timeout for removing the notification element
          */
         show(message, options = {}) {
-            this.applyStyles(options.css);
-            this.createElement(message);
-            this.createCloseButton();
-            this.appendNotificationToDOM();
+            if(!this.notificationElement) {
+                this.applyStyles(options.css);
+                this.createElement(message);
+                this.createCloseButton();
+                this.appendNotificationToDOM();
+            } else {
+                this.updateMessage(message);
+            }
             this.setAutoCloseTimeout(options.timeout);
+        }
+
+        /**
+         * @function updateMessage
+         * @desc Update the message of the current notification element
+         * @param {string} message - The message to be displayed in the notification
+         */
+        updateMessage(message) {
+            if(this.notificationElement) {
+                this.domHandler.querySelector('p', this.notificationElement).innerHTML = message;
+            }
         }
 
         /**
@@ -487,18 +503,41 @@
          * @param {string} css - The css to be applied to the notification container
          */
         applyStyles(css) {
-            let defaultCSS = `.notification-container {
+            let defaultCSS = `
+            .eksi-notification-container {
                 position: fixed;
                 top: 20px;
                 right: 20px;
                 background-color: #222;
                 color: #fff;
-                padding: 10px;
+                padding: 1.4rem 3rem;
                 border-radius: 5px;
                 font-size: 14px;
                 z-index: 100000;
-                transition: all 0.5s ease;
-            }`;
+                transition: all 1s ease;
+                box-shadow: 0 0 9px #EEE;
+            }
+            .eksi-notification-container.show {
+                opacity: 1;
+                max-height: 100%;
+            }
+            .eksi-notification-container.hidden {
+                opacity: 0;
+                max-height: 0;
+            }
+            .eksi-notification-container p {
+                padding: 0;
+                margin: 0;
+            }
+            .eksi-close-button {
+               position: absolute;
+               right: 10px;
+               top: 0;
+               z-index: 20;
+               cursor: pointer;
+               padding: 5px;
+            }
+            `;
 
             // If custom styles have not been passed, use the default styles
             if(!css) {
@@ -516,8 +555,9 @@
          */
         createElement(message) {
             this.notificationElement = this.domHandler.createElement('div');
-            this.domHandler.addClass(this.notificationElement, 'notification-container')
+            this.domHandler.addClass(this.notificationElement, 'eksi-notification-container')
             this.notificationElement.innerHTML = `<p>${message}</p>`;
+            this.showWithTransition();
         }
 
         /**
@@ -527,9 +567,9 @@
         createCloseButton() {
           let closeButton = this.domHandler.createElement('span');
           closeButton.innerHTML = 'X';
-          this.domHandler.addClass(closeButton, 'close-button');
+          this.domHandler.addClass(closeButton, 'eksi-close-button');
           this.domHandler.addEventListener(closeButton, 'click', () => {
-              this.notificationElement.remove();
+              this.removeWithTransition();
           });
           this.domHandler.appendChild(this.notificationElement, closeButton);
         }
@@ -546,10 +586,34 @@
          * @function setAutoCloseTimeout
          * @desc Sets a timeout to remove the notification element after a certain amount of time
          */
-        setAutoCloseTimeout(timeout = 30000) {
+        setAutoCloseTimeout(timeout = 5000) {
             setTimeout(() => {
-                this.notificationElement.remove();
+                this.removeWithTransition();
             }, timeout);
+        }
+
+        /**
+         * @function removeWithTransition
+         * @desc Removes the notification element with a transition effect by removing the 'show' class and adding the 'hidden' class.
+         */
+        removeWithTransition() {
+            this.domHandler.removeClass(this.notificationElement, 'show');
+            this.domHandler.addClass(this.notificationElement, 'hidden');
+            this.domHandler.addEventListener(this.notificationElement, 'transitionend', () => {
+                this.notificationElement.remove();
+            });
+        }
+
+        /**
+         * @function showWithTransition
+         * @desc Add the 'hidden' class and then remove it after a certain amount of time to show the notification with a transition effect
+         */
+        showWithTransition() {
+            this.domHandler.addClass(this.notificationElement, 'hidden');
+            setTimeout(() => {
+                this.domHandler.removeClass(this.notificationElement, 'hidden');
+                this.domHandler.addClass(this.notificationElement, 'show');
+            }, 500);
         }
     }
 
@@ -570,10 +634,10 @@
         createMenuItemElements() {
             const newItem = this.domHandler.createElement('li');
             const newAnchor = this.domHandler.createElement('a');
-            newAnchor.setAttribute('title', 'favorileyenleri blokla');
-            newAnchor.setAttribute('aria-label', 'favorileyenleri blokla');
-            newAnchor.innerText = 'favorileyenleri blokla';
-            this.domHandler(newItem, newAnchor);
+            newAnchor.setAttribute('title', 'favorileyenleri engelle');
+            newAnchor.setAttribute('aria-label', 'favorileyenleri engelle');
+            newAnchor.innerText = 'favorileyenleri engelle';
+            this.domHandler.appendChild(newItem, newAnchor);
             return newItem;
         }
 
@@ -616,7 +680,7 @@
                 // Create a menu item for blocking multiple users
                 const menuItem = this.createMenuItem(entryId);
                 // Append the menu item to the dropdown menu
-                this.domHandler(dropdownMenu, menuItem);
+                this.domHandler.appendChild(dropdownMenu, menuItem);
             });
         }
     }
