@@ -10,9 +10,10 @@ This repository contains a collection of my personal userscripts, developed and 
 -   [Upwork Filter](https://github.com/baturkacamak/UserScripts/tree/master/upwork-filter#readme) - Filter jobs by country
 
 ## Eksi Sozluk
--   [Eksi Olay](https://github.com/baturkacamak/UserScripts/tree/master/eksi-olay#readme) - Eksi olay notification
--   [Eksi Favori Sorter](https://github.com/baturkacamak/UserScripts/tree/master/eksi-favori#readme) - Eksi favori sorter
--   [EksiSözlük - Load More Posts and Delete Posts Automation](https://github.com/baturkacamak/UserScripts/tree/master/eksi-post-automation#readme) - Automatically loads all posts and deletes posts on the Eksisozluk website.
+- [Eksi Olay](https://github.com/baturkacamak/UserScripts/tree/master/eksi-olay#readme) - Eksi olay notification
+- [Eksi Favori Sorter](https://github.com/baturkacamak/UserScripts/tree/master/eksi-favori#readme) - Eksi favori sorter
+- [EksiSözlük - Load More Posts and Delete Posts Automation](https://github.com/baturkacamak/UserScripts/tree/master/eksi-post-automation#readme) - Automatically loads all posts and deletes posts on the Eksisozluk website.
+- [EksiSözlük - Block Multiple Users in Bulk](https://github.com/baturkacamak/UserScripts/tree/master/eksi-block-post-favorited-users#readme) - Block multiple users who favorited a post in bulk. 
 
 ## Lingualeo
 -   [Lingualeo Speak](https://github.com/baturkacamak/UserScripts/tree/master/lingualeo-speak#readme) - Lingualeo Speaker
