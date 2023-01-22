@@ -2,7 +2,7 @@
 // @id           eksi-block-post-favorited-users@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Block Multiple Users in Bulk
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.2
+// @version      0.3.0
 // @description  This script allows the user to block multiple users in bulk on by fetching the list of users who have favorited a specific post
 // @author       Batur Kacamak
 // @copyright    2022+, Batur Kacamak (https://batur.info/)
@@ -389,6 +389,8 @@
             this.notification = new EksiNotification();
             this.totalUserCount = 0;
             this.currentBlocked = 1;
+            this.timeout = 15;
+            this.delay = 10;
         }
 
         /**
@@ -420,7 +422,7 @@
                         const userProfileHtml = await this.fetchUserProfile(userUrl);
                         const userId = this.htmlParser.parseUserIdFromProfile(userProfileHtml);
                         await this.blockUser(userId);
-                        await delay(10);
+                        await delay(this.delay);
                     }
                 }
             } catch (error) {
@@ -461,17 +463,44 @@
 
         /**
          * @function updateNotification
-         * @desc Updates the notification with the current number of blocked users. The timeout for the notification to disappear is set to 5 seconds if all users have been blocked, 15 seconds otherwise.
+         * @desc Updates the notification with the current number of blocked users
          */
         updateNotification() {
-            let timeout = 15;
-            if (this.currentBlocked === this.totalUserCount) {
-                timeout = 5;
-            }
-            this.notification.show(`Engellenen kullanıcılar: ${this.currentBlocked} / ${this.totalUserCount}`, {timeout});
-            this.currentBlocked++;
+            this.calculateTimeout();
+            this.updateNotificationMessage();
+            this.incrementBlockedCount();
         }
 
+        /**
+         * @function calculateTimeout
+         * @desc Calculates the timeout for the notification based on the current number of blocked users
+         */
+        calculateTimeout() {
+            if (this.currentBlocked === this.totalUserCount) {
+                this.timeout = 5;
+            }
+        }
+
+        /**
+         * @function updateNotificationMessage
+         * @desc Updates the message of the notification
+         */
+        updateNotificationMessage() {
+            this.notification.show(`Engellenen kullanıcılar: ${this.currentBlocked} / ${this.totalUserCount}`, {timeout: this.timeout});
+            if (5 !== this.timeout) {
+                this.notification.startCountdownTimer(this.delay);
+            } else {
+                this.notification.startCountdownTimer('', 'Tum kullanicilar engellendi!');
+            }
+        }
+
+        /**
+         * @function incrementBlockedCount
+         * @desc Increments the current number of blocked users
+         */
+        incrementBlockedCount() {
+            this.currentBlocked++;
+        }
     }
 
     /**
@@ -488,6 +517,7 @@
             this.domHandler = new EksiDOM();
             this.notificationElement = null;
             this.timeoutId = null;
+            this.countdownIntervalId = null;
         }
 
         /**
@@ -616,6 +646,50 @@
             this.timeoutId = setTimeout(() => {
                 this.removeWithTransition();
             }, timeout * 1000);
+        }
+
+        /**
+         * @function createCountdownTimer
+         * @desc Creates a countdown timer element
+         * @return {HTMLElement} The countdown timer element
+         */
+        createCountdownTimer() {
+            let countdownTimer = this.domHandler.createElement('div');
+            countdownTimer.classList.add('countdown-timer');
+            return countdownTimer;
+        }
+
+        /**
+         * @function getCountdownTimer
+         * @desc Gets the countdown timer element if it exists, otherwise creates a new one
+         * @return {HTMLElement} The countdown timer element
+         */
+        getCountdownTimer() {
+            let countdownTimer = this.domHandler.querySelector('.countdown-timer');
+            if(!countdownTimer) {
+                countdownTimer = this.createCountdownTimer();
+                this.domHandler.querySelector('.eksi-notification-container').appendChild(countdownTimer);
+            }
+            return countdownTimer;
+        }
+
+        /**
+         * @function startCountdownTimer
+         * @desc Starts a countdown timer for the next blocked user
+         * @param {number} timeout - The timeout for the countdown timer in seconds
+         * @param {string} message - The message to be displayed before the countdown timer
+         */
+        startCountdownTimer(timeout, message = 'Siradaki: ') {
+            let countdownTimer = this.getCountdownTimer();
+            let countdown = timeout;
+            countdownTimer.innerHTML = `${message}${countdown}`;
+            this.countdownIntervalId = setInterval(() => {
+                countdown--;
+                countdownTimer.innerHTML = `${message}${countdown}`;
+                if (countdown <= 0) {
+                    clearInterval(this.countdownIntervalId);
+                }
+            }, 1000);
         }
 
         /**
