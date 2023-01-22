@@ -18,6 +18,13 @@
 
 (function(url, data) {
 
+    /**
+     * @constant Endpoints
+     * @type {Object}
+     * @desc An object containing the endpoints for different actions.
+     * @property {string} BLOCK - The endpoint for blocking a user.
+     * @property {string} FAVORITES - The endpoint for fetching the users who have favorited an entry.
+     */
     const Endpoints = Object.freeze({
         BLOCK: 'https://eksisozluk.com/userrelation/addrelation',
         FAVORITES: 'https://eksisozluk.com/entry/favorileyenler'
