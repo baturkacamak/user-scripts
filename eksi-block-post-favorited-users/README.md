@@ -22,6 +22,10 @@ To install the EksiSözlük - Block Multiple Users in Bulk userscript, follow th
 - Shows the number of blocked users, total number of users in the list, and the username of the user being blocked.
 - Easy to use and lightweight script.
 
+## Technical TODO
+- Apply decorator pattern for `EksiHtmlParser`
+- Separate `EksiNotification` into smaller classes
+
 ## Notes
 
 - This script only works on the Eksi Sözlük website and may not work if the website's structure changes.
