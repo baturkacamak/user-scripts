@@ -1,5 +1,5 @@
 // ==UserScript==
-// @id           eksi-block-users@https://github.com/baturkacamak/userscripts
+// @id           eksi-block-post-favorited-users@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Block Multiple Users in Bulk
 // @namespace    https://github.com/baturkacamak/userscripts
 // @version      0.1
@@ -8,10 +8,10 @@
 // @copyright    2022+, Batur Kacamak (https://batur.info/)
 // @match        https://eksisozluk.com/*
 // @grant        none
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/eksi-block-users-in-bulk#readme
-// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/eksi-block-users-in-bulk#readme
-// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-block-users-in-bulk/eksi-block-users-in-bulk.user.js
-// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/eksi-block-users-in-bulk/eksi-block-users-in-bulk.user.js
+// @homepage     https://github.com/baturkacamak/userscripts/tree/master/eksi-block-post-favorited-users.user.js#readme
+// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/eksi-block-post-favorited-users.user.js#readme
+// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-block-post-favorited-users.user.js/eksi-block-post-favorited-users.user.js.user.js
+// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/eksi-block-post-favorited-users.user.js/eksi-block-post-favorited-users.user.js.user.js
 // @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
