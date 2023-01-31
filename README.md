@@ -14,6 +14,7 @@ This repository contains a collection of my personal userscripts, developed and 
 - [Eksi Favori Sorter](https://github.com/baturkacamak/UserScripts/tree/master/eksi-favori#readme) - Eksi favori sorter
 - [EksiSözlük - Load More Posts and Delete Posts Automation](https://github.com/baturkacamak/UserScripts/tree/master/eksi-post-automation#readme) - Automatically loads all posts and deletes posts on the Eksisozluk website.
 - [EksiSözlük - Block Multiple Users in Bulk](https://github.com/baturkacamak/UserScripts/tree/master/eksi-block-post-favorited-users#readme) - Block multiple users who favorited a post in bulk. 
+- [EksiSözlük - Post Loader and Appender for Trash](https://github.com/baturkacamak/UserScripts/tree/master/eksi-post-loader-apprender-trash#readme) - Loads and appends the contents of multiple pages in trash page
 
 ## Lingualeo
 -   [Lingualeo Speak](https://github.com/baturkacamak/UserScripts/tree/master/lingualeo-speak#readme) - Lingualeo Speaker
