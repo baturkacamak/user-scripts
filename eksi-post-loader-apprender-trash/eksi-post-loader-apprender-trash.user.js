@@ -1,0 +1,35 @@
+// ==UserScript==
+// @name         EksiSözlük - Post Loader and Appender for Trash
+// @namespace    https://eksisozluk.com/
+// @version      0.1
+// @description  Load pagination content and append it to the current list in trash page
+// @author       Batur Kacamak
+// @match        https://eksisozluk.com/cop
+// @grant        none
+// @run-at       document-idle
+// @updateURL    https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
+// @downloadURL  https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
+// @icon         https://eksisozluk.com/favicon.ico
+// ==/UserScript==
+
+(function() {
+ async function getHTML(currentPage, lastPage) {
+    const trashItems = document.querySelector("#trash-items");
+
+    while (currentPage <= lastPage) {
+        const response = await fetch(`https://eksisozluk.com/cop?p=${currentPage}`);
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const newTrashItems = doc.querySelectorAll("#trash-items li");
+        newTrashItems.forEach(item => trashItems.appendChild(item));
+        currentPage++;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+}
+
+    let lastPage = document.querySelector('.pager a.last').innerText;
+    let currentPage = 2;
+
+    getHTML(currentPage, lastPage);
+})();
