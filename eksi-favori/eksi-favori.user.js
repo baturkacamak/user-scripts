@@ -2,7 +2,7 @@
 // @id           eksi-favori@https://github.com/baturkacamak/userscripts
 // @name         Eksi Advanced Topic Sorter
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.1
+// @version      1.1
 // @description  This script provides a feature to sort topics by their number of favorites or length on the Eksisozluk website
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
@@ -83,15 +83,26 @@ class EksiFavori {
    * @param {Function} sortingCriteria - The sorting criteria function.
    * @returns {HTMLElement} The button element.
    */
-  static createSortButton(text, sortingCriteria) {
+  static createSortButton(text, sortingCriteria = false) {
     const button = document.createElement('span');
     button.innerText = text;
+    button.style.cursor = 'pointer';
     button.addEventListener('click', () => {
-      button.classList.toggle('nice-on');
-      const items = Array.from(document.querySelectorAll('[data-favorite-count]'));
-      document.querySelector('#entry-item-list').innerHTML = '';
-      EksiFavori.sortItems(items, sortingCriteria);
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams(url.search);
+
+      if (text === 'dailynice') {
+        params.set('a', 'dailynice');
+        url.search = params.toString();
+        window.location.href = url.toString();
+      } else {
+        button.classList.toggle('nice-on');
+        const items = Array.from(document.querySelectorAll('[data-favorite-count]'));
+        document.querySelector('#entry-item-list').innerHTML = '';
+        EksiFavori.sortItems(items, sortingCriteria);
+      }
     });
+
     return button;
   }
 
@@ -100,14 +111,15 @@ class EksiFavori {
    */
   static initializeButtonsAndSort() {
     if (!document.querySelector('#entry-item-list.favorite-on') && document.querySelector('.sub-title-menu')) {
-      const separator = EksiFavori.createSeparator();
       const favButton = EksiFavori.createSortButton('favori', EksiFavori.sortTitlesByFavoriteCountDescending);
       const lengthButton = EksiFavori.createSortButton('length', EksiFavori.sortEntriesByLengthDescending);
+      const dailyniceButton = EksiFavori.createSortButton('dailynice');
       const niceModeToggler = document.querySelector('.sub-title-menu');
-      niceModeToggler.appendChild(separator);
       niceModeToggler.appendChild(favButton);
-      niceModeToggler.appendChild(separator);
+      niceModeToggler.appendChild(EksiFavori.createSeparator());
       niceModeToggler.appendChild(lengthButton);
+      niceModeToggler.appendChild(EksiFavori.createSeparator());
+      niceModeToggler.appendChild(dailyniceButton);
     }
   }
 
