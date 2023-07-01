@@ -27,7 +27,7 @@ class Sorter {
    * @param {Function} sortingCriteria - The sorting criteria function.
    */
   static sortItems(items, sortingCriteria) {
-    items.sort(sortingCriteria).forEach((item, index) => {
+    items.sort(sortingCriteria).forEach((item) => {
       DOMManipulator.appendChildToEntryItemList(item);
     });
   }
@@ -96,9 +96,7 @@ class WeightSortingStrategy {
     const timeDifference = currentTime - entryDate;
     // Convert the time difference to a suitable unit (e.g., minutes, hours, etc.) based on your requirements
     // For example, to get the time difference in minutes:
-    const minuteDifference = Math.floor(timeDifference / (1000 * 60));
-
-    return minuteDifference;
+    return Math.floor(timeDifference / (1000 * 60));
   }
 
   sort = (a, b) => {
