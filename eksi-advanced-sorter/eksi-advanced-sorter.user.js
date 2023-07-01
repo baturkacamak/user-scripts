@@ -2,7 +2,7 @@
 // @id           eksi-advanced-sorter@https://github.com/baturkacamak/userscripts
 // @name         Eksi Advanced Sorter
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      2.0.0
+// @version      2.0.1
 // @description  This script provides a feature to sort topics by their number of favorites or length on the Eksisozluk website
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
@@ -44,9 +44,21 @@ class LengthSortingStrategy {
    * @param {HTMLElement} b - The second entry element.
    * @returns {number} The comparison result for sorting.
    */
-  sort(a, b) {
-    return DOMManipulator.getEntryLength(b) - DOMManipulator.getEntryLength(a);
+  sort = (a, b) => {
+    return this.getEntryLength(b) - this.getEntryLength(a);
   }
+
+  /**
+   * Calculates the length of an entry.
+   * @param {HTMLElement} entry - The entry element.
+   * @returns {number} The length of the entry.
+   */
+  getEntryLength = (entry) => {
+    const content = entry.querySelector('.content');
+    const whitespace = [...content.textContent.matchAll(/(\s+| )/g)];
+    return whitespace.length;
+  }
+
 }
 
 /**
@@ -144,17 +156,6 @@ class ButtonCreator {
  */
 class DOMManipulator {
   /**
-   * Calculates the length of an entry.
-   * @param {HTMLElement} entry - The entry element.
-   * @returns {number} The length of the entry.
-   */
-  static getEntryLength(entry) {
-    const content = entry.querySelector('.content');
-    const whitespace = [...content.textContent.matchAll(/(\s+| )/g)];
-    return whitespace.length;
-  }
-
-  /**
    * Appends an item to the entry item list.
    * @param {HTMLElement} item - The item element to be appended.
    */
@@ -167,22 +168,23 @@ class DOMManipulator {
    */
   static initializeButtonsAndSort() {
     if (!document.querySelector('#entry-item-list.favorite-on') && document.querySelector('.sub-title-menu')) {
-      const favButton = ButtonCreator.createSortButton('favori', () => {
+
+      const sortFunction = (strategy) => {
         const items = Array.from(document.querySelectorAll('[data-favorite-count]'));
         document.querySelector('#entry-item-list').innerHTML = '';
-        Sorter.sortItems(items, new FavoriteCountSortingStrategy().sort);
+        Sorter.sortItems(items, new strategy().sort);
+      }
+
+      const favButton = ButtonCreator.createSortButton('favori', () => {
+        sortFunction(FavoriteCountSortingStrategy)
       });
 
       const lengthButton = ButtonCreator.createSortButton('length', () => {
-        const items = Array.from(document.querySelectorAll('[data-favorite-count]'));
-        document.querySelector('#entry-item-list').innerHTML = '';
-        Sorter.sortItems(items, new LengthSortingStrategy().sort);
+        sortFunction(LengthSortingStrategy)
       });
 
       const weightButton = ButtonCreator.createSortButton('weight', () => {
-        const items = Array.from(document.querySelectorAll('[data-favorite-count]'));
-        document.querySelector('#entry-item-list').innerHTML = '';
-        Sorter.sortItems(items, new WeightSortingStrategy().sort);
+        sortFunction(WeightSortingStrategy)
       });
 
       const dailyniceButton = ButtonCreator.createSortButton('dailynice', () => {
