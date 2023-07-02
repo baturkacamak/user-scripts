@@ -2,8 +2,8 @@
 // @id           wallapop-remove-featured-cards@https://github.com/baturkacamak/userscripts
 // @name         Wallapop Remove Featured Cards
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.0
-// @description  This script will move youtube comments to sidebar before related videos.
+// @version      1.0.1
+// @description  This script removes bumped ads from the Wallapop search page.
 // @author       Batur Kacamak
 // @copyright    2022+, Batur Kacamak (https://batur.info/)
 // @icon         https://github.githubassets.com/pinned-octocat.svg
@@ -14,49 +14,69 @@
 // @match        https://es.wallapop.com/app/search?*
 // @icon         https://es.wallapop.com/favicon.ico
 // @run-at       document-idle
-// @grant        unsafeWindow
+// @grant        none
 // ==/UserScript==
 
 /**
- * The AdsFilter class is used to remove ads that have been bumped from the page.
- * It provides a static method for initializing the filter and starting an interval
- * that calls a method for removing the bumped ads.
+ * Class representing an ad filter for removing bumped ads on Wallapop.
  */
 class AdsFilter {
-  // The time to wait before checking for the ads again (in milliseconds)
-  static DELAY = 5000;
+    /**
+     * The selector for bumped ads.
+     * @type {string}
+     */
+    static BUMPED_AD_SELECTOR = 'tsl-svg-icon.ItemCardWide__icon--bumped';
 
-  // A string representing the selector for ads that have been bumped
-  static BUMPED_AD_SELECTOR = 'tsl-svg-icon.ItemCardWide__icon--bumped';
-  // A string representing the selector for all ads
-  static ALL_ADS_SELECTOR = '[tsladslotshopping] > a';
+    /**
+     * The selector for all ads.
+     * @type {string}
+     */
+    static ALL_ADS_SELECTOR = '[tsladslotshopping] > a';
 
-    // Handle an ad by removing it if it has a 'tsl-svg-icon.ItemCardWide__icon--bumped' child element
-    static handleAd(ad) {
-        // Check if the ad has a 'tsl-svg-icon.ItemCardWide__icon--bumped' child element
-        if (ad.querySelector(AdsFilter.BUMPED_AD_SELECTOR)) {
-            // Remove the ad because it is a bumped ad
-            ad.remove();
-        }
+    /**
+     * Handles mutations and removes bumped ads from the page.
+     * @param {MutationRecord[]} mutations - The list of mutations.
+     */
+    /**
+     * Handles mutations and removes bumped ads from the page.
+     * @param {MutationRecord[]} mutations - The list of mutations.
+     */
+    static handleMutations(mutations) {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (AdsFilter.isBumpedAd(node)) {
+                    // Remove the ad because it is a bumped ad
+                    node.remove();
+                }
+            });
+        });
     }
 
-  /**
-   * The removeBumpedAds() method is used to remove ads that have been bumped
-   * from the page. It does this by getting all ads that have a 'tsladslotshopping'
-   * attribute and then checking if each ad has a 'tsl-svg-icon.ItemCardWide__icon--bumped'
-   * child element. If it does, the ad is removed from the page.
-   */
-    static removeBumpedAds() {
-        // Get all ads that have a 'tsladslotshopping' attribute
-        document.querySelectorAll(AdsFilter.ALL_ADS_SELECTOR).forEach(AdsFilter.handleAd);
+    /**
+     * Checks if the given node is a bumped ad.
+     * @param {Node} node - The node to check.
+     * @returns {boolean} - True if the node is a bumped ad, false otherwise.
+     */
+    static isBumpedAd(node) {
+        return (
+            node.nodeType === Node.ELEMENT_NODE &&
+            node.matches(AdsFilter.ALL_ADS_SELECTOR) &&
+            node.querySelector(AdsFilter.BUMPED_AD_SELECTOR)
+        );
     }
 
-  // Initializes the filter by starting an interval that calls the 'removeBumpedAds()' method
-  static init() {
-    // Start an interval that calls the 'removeBumpedAds()' method every 5 seconds
-    setInterval(AdsFilter.removeBumpedAds, AdsFilter.DELAY);
-  }
+    /**
+     * Initializes the ad filter by creating a MutationObserver and observing mutations.
+     */
+    static init() {
+        const observer = new MutationObserver(AdsFilter.handleMutations);
+        const observerConfig = {
+            childList: true,
+            subtree: true
+        };
+        observer.observe(document.body, observerConfig);
+    }
 }
 
-// Initialize the filter when the script is run
+// Initialize the ad filter when the script is run
 AdsFilter.init();
