@@ -6,12 +6,15 @@ This repository contains a collection of my personal userscripts, developed and 
 -   [Whatsapp Obfuscator](https://github.com/baturkacamak/UserScripts/tree/master/whatsapp-obfuscator#readme) - Obfuscate Whatsapp Web chatlist and removes profile photos
 -   [Whatsapp Send New](https://github.com/baturkacamak/UserScripts/tree/master/whatsapp-send-new#readme) - Send Whatsapp messages to people without adding them
 
+## Instagram
+-   [Instagram Story Anonymity Guard](https://github.com/baturkacamak/UserScripts/tree/master/instagram-story-anonymity-guard#readme) - Instagram Story Anonymity Guard
+
 ## Upwork
--   [Upwork Filter](https://github.com/baturkacamak/UserScripts/tree/master/upwork-filter#readme) - Filter jobs by country
+-   [Upwork Country Filter](https://github.com/baturkacamak/UserScripts/tree/master/upwork-country-filter#readme) - Filter jobs by country
 
 ## Eksi Sozluk
 - [Eksi Olay](https://github.com/baturkacamak/UserScripts/tree/master/eksi-olay#readme) - Eksi olay notification
-- [Eksi Favori Sorter](https://github.com/baturkacamak/UserScripts/tree/master/eksi-favori#readme) - Eksi favori sorter
+- [Eksi Advanced Sorter](https://github.com/baturkacamak/UserScripts/tree/master/eksi-advanced-sorter#readme) - Eksi Advanced Sorter
 - [EksiSözlük - Load More Posts and Delete Posts Automation](https://github.com/baturkacamak/UserScripts/tree/master/eksi-post-automation#readme) - Automatically loads all posts and deletes posts on the Eksisozluk website.
 - [EksiSözlük - Block Multiple Users in Bulk](https://github.com/baturkacamak/UserScripts/tree/master/eksi-block-post-favorited-users#readme) - Block multiple users who favorited a post in bulk. 
 - [EksiSözlük - Post Loader and Appender for Trash](https://github.com/baturkacamak/UserScripts/tree/master/eksi-post-loader-apprender-trash#readme) - Loads and appends the contents of multiple pages in trash page
