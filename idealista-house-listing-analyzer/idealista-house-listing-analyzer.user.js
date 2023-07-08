@@ -4,7 +4,7 @@
 // @namespace    https://github.com/baturkacamak/userscripts
 // @version      1.0.0
 // @description  Analyzes house listing statistics and displays the calculated score on Idealista pages
-// @match        https://www.idealista.com/inmueble/*
+// @match        https://www.idealista.com/*
 // @grant        GM_addStyle
 // @homepage     https://github.com/baturkacamak/user-scripts/tree/master/idealista-house-listing-analyzer#readme
 // @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/idealista-house-listing-analyzer#readme
@@ -13,160 +13,246 @@
 // @icon         https://idealista.com/favicon.ico
 // ==/UserScript==
 
-class CacheHandler {
+(() => {
+  const config = {
+    expirationDays: 1, // Default expiration days for cache
+    delayBetweenRequests: 2000, // Delay in milliseconds between each request
+    weights: {
+      visits: 0.0001,
+      friendShares: 0.3,
+      emailContacts: 0.6,
+      favorites: 0.4,
+      recency: 0.2, // Increased weight for recency
+    },
+  };
+
+  class DOMMutationObserver {
+    constructor(callback) {
+      this.observer = new MutationObserver(callback);
+    }
+
+    observe(target, selector) {
+      this.observer.observe(target, {
+        childList: true,
+        subtree: true,
+      });
+    }
+  }
+
+  class HttpService {
+    static get(url) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader('Accept', '*/*');
+        xhr.setRequestHeader('Accept-Language',
+            'en-US,en;q=0.9,tr;q=0.8,nl;q=0.7');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+        xhr.onload = function() {
+          if (200 === xhr.status) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            reject(new Error('Failed to make the request'));
+          }
+        };
+
+        xhr.onerror = function() {
+          reject(new Error('Failed to make the request'));
+        };
+
+        xhr.send();
+      });
+    }
+  }
+
+  class CacheHandler {
     get(key) {
-        const value = localStorage.getItem(key);
-        if (value !== null) {
-            const { data, expires } = JSON.parse(value);
-            if (expires === null || new Date(expires) > new Date()) {
-                return data;
-            } else {
-                localStorage.removeItem(key);
-            }
+      const value = localStorage.getItem(key);
+      if (null !== value) {
+        const {data, expires} = JSON.parse(value);
+        if (null === expires || new Date(expires) > new Date()) {
+          return data;
         }
-        return null;
+        localStorage.removeItem(key);
+      }
+      return null;
     }
 
-    set(key, value, expirationDays = 2) {
-        const expires = expirationDays ? new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) : null;
-        localStorage.setItem(key, JSON.stringify({ data: value, expires: expires }));
+    set(key, value, expirationDays = config.expirationDays) {
+      const expires = expirationDays ?
+          new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
+          null;
+      localStorage.setItem(key, JSON.stringify({data: value, expires}));
     }
-}
+  }
 
-
-class HouseListingAnalyzer {
+  class HouseListingAnalyzer {
     constructor() {
-        this.extractor = new StatisticsExtractor();
-        this.scoreCalculator = new ScoreCalculator();
-        this.scoreDisplay = new ScoreDisplay();
-        this.cacheHandler = new CacheHandler();
-        this.init();
+      this.extractor = new StatisticsExtractor();
+      this.scoreCalculator = new ScoreCalculator();
+      this.cacheHandler = new CacheHandler();
+      this.anchorElements = document.getElementsByTagName('a');
+      this.domMutationObserver = new DOMMutationObserver(
+          this.handleMutation.bind(this),
+      );
+
+      this.observeAnchorElements();
     }
 
-    init() {
-        const listingId = this.extractor.extractListingId();
-        const cachedScore = this.cacheHandler.get(listingId);
-        if (cachedScore !== null) {
-            this.scoreDisplay.displayScore(cachedScore);
-        } else {
-            this.extractor.extractStatistics(listingId)
-                .then((statistics) => {
-                    const daysSincePublished = this.calculateDaysSincePublished(statistics.dateLine);
-                    const score = this.scoreCalculator.calculateScore(
-                        statistics.visits,
-                        statistics.friendShares,
-                        statistics.emailContacts,
-                        statistics.favorites,
-                        daysSincePublished
-                    );
-                    this.cacheHandler.set(listingId, score);
-                    this.scoreDisplay.displayScore(score);
-                })
-                .catch((error) => {
-                    console.error(error);
-                });
+    async init() {
+      for (const anchorElement of this.anchorElements) {
+        if (anchorElement.href.includes('/inmueble/')) {
+          await this.calculateAndDisplayScore(anchorElement);
         }
+      }
+    }
+
+    observeAnchorElements() {
+      this.domMutationObserver.observe(document.documentElement, 'a');
+    }
+
+    async handleMutation(mutationsList) {
+      for (const mutation of mutationsList) {
+        if ('childList' !== mutation.type) {
+          continue;
+        }
+
+        const {removedNodes, target} = mutation;
+        if (0 === removedNodes.length || 'SECTION' === target.nodeName) {
+          continue;
+        }
+
+        const anchorElements = target.querySelectorAll('a');
+        for (const anchorElement of anchorElements) {
+          if (!anchorElement.href.includes('/inmueble/')) {
+            continue;
+          }
+
+          await this.calculateAndDisplayScore(anchorElement);
+        }
+      }
+    }
+
+    async calculateAndDisplayScore(anchorElement) {
+      const listingId = this.extractor.extractListingId(anchorElement.href);
+      const cachedScore = this.cacheHandler.get(listingId);
+      if (null !== cachedScore) {
+        const scoreElement = document.createElement('span');
+        scoreElement.textContent = `(${cachedScore.toFixed(2)})`;
+        anchorElement.appendChild(scoreElement);
+      } else {
+        try {
+          const statistics = await this.extractor.extractStatistics(listingId);
+          const daysSincePublished = this.calculateDaysSincePublished(
+              statistics.dateLine,
+          );
+          const score = this.scoreCalculator.calculateScore(
+              statistics.visits,
+              statistics.friendShares,
+              statistics.emailContacts,
+              statistics.favorites,
+              daysSincePublished,
+          );
+          this.cacheHandler.set(listingId, score);
+
+          const scoreElement = document.createElement('span');
+          scoreElement.textContent = `(${score.toFixed(2)})`;
+          anchorElement.appendChild(scoreElement);
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } catch (error) {
+          console.error(error);
+        }
+      }
     }
 
     calculateDaysSincePublished(dateString) {
-        const dateRegex = /(\d+)\s+de\s+(\w+)/;
-        const [, day, month] = dateString.match(dateRegex);
-        const publishedDate = new Date(`${month} ${day}, ${new Date().getFullYear()}`);
+      if (!dateString) {
+        return 0; // or any default value you prefer when dateString is null
+      }
+      const dateRegex = /(\d+)\s+de\s+(\w+)/;
+      const [, day, month] = dateString.match(dateRegex);
+      const publishedDate = new Date(
+          `${month} ${day}, ${new Date().getFullYear()}`,
+      );
 
-        const currentDate = new Date();
-        const timeDiff = Math.abs(currentDate.getTime() - publishedDate.getTime());
-        return Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+      const currentDate = new Date();
+      const timeDiff = Math.abs(
+          currentDate.getTime() - publishedDate.getTime());
+      return Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
     }
-}
+  }
 
-class StatisticsExtractor {
-    extractListingId() {
-        const listingId = window.location.href.match(/\/inmueble\/(\d+)\//)[1];
-        return listingId;
+  class StatisticsExtractor {
+    extractListingId(url) {
+      if (!url) {
+        url = window.location.href;
+      }
+
+      return url.match(/\/inmueble\/(\d+)\//)[1];
     }
 
-    extractStatistics(listingId) {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            const url = `https://www.idealista.com/ajax/detailstatsview/${listingId}/`;
-
-            xhr.open("GET", url, true);
-            xhr.setRequestHeader("Accept", "*/*");
-            xhr.setRequestHeader("Accept-Language", "en-US,en;q=0.9,tr;q=0.8,nl;q=0.7");
-            xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    const response = JSON.parse(xhr.responseText);
-
-                    const dateLineMatch = response.plainhtml.match(/<p>Anuncio actualizado el (\d+ de \w+)<\/p>/);
-                    const dateLine = dateLineMatch ? dateLineMatch[1] : null;
-
-                    const visitsMatch = response.plainhtml.match(/<strong>(\d+)<\/strong><span>visitas<\/span>/);
-                    const visits = visitsMatch ? parseInt(visitsMatch[1]) : 0;
-
-                    const friendSharesMatch = response.plainhtml.match(/<strong>(\d+)<\/strong><span>envíos a amigos<\/span>/);
-                    const friendShares = friendSharesMatch ? parseInt(friendSharesMatch[1]) : 0;
-
-                    const emailContactsMatch = response.plainhtml.match(/<strong>(\d+)<\/strong><span>contactos por email<\/span>/);
-                    const emailContacts = emailContactsMatch ? parseInt(emailContactsMatch[1]) : 0;
-
-                    const favoritesMatch = response.plainhtml.match(/<strong>(\d+)<\/strong>\s*<span>veces guardado como favorito<\/span>/);
-                    const favorites = favoritesMatch ? parseInt(favoritesMatch[1]) : 0;
-
-                    resolve({ visits, friendShares, emailContacts, favorites, dateLine });
-                } else {
-                    reject(new Error("Failed to retrieve statistics"));
-                }
-            };
-
-            xhr.onerror = function() {
-                reject(new Error("Failed to make the request"));
-            };
-
-            xhr.send();
-        });
-    }
-}
-
-class ScoreCalculator {
-    calculateScore(visits, friendShares, emailContacts, favorites, daysSincePublished) {
-        const weights = {
-            visits: 0.1,
-            friendShares: 0.2,
-            emailContacts: 0.4,
-            favorites: 0.3,
-            recency: 0.1, // Adjusted weight for recency
-        };
-
-        const recencyFactor = 1 / (1 + Math.sqrt(daysSincePublished));
-
-        return (
-            visits * weights.visits +
-            friendShares * weights.friendShares +
-            emailContacts * weights.emailContacts +
-            favorites * weights.favorites -
-            recencyFactor * weights.recency
+    async extractStatistics(listingId) {
+      try {
+        const response = await HttpService.get(
+            `https://www.idealista.com/ajax/detailstatsview/${listingId}/`,
         );
+
+        return this.parseStatisticsFromResponse(response);
+      } catch (error) {
+        throw new Error('Failed to retrieve statistics');
+      }
     }
-}
 
-class ScoreDisplay {
-    displayScore(score) {
-        const scoreDisplay = document.createElement("div");
-        scoreDisplay.textContent = "Score: " + score.toFixed(2);
-        scoreDisplay.style.position = "fixed";
-        scoreDisplay.style.top = "10px";
-        scoreDisplay.style.right = "10px";
-        scoreDisplay.style.padding = "10px";
-        scoreDisplay.style.backgroundColor = "#333";
-        scoreDisplay.style.color = "#fff";
-        scoreDisplay.style.fontFamily = "Arial, sans-serif";
-        scoreDisplay.style.fontSize = "16px";
-        scoreDisplay.style.zIndex = "9999";
+    parseStatisticsFromResponse(response) {
+      const statistics = {
+        visits: 0,
+        friendShares: 0,
+        emailContacts: 0,
+        favorites: 0,
+        dateLine: null,
+      };
 
-        document.body.appendChild(scoreDisplay);
+      const patternMap = {
+        visits: /<strong>(\d+)<\/strong><span>visitas<\/span>/,
+        friendShares: /<strong>(\d+)<\/strong><span>envíos a amigos<\/span>/,
+        emailContacts: /<strong>(\d+)<\/strong><span>contactos por email<\/span>/,
+        favorites: /<strong>(\d+)<\/strong>\s*<span>veces guardado como favorito<\/span>/,
+        dateLine: /<p>Anuncio actualizado el (\d+ de \w+)<\/p>/,
+      };
+
+      for (const [key, pattern] of Object.entries(patternMap)) {
+        const match = response.plainhtml.match(pattern);
+        if (match) {
+          statistics[key] = match[1];
+        }
+      }
+
+      return statistics;
     }
-}
+  }
 
-const houseListingAnalyzer = new HouseListingAnalyzer();
+  class ScoreCalculator {
+    calculateScore(
+        visits, friendShares, emailContacts, favorites, daysSincePublished,
+    ) {
+      const weights = config.weights;
+
+      const recencyFactor = Math.exp(-0.1 * daysSincePublished);
+
+      return (
+        visits * weights.visits +
+          friendShares * weights.friendShares +
+          emailContacts * weights.emailContacts +
+          favorites * weights.favorites +
+          recencyFactor * weights.recency
+      );
+    }
+  }
+
+  const houseListingAnalyzer = new HouseListingAnalyzer();
+  (async () => {
+    await houseListingAnalyzer.init();
+  })();
+})();
