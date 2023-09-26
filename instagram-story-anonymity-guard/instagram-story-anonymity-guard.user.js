@@ -2,7 +2,7 @@
 // @id           instagram-story-anonymity-guard@https://github.com/baturkacamak/userscripts
 // @name         Instagram Story Anonymity Guard
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.1
+// @version      1.1.0
 // @description  Blocks a specific request to maintain anonymity while viewing Instagram stories.
 // @author       Batur Kacamak
 // @license      MIT
@@ -17,32 +17,26 @@
 // ==/UserScript==
 
 /**
- * Class representing the Instagram Story Anonymity Guard user script.
- * @class
+ * The InstagramStoryAnonymityGuard class ensures users maintain their anonymity while viewing Instagram stories.
+ * It achieves this by overriding the XMLHttpRequest send method to block specific requests.
  */
 class InstagramStoryAnonymityGuard {
   /**
-   * Create an instance of the InstagramStoryAnonymityGuard class.
-   * @constructor
-   */
-  constructor() {
-    /**
-     * Stores the reference to the original send method of XMLHttpRequest.
-     * @type {function}
-     * @private
+     * Initializes a new instance of the InstagramStoryAnonymityGuard class and sets up the request blocking mechanism.
      */
-    this.originalXMLSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.send = this.send.bind(this);
+  constructor() {
+    InstagramStoryAnonymityGuard.originalXMLSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = this.send;
   }
 
   /**
-   * Overrides the send method of XMLHttpRequest.
-   * @param {...any} args - Arguments passed to the send method.
-   */
+     * Custom send method to check and block specific requests.
+     * @param {...any} args - The arguments passed to the XMLHttpRequest send method.
+     */
   send(...args) {
-    const url = args[0];
-    if (!('string' === typeof url && url.includes('viewSeenAt'))) {
-      this.originalXMLSend.apply(this, args);
+    const requestData = args[0];
+    if ('string' !== typeof requestData || !requestData.includes('viewSeenAt')) {
+      InstagramStoryAnonymityGuard.originalXMLSend.apply(this, args);
     }
   }
 }
