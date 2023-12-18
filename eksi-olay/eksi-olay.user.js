@@ -2,7 +2,7 @@
 // @id           eksi-olay@https://github.com/baturkacamak/userscripts
 // @name         Eksi Olay Notification
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      0.1
+// @version      1.0.0
 // @description  This script will change the title of eksi sozluk's title to notify user about "olay".
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
@@ -28,14 +28,14 @@ class EksiOlay {
   }
 
   sendNotification() {
-    if (typeof Notification !== 'undefined') {
+    if ('undefined' !== typeof Notification) {
       Notification.requestPermission().then((result) => {
-        if (result === 'denied') {
+        if ('denied' === result) {
           console.log('Permission wasn\'t granted. Allow a retry.');
           return;
         }
 
-        if (result === 'default') {
+        if ('default' === result) {
           console.log('The permission request was dismissed.');
           return;
         }
@@ -58,7 +58,7 @@ class EksiOlay {
 
         // set time to notify is show
         let timeNotify = 1000;
-        if (timeNotify > 0) {
+        if (0 < timeNotify) {
           timeNotify *= 1000;
           setTimeout(n.close.bind(n), timeNotify);
         }
@@ -85,13 +85,13 @@ class EksiOlay {
 
   mutations() {
     this.observer = new MutationObserver(((mutations) => {
-      if ((mutations[0].attributeName === 'class'
-           && mutations[0].target.classList.contains('new-update'))
+      if (('class' === mutations[0].attributeName &&
+                mutations[0].target.classList.contains('new-update'))
       ) {
         this.init();
       }
 
-      if (mutations[0].target.tagName === 'TITLE') {
+      if ('TITLE' === mutations[0].target.tagName) {
         this.changeTitle();
       }
     }));
