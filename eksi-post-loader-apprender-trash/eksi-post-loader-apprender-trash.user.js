@@ -1,17 +1,17 @@
 // ==UserScript==
 // @name         EksiSözlük - Post Loader and Appender for Trash
-// @namespace    https://eksisozluk1923.com/
-// @version      1.0.1
+// @namespace    https://eksisozluk1999.com/
+// @version      1.0.2
 // @description  Load pagination content and append it to the current list in trash page
 // @author       Batur Kacamak
-// @match        https://eksisozluk1923.com/cop
+// @match        https://eksisozluk1999.com/cop
 // @grant        none
 // @run-at       document-idle
 // @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash#readme
 // @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash#readme
 // @updateURL    https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
 // @downloadURL  https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
-// @icon         https://eksisozluk1923.com/favicon.ico
+// @icon         https://eksisozluk1999.com/favicon.ico
 // ==/UserScript==
 
 (async function() {
@@ -19,7 +19,7 @@
     const trashItems = document.querySelector('#trash-items');
 
     while (currentPage <= lastPage) {
-      const response = await fetch(`https://eksisozluk1923.com/cop?p=${currentPage}`);
+      const response = await fetch(`https://eksisozluk1999.com/cop?p=${currentPage}`);
       const html = await response.text();
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
