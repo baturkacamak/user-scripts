@@ -2,7 +2,7 @@
 // @id           idealista-house-listing-analyzer@https://github.com/baturkacamak/userscripts
 // @name         House Listing Analyzer
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Analyzes house listing statistics and displays the calculated score on Idealista pages
 // @match        https://www.idealista.com/*
 // @grant        GM_addStyle
@@ -16,7 +16,7 @@
 (() => {
   const config = {
     expirationDays: 1, // Default expiration days for cache
-    delayBetweenRequests: 2000, // Delay in milliseconds between each request
+    delayBetweenRequests: 500, // Delay in milliseconds between each request
     weights: {
       visits: 0.0001,
       friendShares: 0.3,
@@ -82,8 +82,8 @@
 
     set(key, value, expirationDays = config.expirationDays) {
       const expires = expirationDays ?
-          new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
-          null;
+                new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
+                null;
       localStorage.setItem(key, JSON.stringify({data: value, expires}));
     }
   }
@@ -160,7 +160,8 @@
           const scoreElement = document.createElement('span');
           scoreElement.textContent = `(${score.toFixed(2)})`;
           anchorElement.appendChild(scoreElement);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise(
+              (resolve) => setTimeout(resolve, config.delayBetweenRequests));
         } catch (error) {
           console.error(error);
         }
@@ -243,10 +244,10 @@
 
       return (
         visits * weights.visits +
-          friendShares * weights.friendShares +
-          emailContacts * weights.emailContacts +
-          favorites * weights.favorites +
-          recencyFactor * weights.recency
+                friendShares * weights.friendShares +
+                emailContacts * weights.emailContacts +
+                favorites * weights.favorites +
+                recencyFactor * weights.recency
       );
     }
   }

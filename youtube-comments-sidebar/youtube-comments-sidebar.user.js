@@ -7,10 +7,10 @@
 // @author       Batur Kacamak
 // @copyright    2021+, Batur Kacamak (https://batur.info/)
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/youtube-comments-sidebar#readme
-// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/youtube-comments-sidebar#readme
-// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/youtube-comments-sidebar/youtube-comments-sidebar.user.js
-// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/youtube-comments-sidebar/youtube-comments-sidebar.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/youtube-comments-sidebar#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/youtube-comments-sidebar#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/youtube-comments-sidebar/youtube-comments-sidebar.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/youtube-comments-sidebar/youtube-comments-sidebar.user.js
 // @match        https://youtube.com/*
 // @match        https://www.youtube.com/*
 // @icon         https://youtube.com/favicon.ico
@@ -19,33 +19,33 @@
 // ==/UserScript==
 
 class YoutubeCommentsSidebar {
-	static waitFor = (...selectors) => new Promise((resolve) => {
-		const delay = 1000;
-		const f = () => {
-			const elements = selectors.map((selector) => document.querySelector(selector));
-			if (elements.every((element) => element != null)) {
-				resolve(elements);
-			} else {
-				setTimeout(f, delay);
-			}
-		};
-		f();
-	});
+    constructor() {
+        YoutubeCommentsSidebar.waitFor(['#comments']).then(this.init);
+    }
 
-	constructor() {
-		YoutubeCommentsSidebar.waitFor(['#comments']).then(this.init);
-	}
+    static waitFor = (...selectors) => new Promise((resolve) => {
+        const delay = 1000;
+        const f = () => {
+            const elements = selectors.map((selector) => document.querySelector(selector));
+            if (elements.every((element) => element != null)) {
+                resolve(elements);
+            } else {
+                setTimeout(f, delay);
+            }
+        };
+        f();
+    });
 
-	init() {
-		if (document.querySelector('#secondary-inner')) {
-			document.querySelector('#secondary-inner').insertAdjacentElement('afterbegin', document.querySelector('#comments'));
-			// set height as player
-			document.querySelector('#comments').style.height = `${document.querySelector('#player.ytd-watch-flexy').offsetHeight}px`;
-			document.querySelector('#comments').style.overflow = 'auto';
+    init() {
+        if (document.querySelector('#secondary-inner')) {
+            document.querySelector('#secondary-inner').insertAdjacentElement('afterbegin', document.querySelector('#comments'));
+            // set height as player
+            document.querySelector('#comments').style.height = `${document.querySelector('#player.ytd-watch-flexy').offsetHeight}px`;
+            document.querySelector('#comments').style.overflow = 'auto';
 
 
-		}
-	}
+        }
+    }
 }
 
 // eslint-disable-next-line no-unused-vars

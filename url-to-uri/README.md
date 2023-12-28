@@ -1,4 +1,4 @@
-# [URL to URI](https://github.com/baturkacamak/userscripts/tree/master/url-to-uri)
+# [URL to URI](https://github.com/baturkacamak/user-scripts/tree/master/url-to-uri)
 
 ## Description
 

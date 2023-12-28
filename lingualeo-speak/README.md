@@ -1,4 +1,4 @@
-# [Lingualeo Speak](https://github.com/baturkacamak/userscripts/tree/master/lingualeo-speak)
+# [Lingualeo Speak](https://github.com/baturkacamak/user-scripts/tree/master/lingualeo-speak)
 
 ## Description
 

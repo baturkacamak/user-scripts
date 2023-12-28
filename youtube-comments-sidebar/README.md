@@ -1,4 +1,4 @@
-# [Youtube Comments Sidebar](https://github.com/baturkacamak/userscripts/tree/master/youtube-comments-sidebar)
+# [Youtube Comments Sidebar](https://github.com/baturkacamak/user-scripts/tree/master/youtube-comments-sidebar)
 
 ## Description
 
