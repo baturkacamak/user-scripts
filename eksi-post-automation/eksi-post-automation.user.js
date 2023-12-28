@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name        EksiSözlük - Load More Posts and Delete Posts Automation
-// @namespace   https://eksisozluk1999.com/
-// @version     1.0.2
+// @namespace   https://eksisozluk111.com/
+// @version     1.0.3
 // @description Automatically loads all posts and deletes posts on a specific website using classes for organization and readability.
-// @match       https://eksisozluk1999.com/biri/*
+// @match       https://eksisozluk111.com/biri/*
 // @run-at      document-idle
 // @grant       none
 // @author      Batur Kacamak
