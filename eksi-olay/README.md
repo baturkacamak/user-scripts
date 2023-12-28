@@ -1,4 +1,4 @@
-# [Eksi Olay Notification](https://github.com/baturkacamak/userscripts/tree/master/eksi-olay)
+# [Eksi Olay Notification](https://github.com/baturkacamak/user-scripts/tree/master/eksi-olay)
 
 ## Description
 

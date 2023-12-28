@@ -11,10 +11,10 @@
 // @run-at       document-idle
 // @grant        none
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/whatsapp-obfuscator#readme
-// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/whatsapp-obfuscator#readme
-// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
-// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/whatsapp-obfuscator#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/whatsapp-obfuscator#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
 // @icon         https://whatsapp.com/favicon.ico
 // ==/UserScript==
 
@@ -28,7 +28,6 @@ class WhatsappObfuscator {
     }
     return result;
   }
-
   constructor() {
     this.SELECTORS = {
       mutationObserver: 'div[tabindex="-1"]>div>div>span',
@@ -40,6 +39,7 @@ class WhatsappObfuscator {
     this.mutations();
   }
 
+
   cache() {
     this.images = document.querySelectorAll(this.SELECTORS.images);
     this.titles = document.querySelectorAll(this.SELECTORS.titles);
@@ -48,19 +48,19 @@ class WhatsappObfuscator {
   mutations() {
     this.observer = new MutationObserver(((mutations) => {
       [...mutations].forEach(
-        (mutation) => {
-          if (mutation.addedNodes.length > 0) {
-            mutation.addedNodes.forEach((node) => {
-              if (node.querySelector(this.SELECTORS.titles)
-                || [...node.classList].includes('_2goTk')
-              ) {
-                // whatsapp is ready
-                // new image detected
-                this.init();
-              }
-            });
-          }
-        },
+          (mutation) => {
+            if (0 < mutation.addedNodes.length) {
+              mutation.addedNodes.forEach((node) => {
+                if (node.querySelector(this.SELECTORS.titles) ||
+                                [...node.classList].includes('_2goTk')
+                ) {
+                  // whatsapp is ready
+                  // new image detected
+                  this.init();
+                }
+              });
+            }
+          },
       );
     }));
 
@@ -75,11 +75,11 @@ class WhatsappObfuscator {
   }
 
   removeInfo() {
-    if (this.images.length > 0) {
+    if (0 < this.images.length) {
       this.images.forEach((item) => item.remove());
     }
 
-    if (this.titles.length > 0) {
+    if (0 < this.titles.length) {
       this.titles.forEach((item) => {
         // eslint-disable-next-line no-param-reassign
         item.innerText = WhatsappObfuscator.createObfuscatedText(40);

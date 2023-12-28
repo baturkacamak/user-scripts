@@ -9,17 +9,17 @@
 // @match        https://eksisozluk.com/*
 // @grant        none
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/eksi-olay#readme
-// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/eksi-olay#readme
-// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/eksi-olay.user.js
-// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/eksi-olay.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-olay#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-olay#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-olay/eksi-olay.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-olay/eksi-olay.user.js
 // @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
 
 class EksiOlay {
   constructor() {
-    this.remoteFile = 'https://github.com/baturkacamak/userscripts/raw/master/eksi-olay/assets/sounds/notifications/juntos.mp3';
+    this.remoteFile = 'https://github.com/baturkacamak/user-scripts/raw/master/eksi-olay/assets/sounds/notifications/juntos.mp3';
     this.beep = new Audio(this.remoteFile);
     this.observer = null;
 

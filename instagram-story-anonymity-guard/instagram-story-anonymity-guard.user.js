@@ -6,8 +6,8 @@
 // @description  Blocks a specific request to maintain anonymity while viewing Instagram stories.
 // @author       Batur Kacamak
 // @license      MIT
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/instagram-story-anonymity-guard#readme
-// @supportURL   https://github.com/baturkacamak/userscripts/issues
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/instagram-story-anonymity-guard#readme
+// @supportURL   https://github.com/baturkacamak/user-scripts/issues
 // @icon         https://instagram.com/favicon.ico
 // @noframes
 // @run-at       document-start

@@ -8,10 +8,10 @@
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/googlemaps-image-downloader#readme
-// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/googlemaps-image-downloader#readme
-// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/googlemaps-image-downloader/googlemaps-image-downloader.user.js
-// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/googlemaps-image-downloader/googlemaps-image-downloader.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/googlemaps-image-downloader#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/googlemaps-image-downloader#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/googlemaps-image-downloader/googlemaps-image-downloader.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/googlemaps-image-downloader/googlemaps-image-downloader.user.js
 // @include      /^https:\/\/(www\.)?google(?=.*maps).*/
 // @require      https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js
@@ -28,12 +28,11 @@
 class GoogleMapsImageDownloader {
   static addEventListeners(selector, callback, event = 'click', scope = document) {
     [...scope.querySelectorAll(selector)].forEach(
-      (item) => {
-        item.addEventListener(event, callback);
-      },
+        (item) => {
+          item.addEventListener(event, callback);
+        },
     );
   }
-
   constructor() {
     this.initialLoad = true;
     this.imageSelector = '[role=img] > a.gallery-cell';
@@ -42,30 +41,31 @@ class GoogleMapsImageDownloader {
     this.elementDiv = null;
   }
 
+
   async init() {
     this.mutations();
   }
 
   mutations() {
     const observer = new MutationObserver(((mutations) => {
-      if (document.querySelectorAll(this.imageContainersQuery).length > 0) {
+      if (0 < document.querySelectorAll(this.imageContainersQuery).length) {
         mutations.forEach((mutation) => {
           [...mutation.addedNodes]
-            .filter((addedNode) => addedNode
-                                   && addedNode.nodeType === 1
-                                   && addedNode.querySelectorAll(this.imageSelector).length > 0)
-            .forEach((addedNode) => {
-              GoogleMapsImageDownloader.addEventListeners(
-                this.imageSelector,
-                this.getImageUrl.bind(this),
-                'click',
-                addedNode,
-              );
-              if (this.initialLoad) {
-                addedNode.querySelectorAll(this.imageSelector)[0].click();
-                this.initialLoad = false;
-              }
-            });
+              .filter((addedNode) => addedNode &&
+                            1 === addedNode.nodeType &&
+                            0 < addedNode.querySelectorAll(this.imageSelector).length)
+              .forEach((addedNode) => {
+                GoogleMapsImageDownloader.addEventListeners(
+                    this.imageSelector,
+                    this.getImageUrl.bind(this),
+                    'click',
+                    addedNode,
+                );
+                if (this.initialLoad) {
+                  addedNode.querySelectorAll(this.imageSelector)[0].click();
+                  this.initialLoad = false;
+                }
+              });
         });
       } else {
         this.removeDownloadButton();
@@ -119,7 +119,7 @@ class GoogleMapsImageDownloader {
     if (document.querySelector('#viewer-footer')) {
       appendSelector = '#viewer-footer';
     } else {
-      const customStyles = { right: '55px', bottom: '35px' };
+      const customStyles = {right: '55px', bottom: '35px'};
       elementDivStyles = {
         ...elementDivStyles,
         ...customStyles,

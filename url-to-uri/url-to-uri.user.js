@@ -9,10 +9,10 @@
 // @match        *://*.whatsapp.com/*
 // @grant        none
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/url-to-uri#readme
-// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/url-to-uri#readme
-// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/url-to-uri/url-to-uri.user.js
-// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/url-to-uri/url-to-uri.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/url-to-uri#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/url-to-uri#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/url-to-uri/url-to-uri.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/url-to-uri/url-to-uri.user.js
 // @icon         https://tidal.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
@@ -36,8 +36,8 @@ class UrlToUri {
     const observer = new MutationObserver(((mutations) => {
       mutations.forEach((mutation) => {
         [...mutation.addedNodes]
-          .filter((node) => node.outerHTML.match(this.regexReplace))
-          .forEach(this.replace.bind(this));
+            .filter((node) => node.outerHTML.match(this.regexReplace))
+            .forEach(this.replace.bind(this));
       });
     }));
 

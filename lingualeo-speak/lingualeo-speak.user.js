@@ -7,17 +7,17 @@
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/userscripts/tree/master/lingualeo-speak#readme
-// @homepageURL  https://github.com/baturkacamak/userscripts/tree/master/lingualeo-speak#readme
-// @downloadURL  https://github.com/baturkacamak/userscripts/raw/master/lingualeo-speak/lingualeo-speak.user.js
-// @updateURL    https://github.com/baturkacamak/userscripts/raw/master/lingualeo-speak/lingualeo-speak.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/lingualeo-speak#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/lingualeo-speak#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/lingualeo-speak/lingualeo-speak.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/lingualeo-speak/lingualeo-speak.user.js
 // @match        https://lingualeo.com/tr/training/leoSprint
 // @icon         https://lingualeo.com/favicon.ico
 // @grant        none
 // ==/UserScript==
 
 // eslint-disable-next-line func-names
-(function () {
+(function() {
   function init() {
     let word = document.querySelector('.ll-LeoSprint__text').innerText;
     document.querySelector('.ll-LeoSprint__btn-sound').click();
