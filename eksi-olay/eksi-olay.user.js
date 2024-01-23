@@ -2,7 +2,7 @@
 // @id           eksi-olay@https://github.com/baturkacamak/userscripts
 // @name         Eksi Olay Notification
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  This script will change the title of eksi sozluk's title to notify user about "olay".
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
