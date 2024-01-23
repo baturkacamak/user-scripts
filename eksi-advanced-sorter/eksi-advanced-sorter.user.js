@@ -2,7 +2,7 @@
 // @id           eksi-advanced-sorter@https://github.com/baturkacamak/userscripts
 // @name         Eksi Advanced Sorter
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      2.0.3
+// @version      2.0.4
 // @description  This script provides a feature to sort topics by their number of favorites or length on the Eksisozluk website
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
@@ -10,8 +10,8 @@
 // @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-advanced-sorter#readme
 // @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-advanced-sorter/eksi-advanced-sorter.user.js
 // @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-advanced-sorter/eksi-advanced-sorter.user.js
-// @match        https://eksisozluk111.com/*
-// @icon         https://eksisozluk111.com/favicon.ico
+// @match        https://eksisozluk.com/*
+// @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // @grant        GM_addStyle
 // ==/UserScript==

@@ -2,17 +2,17 @@
 // @id           eksi-block-post-favorited-users@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Block Multiple Users in Bulk
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  This script allows the user to block multiple users in bulk on by fetching the list of users who have favorited a specific post
 // @author       Batur Kacamak
 // @copyright    2022+, Batur Kacamak (https://batur.info/)
-// @match        https://eksisozluk111.com/*
+// @match        https://eksisozluk.com/*
 // @grant        none
 // @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-block-post-favorited-users#readme
 // @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-block-post-favorited-users#readme
 // @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-block-post-favorited-users/eksi-block-post-favorited-users.user.js
 // @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-block-post-favorited-users/eksi-block-post-favorited-users.user.js
-// @icon         https://eksisozluk111.com/favicon.ico
+// @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -25,8 +25,8 @@
      * @property {string} FAVORITES - The endpoint for fetching the users who have favorited an entry.
      */
   const Endpoints = Object.freeze({
-    BLOCK: 'https://eksisozluk111.com/userrelation/addrelation',
-    FAVORITES: 'https://eksisozluk111.com/entry/favorileyenler',
+    BLOCK: 'https://eksisozluk.com/userrelation/addrelation',
+    FAVORITES: 'https://eksisozluk.com/entry/favorileyenler',
   });
 
   /**

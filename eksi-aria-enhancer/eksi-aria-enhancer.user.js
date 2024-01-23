@@ -2,17 +2,17 @@
 // @id           eksi-aria-enhancer@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Aria Hidden Enhancer
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.2
+// @version      1.0.3
 // @description  Enhances accessibility in Eksi Sozluk by automatically adding aria-hidden attributes to entry footers.
 // @author       Batur Kacamak
 // @copyright    2023, Batur Kacamak (https://batur.info/)
-// @match        https://eksisozluk111.com/*
+// @match        https://eksisozluk.com/*
 // @grant        none
 // @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-aria-enhancer#readme
 // @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-aria-enhancer#readme
 // @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-aria-enhancer/eksi-aria-enhancer.user.js
 // @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-aria-enhancer/eksi-aria-enhancer.user.js
-// @icon         https://eksisozluk111.com/favicon.ico
+// @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
 
