@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Eksi Vote Notifier",
+  "version": "1.0",
+  "description": "Notifies when there's a new vote on a specific page.",
+  "permissions": [
+    "alarms",
+    "notifications",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://eksisozluk.com/"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
