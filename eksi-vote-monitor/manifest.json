@@ -6,14 +6,25 @@
   "permissions": [
     "alarms",
     "notifications",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
-    "https://eksisozluk.com/"
+    "https://eksisozluk.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://eksisozluk.com/*"
+      ],
+      "js": [
+        "content_script.js"
+      ]
+    }
+  ],
   "action": {
     "default_icon": {
       "16": "icon16.png",
