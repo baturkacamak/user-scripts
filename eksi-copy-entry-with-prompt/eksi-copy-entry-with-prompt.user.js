@@ -54,8 +54,8 @@
   ];
 
   const prompts = {
-    'Doğruluğu Kontrol Et': 'Bu içeriği yayınlamadan önce, geçerliliğini dikkatlice inceleyin ve kaynağın güvenilirliğini değerlendirin. Şu sorulara odaklanın: Bu girdi iyi desteklenmiş bir argüman sunuyor mu? İddialar güvenilir kanıtlarla destekleniyor mu? Bilgileri paylaşmadan önce, eleştirel bir incelemeye dayanıp dayanmadığını doğrulayın.',
-    'Eleştiri Yaz': 'Bu girdiyle etkileşime geçerek kapsamlı bir eleştiri yazın. Sunulan argümanı değerlendirin: Potansiyel önyargılar veya yanılgılar neler olabilir? Girdi bilinen gerçeklerle veya verilerle ne kadar uyumlu? Bilgiler yanlış yorumlanmış veya bağlamından çıkarılmış olabilir mi? Endişe verici alanları, doğruluk hatalarını veya yanıltıcı unsurları vurgulayarak içeriği sorgulayın ve noktalarınızı kapsamlı bir eleştirel analizle ifade edin.',
+    'Doğruluğu Kontrol Et': 'Bu yazıda sunulan bilgileri ve iddiaları dikkatli bir şekilde inceleyin. Her bir paragrafı ayrı ayrı ele alarak, bahsedilen olayların, rakamların ve ifadelerin gerçeklik payını araştırın. Kullanılan kaynakları ve delilleri değerlendirin; bilgilerin güvenilir ve doğrulanabilir olup olmadığını kontrol edin. Herhangi bir çelişki veya eksik bilgi varsa bunları not alın ve bu bilgilerin genel bağlam içerisinde nasıl bir etki yarattığını düşünün.',
+    'Eleştiri Yaz': 'Bu yazıdaki argümanları ve sunulan fikirleri titizlikle eleştirin. Her paragrafı ayrıntılı bir şekilde inceleyerek, yazarın görüşlerine meydan okuyan ve varsa yanlış bilgileri düzelten bir analiz yapın. Yazıdaki mantık hatalarını, bilgi yanılgılarını ve varsayımları belirleyin. Ayrıca, yazının sunduğu fikirlerin geniş bir perspektiften toplum ve bireyler üzerindeki olası etkilerini değerlendirin ve kendi bakış açınızı, somut örnekler ve alternatif çözümler sunarak ifade edin.',
   };
 
   // Function to create and return a smaller select box with prompts
@@ -66,10 +66,13 @@
     selectBox.classList.add('prompt-select-box'); // Add class for possible styling
 
     // Adjust selectBox styling
-    selectBox.style.maxWidth = '200px'; // Limit the width to fit the design
+    selectBox.style.maxWidth = '117px'; // Limit the width to fit the design
     selectBox.style.fontSize = '12px'; // Adjust font size for better readability
     selectBox.style.marginLeft = '5px';
     selectBox.style.padding = '2px 6px'; // Reduce padding to make it less bulky
+    selectBox.style.opacity = '0';
+    selectBox.style.visibility = 'hidden';
+    selectBox.style.transition = 'opacity 0.5s, visibility 0.5s';
 
     // Set the onchange event to automatically copy text to clipboard when a prompt is selected
     selectBox.onchange = function() {
@@ -97,10 +100,30 @@
       feedbackElement.style.marginLeft = '10px';
       feedbackElement.style.fontSize = '12px';
       feedbackElement.style.color = 'gray';
+      entry.style.position = 'relative';
+
+      // Create a container for the select box to control its positioning
+      const selectContainer = document.createElement('div');
+      selectContainer.classList.add('select-container');
+      selectContainer.style.transition = 'opacity 0.5s, visibility 0.5s';
+      selectContainer.appendChild(selectBox);
 
       const footer = entry.querySelector('.feedback-container');
-      footer.appendChild(selectBox); // Append the select box to the footer
+      footer.appendChild(selectContainer); // Append the select box to the footer
       footer.appendChild(feedbackElement); // Append the feedback element to the footer
+
+
+      // Show the select box when hovering over the entry
+      entry.addEventListener('mouseenter', function() {
+        selectBox.style.opacity = '1';
+        selectBox.style.visibility = 'visible';
+      });
+
+      // Hide the select box when not hovering over the entry
+      entry.addEventListener('mouseleave', function() {
+        selectBox.style.opacity = '0';
+        selectBox.style.visibility = 'hidden';
+      });
     });
   }
 
