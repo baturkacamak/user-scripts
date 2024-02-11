@@ -1,3 +1,12 @@
+let userNick = ''; // Store username globally
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.username) {
+    userNick = message.username; // Update global username
+    chrome.storage.local.set({'userNick': userNick}); // Optionally store it in local storage
+  }
+});
+
 chrome.runtime.onInstalled.addListener(() => {
   // Set up an alarm to check for new votes periodically
   chrome.alarms.create('checkForNewVote', {
@@ -5,15 +14,19 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-
 chrome.alarms.onAlarm.addListener((alarm) => {
   if ('checkForNewVote' === alarm.name) {
-    checkForNewVote();
+    chrome.storage.local.get(['userNick'], function(result) {
+      if (result.userNick) {
+        userNick = result.userNick; // Ensure userNick is always up to date
+        checkForNewVote(userNick);
+      }
+    });
   }
 });
 
 function checkForNewVote() {
-  const baseUrl = 'https://eksisozluk.com/son-oylananlari?nick=straits&p=1';
+  const baseUrl = `https://eksisozluk.com/son-oylananlari?nick=${userNick}&p=1`;
   const timestamp = new Date().getTime(); // Gets the current time in milliseconds
   const urlWithTimestamp = `${baseUrl}&_=${timestamp}`;
 
