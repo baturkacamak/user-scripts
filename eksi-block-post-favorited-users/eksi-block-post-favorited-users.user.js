@@ -2,7 +2,7 @@
 // @id           eksi-block-post-favorited-users@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Block Multiple Users in Bulk
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.3
+// @version      1.0.4
 // @description  This script allows the user to block multiple users in bulk on by fetching the list of users who have favorited a specific post and adding a note with the post title and ID.
 // @author       Batur Kacamak
 // @copyright    2022+, Batur Kacamak (https://batur.info/)
@@ -205,6 +205,7 @@
       this.currentBlocked = 1;
       this.timeout = 15;
       this.delay = 10;
+      this.maxRetries = 3; // Maximum number of retries
     }
 
     async fetchFavorites(entryId) {
@@ -225,8 +226,8 @@
           for (const userUrl of userUrls) {
             const userProfileHtml = await this.fetchUserProfile(userUrl);
             const userId = this.htmlParser.parseUserIdFromProfile(userProfileHtml);
-            await this.blockUser(userId);
-            await this.addNoteToUser(userUrl, userId, postTitle, entryId);
+            await this.retryOperation(() => this.blockUser(userId));
+            await this.retryOperation(() => this.addNoteToUser(userUrl, userId, postTitle, entryId));
             await delay(this.delay);
           }
         }
@@ -266,6 +267,23 @@
       }
     }
 
+    async retryOperation(operation) {
+      let attempts = 0;
+      while (attempts < this.maxRetries) {
+        try {
+          await operation();
+          return;
+        } catch (error) {
+          attempts++;
+          if (attempts >= this.maxRetries) {
+            console.error(`Operation failed after ${this.maxRetries} attempts:`, error);
+            return;
+          }
+          await delay(this.delay);
+        }
+      }
+    }
+
     updateNotification() {
       this.calculateTimeout();
       this.updateNotificationMessage();
@@ -280,11 +298,6 @@
 
     updateNotificationMessage() {
       this.notification.show(`Engellenen kullanıcılar: ${this.currentBlocked} / ${this.totalUserCount}`, {timeout: this.timeout});
-      if (5 !== this.timeout) {
-        this.notification.startCountdownTimer(this.delay);
-      } else {
-        this.notification.startCountdownTimer('', 'Tum kullanicilar engellendi!');
-      }
     }
 
     incrementBlockedCount() {
@@ -389,34 +402,6 @@
       this.timeoutId = setTimeout(() => {
         this.removeWithTransition();
       }, timeout * 1000);
-    }
-
-    createCountdownTimer() {
-      const countdownTimer = this.domHandler.createElement('div');
-      countdownTimer.classList.add('countdown-timer');
-      return countdownTimer;
-    }
-
-    getCountdownTimer() {
-      let countdownTimer = this.domHandler.querySelector('.countdown-timer');
-      if (!countdownTimer) {
-        countdownTimer = this.createCountdownTimer();
-        this.domHandler.querySelector('.eksi-notification-container').appendChild(countdownTimer);
-      }
-      return countdownTimer;
-    }
-
-    startCountdownTimer(timeout, message = 'Siradaki: ') {
-      const countdownTimer = this.getCountdownTimer();
-      let countdown = timeout;
-      countdownTimer.innerHTML = `${message}${countdown}`;
-      this.countdownIntervalId = setInterval(() => {
-        countdown--;
-        countdownTimer.innerHTML = `${message}${countdown}`;
-        if (0 >= countdown) {
-          clearInterval(this.countdownIntervalId);
-        }
-      }, 1000);
     }
 
     removeWithTransition() {
