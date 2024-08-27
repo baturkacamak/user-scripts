@@ -42,7 +42,6 @@ function checkForNewVote() {
       'sec-fetch-site': 'same-origin',
       'x-requested-with': 'XMLHttpRequest',
     },
-    referrer: 'https://eksisozluk.com/biri/straits',
     referrerPolicy: 'strict-origin-when-cross-origin',
     body: null,
     method: 'GET',
