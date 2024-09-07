@@ -20,7 +20,8 @@
 const SELECTORS = {
     ITEM_CARDS: [
         'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
-        '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]'
+        '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]',
+        '[class^="feed_Feed__item__"] a[href^="/item/"]',
     ],
     ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description"]',
     EXPAND_BUTTON: '.expand-button'
@@ -104,19 +105,19 @@ class DescriptionFetcher {
             if (descriptionElement) {
                 const description = descriptionElement.innerHTML.trim();
                 Logger.log("Description fetched successfully");
-                resolve({success: true, data: description});
+                resolve({ success: true, data: description });
             } else {
                 throw new Error("Description element not found");
             }
         } catch (error) {
             Logger.error(error, "Parsing response");
-            resolve({success: false, error: "Failed to parse description"});
+            resolve({ success: false, error: "Failed to parse description" });
         }
     }
 
     static handleError(error, resolve) {
         Logger.error(error, "XML HTTP Request");
-        resolve({success: false, error: "Network error occurred"});
+        resolve({ success: false, error: "Network error occurred" });
     }
 }
 
@@ -226,7 +227,7 @@ class DOMObserver {
     }
 
     observe() {
-        this.observer.observe(document.body, {childList: true, subtree: true});
+        this.observer.observe(document.body, { childList: true, subtree: true });
         window.addEventListener('popstate', this.handleUrlChange.bind(this));
         Logger.log("MutationObserver and popstate listener set up");
     }
