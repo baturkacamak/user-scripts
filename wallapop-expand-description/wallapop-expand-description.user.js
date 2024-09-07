@@ -2,7 +2,7 @@
 // @id           wallapop-expand-description@https://github.com/baturkacamak/userscripts
 // @name         Wallapop Expand Description
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0
+// @version      1.1
 // @description  Add expand button to show formatted item descriptions on Wallapop listings
 // @author       Batur Kacamak
 // @copyright    2024+, Batur Kacamak (https://batur.info/)
@@ -16,6 +16,15 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
+
+const SELECTORS = {
+    ITEM_CARDS: [
+        'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
+        '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]'
+    ],
+    ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description"]',
+    EXPAND_BUTTON: '.expand-button'
+};
 
 class Logger {
     static DEBUG = true;
@@ -34,7 +43,7 @@ class Logger {
 class StyleManager {
     static addStyles() {
         GM_addStyle(`
-            .expand-button {
+            ${SELECTORS.EXPAND_BUTTON} {
                 background: none;
                 border: none;
                 color: #008080;
@@ -91,23 +100,23 @@ class DescriptionFetcher {
         try {
             const parser = new DOMParser();
             const doc = parser.parseFromString(response.responseText, "text/html");
-            const descriptionElement = doc.querySelector('[class^="item-detail_ItemDetail__description"]');
+            const descriptionElement = doc.querySelector(SELECTORS.ITEM_DESCRIPTION);
             if (descriptionElement) {
                 const description = descriptionElement.innerHTML.trim();
                 Logger.log("Description fetched successfully");
-                resolve({ success: true, data: description });
+                resolve({success: true, data: description});
             } else {
                 throw new Error("Description element not found");
             }
         } catch (error) {
             Logger.error(error, "Parsing response");
-            resolve({ success: false, error: "Failed to parse description" });
+            resolve({success: false, error: "Failed to parse description"});
         }
     }
 
     static handleError(error, resolve) {
         Logger.error(error, "XML HTTP Request");
-        resolve({ success: false, error: "Network error occurred" });
+        resolve({success: false, error: "Network error occurred"});
     }
 }
 
@@ -124,7 +133,7 @@ class ExpandButton {
         Logger.log("Creating expand button for URL:", this.url);
         this.button = document.createElement('button');
         this.button.textContent = 'Expand Description';
-        this.button.className = 'expand-button';
+        this.button.className = SELECTORS.EXPAND_BUTTON.slice(1); // Remove the leading dot
 
         this.descriptionContent = document.createElement('div');
         this.descriptionContent.className = 'description-content';
@@ -185,31 +194,41 @@ class ExpandButton {
 class ListingManager {
     static addExpandButtonsToListings() {
         Logger.log("Adding expand buttons to listings");
-        const listings = document.querySelectorAll('a.ItemCardList__item[href^="https://es.wallapop.com/item/"]');
-        Logger.log("Found ItemCardList__item elements:", listings.length);
-        listings.forEach(listing => {
-            try {
-                const href = listing.getAttribute('href');
-                if (href && !listing.querySelector('.expand-button')) {
-                    new ExpandButton(listing, href);
-                } else if (!href) {
-                    Logger.log("No valid href found for a listing");
+        let totalListings = 0;
+
+        SELECTORS.ITEM_CARDS.forEach(selector => {
+            const listings = document.querySelectorAll(selector);
+            totalListings += listings.length;
+            Logger.log(`Found ${listings.length} items for selector: ${selector}`);
+
+            listings.forEach(listing => {
+                try {
+                    const href = listing.getAttribute('href') || listing.querySelector('a')?.getAttribute('href');
+                    if (href && !listing.querySelector(SELECTORS.EXPAND_BUTTON)) {
+                        new ExpandButton(listing, href);
+                    } else if (!href) {
+                        Logger.log("No valid href found for a listing");
+                    }
+                } catch (error) {
+                    Logger.error(error, "Processing individual listing");
                 }
-            } catch (error) {
-                Logger.error(error, "Processing individual listing");
-            }
+            });
         });
+
+        Logger.log("Total listings processed:", totalListings);
     }
 }
 
 class DOMObserver {
     constructor() {
         this.observer = new MutationObserver(this.handleMutations.bind(this));
+        this.lastUrl = location.href;
     }
 
     observe() {
-        this.observer.observe(document.body, { childList: true, subtree: true });
-        Logger.log("MutationObserver set up");
+        this.observer.observe(document.body, {childList: true, subtree: true});
+        window.addEventListener('popstate', this.handleUrlChange.bind(this));
+        Logger.log("MutationObserver and popstate listener set up");
     }
 
     handleMutations(mutations) {
@@ -218,8 +237,9 @@ class DOMObserver {
                 const addedNodes = Array.from(mutation.addedNodes);
                 const hasNewItemCards = addedNodes.some(node =>
                     node.nodeType === Node.ELEMENT_NODE &&
-                    (node.matches('a.ItemCardList__item[href^="https://es.wallapop.com/item/"]') ||
-                     node.querySelector('a.ItemCardList__item[href^="https://es.wallapop.com/item/"]'))
+                    SELECTORS.ITEM_CARDS.some(selector =>
+                        node.matches(selector) || node.querySelector(selector)
+                    )
                 );
                 if (hasNewItemCards) {
                     Logger.log("New ItemCards detected, adding expand buttons");
@@ -227,6 +247,22 @@ class DOMObserver {
                 }
             }
         }
+        this.checkUrlChange();
+    }
+
+    checkUrlChange() {
+        if (this.lastUrl !== location.href) {
+            Logger.log("URL changed:", location.href);
+            this.lastUrl = location.href;
+            this.handleUrlChange();
+        }
+    }
+
+    handleUrlChange() {
+        Logger.log("Handling URL change");
+        setTimeout(() => {
+            ListingManager.addExpandButtonsToListings();
+        }, 1000); // Delay to allow for dynamic content to load
     }
 }
 
@@ -234,24 +270,29 @@ class WallapopExpandDescription {
     static async init() {
         Logger.log("Initializing script");
         StyleManager.addStyles();
-        await this.waitForElements('a.ItemCardList__item[href^="https://es.wallapop.com/item/"]');
+        await this.waitForElements(SELECTORS.ITEM_CARDS);
         ListingManager.addExpandButtonsToListings();
         new DOMObserver().observe();
     }
 
-    static waitForElements(selector, timeout = 10000) {
-        Logger.log("Waiting for elements:", selector);
+    static waitForElements(selectors, timeout = 10000) {
+        Logger.log("Waiting for elements:", selectors);
         return new Promise((resolve, reject) => {
             const startTime = Date.now();
 
             function checkElements() {
-                const elements = document.querySelectorAll(selector);
-                if (elements.length > 0) {
-                    Logger.log("Elements found:", selector, elements.length);
-                    resolve(elements);
-                } else if (Date.now() - startTime > timeout) {
-                    Logger.log("Timeout waiting for elements:", selector);
-                    reject(new Error(`Timeout waiting for elements: ${selector}`));
+                for (const selector of selectors) {
+                    const elements = document.querySelectorAll(selector);
+                    if (elements.length > 0) {
+                        Logger.log("Elements found:", selector, elements.length);
+                        resolve(elements);
+                        return;
+                    }
+                }
+
+                if (Date.now() - startTime > timeout) {
+                    Logger.log("Timeout waiting for elements");
+                    reject(new Error(`Timeout waiting for elements`));
                 } else {
                     requestAnimationFrame(checkElements);
                 }
