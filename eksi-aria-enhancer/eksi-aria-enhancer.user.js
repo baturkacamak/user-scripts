@@ -2,8 +2,8 @@
 // @id           eksi-aria-enhancer@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Aria Hidden Enhancer
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.0.3
-// @description  Enhances accessibility in Eksi Sozluk by automatically adding aria-hidden attributes to entry footers.
+// @version      1.1.0
+// @description  Enhances accessibility in Eksi Sozluk by automatically adding aria-hidden attributes to entry footers and read-more links.
 // @author       Batur Kacamak
 // @copyright    2023, Batur Kacamak (https://batur.info/)
 // @match        https://eksisozluk.com/*
@@ -16,66 +16,55 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-(function() {
+(() => {
   'use strict';
 
-  /**
-     * @class DOMManipulator
-     * @classdesc Utility class to manipulate the DOM on the target website.
-     */
-  class DOMManipulator {
-    /**
-         * Adds aria-hidden attribute to footers inside #entry-item-list.
-         */
-    static addAriaHiddenToFooters() {
-      const entryList = document.querySelector('#entry-item-list');
-      if (!entryList) return;
+  const SELECTORS = Object.freeze({
+    ENTRY_LIST: '#entry-item-list',
+    HIDEABLE_ELEMENTS: 'footer, .read-more-link-wrapper',
+  });
 
-      const footers = entryList.querySelectorAll('footer');
-      footers.forEach((footer) => footer.setAttribute('aria-hidden', 'true'));
-    }
-  }
+  class AccessibilityEnhancer {
+    #entryList;
+    #observer;
 
-  /**
-     * @class MutationObserverHandler
-     * @classdesc Utility class to handle DOM mutations.
-     */
-  class MutationObserverHandler {
-    /**
-         * Initializes the MutationObserver for the given target.
-         */
     constructor() {
-      this.observerTarget = document.querySelector('body');
-      this.observeMutations();
+      this.#entryList = null;
+      this.#observer = null;
     }
 
-    /**
-         * Observes mutations on the target. If #entry-item-list is affected, applies DOM manipulations.
-         */
-    observeMutations() {
-      const observer = new MutationObserver(this.handleMutations.bind(this));
+    init() {
+      this.#entryList = document.querySelector(SELECTORS.ENTRY_LIST);
+      if (this.#entryList) {
+        this.#enhanceAccessibility();
+        this.#setupMutationObserver();
+      }
+    }
 
-      observer.observe(this.observerTarget, {
+    #enhanceAccessibility = () => {
+      const hideableElements = this.#entryList.querySelectorAll(SELECTORS.HIDEABLE_ELEMENTS);
+      hideableElements.forEach(element => element.setAttribute('aria-hidden', 'true'));
+    }
+
+    #setupMutationObserver = () => {
+      this.#observer = new MutationObserver(this.#handleMutations);
+      this.#observer.observe(document.body, {
         childList: true,
         subtree: true,
       });
     }
 
-    /**
-         * Handles detected mutations.
-         * @param {Array} mutations - List of detected DOM mutations.
-         */
-    handleMutations(mutations) {
-      mutations.forEach((mutation) => {
-        if (!mutation.addedNodes.length && !mutation.removedNodes.length) return;
+    #handleMutations = (mutations) => {
+      const hasRelevantChanges = mutations.some(({ addedNodes, removedNodes }) =>
+        addedNodes.length || removedNodes.length
+      );
 
-        const entryList = document.querySelector('#entry-item-list');
-        if (entryList) {
-          DOMManipulator.addAriaHiddenToFooters();
-        }
-      });
+      if (hasRelevantChanges && document.querySelector(SELECTORS.ENTRY_LIST)) {
+        this.#enhanceAccessibility();
+      }
     }
   }
 
-  new MutationObserverHandler();
+  const enhancer = new AccessibilityEnhancer();
+  enhancer.init();
 })();
