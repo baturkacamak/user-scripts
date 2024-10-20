@@ -2,7 +2,7 @@
 // @id           eksi-advanced-sorter@https://github.com/baturkacamak/userscripts
 // @name         Eksi Advanced Sorter
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      2.0.4
+// @version      2.0.5
 // @description  This script provides a feature to sort topics by their number of favorites or length on the Eksisozluk website
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
@@ -22,14 +22,15 @@
  */
 class Sorter {
     /**
-     * Sorts items based on the provided sorting criteria and appends them to the entry item list.
+    /**
+     * Sorts items based on the provided sorting criteria and reorders them in the DOM.
      * @param {HTMLElement[]} items - The array of items to be sorted.
      * @param {Function} sortingCriteria - The sorting criteria function.
      */
     static sortItems(items, sortingCriteria) {
-        items.sort(sortingCriteria).forEach((item) => {
-            DOMManipulator.appendChildToEntryItemList(item);
-        });
+        const sortedItems = [...items].sort(sortingCriteria);
+        const parent = document.querySelector('#entry-item-list');
+        sortedItems.forEach((item) => parent.appendChild(item));
     }
 }
 
@@ -76,46 +77,6 @@ class FavoriteCountSortingStrategy {
         const aFav = parseInt(a.getAttribute('data-favorite-count'));
         const bFav = parseInt(b.getAttribute('data-favorite-count'));
         return bFav - aFav;
-    }
-}
-
-class WeightSortingStrategy {
-    calculateWeight = (item) => {
-        let favoriteCount = parseInt(item.getAttribute('data-favorite-count'));
-        const timeDifference = this.calculateTimeDifference(item);
-
-        if (favoriteCount === 0) {
-            favoriteCount = -100;
-        }
-
-        // Calculate the weight using a formula that suits your requirements
-        return favoriteCount * 0.8 - timeDifference * 0.2;
-    }
-
-    calculateTimeDifference = (item) => {
-        const dateStr = item.querySelector('.entry-date').textContent.trim();
-        const dateRegex = /(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2})/;
-
-        const [, day, month, year, hours, minutes] = dateRegex.exec(dateStr);
-        const entryDate = new Date(`${year}-${month}-${day}T${hours}:${minutes}`);
-        // Get the UTC offset in minutes for the Istanbul timezone
-        const istanbulOffset = new Date().toLocaleTimeString('en-us', {timeZoneName: 'short'}).split(' ')[2];
-        const utcOffset = parseInt(istanbulOffset.replace(/[^0-9+-]+/g, ''));
-        // Apply the UTC offset to the entry date
-        entryDate.setMinutes(entryDate.getMinutes() - utcOffset);
-
-        const currentTime = new Date();
-        const timeDifference = currentTime - entryDate;
-        // Convert the time difference to a suitable unit (e.g., minutes, hours, etc.) based on your requirements
-        // For example, to get the time difference in minutes:
-        return Math.floor(timeDifference / (1000 * 60));
-    }
-
-    sort = (a, b) => {
-        const aWeight = this.calculateWeight(a);
-        const bWeight = this.calculateWeight(b);
-
-        return bWeight - aWeight; // Sort by weight in descending order
     }
 }
 
@@ -170,8 +131,7 @@ class DOMManipulator {
         if (!document.querySelector('#entry-item-list.favorite-on') && document.querySelector('.sub-title-menu')) {
 
             const sortFunction = (strategy) => {
-                const items = Array.from(document.querySelectorAll('[data-favorite-count]'));
-                document.querySelector('#entry-item-list').innerHTML = '';
+                const items = DOMManipulator.getUpdatedEntries();
                 Sorter.sortItems(items, new strategy().sort);
             }
 
@@ -183,27 +143,19 @@ class DOMManipulator {
                 sortFunction(LengthSortingStrategy)
             });
 
-            const weightButton = ButtonCreator.createSortButton('weight', () => {
-                sortFunction(WeightSortingStrategy)
-            });
-
-            const dailyniceButton = ButtonCreator.createSortButton('dailynice', () => {
-                const url = new URL(window.location.href);
-                const params = new URLSearchParams(url.search);
-                params.set('a', 'dailynice');
-                url.search = params.toString();
-                window.location.href = url.toString();
-            });
-
             const niceModeToggler = document.querySelector('.sub-title-menu');
             niceModeToggler.appendChild(favButton);
             niceModeToggler.appendChild(ButtonCreator.createSeparator());
             niceModeToggler.appendChild(lengthButton);
-            niceModeToggler.appendChild(ButtonCreator.createSeparator());
-            niceModeToggler.appendChild(weightButton);
-            niceModeToggler.appendChild(ButtonCreator.createSeparator());
-            niceModeToggler.appendChild(dailyniceButton);
         }
+    }
+
+    /**
+     * Retrieves the current entries from the document.
+     * @returns {HTMLElement[]} An array of HTML elements representing the current entries.
+     */
+    static getUpdatedEntries() {
+        return Array.from(document.querySelectorAll('#entry-item-list > li[data-favorite-count]'));
     }
 }
 
