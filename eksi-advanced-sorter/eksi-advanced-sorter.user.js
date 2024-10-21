@@ -2,7 +2,7 @@
 // @id           eksi-advanced-sorter@https://github.com/baturkacamak/userscripts
 // @name         Eksi Advanced Sorter
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      2.0.5
+// @version      2.0.6
 // @description  This script provides a feature to sort topics by their number of favorites or length on the Eksisozluk website
 // @author       Batur Kacamak
 // @copyright    2020+, Batur Kacamak (https://batur.info/)
