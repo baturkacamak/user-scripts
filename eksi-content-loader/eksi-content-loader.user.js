@@ -2,10 +2,10 @@
 // @id           eksi-content-loader@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Content Loader
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.6.0
+// @version      2.1.0
 // @description  Adds a button to load all consecutive pages with a progress bar, smooth transitions, a 1-second delay between requests, and keeps pagination visible on EksiSözlük.
-// @author       Batur Kacamak
-// @copyright    2023, Batur Kacamak (https://batur.info/)
+// @author       Batur Kacamak (Updated by AI Assistant)
+// @copyright    2024+, Batur Kacamak (https://batur.info/)
 // @match        https://eksisozluk.com/*
 // @grant        none
 // @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-content-loader#readme
@@ -16,7 +16,7 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-(function() {
+(() => {
     'use strict';
 
     const SELECTORS = Object.freeze({
@@ -27,126 +27,193 @@
         PAGE_COUNT: '.pager [title="son sayfa"]',
     });
 
-    class ContentLoader {
-        #entryList;
-        #pager;
-        #isLoading = false;
-        #loadButton;
-        #progressBar;
-        #progressText;
-        #currentPage;
-        #totalPages;
+    // DOM Utility Class
+    class DOMUtils {
+        static #parser = new DOMParser();
+
+        static createElement(tag, attributes = {}, textContent = '') {
+            const element = document.createElement(tag);
+            Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+            if (textContent) element.textContent = textContent;
+            return element;
+        }
+
+        static querySelector(selector, context = document) {
+            return context.querySelector(selector);
+        }
+
+        static querySelectorAll(selector, context = document) {
+            return [...context.querySelectorAll(selector)];
+        }
+
+        static parseHTML(html) {
+            return this.#parser.parseFromString(html, 'text/html');
+        }
+    }
+
+    // API Service using Singleton pattern
+    class APIService {
+        static #instance = null;
+        #baseURL = 'https://eksisozluk.com';
+        #defaultHeaders = {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest"
+        };
 
         constructor() {
-            this.#entryList = document.querySelector(SELECTORS.ENTRY_LIST);
-            this.#pager = document.querySelector(SELECTORS.PAGER);
-            this.#currentPage = parseInt(this.#pager.dataset.currentpage, 10);
-            this.#totalPages = this.#getTotalPages();
-        }
-
-        init() {
-            if (this.#entryList && this.#pager && this.#currentPage < this.#totalPages) {
-                this.#createLoadButton();
-                this.#createProgressBar();
-                this.#addStyles();
+            if (APIService.#instance) {
+                return APIService.#instance;
             }
+            APIService.#instance = this;
         }
 
-        #createLoadButton() {
-            this.#loadButton = document.createElement('button');
-            this.#loadButton.textContent = 'Load All Content';
-            this.#loadButton.className = 'load-all-button';
-            this.#loadButton.addEventListener('click', () => this.#loadAllPages());
-            this.#pager.parentNode.insertBefore(this.#loadButton, this.#pager);
+        static getInstance() {
+            return new APIService();
         }
 
-        #createProgressBar() {
-            const progressContainer = document.createElement('div');
-            progressContainer.className = 'progress-container';
-
-            this.#progressText = document.createElement('div');
-            this.#progressText.className = 'progress-text';
-
-            this.#progressBar = document.createElement('div');
-            this.#progressBar.className = 'progress-bar';
-
-            progressContainer.appendChild(this.#progressText);
-            progressContainer.appendChild(this.#progressBar);
-
-            this.#pager.parentNode.insertBefore(progressContainer, this.#pager);
-            progressContainer.style.display = 'none';
-        }
-
-        #updateProgress(loaded, total) {
-            const progress = (loaded / total) * 100;
-            this.#progressBar.style.width = `${progress}%`;
-            this.#progressText.textContent = `Loading: ${loaded}/${total} pages`;
-        }
-
-        #getTotalPages() {
-            const lastPageLink = document.querySelector(SELECTORS.PAGE_COUNT);
-            return lastPageLink ? parseInt(lastPageLink.textContent, 10) : this.#currentPage;
-        }
-
-        async #loadAllPages() {
-            if (this.#isLoading) return;
-
-            this.#isLoading = true;
-            this.#loadButton.style.display = 'none';
-            this.#progressBar.parentElement.style.display = 'block';
-            this.#updateProgress(0, this.#totalPages - this.#currentPage);
+        async #fetchWithTimeout(url, options, timeout = 10000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
 
             try {
-                for (let page = this.#currentPage + 1; page <= this.#totalPages; page++) {
-                    const entries = await this.#loadPage(page);
-                    entries.forEach(this.#appendEntry.bind(this));
-                    this.#updateProgress(page - this.#currentPage, this.#totalPages - this.#currentPage);
-
-                    // Add a 1-second delay between requests
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-
-                this.#progressBar.parentElement.style.display = 'none';
-                this.#updatePagination();
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                return response;
             } catch (error) {
-                console.error('Error loading pages:', error);
-                this.#loadButton.textContent = 'Error. Try Again';
-                this.#loadButton.style.display = 'block';
-                this.#progressBar.parentElement.style.display = 'none';
-            } finally {
-                this.#isLoading = false;
+                clearTimeout(id);
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timed out');
+                }
+                throw error;
             }
         }
 
-        async #loadPage(pageNumber) {
+        async #fetchJSON(url, options) {
+            try {
+                const response = await this.#fetchWithTimeout(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return {success: true, data};
+            } catch (error) {
+                console.error('Fetch error:', error);
+                return {success: false, error: error.message};
+            }
+        }
+
+        async request(endpoint, data = {}, method = 'POST', additionalHeaders = {}) {
+            const url = new URL(endpoint, this.#baseURL);
+            const headers = {...this.#defaultHeaders, ...additionalHeaders};
+            const body = method !== 'GET' ? new URLSearchParams(data) : undefined;
+
+            if (method === 'GET' && Object.keys(data).length) {
+                Object.entries(data).forEach(([key, value]) => url.searchParams.append(key, value));
+            }
+
+            return this.#fetchJSON(url, {
+                method,
+                headers,
+                body,
+                credentials: "include"
+            });
+        }
+
+        vote = (entryId, rate, ownerId) => this.request("/entry/vote", {id: entryId, rate, owner: ownerId});
+
+        favorite = (entryId) => this.request("/entry/favla", {entryId});
+
+        removeFavorite = (entryId) => this.request("/entry/favlama", {entryId});
+    }
+
+    // UI Component base class
+    class UIComponent {
+        #parent;
+        element;
+
+        constructor(parent) {
+            this.#parent = parent;
+        }
+
+        get parent() {
+            return this.#parent;
+        }
+
+        render() {
+            throw new Error('Render method must be implemented');
+        }
+
+        hide = () => this.element?.style.setProperty('display', 'none');
+
+        show = () => this.element?.style.removeProperty('display');
+    }
+
+    // Load Button Component
+    class LoadButton extends UIComponent {
+        #onClick;
+
+        constructor(parent, onClick) {
+            super(parent);
+            this.#onClick = onClick;
+        }
+
+        render() {
+            this.element = DOMUtils.createElement('button', {
+                class: 'load-all-button'
+            }, 'Load All Content');
+            this.element.addEventListener('click', this.#onClick);
+            this.parent.insertBefore(this.element, this.parent.firstChild);
+        }
+    }
+
+    // Progress Bar Component
+    class ProgressBar extends UIComponent {
+        #progressText;
+        #progressBar;
+
+        render() {
+            this.element = DOMUtils.createElement('div', {class: 'progress-container'});
+            this.#progressText = DOMUtils.createElement('div', {class: 'progress-text'});
+            this.#progressBar = DOMUtils.createElement('div', {class: 'progress-bar'});
+            this.element.append(this.#progressText, this.#progressBar);
+            this.parent.insertBefore(this.element, this.parent.firstChild);
+            this.hide();
+        }
+
+        update(loaded, total) {
+            const progress = (loaded / total) * 100;
+            this.#progressBar.style.setProperty('width', `${progress}%`);
+            this.#progressText.textContent = `Loading: ${loaded}/${total} pages`;
+        }
+    }
+
+    // Entry Loader using Factory pattern
+    class EntryLoader {
+        #apiService;
+
+        constructor(apiService) {
+            this.#apiService = apiService;
+        }
+
+        async loadPage(pageNumber) {
             const url = new URL(window.location);
             url.searchParams.set('p', pageNumber);
             const response = await fetch(url);
             const text = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'text/html');
-            return Array.from(doc.querySelectorAll(SELECTORS.ENTRIES));
+            const doc = DOMUtils.parseHTML(text);
+            return DOMUtils.querySelectorAll(SELECTORS.ENTRIES, doc);
         }
 
-        #appendEntry(entry, index) {
-            entry.style.opacity = '0';
-            entry.style.transform = 'translateY(20px)';
-            this.#reconstructFooter(entry);
-            this.#entryList.appendChild(entry);
-            setTimeout(() => {
-                entry.style.opacity = '1';
-                entry.style.transform = 'translateY(0)';
-            }, index * 20);
-        }
-
-        #reconstructFooter(entry) {
+        reconstructFooter(entry) {
             const footer = entry.querySelector('footer');
             if (footer) {
                 const feedbackContainer = footer.querySelector('.feedback-container');
                 if (feedbackContainer) {
                     const feedback = feedbackContainer.querySelector('.feedback');
                     if (feedback) {
-                        // Add missing elements to the feedback div
                         feedback.innerHTML = `
                             <div class="entry-share dropdown">
                                 <a class="entry-share dropdown-toggle toggles" title="share">
@@ -171,7 +238,6 @@
                         `;
                     }
 
-                    // Add rate options
                     const rateOptions = document.createElement('span');
                     rateOptions.className = 'rate-options';
                     rateOptions.innerHTML = `
@@ -188,14 +254,12 @@
                     `;
                     feedbackContainer.appendChild(rateOptions);
 
-                    // Add click handlers for like and dislike buttons
                     const likeButton = rateOptions.querySelector('.like');
                     const dislikeButton = rateOptions.querySelector('.dislike');
 
                     likeButton.addEventListener('click', () => this.#handleVote(entry, 1));
                     dislikeButton.addEventListener('click', () => this.#handleVote(entry, -1));
 
-                    // Add favorite links
                     const favoriteLinks = document.createElement('span');
                     favoriteLinks.className = 'favorite-links';
                     favoriteLinks.innerHTML = `
@@ -207,131 +271,188 @@
                     `;
                     feedbackContainer.appendChild(favoriteLinks);
 
-                    // Add click handler for favorite button
                     const favoriteButton = favoriteLinks.querySelector('.favorite-link');
                     favoriteButton.addEventListener('click', () => this.#handleFavorite(entry));
                 }
             }
         }
 
-        #handleVote(entry, rate) {
+        async #handleVote(entry, rate) {
             const entryId = entry.dataset.id;
             const ownerId = entry.dataset.authorId;
 
-            fetch("https://eksisozluk.com/entry/vote", {
-                "headers": {
-                    "accept": "*/*",
-                    "accept-language": "en-US,en;q=0.9,tr;q=0.8,nl;q=0.7",
-                    "cache-control": "no-cache",
-                    "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                    "pragma": "no-cache",
-                    "sec-ch-ua": "\"Microsoft Edge\";v=\"129\", \"Not=A?Brand\";v=\"8\", \"Chromium\";v=\"129\"",
-                    "sec-ch-ua-mobile": "?0",
-                    "sec-ch-ua-platform": "\"macOS\"",
-                    "sec-fetch-dest": "empty",
-                    "sec-fetch-mode": "cors",
-                    "sec-fetch-site": "same-origin",
-                    "x-requested-with": "XMLHttpRequest"
-                },
-                "referrer": window.location.href,
-                "referrerPolicy": "strict-origin-when-cross-origin",
-                "body": `id=${entryId}&rate=${rate}&owner=${ownerId}`,
-                "method": "POST",
-                "mode": "cors",
-                "credentials": "include"
-            })
-                .then(response => response.json())
-                .then(data => {
+            try {
+                const data = await this.#apiService.vote(entryId, rate, ownerId);
                 console.log('Vote response:', data);
                 // Here you can handle the response, e.g., update UI to reflect the vote
-            })
-                .catch(error => {
+                this.#updateVoteUI(entry, data);
+            } catch (error) {
                 console.error('Error voting:', error);
-            });
+            }
         }
 
-        #handleFavorite(entry) {
+        async #handleFavorite(entry) {
             const entryId = entry.dataset.id;
+            const isFavorited = entry.querySelector('.favorite-link').classList.contains('favorited');
 
-            fetch("https://eksisozluk.com/entry/favla", {
-                "headers": {
-                    "accept": "*/*",
-                    "accept-language": "en-US,en;q=0.9,tr;q=0.8,nl;q=0.7",
-                    "cache-control": "no-cache",
-                    "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                    "pragma": "no-cache",
-                    "sec-ch-ua": "\"Microsoft Edge\";v=\"129\", \"Not=A?Brand\";v=\"8\", \"Chromium\";v=\"129\"",
-                    "sec-ch-ua-mobile": "?0",
-                    "sec-ch-ua-platform": "\"macOS\"",
-                    "sec-fetch-dest": "empty",
-                    "sec-fetch-mode": "cors",
-                    "sec-fetch-site": "same-origin",
-                    "x-requested-with": "XMLHttpRequest"
-                },
-                "referrer": window.location.href,
-                "referrerPolicy": "strict-origin-when-cross-origin",
-                "body": `entryId=${entryId}`,
-                "method": "POST",
-                "mode": "cors",
-                "credentials": "include"
-            })
-                .then(response => response.json())
-                .then(data => {
+            try {
+                let data;
+                if (isFavorited) {
+                    data = await this.#apiService.removeFavorite(entryId);
+                } else {
+                    data = await this.#apiService.favorite(entryId);
+                }
                 console.log('Favorite response:', data);
-                // Here you can handle the response, e.g., update UI to reflect the favorite status
-                this.#updateFavoriteUI(entry, data);
-            })
-                .catch(error => {
-                console.error('Error favoriting:', error);
-            });
+                this.#updateFavoriteUI(entry, data, isFavorited);
+            } catch (error) {
+                console.error('Error handling favorite:', error);
+            }
         }
 
-        #updateFavoriteUI(entry, data) {
+        #updateVoteUI(entry, data) {
+            const likeButton = entry.querySelector('.like');
+            const dislikeButton = entry.querySelector('.dislike');
+
+            if (data.Success) {
+                if (data.Vote > 0) {
+                    likeButton.classList.add('voted');
+                    dislikeButton.classList.remove('voted');
+                } else if (data.Vote < 0) {
+                    dislikeButton.classList.add('voted');
+                    likeButton.classList.remove('voted');
+                } else {
+                    likeButton.classList.remove('voted');
+                    dislikeButton.classList.remove('voted');
+                }
+            }
+        }
+
+        #updateFavoriteUI(entry, data, isFavorited) {
             const favoriteLink = entry.querySelector('.favorite-link');
             const favoriteCount = entry.querySelector('.favorite-count');
 
             if (data.Success) {
-                if (data.Success) {
-                    favoriteLink.classList.add('favorited');
-                    favoriteLink.title = 'favorilerden çıkar';
-                } else {
+                favoriteLink.classList.add('favorited');
+                if (isFavorited) {
                     favoriteLink.classList.remove('favorited');
-                    favoriteLink.title = 'favorilere ekle';
                 }
+                favoriteLink.title = isFavorited ? 'favorilerden çıkar' : 'favorilere ekle';
 
                 if (favoriteCount) {
                     favoriteCount.textContent = data.Count;
-                    // Update the entry's dataset
                     entry.dataset.favoriteCount = data.Count;
                 }
             }
         }
 
-        #updatePagination() {
-            // Update the current page to the last page
-            this.#pager.dataset.currentpage = this.#totalPages.toString();
+        appendEntry(entryList, entry, index) {
+            entry.style.setProperty('opacity', '0');
+            entry.style.setProperty('transform', 'translateY(20px)');
+            this.reconstructFooter(entry);
+            entryList.appendChild(entry);
+            setTimeout(() => {
+                entry.style.setProperty('opacity', '1');
+                entry.style.setProperty('transform', 'translateY(0)');
+            }, index * 20);
+        }
+    }
 
-            // Disable the "next" button
+    // Pagination Manager
+    class PaginationManager {
+        #pager;
+
+        constructor(pager) {
+            this.#pager = pager;
+        }
+
+        getCurrentPage = () => parseInt(this.#pager.dataset.currentpage, 10);
+
+        getTotalPages() {
+            const lastPageLink = DOMUtils.querySelector(SELECTORS.PAGE_COUNT);
+            return lastPageLink ? parseInt(lastPageLink.textContent, 10) : this.getCurrentPage();
+        }
+
+        updatePagination(totalPages) {
+            this.#pager.dataset.currentpage = totalPages.toString();
+
             const nextButton = this.#pager.querySelector(SELECTORS.NEXT_PAGE);
             if (nextButton) {
                 nextButton.classList.add('disabled');
                 nextButton.removeAttribute('href');
             }
 
-            // Update page numbers if necessary
-            const pageNumbers = this.#pager.querySelectorAll('a[data-page]');
-            pageNumbers.forEach(pageNumber => {
+            DOMUtils.querySelectorAll('a[data-page]', this.#pager).forEach(pageNumber => {
                 const pageNum = parseInt(pageNumber.dataset.page, 10);
-                if (pageNum > this.#totalPages) {
-                    pageNumber.style.display = 'none';
-                }
+                pageNumber.style.setProperty('display', pageNum > totalPages ? 'none' : '');
             });
+        }
+    }
+
+    // Main Content Loader class
+    class ContentLoader {
+        #entryList;
+        #pager;
+        #paginationManager;
+        #currentPage;
+        #totalPages;
+        #entryLoader;
+        #apiService;
+        #loadButton;
+        #progressBar;
+        #isLoading = false;
+
+        constructor() {
+            this.#entryList = DOMUtils.querySelector(SELECTORS.ENTRY_LIST);
+            this.#pager = DOMUtils.querySelector(SELECTORS.PAGER);
+            this.#paginationManager = new PaginationManager(this.#pager);
+            this.#currentPage = this.#paginationManager.getCurrentPage();
+            this.#totalPages = this.#paginationManager.getTotalPages();
+            this.#apiService = APIService.getInstance();
+            this.#entryLoader = new EntryLoader(this.#apiService);
+        }
+
+        init() {
+            if (this.#entryList && this.#pager && this.#currentPage < this.#totalPages) {
+                this.#loadButton = new LoadButton(this.#pager.parentNode, () => this.#loadAllPages());
+                this.#progressBar = new ProgressBar(this.#pager.parentNode);
+                this.#loadButton.render();
+                this.#progressBar.render();
+                this.#addStyles();
+            }
+        }
+
+        async #loadAllPages() {
+            if (this.#isLoading) return;
+
+            this.#isLoading = true;
+            this.#loadButton.hide();
+            this.#progressBar.show();
+            this.#progressBar.update(0, this.#totalPages - this.#currentPage);
+
+            try {
+                for (let page = this.#currentPage + 1; page <= this.#totalPages; page++) {
+                    const entries = await this.#entryLoader.loadPage(page);
+                    entries.forEach((entry, index) => this.#entryLoader.appendEntry(this.#entryList, entry, index));
+                    this.#progressBar.update(page - this.#currentPage, this.#totalPages - this.#currentPage);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+                this.#progressBar.hide();
+                this.#paginationManager.updatePagination(this.#totalPages);
+            } catch (error) {
+                console.error('Error loading pages:', error);
+                this.#loadButton.element.textContent = 'Error. Try Again';
+                this.#loadButton.show();
+                this.#progressBar.hide();
+            } finally {
+                this.#isLoading = false;
+            }
         }
 
         #addStyles() {
-            const style = document.createElement('style');
+            const style = DOMUtils.createElement('style');
             style.textContent = `
-                .load-all-button {
+                    .load-all-button {
                     display: inline-block;
                     margin: 0 auto;
                     padding: 0 0 0 20px;
@@ -377,10 +498,7 @@
                 .progress-bar::after {
                     content: '';
                     position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
+                    inset: 0;
                     background: linear-gradient(
                         90deg,
                         rgba(255, 255, 255, 0.1) 25%,
@@ -396,10 +514,7 @@
                 }
                 .progress-text {
                     position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
+                    inset: 0;
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -417,7 +532,13 @@
                         background-position: 30px 0;
                     }
                 }
-                #entry-item-list .content, #matter-index-item-list .content, #matter-content .content, #matter-answer-content .content, #pinned-entry .content, #matter-answer-index-item-list .content, #matter-answer-list .content {
+                #entry-item-list .content,
+                #matter-index-item-list .content,
+                #matter-content .content,
+                #matter-answer-content .content,
+                #pinned-entry .content,
+                #matter-answer-index-item-list .content,
+                #matter-answer-list .content {
                     overflow: initial !important;
                     max-height: initial !important;
                 }
@@ -426,6 +547,7 @@
         }
     }
 
+    // Initialize the content loader
     const contentLoader = new ContentLoader();
     contentLoader.init();
 })();
