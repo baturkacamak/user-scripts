@@ -2,7 +2,7 @@
 // @id           eksi-content-loader@https://github.com/baturkacamak/userscripts
 // @name         EksiSözlük - Content Loader
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      2.1.0
+// @version      2.2.0
 // @description  Adds a button to load all consecutive pages with a progress bar, smooth transitions, a 1-second delay between requests, and keeps pagination visible on EksiSözlük.
 // @author       Batur Kacamak (Updated by AI Assistant)
 // @copyright    2024+, Batur Kacamak (https://batur.info/)
@@ -190,12 +190,25 @@ class ProgressBar extends UIComponent {
     }
 }
 
-// Entry Loader using Factory pattern
+// Entry Loader
 class EntryLoader {
     #apiService;
 
     constructor(apiService) {
         this.#apiService = apiService;
+    }
+
+    #setupLazyLoad(element) {
+        const images = element.querySelectorAll('img');
+        images.forEach(img => {
+            img.loading = 'lazy';
+            img.style.opacity = '0';
+            img.style.transition = 'opacity 0.3s ease';
+
+            img.addEventListener('load', () => {
+                img.style.opacity = '1';
+            }, { once: true });
+        });
     }
 
     async loadPage(pageNumber) {
@@ -204,7 +217,12 @@ class EntryLoader {
         const response = await fetch(url);
         const text = await response.text();
         const doc = DOMUtils.parseHTML(text);
-        return DOMUtils.querySelectorAll(SELECTORS.ENTRIES, doc);
+        const entries = DOMUtils.querySelectorAll(SELECTORS.ENTRIES, doc);
+
+        // Setup lazy loading for images in each entry
+        entries.forEach(entry => this.#setupLazyLoad(entry));
+
+        return entries;
     }
 
     reconstructFooter(entry) {
