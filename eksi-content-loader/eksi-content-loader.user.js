@@ -31,190 +31,190 @@
     class DOMUtils {
         static #parser = new DOMParser();
 
-        static createElement(tag, attributes = {}, textContent = '') {
-            const element = document.createElement(tag);
-            Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
-            if (textContent) element.textContent = textContent;
-            return element;
-        }
-
-        static querySelector(selector, context = document) {
-            return context.querySelector(selector);
-        }
-
-        static querySelectorAll(selector, context = document) {
-            return [...context.querySelectorAll(selector)];
-        }
-
-        static parseHTML(html) {
-            return this.#parser.parseFromString(html, 'text/html');
-        }
+    static createElement(tag, attributes = {}, textContent = '') {
+        const element = document.createElement(tag);
+        Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, value));
+        if (textContent) element.textContent = textContent;
+        return element;
     }
 
-    // API Service using Singleton pattern
-    class APIService {
-        static #instance = null;
-        #baseURL = 'https://eksisozluk.com';
-        #defaultHeaders = {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "X-Requested-With": "XMLHttpRequest"
-        };
-
-        constructor() {
-            if (APIService.#instance) {
-                return APIService.#instance;
-            }
-            APIService.#instance = this;
-        }
-
-        static getInstance() {
-            return new APIService();
-        }
-
-        async #fetchWithTimeout(url, options, timeout = 10000) {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-
-            try {
-                const response = await fetch(url, {
-                    ...options,
-                    signal: controller.signal
-                });
-                clearTimeout(id);
-                return response;
-            } catch (error) {
-                clearTimeout(id);
-                if (error.name === 'AbortError') {
-                    throw new Error('Request timed out');
-                }
-                throw error;
-            }
-        }
-
-        async #fetchJSON(url, options) {
-            try {
-                const response = await this.#fetchWithTimeout(url, options);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                return {success: true, data};
-            } catch (error) {
-                console.error('Fetch error:', error);
-                return {success: false, error: error.message};
-            }
-        }
-
-        async request(endpoint, data = {}, method = 'POST', additionalHeaders = {}) {
-            const url = new URL(endpoint, this.#baseURL);
-            const headers = {...this.#defaultHeaders, ...additionalHeaders};
-            const body = method !== 'GET' ? new URLSearchParams(data) : undefined;
-
-            if (method === 'GET' && Object.keys(data).length) {
-                Object.entries(data).forEach(([key, value]) => url.searchParams.append(key, value));
-            }
-
-            return this.#fetchJSON(url, {
-                method,
-                headers,
-                body,
-                credentials: "include"
-            });
-        }
-
-        vote = (entryId, rate, ownerId) => this.request("/entry/vote", {id: entryId, rate, owner: ownerId});
-
-        favorite = (entryId) => this.request("/entry/favla", {entryId});
-
-        removeFavorite = (entryId) => this.request("/entry/favlama", {entryId});
+    static querySelector(selector, context = document) {
+        return context.querySelector(selector);
     }
 
-    // UI Component base class
-    class UIComponent {
-        #parent;
-        element;
-
-        constructor(parent) {
-            this.#parent = parent;
-        }
-
-        get parent() {
-            return this.#parent;
-        }
-
-        render() {
-            throw new Error('Render method must be implemented');
-        }
-
-        hide = () => this.element?.style.setProperty('display', 'none');
-
-        show = () => this.element?.style.removeProperty('display');
+    static querySelectorAll(selector, context = document) {
+        return [...context.querySelectorAll(selector)];
     }
 
-    // Load Button Component
-    class LoadButton extends UIComponent {
-        #onClick;
+    static parseHTML(html) {
+        return this.#parser.parseFromString(html, 'text/html');
+    }
+}
 
-        constructor(parent, onClick) {
-            super(parent);
-            this.#onClick = onClick;
-        }
+ // API Service
+ class APIService {
+ static #instance = null;
+ #baseURL = 'https://eksisozluk.com';
+ #defaultHeaders = {
+ "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+ "X-Requested-With": "XMLHttpRequest"
+ };
 
-        render() {
-            this.element = DOMUtils.createElement('button', {
-                class: 'load-all-button'
-            }, 'Load All Content');
-            this.element.addEventListener('click', this.#onClick);
-            this.parent.insertBefore(this.element, this.parent.firstChild);
+constructor() {
+    if (APIService.#instance) {
+        return APIService.#instance;
+    }
+    APIService.#instance = this;
+}
+
+static getInstance() {
+    return new APIService();
+}
+
+async #fetchWithTimeout(url, options, timeout = 10000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        if (error.name === 'AbortError') {
+            throw new Error('Request timed out');
         }
+        throw error;
+    }
+}
+
+async #fetchJSON(url, options) {
+    try {
+        const response = await this.#fetchWithTimeout(url, options);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return {success: true, data};
+    } catch (error) {
+        console.error('Fetch error:', error);
+        return {success: false, error: error.message};
+    }
+}
+
+async request(endpoint, data = {}, method = 'POST', additionalHeaders = {}) {
+    const url = new URL(endpoint, this.#baseURL);
+    const headers = {...this.#defaultHeaders, ...additionalHeaders};
+    const body = method !== 'GET' ? new URLSearchParams(data) : undefined;
+
+    if (method === 'GET' && Object.keys(data).length) {
+        Object.entries(data).forEach(([key, value]) => url.searchParams.append(key, value));
     }
 
-    // Progress Bar Component
-    class ProgressBar extends UIComponent {
-        #progressText;
-        #progressBar;
+    return this.#fetchJSON(url, {
+        method,
+        headers,
+        body,
+        credentials: "include"
+    });
+}
 
-        render() {
-            this.element = DOMUtils.createElement('div', {class: 'progress-container'});
-            this.#progressText = DOMUtils.createElement('div', {class: 'progress-text'});
-            this.#progressBar = DOMUtils.createElement('div', {class: 'progress-bar'});
-            this.element.append(this.#progressText, this.#progressBar);
-            this.parent.insertBefore(this.element, this.parent.firstChild);
-            this.hide();
-        }
+vote = (entryId, rate, ownerId) => this.request("/entry/vote", {id: entryId, rate, owner: ownerId});
 
-        update(loaded, total) {
-            const progress = (loaded / total) * 100;
-            this.#progressBar.style.setProperty('width', `${progress}%`);
-            this.#progressText.textContent = `Loading: ${loaded}/${total} pages`;
-        }
+favorite = (entryId) => this.request("/entry/favla", {entryId});
+
+removeFavorite = (entryId) => this.request("/entry/favlama", {entryId});
+}
+
+// UI Component base class
+class UIComponent {
+    #parent;
+    element;
+
+    constructor(parent) {
+        this.#parent = parent;
     }
 
-    // Entry Loader using Factory pattern
-    class EntryLoader {
-        #apiService;
+    get parent() {
+        return this.#parent;
+    }
 
-        constructor(apiService) {
-            this.#apiService = apiService;
-        }
+    render() {
+        throw new Error('Render method must be implemented');
+    }
 
-        async loadPage(pageNumber) {
-            const url = new URL(window.location);
-            url.searchParams.set('p', pageNumber);
-            const response = await fetch(url);
-            const text = await response.text();
-            const doc = DOMUtils.parseHTML(text);
-            return DOMUtils.querySelectorAll(SELECTORS.ENTRIES, doc);
-        }
+    hide = () => this.element?.style.setProperty('display', 'none');
 
-        reconstructFooter(entry) {
-            const footer = entry.querySelector('footer');
-            if (footer) {
-                const feedbackContainer = footer.querySelector('.feedback-container');
-                if (feedbackContainer) {
-                    const feedback = feedbackContainer.querySelector('.feedback');
-                    if (feedback) {
-                        feedback.innerHTML = `
+    show = () => this.element?.style.removeProperty('display');
+}
+
+// Load Button Component
+class LoadButton extends UIComponent {
+    #onClick;
+
+    constructor(parent, onClick) {
+        super(parent);
+        this.#onClick = onClick;
+    }
+
+    render() {
+        this.element = DOMUtils.createElement('button', {
+            class: 'load-all-button'
+        }, 'Load All Content');
+        this.element.addEventListener('click', this.#onClick);
+        this.parent.insertBefore(this.element, this.parent.firstChild);
+    }
+}
+
+// Progress Bar Component
+class ProgressBar extends UIComponent {
+    #progressText;
+    #progressBar;
+
+    render() {
+        this.element = DOMUtils.createElement('div', {class: 'progress-container'});
+        this.#progressText = DOMUtils.createElement('div', {class: 'progress-text'});
+        this.#progressBar = DOMUtils.createElement('div', {class: 'progress-bar'});
+        this.element.append(this.#progressText, this.#progressBar);
+        this.parent.insertBefore(this.element, this.parent.firstChild);
+        this.hide();
+    }
+
+    update(loaded, total) {
+        const progress = (loaded / total) * 100;
+        this.#progressBar.style.setProperty('width', `${progress}%`);
+        this.#progressText.textContent = `Loading: ${loaded}/${total} pages`;
+    }
+}
+
+// Entry Loader using Factory pattern
+class EntryLoader {
+    #apiService;
+
+    constructor(apiService) {
+        this.#apiService = apiService;
+    }
+
+    async loadPage(pageNumber) {
+        const url = new URL(window.location);
+        url.searchParams.set('p', pageNumber);
+        const response = await fetch(url);
+        const text = await response.text();
+        const doc = DOMUtils.parseHTML(text);
+        return DOMUtils.querySelectorAll(SELECTORS.ENTRIES, doc);
+    }
+
+    reconstructFooter(entry) {
+        const footer = entry.querySelector('footer');
+        if (footer) {
+            const feedbackContainer = footer.querySelector('.feedback-container');
+            if (feedbackContainer) {
+                const feedback = feedbackContainer.querySelector('.feedback');
+                if (feedback) {
+                    feedback.innerHTML = `
                             <div class="entry-share dropdown">
                                 <a class="entry-share dropdown-toggle toggles" title="share">
                                     <svg class="eksico" id="svg-share">
@@ -236,11 +236,11 @@
                                 </ul>
                             </div>
                         `;
-                    }
+                }
 
-                    const rateOptions = document.createElement('span');
-                    rateOptions.className = 'rate-options';
-                    rateOptions.innerHTML = `
+                const rateOptions = document.createElement('span');
+                rateOptions.className = 'rate-options';
+                rateOptions.innerHTML = `
                         <a class="like" title="şükela!"><span></span>
                             <svg class="eksico" id="svg-chevron-up">
                                 <use xlink:href="#eksico-chevron-up"></use>
@@ -252,206 +252,220 @@
                             </svg>
                         </a>
                     `;
-                    feedbackContainer.appendChild(rateOptions);
+                feedbackContainer.appendChild(rateOptions);
 
-                    const likeButton = rateOptions.querySelector('.like');
-                    const dislikeButton = rateOptions.querySelector('.dislike');
+                const likeButton = rateOptions.querySelector('.like');
+                const dislikeButton = rateOptions.querySelector('.dislike');
 
-                    likeButton.addEventListener('click', () => this.#handleVote(entry, 1));
-                    dislikeButton.addEventListener('click', () => this.#handleVote(entry, -1));
+                likeButton.addEventListener('click', () => this.#handleVote(entry, 1));
+                dislikeButton.addEventListener('click', () => this.#handleVote(entry, -1));
 
-                    const favoriteLinks = document.createElement('span');
-                    favoriteLinks.className = 'favorite-links';
-                    favoriteLinks.innerHTML = `
-                        <a class="favorite-link" title="favorilere ekle" aria-label="favorilere ekle">
-                            <svg class="eksico"><use xlink:href="#eksico-drop"></use></svg>
-                        </a>
-                        <a class="favorite-count toggles">${entry.dataset.favoriteCount || '0'}</a>
-                        <div class="favorite-list-popup toggles-menu"><div></div></div>
-                    `;
-                    feedbackContainer.appendChild(favoriteLinks);
+                const favoriteLinks = document.createElement('span');
+                favoriteLinks.className = 'favorite-links';
+                const isFavorite = entry.dataset.isfavorite === "true";
+                favoriteLinks.innerHTML = `
+                    <a class="favorite-link${isFavorite ? ' favorited' : ''}" title="${isFavorite ? 'favorilerden çıkar' : 'favorilere ekle'}" aria-label="${isFavorite ? 'favorilerden çıkar' : 'favorilere ekle'}">
+                        <svg class="eksico"><use xlink:href="#eksico-drop"></use></svg>
+                    </a>
+                    <a class="favorite-count toggles">${entry.dataset.favoriteCount || '0'}</a>
+                    <div class="favorite-list-popup toggles-menu"><div></div></div>
+                `;
+                feedbackContainer.appendChild(favoriteLinks);
 
-                    const favoriteButton = favoriteLinks.querySelector('.favorite-link');
-                    favoriteButton.addEventListener('click', () => this.#handleFavorite(entry));
-                }
+                const favoriteButton = favoriteLinks.querySelector('.favorite-link');
+                favoriteButton.addEventListener('click', () => this.#handleFavorite(entry));
             }
-        }
-
-        async #handleVote(entry, rate) {
-            const entryId = entry.dataset.id;
-            const ownerId = entry.dataset.authorId;
-
-            try {
-                const data = await this.#apiService.vote(entryId, rate, ownerId);
-                console.log('Vote response:', data);
-                // Here you can handle the response, e.g., update UI to reflect the vote
-                this.#updateVoteUI(entry, data);
-            } catch (error) {
-                console.error('Error voting:', error);
-            }
-        }
-
-        async #handleFavorite(entry) {
-            const entryId = entry.dataset.id;
-            const isFavorited = entry.querySelector('.favorite-link').classList.contains('favorited');
-
-            try {
-                let data;
-                if (isFavorited) {
-                    data = await this.#apiService.removeFavorite(entryId);
-                } else {
-                    data = await this.#apiService.favorite(entryId);
-                }
-                console.log('Favorite response:', data);
-                this.#updateFavoriteUI(entry, data, isFavorited);
-            } catch (error) {
-                console.error('Error handling favorite:', error);
-            }
-        }
-
-        #updateVoteUI(entry, data) {
-            const likeButton = entry.querySelector('.like');
-            const dislikeButton = entry.querySelector('.dislike');
-
-            if (data.Success) {
-                if (data.Vote > 0) {
-                    likeButton.classList.add('voted');
-                    dislikeButton.classList.remove('voted');
-                } else if (data.Vote < 0) {
-                    dislikeButton.classList.add('voted');
-                    likeButton.classList.remove('voted');
-                } else {
-                    likeButton.classList.remove('voted');
-                    dislikeButton.classList.remove('voted');
-                }
-            }
-        }
-
-        #updateFavoriteUI(entry, data, isFavorited) {
-            const favoriteLink = entry.querySelector('.favorite-link');
-            const favoriteCount = entry.querySelector('.favorite-count');
-
-            if (data.Success) {
-                favoriteLink.classList.add('favorited');
-                if (isFavorited) {
-                    favoriteLink.classList.remove('favorited');
-                }
-                favoriteLink.title = isFavorited ? 'favorilerden çıkar' : 'favorilere ekle';
-
-                if (favoriteCount) {
-                    favoriteCount.textContent = data.Count;
-                    entry.dataset.favoriteCount = data.Count;
-                }
-            }
-        }
-
-        appendEntry(entryList, entry, index) {
-            entry.style.setProperty('opacity', '0');
-            entry.style.setProperty('transform', 'translateY(20px)');
-            this.reconstructFooter(entry);
-            entryList.appendChild(entry);
-            setTimeout(() => {
-                entry.style.setProperty('opacity', '1');
-                entry.style.setProperty('transform', 'translateY(0)');
-            }, index * 20);
         }
     }
 
-    // Pagination Manager
-    class PaginationManager {
-        #pager;
+    async #handleVote(entry, rate) {
+        const entryId = entry.dataset.id;
+        const ownerId = entry.dataset.authorId;
 
-        constructor(pager) {
-            this.#pager = pager;
-        }
-
-        getCurrentPage = () => parseInt(this.#pager.dataset.currentpage, 10);
-
-        getTotalPages() {
-            const lastPageLink = DOMUtils.querySelector(SELECTORS.PAGE_COUNT);
-            return lastPageLink ? parseInt(lastPageLink.textContent, 10) : this.getCurrentPage();
-        }
-
-        updatePagination(totalPages) {
-            this.#pager.dataset.currentpage = totalPages.toString();
-
-            const nextButton = this.#pager.querySelector(SELECTORS.NEXT_PAGE);
-            if (nextButton) {
-                nextButton.classList.add('disabled');
-                nextButton.removeAttribute('href');
-            }
-
-            DOMUtils.querySelectorAll('a[data-page]', this.#pager).forEach(pageNumber => {
-                const pageNum = parseInt(pageNumber.dataset.page, 10);
-                pageNumber.style.setProperty('display', pageNum > totalPages ? 'none' : '');
-            });
+        try {
+            const data = await this.#apiService.vote(entryId, rate, ownerId);
+            console.log('Vote response:', data);
+            // Here you can handle the response, e.g., update UI to reflect the vote
+            this.#updateVoteUI(entry, data);
+        } catch (error) {
+            console.error('Error voting:', error);
         }
     }
 
-    // Main Content Loader class
-    class ContentLoader {
-        #entryList;
-        #pager;
-        #paginationManager;
-        #currentPage;
-        #totalPages;
-        #entryLoader;
-        #apiService;
-        #loadButton;
-        #progressBar;
-        #isLoading = false;
+    async #handleFavorite(entry) {
+        const entryId = entry.dataset.id;
+        const favoriteLink = entry.querySelector('.favorite-link');
+        const isFavorited = favoriteLink.classList.contains('favorited');
 
-        constructor() {
-            this.#entryList = DOMUtils.querySelector(SELECTORS.ENTRY_LIST);
-            this.#pager = DOMUtils.querySelector(SELECTORS.PAGER);
-            this.#paginationManager = new PaginationManager(this.#pager);
-            this.#currentPage = this.#paginationManager.getCurrentPage();
-            this.#totalPages = this.#paginationManager.getTotalPages();
-            this.#apiService = APIService.getInstance();
-            this.#entryLoader = new EntryLoader(this.#apiService);
+        try {
+            let response;
+            if (isFavorited) {
+                response = await this.#apiService.removeFavorite(entryId);
+            } else {
+                response = await this.#apiService.favorite(entryId);
+            }
+
+            if (response.success) {
+                // Use the Count directly from the API response
+                this.#updateFavoriteUI(entry, {
+                    Success: response.data.Success,
+                    Count: response.data.Count
+                }, !isFavorited);
+            }
+        } catch (error) {
+            console.error('Error handling favorite:', error);
         }
+    }
 
-        init() {
-            if (this.#entryList && this.#pager && this.#currentPage < this.#totalPages) {
-                this.#loadButton = new LoadButton(this.#pager.parentNode, () => this.#loadAllPages());
-                this.#progressBar = new ProgressBar(this.#pager.parentNode);
-                this.#loadButton.render();
-                this.#progressBar.render();
-                this.#addStyles();
+    #updateFavoriteUI(entry, data, isFavorited) {
+        const favoriteLink = entry.querySelector('.favorite-link');
+        const favoriteCount = entry.querySelector('.favorite-count');
+
+        if (data.Success) {
+            // Toggle favorite state
+            favoriteLink.classList.toggle('favorited', isFavorited);
+
+            // Update title and aria-label
+            const newTitle = isFavorited ? 'favorilerden çıkar' : 'favorilere ekle';
+            favoriteLink.title = newTitle;
+            favoriteLink.setAttribute('aria-label', newTitle);
+
+            // Update count using the API response count
+            if (favoriteCount && typeof data.Count === 'number') {
+                favoriteCount.textContent = data.Count.toString();
+                entry.dataset.favoriteCount = data.Count.toString();
+            }
+
+            // Update the entry's favorite state
+            entry.dataset.isfavorite = isFavorited.toString();
+        }
+    }
+
+    #updateVoteUI(entry, data) {
+        const likeButton = entry.querySelector('.like');
+        const dislikeButton = entry.querySelector('.dislike');
+
+        if (data.Success) {
+            if (data.Vote > 0) {
+                likeButton.classList.add('voted');
+                dislikeButton.classList.remove('voted');
+            } else if (data.Vote < 0) {
+                dislikeButton.classList.add('voted');
+                likeButton.classList.remove('voted');
+            } else {
+                likeButton.classList.remove('voted');
+                dislikeButton.classList.remove('voted');
             }
         }
+    }
 
-        async #loadAllPages() {
-            if (this.#isLoading) return;
+    appendEntry(entryList, entry, index) {
+        entry.style.setProperty('opacity', '0');
+        entry.style.setProperty('transform', 'translateY(20px)');
+        this.reconstructFooter(entry);
+        entryList.appendChild(entry);
+        setTimeout(() => {
+            entry.style.setProperty('opacity', '1');
+            entry.style.setProperty('transform', 'translateY(0)');
+        }, index * 20);
+    }
+}
 
-            this.#isLoading = true;
-            this.#loadButton.hide();
-            this.#progressBar.show();
-            this.#progressBar.update(0, this.#totalPages - this.#currentPage);
+// Pagination Manager
+class PaginationManager {
+    #pager;
 
-            try {
-                for (let page = this.#currentPage + 1; page <= this.#totalPages; page++) {
-                    const entries = await this.#entryLoader.loadPage(page);
-                    entries.forEach((entry, index) => this.#entryLoader.appendEntry(this.#entryList, entry, index));
-                    this.#progressBar.update(page - this.#currentPage, this.#totalPages - this.#currentPage);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
+    constructor(pager) {
+        this.#pager = pager;
+    }
 
-                this.#progressBar.hide();
-                this.#paginationManager.updatePagination(this.#totalPages);
-            } catch (error) {
-                console.error('Error loading pages:', error);
-                this.#loadButton.element.textContent = 'Error. Try Again';
-                this.#loadButton.show();
-                this.#progressBar.hide();
-            } finally {
-                this.#isLoading = false;
-            }
+    getCurrentPage = () => parseInt(this.#pager.dataset.currentpage, 10);
+
+    getTotalPages() {
+        const lastPageLink = DOMUtils.querySelector(SELECTORS.PAGE_COUNT);
+        return lastPageLink ? parseInt(lastPageLink.textContent, 10) : this.getCurrentPage();
+    }
+
+    updatePagination(totalPages) {
+        this.#pager.dataset.currentpage = totalPages.toString();
+
+        const nextButton = this.#pager.querySelector(SELECTORS.NEXT_PAGE);
+        if (nextButton) {
+            nextButton.classList.add('disabled');
+            nextButton.removeAttribute('href');
         }
 
-        #addStyles() {
-            const style = DOMUtils.createElement('style');
-            style.textContent = `
+        DOMUtils.querySelectorAll('a[data-page]', this.#pager).forEach(pageNumber => {
+            const pageNum = parseInt(pageNumber.dataset.page, 10);
+            pageNumber.style.setProperty('display', pageNum > totalPages ? 'none' : '');
+        });
+    }
+}
+
+// Main Content Loader class
+class ContentLoader {
+    #entryList;
+    #pager;
+    #paginationManager;
+    #currentPage;
+    #totalPages;
+    #entryLoader;
+    #apiService;
+    #loadButton;
+    #progressBar;
+    #isLoading = false;
+
+    constructor() {
+        this.#entryList = DOMUtils.querySelector(SELECTORS.ENTRY_LIST);
+        this.#pager = DOMUtils.querySelector(SELECTORS.PAGER);
+        this.#paginationManager = new PaginationManager(this.#pager);
+        this.#currentPage = this.#paginationManager.getCurrentPage();
+        this.#totalPages = this.#paginationManager.getTotalPages();
+        this.#apiService = APIService.getInstance();
+        this.#entryLoader = new EntryLoader(this.#apiService);
+    }
+
+    init() {
+        if (this.#entryList && this.#pager && this.#currentPage < this.#totalPages) {
+            this.#loadButton = new LoadButton(this.#pager.parentNode, () => this.#loadAllPages());
+            this.#progressBar = new ProgressBar(this.#pager.parentNode);
+            this.#loadButton.render();
+            this.#progressBar.render();
+            this.#addStyles();
+        }
+    }
+
+    async #loadAllPages() {
+        if (this.#isLoading) return;
+
+        this.#isLoading = true;
+        this.#loadButton.hide();
+        this.#progressBar.show();
+        this.#progressBar.update(0, this.#totalPages - this.#currentPage);
+
+        try {
+            for (let page = this.#currentPage + 1; page <= this.#totalPages; page++) {
+                const entries = await this.#entryLoader.loadPage(page);
+                entries.forEach((entry, index) => this.#entryLoader.appendEntry(this.#entryList, entry, index));
+                this.#progressBar.update(page - this.#currentPage, this.#totalPages - this.#currentPage);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            this.#progressBar.hide();
+            this.#paginationManager.updatePagination(this.#totalPages);
+        } catch (error) {
+            console.error('Error loading pages:', error);
+            this.#loadButton.element.textContent = 'Error. Try Again';
+            this.#loadButton.show();
+            this.#progressBar.hide();
+        } finally {
+            this.#isLoading = false;
+        }
+    }
+
+    #addStyles() {
+        const style = DOMUtils.createElement('style');
+        style.textContent = `
                     .load-all-button {
                     display: inline-block;
                     margin: 0 auto;
@@ -543,11 +557,11 @@
                     max-height: initial !important;
                 }
             `;
-            document.head.appendChild(style);
-        }
+        document.head.appendChild(style);
     }
+}
 
-    // Initialize the content loader
-    const contentLoader = new ContentLoader();
-    contentLoader.init();
+// Initialize the content loader
+const contentLoader = new ContentLoader();
+contentLoader.init();
 })();
