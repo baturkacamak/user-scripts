@@ -23,7 +23,7 @@ const SELECTORS = {
         '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]',
         '[class^="feed_Feed__item__"] a[href^="/item/"]',
     ],
-    ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description"]',
+    ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description__"]',
     EXPAND_BUTTON: '.expand-button'
 };
 
@@ -38,6 +38,24 @@ class Logger {
 
     static error(error, context) {
         console.error(`Wallapop Expand Description Error (${context}):`, error);
+    }
+
+    static logHtml(title, htmlContent) {
+        if (this.DEBUG) {
+            console.log(`Wallapop Expand Description [${title}]:`);
+            console.log(htmlContent.substring(0, 1500) + "...");
+
+            // HTML'i daha rahat inceleyebilmek için konsol içinde genişletilebilir obje olarak da gösterelim
+            console.groupCollapsed(`HTML Detayları (${title})`);
+            console.log("Tam HTML:", htmlContent);
+            console.groupEnd();
+        }
+    }
+
+    static toggleDebug() {
+        this.DEBUG = !this.DEBUG;
+        console.log(`Wallapop Expand Description: Debug mode ${this.DEBUG ? 'enabled' : 'disabled'}`);
+        return this.DEBUG;
     }
 }
 
@@ -97,22 +115,93 @@ class DescriptionFetcher {
         });
     }
 
-    static handleResponse(response, resolve) {
+static handleResponse(response, resolve) {
         try {
+            // Parse the received response
+            Logger.log("Response received with status:", response.status);
+
             const parser = new DOMParser();
             const doc = parser.parseFromString(response.responseText, "text/html");
-            const descriptionElement = doc.querySelector(SELECTORS.ITEM_DESCRIPTION);
-            if (descriptionElement) {
-                const description = descriptionElement.innerHTML.trim();
-                Logger.log("Description fetched successfully");
-                resolve({ success: true, data: description });
+
+            // Find the __NEXT_DATA__ script tag
+            const nextDataScript = doc.querySelector('#__NEXT_DATA__');
+
+            if (nextDataScript) {
+                Logger.log("Found __NEXT_DATA__ script tag");
+
+                try {
+                    // Parse the JSON content
+                    const jsonData = JSON.parse(nextDataScript.textContent);
+                    Logger.log("JSON data parsed successfully");
+
+                    // Extract the item description
+                    if (jsonData.props?.pageProps?.item?.description?.original) {
+                        const description = jsonData.props.pageProps.item.description.original;
+                        Logger.log("Description extracted from JSON:", description);
+
+                        // Get the part before tag indicators like "No leer"
+                        const cleanDescription = this.cleanDescription(description);
+
+                        resolve({ success: true, data: cleanDescription });
+                    } else {
+                        Logger.log("Description not found in JSON structure:", jsonData);
+                        throw new Error("Description not found in JSON data");
+                    }
+                } catch (jsonError) {
+                    Logger.error(jsonError, "Parsing JSON data");
+                    throw jsonError;
+                }
             } else {
-                throw new Error("Description element not found");
+                Logger.log("__NEXT_DATA__ script tag not found, trying old method");
+
+                // Fall back to old method (for compatibility)
+                const descriptionElement = doc.querySelector(SELECTORS.ITEM_DESCRIPTION);
+                if (descriptionElement) {
+                    const description = descriptionElement.querySelector(".mt-2")?.innerHTML.trim();
+                    if (description) {
+                        Logger.log("Description found using old method");
+                        resolve({ success: true, data: description });
+                        return;
+                    }
+                }
+
+                throw new Error("Description not found with any method");
             }
         } catch (error) {
             Logger.error(error, "Parsing response");
-            resolve({ success: false, error: "Failed to parse description" });
+            resolve({ success: false, error: "Failed to parse description: " + error.message });
         }
+    }
+
+    // Method to clean tags from the description
+    static cleanDescription(description) {
+        // Look for tag indicators like "No leer"
+        const tagMarkers = [
+            "\n\n\n\n\n\n\nNo leer\n",
+            "\n\n\n\n\nNo leer\n",
+            "\nNo leer\n",
+            "\n\nNo leer\n",
+            "No leer",
+            "tags:",
+            "etiquetas:",
+            "keywords:"
+        ];
+
+        // Check each marker and split at the first one found
+        let cleanDesc = description;
+
+        for (const marker of tagMarkers) {
+            if (description.includes(marker)) {
+                Logger.log(`Found tag marker: "${marker}"`);
+                cleanDesc = description.split(marker)[0].trim();
+                break;
+            }
+        }
+
+        // Clean excessive empty lines (reduce more than 3 newlines to 2)
+        cleanDesc = cleanDesc.replace(/\n{3,}/g, "\n\n");
+
+        return cleanDesc;
     }
 
     static handleError(error, resolve) {
@@ -237,11 +326,11 @@ class DOMObserver {
             if (mutation.type === 'childList') {
                 const addedNodes = Array.from(mutation.addedNodes);
                 const hasNewItemCards = addedNodes.some(node =>
-                    node.nodeType === Node.ELEMENT_NODE &&
-                    SELECTORS.ITEM_CARDS.some(selector =>
-                        node.matches(selector) || node.querySelector(selector)
-                    )
-                );
+                                                        node.nodeType === Node.ELEMENT_NODE &&
+                                                        SELECTORS.ITEM_CARDS.some(selector =>
+                                                                                  node.matches(selector) || node.querySelector(selector)
+                                                                                 )
+                                                       );
                 if (hasNewItemCards) {
                     Logger.log("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
