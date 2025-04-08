@@ -2,7 +2,7 @@
 // @id           wallapop-expand-description@https://github.com/baturkacamak/userscripts
 // @name         Wallapop Expand Description
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.1
+// @version      1.2
 // @description  Add expand button to show formatted item descriptions on Wallapop listings
 // @author       Batur Kacamak
 // @copyright    2024+, Batur Kacamak (https://batur.info/)
