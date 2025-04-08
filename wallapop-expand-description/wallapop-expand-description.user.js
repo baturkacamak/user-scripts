@@ -166,22 +166,28 @@ class StyleManager {
                 width: 100%;
             }
 
-            .dropdown-content {
-                display: block;
-                position: absolute;
-                background-color: #f1f1f1;
-                min-width: 160px;
-                box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-                z-index: 1;
-                right: 0;
-                margin-top: 2px;
-                max-height: 0;
-                overflow: hidden;
-                opacity: 0;
-                transition: max-height var(--transition-speed) var(--transition-easing),
-                            opacity var(--transition-speed) var(--transition-easing);
-                pointer-events: none;
-            }
+.dropdown-content {
+    display: block;
+    position: absolute;
+    background-color: #f1f1f1;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+    right: 0;
+    margin-top: 2px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height var(--transition-speed) var(--transition-easing),
+                opacity var(--transition-speed) var(--transition-easing);
+    pointer-events: none;
+}
+
+.dropdown-content.top {
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 2px;
+}
 
             .copy-dropdown:hover .dropdown-content {
                 max-height: 200px;
@@ -646,7 +652,7 @@ class DescriptionFetcher {
                         const item = jsonData.props.pageProps.item;
 
                         // Get title
-                        itemData.title = item.title?.original || "";
+                        itemData.title = item.title?.original.trim() || "";
 
                         // Get description
                         if (item.description?.original) {
@@ -955,6 +961,9 @@ class CopyButtonsManager {
             const dropdownContent = document.createElement('div');
             dropdownContent.className = 'dropdown-content';
 
+            csvButton.addEventListener('mouseenter', () => this.positionDropdown());
+            csvDropdown.addEventListener('mouseenter', () => this.positionDropdown());
+
             const csvWithHeadersButton = document.createElement('button');
             csvWithHeadersButton.textContent = 'With Headers';
             csvWithHeadersButton.addEventListener('click', () => this.copyToClipboard('csv', true));
@@ -982,6 +991,29 @@ class CopyButtonsManager {
             Logger.log("Copy buttons created");
         }
     }
+
+    static positionDropdown() {
+        const dropdownContent = this.container.querySelector('.dropdown-content');
+        const dropdownButton = this.container.querySelector('.copy-dropdown .copy-button');
+
+        // Reset position classes
+        dropdownContent.classList.remove('top');
+
+        // Get position info
+        const rect = dropdownContent.getBoundingClientRect();
+        const buttonRect = dropdownButton.getBoundingClientRect();
+
+        // Check if dropdown would go out of viewport at the bottom
+        const viewportHeight = window.innerHeight;
+        const bottomSpace = viewportHeight - buttonRect.bottom;
+        const dropdownHeight = 82; // Approximate height of dropdown when expanded
+
+        // If not enough space below, position above
+        if (bottomSpace < dropdownHeight) {
+            dropdownContent.classList.add('top');
+        }
+    }
+
 
     static showCopyButtons() {
         if (!this.container) {
@@ -1093,11 +1125,11 @@ class DOMObserver {
             if (mutation.type === 'childList') {
                 const addedNodes = Array.from(mutation.addedNodes);
                 const hasNewItemCards = addedNodes.some(node =>
-                    node.nodeType === Node.ELEMENT_NODE &&
-                    SELECTORS.ITEM_CARDS.some(selector =>
-                        node.matches(selector) || node.querySelector(selector)
-                    )
-                );
+                                                        node.nodeType === Node.ELEMENT_NODE &&
+                                                        SELECTORS.ITEM_CARDS.some(selector =>
+                                                                                  node.matches(selector) || node.querySelector(selector)
+                                                                                 )
+                                                       );
                 if (hasNewItemCards) {
                     Logger.log("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
