@@ -2,7 +2,7 @@
 // @id           wallapop-expand-description@https://github.com/baturkacamak/userscripts
 // @name         Wallapop Expand Description
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.4.1
+// @version      1.4.2
 // @description  Add expand button to show formatted item descriptions on Wallapop listings with copy functionality
 // @author       Batur Kacamak
 // @copyright    2024+, Batur Kacamak (https://batur.info/)
@@ -68,6 +68,12 @@ class Logger {
 class StyleManager {
     static addStyles() {
         GM_addStyle(`
+            /* Animation variables */
+            :root {
+                --transition-speed: 0.3s;
+                --transition-easing: ease-in-out;
+            }
+
             ${SELECTORS.EXPAND_BUTTON} {
                 background: none;
                 border: none;
@@ -76,21 +82,35 @@ class StyleManager {
                 padding: 5px;
                 font-size: 12px;
                 text-decoration: underline;
+                transition: opacity var(--transition-speed) var(--transition-easing);
             }
+
             .description-content {
-                display: none;
-                padding: 10px;
+                max-height: 0;
+                overflow: hidden;
+                padding: 0 10px;
                 background-color: #f0f0f0;
                 border-radius: 5px;
                 margin-top: 5px;
                 font-size: 14px;
                 white-space: pre-wrap;
                 word-wrap: break-word;
+                transition: max-height var(--transition-speed) var(--transition-easing),
+                            padding var(--transition-speed) var(--transition-easing);
             }
+
+            .description-content.expanded {
+                max-height: 1000px; /* Adjust based on expected content height */
+                padding: 10px;
+                transition: max-height 0.5s var(--transition-easing),
+                            padding var(--transition-speed) var(--transition-easing);
+            }
+
             .error-message {
                 color: #ff0000;
                 font-style: italic;
             }
+
             /* Copy button styles */
             ${SELECTORS.COPY_BUTTONS_CONTAINER} {
                 position: fixed;
@@ -104,7 +124,19 @@ class StyleManager {
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
+                opacity: 0;
+                transform: translateY(20px);
+                transition: opacity var(--transition-speed) var(--transition-easing),
+                            transform var(--transition-speed) var(--transition-easing);
+                pointer-events: none;
             }
+
+            ${SELECTORS.COPY_BUTTONS_CONTAINER}.visible {
+                opacity: 1;
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+
             .copy-button {
                 display: block;
                 background-color: #008080;
@@ -116,19 +148,26 @@ class StyleManager {
                 font-size: 14px;
                 width: 100%;
                 text-align: left;
+                transition: background-color var(--transition-speed) var(--transition-easing);
             }
+
             .copy-button:hover {
                 background-color: #006666;
             }
+
             .copy-success {
                 background-color: #4CAF50;
+                transition: background-color var(--transition-speed) var(--transition-easing);
             }
+
             .copy-dropdown {
                 position: relative;
                 display: inline-block;
+                width: 100%;
             }
+
             .dropdown-content {
-                display: none;
+                display: block;
                 position: absolute;
                 background-color: #f1f1f1;
                 min-width: 160px;
@@ -136,7 +175,20 @@ class StyleManager {
                 z-index: 1;
                 right: 0;
                 margin-top: 2px;
+                max-height: 0;
+                overflow: hidden;
+                opacity: 0;
+                transition: max-height var(--transition-speed) var(--transition-easing),
+                            opacity var(--transition-speed) var(--transition-easing);
+                pointer-events: none;
             }
+
+            .copy-dropdown:hover .dropdown-content {
+                max-height: 200px;
+                opacity: 1;
+                pointer-events: auto;
+            }
+
             .dropdown-content button {
                 color: black;
                 padding: 12px 16px;
@@ -147,12 +199,11 @@ class StyleManager {
                 width: 100%;
                 text-align: left;
                 cursor: pointer;
+                transition: background-color var(--transition-speed) var(--transition-easing);
             }
+
             .dropdown-content button:hover {
                 background-color: #ddd;
-            }
-            .copy-dropdown:hover .dropdown-content {
-                display: block;
             }
 
             /* Filter panel styles */
@@ -170,6 +221,7 @@ class StyleManager {
                 flex-direction: column;
                 gap: 10px;
             }
+
             .filter-title {
                 font-weight: bold;
                 font-size: 16px;
@@ -179,11 +231,27 @@ class StyleManager {
                 justify-content: space-between;
                 align-items: center;
             }
+
             .filter-toggle {
                 cursor: pointer;
                 user-select: none;
                 color: #008080;
+                transition: transform 0.3s var(--transition-easing);
             }
+
+            .filter-content {
+                max-height: 500px;
+                overflow: hidden;
+                opacity: 1;
+                transition: max-height var(--transition-speed) var(--transition-easing),
+                            opacity var(--transition-speed) var(--transition-easing);
+            }
+
+            .filter-content.collapsed {
+                max-height: 0;
+                opacity: 0;
+            }
+
             ${SELECTORS.FILTER_INPUT} {
                 padding: 8px;
                 border: 1px solid #ccc;
@@ -191,7 +259,14 @@ class StyleManager {
                 font-size: 14px;
                 width: 100%;
                 box-sizing: border-box;
+                transition: border-color var(--transition-speed) var(--transition-easing);
             }
+
+            ${SELECTORS.FILTER_INPUT}:focus {
+                border-color: #008080;
+                outline: none;
+            }
+
             ${SELECTORS.FILTER_APPLY} {
                 background-color: #008080;
                 color: white;
@@ -202,15 +277,19 @@ class StyleManager {
                 font-size: 14px;
                 width: 100%;
                 text-align: center;
+                transition: background-color var(--transition-speed) var(--transition-easing);
             }
+
             ${SELECTORS.FILTER_APPLY}:hover {
                 background-color: #006666;
             }
+
             ${SELECTORS.BLOCKED_TERMS_LIST} {
                 max-height: 150px;
                 overflow-y: auto;
                 margin-top: 10px;
             }
+
             .blocked-term-item {
                 display: flex;
                 justify-content: space-between;
@@ -221,6 +300,7 @@ class StyleManager {
                 margin-bottom: 5px;
                 animation: fadeIn 0.3s ease-in-out;
             }
+
             .remove-term {
                 background: none;
                 border: none;
@@ -228,6 +308,13 @@ class StyleManager {
                 cursor: pointer;
                 font-weight: bold;
                 font-size: 16px;
+                transition: transform var(--transition-speed) var(--transition-easing),
+                            color var(--transition-speed) var(--transition-easing);
+            }
+
+            .remove-term:hover {
+                transform: scale(1.2);
+                color: #ff4040;
             }
 
             /* Animations */
@@ -241,6 +328,7 @@ class StyleManager {
                     transform: translateY(0);
                 }
             }
+
             @keyframes fadeOut {
                 from {
                     opacity: 1;
@@ -251,12 +339,15 @@ class StyleManager {
                     transform: translateY(-10px);
                 }
             }
+
             .fadeOutAnimation {
                 animation: fadeOut 0.3s ease-in-out forwards;
             }
+
             .hidden-item {
                 display: none !important;
             }
+
             .hiding-animation {
                 animation: fadeOut 0.5s ease-in-out forwards;
             }
@@ -347,11 +438,13 @@ class FilterManager {
         this.isExpanded = !this.isExpanded;
 
         if (this.isExpanded) {
-            contentDiv.style.display = 'block';
+            contentDiv.classList.remove('collapsed');
+            toggleElement.style.transform = 'rotate(0deg)';
             toggleElement.textContent = '▼';
         } else {
-            contentDiv.style.display = 'none';
-            toggleElement.textContent = '▶';
+            contentDiv.classList.add('collapsed');
+            toggleElement.style.transform = 'rotate(-90deg)';
+            toggleElement.textContent = '▼';
         }
     }
 
@@ -395,11 +488,20 @@ class FilterManager {
                 emptyMessage.style.fontStyle = 'italic';
                 emptyMessage.style.color = '#888';
                 emptyMessage.style.padding = '8px 0';
+                emptyMessage.style.opacity = '0';
                 this.blockedTermsListElement.appendChild(emptyMessage);
+
+                // Fade in animation
+                setTimeout(() => {
+                    emptyMessage.style.transition = 'opacity 0.3s ease-in-out';
+                    emptyMessage.style.opacity = '1';
+                }, 10);
             } else {
                 this.blockedTerms.forEach(term => {
                     const termItem = document.createElement('div');
                     termItem.className = 'blocked-term-item';
+                    termItem.style.opacity = '0';
+                    termItem.style.transform = 'translateY(-10px)';
 
                     const termText = document.createElement('span');
                     termText.textContent = term;
@@ -416,6 +518,13 @@ class FilterManager {
                     termItem.appendChild(removeButton);
 
                     this.blockedTermsListElement.appendChild(termItem);
+
+                    // Staggered fade in animation
+                    setTimeout(() => {
+                        termItem.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out';
+                        termItem.style.opacity = '1';
+                        termItem.style.transform = 'translateY(0)';
+                    }, 50 * this.blockedTerms.indexOf(term));
                 });
             }
         }
@@ -718,117 +827,6 @@ class DescriptionManager {
     }
 }
 
-// Copy buttons manager
-class CopyButtonsManager {
-    static container = null;
-
-    static createCopyButtons() {
-        // Create container if it doesn't exist
-        if (!this.container) {
-            this.container = document.createElement('div');
-            this.container.className = SELECTORS.COPY_BUTTONS_CONTAINER.slice(1); // Remove the leading dot
-            this.container.style.display = 'none'; // Hidden by default
-
-            // Create JSON copy button
-            const jsonButton = document.createElement('button');
-            jsonButton.className = 'copy-button';
-            jsonButton.textContent = 'Copy as JSON';
-            jsonButton.addEventListener('click', () => this.copyToClipboard('json'));
-            this.container.appendChild(jsonButton);
-
-            // Create CSV dropdown
-            const csvDropdown = document.createElement('div');
-            csvDropdown.className = 'copy-dropdown';
-
-            const csvButton = document.createElement('button');
-            csvButton.className = 'copy-button';
-            csvButton.textContent = 'Copy as CSV';
-            csvDropdown.appendChild(csvButton);
-
-            const dropdownContent = document.createElement('div');
-            dropdownContent.className = 'dropdown-content';
-
-            const csvWithHeadersButton = document.createElement('button');
-            csvWithHeadersButton.textContent = 'With Headers';
-            csvWithHeadersButton.addEventListener('click', () => this.copyToClipboard('csv', true));
-            dropdownContent.appendChild(csvWithHeadersButton);
-
-            const csvWithoutHeadersButton = document.createElement('button');
-            csvWithoutHeadersButton.textContent = 'Without Headers';
-            csvWithoutHeadersButton.addEventListener('click', () => this.copyToClipboard('csv', false));
-            dropdownContent.appendChild(csvWithoutHeadersButton);
-
-            csvDropdown.appendChild(dropdownContent);
-            this.container.appendChild(csvDropdown);
-
-            // Create clear button
-            const clearButton = document.createElement('button');
-            clearButton.className = 'copy-button';
-            clearButton.textContent = 'Clear All';
-            clearButton.addEventListener('click', () => {
-                DescriptionManager.clearItems();
-                this.showCopySuccess(clearButton, 'Cleared!');
-            });
-            this.container.appendChild(clearButton);
-
-            document.body.appendChild(this.container);
-            Logger.log("Copy buttons created");
-        }
-    }
-
-    static showCopyButtons() {
-        if (!this.container) {
-            this.createCopyButtons();
-        }
-        this.container.style.display = 'flex';
-    }
-
-    static hideCopyButtons() {
-        if (this.container) {
-            this.container.style.display = 'none';
-        }
-    }
-
-    static copyToClipboard(format, includeHeaders = true) {
-        let content = '';
-        let button = this.container.querySelector('.copy-button');
-
-        if (format === 'json') {
-            content = DescriptionManager.getItemsAsJson();
-            button = this.container.querySelector('.copy-button:first-child');
-        } else if (format === 'csv') {
-            content = DescriptionManager.getItemsAsCsv(includeHeaders);
-            button = this.container.querySelector('.copy-dropdown .copy-button');
-        }
-
-        if (content) {
-            // Use GM_setClipboard to copy to clipboard
-            GM_setClipboard(content);
-            this.showCopySuccess(button, 'Copied!');
-            Logger.log(`Copied to clipboard in ${format} format`);
-        } else {
-            this.showCopySuccess(button, 'Nothing to copy!', false);
-            Logger.log("Nothing to copy");
-        }
-    }
-
-    static showCopySuccess(button, message, success = true) {
-        const originalText = button.textContent;
-        button.textContent = message;
-
-        if (success) {
-            button.classList.add('copy-success');
-        }
-
-        setTimeout(() => {
-            button.textContent = originalText;
-            if (success) {
-                button.classList.remove('copy-success');
-            }
-        }, 1500);
-    }
-}
-
 class ExpandButton {
     constructor(anchorElement, url) {
         this.anchorElement = anchorElement;
@@ -881,7 +879,8 @@ class ExpandButton {
         if (result.success) {
             this.itemData = result.data;
             this.descriptionContent.innerHTML = HTMLUtils.escapeHTML(result.data.description);
-            this.descriptionContent.style.display = 'block';
+            // Use the class toggle approach for smooth transition
+            this.descriptionContent.classList.add('expanded');
             this.button.textContent = 'Hide Description';
             this.expanded = true;
 
@@ -895,11 +894,22 @@ class ExpandButton {
     }
 
     hideDescription() {
-        this.descriptionContent.style.display = 'none';
+        // Remove expanded class for smooth transition
+        this.descriptionContent.classList.remove('expanded');
+
+        // Use transition end event to clean up
+        const transitionEnded = () => {
+            if (!this.expanded) {
+                // Do any additional cleanup here if needed
+            }
+            this.descriptionContent.removeEventListener('transitionend', transitionEnded);
+        };
+        this.descriptionContent.addEventListener('transitionend', transitionEnded);
+
         this.button.textContent = 'Expand Description';
         this.expanded = false;
 
-        // Remove from global description manager if hidden
+        // Remove from global description manager
         if (this.itemData) {
             DescriptionManager.removeItem(this.url);
         }
@@ -909,10 +919,122 @@ class ExpandButton {
 
     showError(message) {
         this.descriptionContent.innerHTML = `<span class="error-message">${message}</span>`;
-        this.descriptionContent.style.display = 'block';
+        this.descriptionContent.classList.add('expanded');
         this.button.textContent = 'Expand Description';
         this.expanded = false;
         Logger.log("Error displaying description for URL:", this.url, message);
+    }
+}
+
+// Copy buttons manager
+class CopyButtonsManager {
+    static container = null;
+
+    static createCopyButtons() {
+        // Create container if it doesn't exist
+        if (!this.container) {
+            this.container = document.createElement('div');
+            this.container.className = SELECTORS.COPY_BUTTONS_CONTAINER.slice(1); // Remove the leading dot
+
+            // Create JSON copy button
+            const jsonButton = document.createElement('button');
+            jsonButton.className = 'copy-button';
+            jsonButton.textContent = 'Copy as JSON';
+            jsonButton.addEventListener('click', () => this.copyToClipboard('json'));
+            this.container.appendChild(jsonButton);
+
+            // Create CSV dropdown
+            const csvDropdown = document.createElement('div');
+            csvDropdown.className = 'copy-dropdown';
+
+            const csvButton = document.createElement('button');
+            csvButton.className = 'copy-button';
+            csvButton.textContent = 'Copy as CSV';
+            csvDropdown.appendChild(csvButton);
+
+            const dropdownContent = document.createElement('div');
+            dropdownContent.className = 'dropdown-content';
+
+            const csvWithHeadersButton = document.createElement('button');
+            csvWithHeadersButton.textContent = 'With Headers';
+            csvWithHeadersButton.addEventListener('click', () => this.copyToClipboard('csv', true));
+            dropdownContent.appendChild(csvWithHeadersButton);
+
+            const csvWithoutHeadersButton = document.createElement('button');
+            csvWithoutHeadersButton.textContent = 'Without Headers';
+            csvWithoutHeadersButton.addEventListener('click', () => this.copyToClipboard('csv', false));
+            dropdownContent.appendChild(csvWithoutHeadersButton);
+
+            csvDropdown.appendChild(dropdownContent);
+            this.container.appendChild(csvDropdown);
+
+            // Create clear button
+            const clearButton = document.createElement('button');
+            clearButton.className = 'copy-button';
+            clearButton.textContent = 'Clear All';
+            clearButton.addEventListener('click', () => {
+                DescriptionManager.clearItems();
+                this.showCopySuccess(clearButton, 'Cleared!');
+            });
+            this.container.appendChild(clearButton);
+
+            document.body.appendChild(this.container);
+            Logger.log("Copy buttons created");
+        }
+    }
+
+    static showCopyButtons() {
+        if (!this.container) {
+            this.createCopyButtons();
+        }
+        // Use the visible class for smooth transition
+        this.container.classList.add('visible');
+    }
+
+    static hideCopyButtons() {
+        if (this.container) {
+            // Remove visible class for smooth transition
+            this.container.classList.remove('visible');
+        }
+    }
+
+    static copyToClipboard(format, includeHeaders = true) {
+        let content = '';
+        let button = this.container.querySelector('.copy-button');
+
+        if (format === 'json') {
+            content = DescriptionManager.getItemsAsJson();
+            button = this.container.querySelector('.copy-button:first-child');
+        } else if (format === 'csv') {
+            content = DescriptionManager.getItemsAsCsv(includeHeaders);
+            button = this.container.querySelector('.copy-dropdown .copy-button');
+        }
+
+        if (content) {
+            // Use GM_setClipboard to copy to clipboard
+            GM_setClipboard(content);
+            this.showCopySuccess(button, 'Copied!');
+            Logger.log(`Copied to clipboard in ${format} format`);
+        } else {
+            this.showCopySuccess(button, 'Nothing to copy!', false);
+            Logger.log("Nothing to copy");
+        }
+    }
+
+    static showCopySuccess(button, message, success = true) {
+        const originalText = button.textContent;
+        button.textContent = message;
+
+        if (success) {
+            button.classList.add('copy-success');
+        }
+
+        setTimeout(() => {
+            button.textContent = originalText;
+            if (success) {
+                button.classList.remove('copy-success');
+            }
+        }, 1500);
     }
 }
 
@@ -971,11 +1093,11 @@ class DOMObserver {
             if (mutation.type === 'childList') {
                 const addedNodes = Array.from(mutation.addedNodes);
                 const hasNewItemCards = addedNodes.some(node =>
-                                                        node.nodeType === Node.ELEMENT_NODE &&
-                                                        SELECTORS.ITEM_CARDS.some(selector =>
-                                                                                  node.matches(selector) || node.querySelector(selector)
-                                                                                 )
-                                                       );
+                    node.nodeType === Node.ELEMENT_NODE &&
+                    SELECTORS.ITEM_CARDS.some(selector =>
+                        node.matches(selector) || node.querySelector(selector)
+                    )
+                );
                 if (hasNewItemCards) {
                     Logger.log("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
