@@ -2,7 +2,7 @@
 // @id           wallapop-expand-description@https://github.com/baturkacamak/userscripts
 // @name         Wallapop Expand Description
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.4
+// @version      1.4.1
 // @description  Add expand button to show formatted item descriptions on Wallapop listings with copy functionality
 // @author       Batur Kacamak
 // @copyright    2024+, Batur Kacamak (https://batur.info/)
@@ -537,7 +537,7 @@ class DescriptionFetcher {
                         const item = jsonData.props.pageProps.item;
 
                         // Get title
-                        itemData.title = item.title || "";
+                        itemData.title = item.title?.original || "";
 
                         // Get description
                         if (item.description?.original) {
@@ -552,7 +552,7 @@ class DescriptionFetcher {
                             itemData.url = originalUrl;
 
                             // Get price if available
-                            itemData.price = item.price ? `${item.price.amount} ${item.price.currency}` : "";
+                            itemData.price = item.price ? `${item.price.cash.amount} ${item.price.cash.currency}` : "";
 
                             resolve({ success: true, data: itemData });
                         } else {
