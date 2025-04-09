@@ -178,6 +178,7 @@ class StyleManager {
             align-items: center;
             border-bottom: 1px solid #eee;
             cursor: pointer;
+            user-select: none;
         }
 
         .panel-title {
@@ -195,7 +196,7 @@ class StyleManager {
         .panel-content {
             display: flex;
             flex-direction: column;
-            max-height: 700px;
+            max-height: 800px;
             overflow: hidden;
             opacity: 1;
             transition: max-height var(--transition-speed) var(--transition-easing),
@@ -1248,8 +1249,7 @@ class ControlPanel {
             this.container.appendChild(titleDiv);
 
             // Add toggle functionality for whole panel
-            const toggleElement = titleDiv.querySelector('.panel-toggle');
-            toggleElement.addEventListener('click', () => this.togglePanel());
+            titleDiv.addEventListener('click', () => this.togglePanel());
 
             // Create content container
             const contentContainer = document.createElement('div');
@@ -1264,8 +1264,7 @@ class ControlPanel {
             filterTitle.innerHTML = '<span>İstenmeyen Kelimeleri Filtrele</span><span class="section-toggle">▼</span>';
             filterSection.appendChild(filterTitle);
 
-            const filterToggle = filterTitle.querySelector('.section-toggle');
-            filterToggle.addEventListener('click', () => this.toggleFilterSection());
+            filterTitle.addEventListener('click', () => this.toggleFilterSection());
 
             const filterContent = document.createElement('div');
             filterContent.className = 'section-content filter-content';
@@ -1307,8 +1306,7 @@ class ControlPanel {
             copyTitle.innerHTML = '<span>Açıklamaları Kopyala</span><span class="section-toggle">▼</span>';
             copySection.appendChild(copyTitle);
 
-            const copyToggle = copyTitle.querySelector('.section-toggle');
-            copyToggle.addEventListener('click', () => this.toggleCopySection());
+            copyTitle.addEventListener('click', () => this.toggleCopySection());
 
             const copyContent = document.createElement('div');
             copyContent.className = 'section-content copy-content';
@@ -1370,8 +1368,7 @@ class ControlPanel {
             languageTitle.innerHTML = `<span>${TranslationManager.getText('languageSettings')}</span><span class="section-toggle">▼</span>`;
             languageSection.appendChild(languageTitle);
 
-            const languageToggle = languageTitle.querySelector('.section-toggle');
-            languageToggle.addEventListener('click', () => this.toggleLanguageSection());
+            languageTitle.addEventListener('click', () => this.toggleLanguageSection());
 
             const languageContent = document.createElement('div');
             languageContent.className = 'section-content language-content';
@@ -1409,6 +1406,8 @@ class ControlPanel {
             this.container.appendChild(contentContainer);
             document.body.appendChild(this.container);
 
+            this.loadPanelStates();
+
             // Load saved blocked terms
             this.loadBlockedTerms();
 
@@ -1431,6 +1430,8 @@ class ControlPanel {
             toggleElement.style.transform = 'rotate(-90deg)';
             toggleElement.textContent = '▼';
         }
+
+        this.savePanelStates();
     }
 
     static updateUILanguage() {
@@ -1526,6 +1527,8 @@ class ControlPanel {
             toggleElement.style.transform = 'rotate(-90deg)';
             toggleElement.textContent = '▼';
         }
+
+        this.savePanelStates();
     }
 
     static toggleFilterSection() {
@@ -1543,6 +1546,8 @@ class ControlPanel {
             toggleElement.style.transform = 'rotate(-90deg)';
             toggleElement.textContent = '▼';
         }
+
+        this.savePanelStates();
     }
 
     static toggleCopySection() {
@@ -1560,6 +1565,8 @@ class ControlPanel {
             toggleElement.style.transform = 'rotate(-90deg)';
             toggleElement.textContent = '▼';
         }
+
+        this.savePanelStates();
     }
 
     static positionDropdown() {
@@ -1801,6 +1808,52 @@ class ControlPanel {
     static hideCopySection() {
         const copySection = this.container.querySelector('.copy-section');
         copySection.style.display = 'none';
+    }
+
+    static savePanelStates() {
+        const states = {
+            isPanelExpanded: this.isPanelExpanded,
+            isFilterSectionExpanded: this.isFilterSectionExpanded,
+            isCopySectionExpanded: this.isCopySectionExpanded,
+            isLanguageSectionExpanded: this.isLanguageSectionExpanded
+        };
+        localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
+    }
+
+    static loadPanelStates() {
+        try {
+            const savedStates = localStorage.getItem('wallapop-panel-states');
+            if (savedStates) {
+                const states = JSON.parse(savedStates);
+                this.isPanelExpanded = states.isPanelExpanded ?? true;
+                this.isFilterSectionExpanded = states.isFilterSectionExpanded ?? true;
+                this.isCopySectionExpanded = states.isCopySectionExpanded ?? true;
+                this.isLanguageSectionExpanded = states.isLanguageSectionExpanded ?? true;
+
+                // Apply states to UI
+                if (!this.isPanelExpanded) {
+                    this.container.querySelector('.panel-content').classList.add('collapsed');
+                    this.container.querySelector('.panel-toggle').style.transform = 'rotate(-90deg)';
+                }
+
+                if (!this.isFilterSectionExpanded) {
+                    this.container.querySelector('.filter-content').classList.add('collapsed');
+                    this.container.querySelector('.filter-section .section-toggle').style.transform = 'rotate(-90deg)';
+                }
+
+                if (!this.isCopySectionExpanded) {
+                    this.container.querySelector('.copy-content').classList.add('collapsed');
+                    this.container.querySelector('.copy-section .section-toggle').style.transform = 'rotate(-90deg)';
+                }
+
+                if (!this.isLanguageSectionExpanded) {
+                    this.container.querySelector('.language-content').classList.add('collapsed');
+                    this.container.querySelector('.language-section .section-toggle').style.transform = 'rotate(-90deg)';
+                }
+            }
+        } catch (error) {
+            Logger.error(error, "Loading panel states");
+        }
     }
 }
 
