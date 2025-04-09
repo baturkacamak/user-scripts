@@ -665,6 +665,25 @@ class StyleManager {
             background-color: #4CAF50;
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
+        
+          /* Add these new styles for delivery method filter */
+          .delivery-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+          }
+          
+          .option-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          
+          .option-row input[type="radio"] {
+            margin: 0;
+            cursor: pointer;
+          }
     `;
         document.head.appendChild(style);
     }
@@ -728,7 +747,12 @@ class TranslationManager {
             // New entries for download functionality
             copyToClipboard: 'Copy to Clipboard',
             downloadFile: 'Download File',
-            downloaded: 'Downloaded!'
+            downloaded: 'Downloaded!',
+            deliveryMethodFilter: 'Delivery Method Filter',
+            showAll: 'Show All',
+            showOnlyShipping: 'Show Only Shipping',
+            showOnlyInPerson: 'Show Only In-Person',
+            noDeliveryOption: 'No delivery option found',
         },
         es: {
             expandDescription: 'Ampliar Descripción',
@@ -759,7 +783,12 @@ class TranslationManager {
             // New entries for download functionality
             copyToClipboard: 'Copiar al Portapapeles',
             downloadFile: 'Descargar Archivo',
-            downloaded: '¡Descargado!'
+            downloaded: '¡Descargado!',
+            deliveryMethodFilter: 'Filtro de Método de Entrega',
+            showAll: 'Mostrar Todo',
+            showOnlyShipping: 'Solo con Envío',
+            showOnlyInPerson: 'Solo en Persona',
+            noDeliveryOption: 'Opción de entrega no encontrada',
         },
         ca: {
             expandDescription: 'Ampliar Descripció',
@@ -821,7 +850,12 @@ class TranslationManager {
             // New entries for download functionality
             copyToClipboard: 'Panoya Kopyala',
             downloadFile: 'Dosyayı İndir',
-            downloaded: 'İndirildi!'
+            downloaded: 'İndirildi!',
+            deliveryMethodFilter: 'Teslimat Yöntemi Filtresi',
+            showAll: 'Tümünü Göster',
+            showOnlyShipping: 'Sadece Kargolu',
+            showOnlyInPerson: 'Sadece Elden Satış',
+            noDeliveryOption: 'Teslimat seçeneği bulunamadı',
         },
         pt: {
             expandDescription: 'Expandir Descrição',
@@ -1417,7 +1451,7 @@ class DOMObserver {
                     ListingManager.addExpandButtonsToListings();
 
                     // Apply filters to new listings
-                    FilterManager.applyFilters();
+                    ControlPanel.applyFilters();
                 }
             }
         }
@@ -1437,7 +1471,7 @@ class DOMObserver {
         setTimeout(() => {
             ListingManager.addExpandButtonsToListings();
             // Apply filters after URL change
-            FilterManager.applyFilters();
+            ControlPanel.applyFilters();
         }, 1000); // Delay to allow for dynamic content to load
     }
 }
@@ -2330,6 +2364,208 @@ class ControlPanel {
         return formatters[format.id];
     }
 
+    /**
+     * Create the delivery method filter section
+     */
+    static createDeliveryMethodSection(container) {
+        // Load saved state
+        const isExpanded = this.loadPanelState('isDeliveryMethodSectionExpanded', true);
+
+        this.togglers.deliveryMethod = new SectionToggler({
+            container,
+            sectionClass: 'delivery-method',
+            titleText: TranslationManager.getText('deliveryMethodFilter'),
+            isExpanded,
+            onToggle: (state) => {
+                this.savePanelState('isDeliveryMethodSectionExpanded', state);
+            },
+            contentCreator: (content) => {
+                // Create radio buttons for delivery method options
+                const optionsContainer = document.createElement('div');
+                optionsContainer.className = 'delivery-options';
+
+                // Define the options
+                const options = [
+                    {id: 'all', label: 'showAll', value: 'all'},
+                    {id: 'shipping', label: 'showOnlyShipping', value: 'shipping'},
+                    {id: 'inperson', label: 'showOnlyInPerson', value: 'inperson'}
+                ];
+
+                // Get saved preference
+                const savedOption = this.loadPanelState('deliveryMethodFilter', 'all');
+
+                // Create radio buttons
+                options.forEach(option => {
+                    const optionContainer = document.createElement('div');
+                    optionContainer.className = 'option-row';
+
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.id = `delivery-option-${option.id}`;
+                    radio.name = 'delivery-method';
+                    radio.value = option.value;
+                    radio.checked = savedOption === option.value;
+
+                    const label = document.createElement('label');
+                    label.htmlFor = radio.id;
+                    label.className = 'option-label';
+                    label.textContent = TranslationManager.getText(option.label);
+
+                    // Add event listener
+                    radio.addEventListener('change', () => {
+                        if (radio.checked) {
+                            this.savePanelState('deliveryMethodFilter', option.value);
+                            this.applyDeliveryMethodFilter();
+                        }
+                    });
+
+                    optionContainer.appendChild(radio);
+                    optionContainer.appendChild(label);
+                    optionsContainer.appendChild(optionContainer);
+                });
+
+                content.appendChild(optionsContainer);
+            }
+        });
+
+        return this.togglers.deliveryMethod.section;
+    }
+
+    /**
+     * Apply delivery method filter
+     */
+    static applyDeliveryMethodFilter() {
+        Logger.log("Applying delivery method filter");
+
+        const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
+        const allListings = document.querySelectorAll(allSelectors);
+
+        // Get current filter value
+        const filterValue = this.loadPanelState('deliveryMethodFilter', 'all');
+
+        if (filterValue === 'all') {
+            // Show all listings (that aren't hidden by other filters)
+            allListings.forEach(listing => {
+                if (!this.shouldHideListing(listing)) {
+                    this.showListing(listing);
+                }
+            });
+            return;
+        }
+
+        let hiddenCount = 0;
+
+        allListings.forEach(listing => {
+            // First check if it should be hidden by the keyword filter
+            if (this.shouldHideListing(listing)) {
+                this.hideListing(listing);
+                hiddenCount++;
+                return;
+            }
+
+            // Then check delivery method
+            const deliveryMethod = this.getDeliveryMethod(listing);
+
+            if (
+                (filterValue === 'shipping' && deliveryMethod !== 'shipping') ||
+                (filterValue === 'inperson' && deliveryMethod !== 'inperson')
+            ) {
+                this.hideListing(listing);
+                hiddenCount++;
+            } else {
+                this.showListing(listing);
+            }
+        });
+
+        Logger.log(`Delivery method filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+    }
+
+    /**
+     * Detect the delivery method of a listing
+     * @param {HTMLElement} listing - The listing element
+     * @returns {string} 'shipping', 'inperson', or 'unknown'
+     */
+    static getDeliveryMethod(listing) {
+        // Function to search within shadow DOM
+        const queryShadowDOM = (element, selector) => {
+            // Check if the element itself matches
+            if (element.matches && element.matches(selector)) {
+                return element;
+            }
+
+            // Check normal children first
+            const found = element.querySelector(selector);
+            if (found) return found;
+
+            // Then check shadow roots
+            const shadowRoot = element.shadowRoot;
+            if (shadowRoot) {
+                const foundInShadow = shadowRoot.querySelector(selector);
+                if (foundInShadow) return foundInShadow;
+            }
+
+            // Finally check all child elements recursively for shadow roots
+            for (const child of element.children) {
+                const foundInChild = queryShadowDOM(child, selector);
+                if (foundInChild) return foundInChild;
+            }
+
+            return null;
+        };
+
+        // Look for shadow roots and badge elements within them
+        const shadowRoots = [];
+        const findShadowRoots = (element) => {
+            if (element.shadowRoot) {
+                shadowRoots.push(element.shadowRoot);
+            }
+            Array.from(element.children).forEach(findShadowRoots);
+        };
+        findShadowRoots(listing);
+
+        // Check for shipping badge in shadow DOM
+        const hasShippingBadge = shadowRoots.some(root =>
+            root.querySelector('.wallapop-badge--shippingAvailable') !== null ||
+            root.querySelector('[class*="wallapop-badge"][class*="shippingAvailable"]') !== null
+        );
+
+        // Check for in-person badge in shadow DOM
+        const hasInPersonBadge = shadowRoots.some(root =>
+            root.querySelector('.wallapop-badge--faceToFace') !== null ||
+            root.querySelector('[class*="wallapop-badge"][class*="faceToFace"]') !== null
+        );
+
+        // Text fallback as a last resort
+        const shippingText = listing.textContent.includes('Envío disponible');
+        const inPersonText = listing.textContent.includes('Sólo venta en persona') ||
+            listing.textContent.includes('Solo venta en persona');
+
+        // Determine delivery method
+        if (hasShippingBadge || (!hasInPersonBadge && shippingText)) {
+            return 'shipping';
+        } else if (hasInPersonBadge || inPersonText) {
+            return 'inperson';
+        } else {
+            // Add additional fallback based on HTML structure
+            // Check if there's an icon that might indicate shipping or in-person
+            const hasShippingIcon = shadowRoots.some(root =>
+                root.querySelector('walla-icon[class*="shipping"]') !== null
+            );
+            const hasInPersonIcon = shadowRoots.some(root =>
+                root.querySelector('walla-icon[class*="faceToFace"]') !== null
+            );
+
+            if (hasShippingIcon) {
+                return 'shipping';
+            } else if (hasInPersonIcon) {
+                return 'inperson';
+            }
+
+            Logger.log("Unknown delivery method for listing:", listing);
+            return 'unknown';
+        }
+    }
+
     static formatAsPlainText(items, options) {
         // Simple plain text formatter
         let result = '';
@@ -2915,8 +3151,9 @@ class ControlPanel {
                 contentContainer.classList.add('collapsed');
             }
 
-            // Add all sections to content container
+            // Add all sections to content container including the new delivery method section
             this.createFilterSection(contentContainer);
+            this.createDeliveryMethodSection(contentContainer); // Add the new filter section
             this.createCopySection(contentContainer);
             this.createLanguageSection(contentContainer);
 
@@ -3065,8 +3302,9 @@ class ControlPanel {
      * Apply filters to all listings
      */
     static applyFilters() {
-        Logger.log("Applying filters to listings");
+        Logger.log("Applying all filters to listings");
 
+        // Apply keyword filters
         const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
         const allListings = document.querySelectorAll(allSelectors);
 
@@ -3081,7 +3319,10 @@ class ControlPanel {
             }
         });
 
-        Logger.log(`Filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+        Logger.log(`Keyword filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+
+        // Then apply delivery method filter
+        this.applyDeliveryMethodFilter();
     }
 
     /**
@@ -3306,8 +3547,14 @@ class ControlPanel {
 
         // Update section titles
         updateText('.filter-section .section-title span:first-child', 'filterUnwantedWords');
+        updateText('.delivery-method-section .section-title span:first-child', 'deliveryMethodFilter');
         updateText('.copy-section .section-title span:first-child', 'copyDescriptions');
         updateText('.language-section .section-title span:first-child', 'languageSettings');
+
+        // Update delivery method options
+        updateText('.delivery-options label[for="delivery-option-all"]', 'showAll');
+        updateText('.delivery-options label[for="delivery-option-shipping"]', 'showOnlyShipping');
+        updateText('.delivery-options label[for="delivery-option-inperson"]', 'showOnlyInPerson');
 
         // Update filter section
         if (this.filterInputElement) {
