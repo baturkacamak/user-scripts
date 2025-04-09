@@ -16,6 +16,7 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setClipboard
+// @grant        GM_download
 // ==/UserScript==
 
 // GM function fallbacks for direct browser execution
@@ -87,6 +88,36 @@ if (typeof GM_setClipboard === 'undefined') {
         // Clean up
         document.body.removeChild(textarea);
         return success;
+    };
+}
+
+if (typeof GM_download === 'undefined') {
+    window.GM_download = function (options) {
+        try {
+            const {url, name, onload, onerror} = options;
+
+            // Create download link
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = name || 'download';
+            downloadLink.style.display = 'none';
+
+            // Add to document, click, and remove
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(downloadLink);
+                if (onload) onload();
+            }, 100);
+
+            return true;
+        } catch (err) {
+            console.error('Error downloading file:', err);
+            if (options.onerror) options.onerror(err);
+            return false;
+        }
     };
 }
 
@@ -619,6 +650,21 @@ class StyleManager {
             background-color: #4CAF50;
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
+        
+        .export-buttons-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .export-buttons-container .export-button {
+            flex: 1;
+        }
+        
+        .downloaded {
+            background-color: #4CAF50;
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
     `;
         document.head.appendChild(style);
     }
@@ -675,10 +721,14 @@ class TranslationManager {
             languageSettings: 'Language Settings',
             errorOccurred: 'An unexpected error occurred',
             failedToParse: 'Failed to parse description:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Select Format',
             exportData: 'Export',
-            exportDescriptions: 'Export Descriptions'
+            exportDescriptions: 'Export Descriptions',
+            // New entries for download functionality
+            copyToClipboard: 'Copy to Clipboard',
+            downloadFile: 'Download File',
+            downloaded: 'Downloaded!'
         },
         es: {
             expandDescription: 'Ampliar Descripción',
@@ -702,10 +752,14 @@ class TranslationManager {
             languageSettings: 'Configuración de Idioma',
             errorOccurred: 'Ocurrió un error inesperado',
             failedToParse: 'Error al analizar la descripción:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Seleccionar Formato',
             exportData: 'Exportar',
-            exportDescriptions: 'Exportar Descripciones'
+            exportDescriptions: 'Exportar Descripciones',
+            // New entries for download functionality
+            copyToClipboard: 'Copiar al Portapapeles',
+            downloadFile: 'Descargar Archivo',
+            downloaded: '¡Descargado!'
         },
         ca: {
             expandDescription: 'Ampliar Descripció',
@@ -729,10 +783,14 @@ class TranslationManager {
             languageSettings: 'Configuració d\'Idioma',
             errorOccurred: 'S\'ha produït un error inesperat',
             failedToParse: 'Error en analitzar la descripció:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Seleccionar Format',
             exportData: 'Exportar',
-            exportDescriptions: 'Exportar Descripcions'
+            exportDescriptions: 'Exportar Descripcions',
+            // New entries for download functionality
+            copyToClipboard: 'Copiar al Portapapers',
+            downloadFile: 'Descarregar Arxiu',
+            downloaded: 'Descarregat!'
         },
         tr: {
             expandDescription: 'Açıklamayı Genişlet',
@@ -756,10 +814,14 @@ class TranslationManager {
             languageSettings: 'Dil Ayarları',
             errorOccurred: 'Beklenmeyen bir hata oluştu',
             failedToParse: 'Açıklama ayrıştırılamadı:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Format Seçin',
             exportData: 'Dışa Aktar',
-            exportDescriptions: 'Açıklamaları Dışa Aktar'
+            exportDescriptions: 'Açıklamaları Dışa Aktar',
+            // New entries for download functionality
+            copyToClipboard: 'Panoya Kopyala',
+            downloadFile: 'Dosyayı İndir',
+            downloaded: 'İndirildi!'
         },
         pt: {
             expandDescription: 'Expandir Descrição',
@@ -783,10 +845,14 @@ class TranslationManager {
             languageSettings: 'Configurações de Idioma',
             errorOccurred: 'Ocorreu um erro inesperado',
             failedToParse: 'Falha ao analisar descrição:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Selecionar Formato',
             exportData: 'Exportar',
-            exportDescriptions: 'Exportar Descrições'
+            exportDescriptions: 'Exportar Descrições',
+            // New entries for download functionality
+            copyToClipboard: 'Copiar para Área de Transferência',
+            downloadFile: 'Baixar Arquivo',
+            downloaded: 'Baixado!'
         },
         it: {
             expandDescription: 'Espandi Descrizione',
@@ -810,10 +876,14 @@ class TranslationManager {
             languageSettings: 'Impostazioni Lingua',
             errorOccurred: 'Si è verificato un errore imprevisto',
             failedToParse: 'Impossibile analizzare la descrizione:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Seleziona Formato',
             exportData: 'Esporta',
-            exportDescriptions: 'Esporta Descrizioni'
+            exportDescriptions: 'Esporta Descrizioni',
+            // New entries for download functionality
+            copyToClipboard: 'Copia negli Appunti',
+            downloadFile: 'Scarica File',
+            downloaded: 'Scaricato!'
         },
         fr: {
             expandDescription: 'Développer Description',
@@ -837,10 +907,14 @@ class TranslationManager {
             languageSettings: 'Paramètres de Langue',
             errorOccurred: 'Une erreur inattendue s\'est produite',
             failedToParse: 'Échec de l\'analyse de la description :',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Sélectionner Format',
             exportData: 'Exporter',
-            exportDescriptions: 'Exporter les Descriptions'
+            exportDescriptions: 'Exporter les Descriptions',
+            // New entries for download functionality
+            copyToClipboard: 'Copier dans le Presse-papiers',
+            downloadFile: 'Télécharger le Fichier',
+            downloaded: 'Téléchargé !'
         },
         de: {
             expandDescription: 'Beschreibung Erweitern',
@@ -864,10 +938,14 @@ class TranslationManager {
             languageSettings: 'Spracheinstellungen',
             errorOccurred: 'Ein unerwarteter Fehler ist aufgetreten',
             failedToParse: 'Fehler beim Analysieren der Beschreibung:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Format Auswählen',
             exportData: 'Exportieren',
-            exportDescriptions: 'Beschreibungen Exportieren'
+            exportDescriptions: 'Beschreibungen Exportieren',
+            // New entries for download functionality
+            copyToClipboard: 'In die Zwischenablage Kopieren',
+            downloadFile: 'Datei Herunterladen',
+            downloaded: 'Heruntergeladen!'
         },
         nl: {
             expandDescription: 'Beschrijving Uitklappen',
@@ -891,10 +969,14 @@ class TranslationManager {
             languageSettings: 'Taalinstellingen',
             errorOccurred: 'Er is een onverwachte fout opgetreden',
             failedToParse: 'Kan beschrijving niet analyseren:',
-            // New entries for export functionality
+            // Export functionality
             selectFormat: 'Selecteer Formaat',
             exportData: 'Exporteren',
-            exportDescriptions: 'Beschrijvingen Exporteren'
+            exportDescriptions: 'Beschrijvingen Exporteren',
+            // New entries for download functionality
+            copyToClipboard: 'Kopiëren naar Klembord',
+            downloadFile: 'Bestand Downloaden',
+            downloaded: 'Gedownload!'
         }
     };
 
@@ -2083,13 +2165,32 @@ class ControlPanel {
                 formatDropdown.appendChild(formatCategories);
                 content.appendChild(formatSelectorContainer);
 
-                // Create export button
-                const exportButton = this.createButton(
-                    TranslationManager.getText('exportData'),
+                // Create export buttons container
+                const exportButtonsContainer = document.createElement('div');
+                exportButtonsContainer.className = 'export-buttons-container';
+                exportButtonsContainer.style.display = 'flex';
+                exportButtonsContainer.style.gap = '10px';
+                exportButtonsContainer.style.marginTop = '10px';
+
+                // Copy button
+                const copyButton = this.createButton(
+                    TranslationManager.getText('copyToClipboard'),
                     'export-button',
-                    () => this.exportData()
+                    () => this.copyToClipboard()
                 );
-                content.appendChild(exportButton);
+                copyButton.style.flex = '1';
+
+                // Download button
+                const downloadButton = this.createButton(
+                    TranslationManager.getText('downloadFile'),
+                    'export-button',
+                    () => this.downloadFormatted()
+                );
+                downloadButton.style.flex = '1';
+
+                exportButtonsContainer.appendChild(copyButton);
+                exportButtonsContainer.appendChild(downloadButton);
+                content.appendChild(exportButtonsContainer);
 
                 // Create clear button
                 const clearButton = this.createButton(
@@ -2105,6 +2206,83 @@ class ControlPanel {
         });
 
         return this.togglers.copy.section;
+    }
+
+    /**
+     * Copy formatted data to clipboard
+     */
+    static copyToClipboard() {
+        // Get the currently selected format
+        const selectedFormat = window.currentSelectedFormat;
+        if (!selectedFormat || DescriptionManager.expandedItems.length === 0) {
+            // No format selected or no data to export
+            return;
+        }
+
+        Logger.log(`Copying data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
+
+        // Get the formatter based on the selected format
+        const formatter = this.getFormatter(selectedFormat);
+        if (!formatter) {
+            Logger.log("No formatter available for", selectedFormat.id);
+            return;
+        }
+
+        // Format the data
+        const formattedData = formatter(DescriptionManager.expandedItems, selectedFormat.getOptions());
+
+        // Copy to clipboard
+        if (formattedData) {
+            GM_setClipboard(formattedData);
+
+            // Visual feedback
+            const copyButton = document.querySelector('.export-buttons-container .export-button');
+            if (copyButton) {
+                this.showCopySuccess(copyButton, TranslationManager.getText('copied'));
+            }
+        }
+    }
+
+    /**
+     * Download formatted data as a file
+     */
+    static downloadFormatted() {
+        // Get the currently selected format
+        const selectedFormat = window.currentSelectedFormat;
+        if (!selectedFormat || DescriptionManager.expandedItems.length === 0) {
+            // No format selected or no data to export
+            return;
+        }
+
+        Logger.log(`Downloading data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
+
+        // Get the formatter based on the selected format
+        const formatter = this.getFormatter(selectedFormat);
+        if (!formatter) {
+            Logger.log("No formatter available for", selectedFormat.id);
+            return;
+        }
+
+        // Format the data
+        const formattedData = formatter(DescriptionManager.expandedItems, selectedFormat.getOptions());
+
+        if (formattedData) {
+            // Get file extension and mime type
+            const {extension, mimeType} = this.getFileInfo(selectedFormat.id);
+
+            // Create filename
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+            const filename = `wallapop-export-${timestamp}.${extension}`;
+
+            // Download the file
+            this.downloadFile(formattedData, filename, mimeType);
+
+            // Visual feedback
+            const downloadButton = document.querySelectorAll('.export-buttons-container .export-button')[1];
+            if (downloadButton) {
+                this.showCopySuccess(downloadButton, TranslationManager.getText('downloaded'));
+            }
+        }
     }
 
     static saveExportFormat(formatId, categoryId) {
@@ -2128,38 +2306,6 @@ class ControlPanel {
             Logger.error(error, "Loading export format");
         }
         return null;
-    }
-
-    static exportData() {
-        // Get the currently selected format
-        const selectedFormat = window.currentSelectedFormat;
-        if (!selectedFormat || DescriptionManager.expandedItems.length === 0) {
-            // No format selected or no data to export
-            return;
-        }
-
-        Logger.log(`Exporting data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
-
-        // Get the formatter based on the selected format
-        const formatter = this.getFormatter(selectedFormat);
-        if (!formatter) {
-            Logger.log("No formatter available for", selectedFormat.id);
-            return;
-        }
-
-        // Format the data
-        const formattedData = formatter(DescriptionManager.expandedItems, selectedFormat.getOptions());
-
-        // Copy to clipboard
-        if (formattedData) {
-            GM_setClipboard(formattedData);
-
-            // Visual feedback
-            const exportButton = document.querySelector('.export-button');
-            if (exportButton) {
-                this.showCopySuccess(exportButton, TranslationManager.getText('copied'));
-            }
-        }
     }
 
     static getFormatter(format) {
@@ -3192,6 +3338,89 @@ class ControlPanel {
                 }
             }
         });
+    }
+
+    /**
+     * Download a file with the given data and name
+     * @param {String} data - The file content to download
+     * @param {String} filename - The filename to use
+     * @param {String} mimeType - The MIME type of the file
+     */
+    static downloadFile(data, filename, mimeType) {
+        try {
+            // Convert data to blob for binary formats
+            const blob = new Blob([data], {type: mimeType});
+            const url = URL.createObjectURL(blob);
+
+            // Use GM_download (our implementation will fall back to the simple method if needed)
+            GM_download({
+                url: url,
+                name: filename,
+                saveAs: true,
+                onload: () => URL.revokeObjectURL(url),
+                onerror: (error) => {
+                    Logger.error(error, "GM_download");
+                    // If GM_download fails, try fallback (shouldn't be needed with our polyfill, but just in case)
+                    this.fallbackDownload(data, filename, mimeType);
+                }
+            });
+        } catch (error) {
+            Logger.error(error, "Downloading file");
+            this.fallbackDownload(data, filename, mimeType);
+        }
+    }
+
+    /**
+     * Fallback download method using a data URL and click event
+     */
+    static fallbackDownload(data, filename, mimeType) {
+        try {
+            const blob = new Blob([data], {type: mimeType});
+            const url = URL.createObjectURL(blob);
+
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = filename;
+            downloadLink.style.display = 'none';
+
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(url);
+            }, 100);
+        } catch (error) {
+            Logger.error(error, "Fallback download");
+            alert("Download failed. Please try copying to clipboard instead.");
+        }
+    }
+
+    /**
+     * Get the appropriate file extension and MIME type for the format
+     * @param {String} formatId - The format ID
+     * @returns {Object} Object with extension and mimeType properties
+     */
+    static getFileInfo(formatId) {
+        const fileInfo = {
+            // Text formats
+            'plain': {extension: 'txt', mimeType: 'text/plain'},
+            'markdown': {extension: 'md', mimeType: 'text/markdown'},
+            'html': {extension: 'html', mimeType: 'text/html'},
+
+            // Data formats
+            'json': {extension: 'json', mimeType: 'application/json'},
+            'csv': {extension: 'csv', mimeType: 'text/csv'},
+            'tsv': {extension: 'tsv', mimeType: 'text/tab-separated-values'},
+            'xml': {extension: 'xml', mimeType: 'application/xml'},
+
+            // Spreadsheet formats
+            'excel-csv': {extension: 'csv', mimeType: 'text/csv'},
+            'excel-xml': {extension: 'xml', mimeType: 'application/xml'}
+        };
+
+        return fileInfo[formatId] || {extension: 'txt', mimeType: 'text/plain'};
     }
 }
 
