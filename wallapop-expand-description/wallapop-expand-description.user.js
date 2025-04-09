@@ -219,7 +219,6 @@ class StyleManager {
         .section-content {
             padding: 15px;
             max-height: 300px;
-            overflow: hidden;
             opacity: 1;
             transition: max-height var(--transition-speed) var(--transition-easing),
                         opacity var(--transition-speed) var(--transition-easing),
@@ -472,6 +471,154 @@ class StyleManager {
         .hiding-animation {
             animation: fadeOut 0.5s ease-in-out forwards;
         }
+        
+        /* Export Format Styles */
+        .export-section {
+            position: relative;
+        }
+        
+        .format-selector-container {
+            position: relative;
+            margin-top: 10px;
+        }
+        
+        .format-selector {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: white;
+            text-align: left;
+            position: relative;
+        }
+        
+        .format-selector:after {
+            content: '▼';
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .format-dropdown {
+            position: absolute;
+            width: 100%;
+            max-height: 0;
+            overflow: hidden;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            transition: max-height var(--transition-speed) var(--transition-easing);
+        }
+        
+        .format-dropdown.active {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+        }
+        
+        .format-categories {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .format-category-label {
+            padding: 8px 12px;
+            font-weight: bold;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .format-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .format-item {
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .format-label {
+            padding: 8px 12px 8px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .format-item.selected .format-label {
+            background-color: #e0f0f0;
+            color: var(--panel-accent-color);
+        }
+        
+        .format-item:hover .format-label {
+            background-color: #f0f0f0;
+        }
+        
+        .options-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 12px;
+            color: #777;
+            cursor: pointer;
+            padding: 4px;
+        }
+        
+        .format-options {
+            padding: 5px 10px;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .format-options.hidden {
+            display: none;
+        }
+        
+        .option-row {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        
+        .option-checkbox {
+            margin-right: 8px;
+        }
+        
+        .option-label {
+            font-size: 12px;
+            color: #555;
+        }
+        
+        .export-button {
+            display: block;
+            background-color: var(--panel-accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin-top: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            text-align: center;
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
+        
+        .export-button:hover {
+            background-color: var(--panel-hover-color);
+        }
+        
+        .export-success {
+            background-color: #4CAF50;
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
     `;
         document.head.appendChild(style);
     }
@@ -527,7 +674,11 @@ class TranslationManager {
             nothingToCopy: 'Nothing to copy!',
             languageSettings: 'Language Settings',
             errorOccurred: 'An unexpected error occurred',
-            failedToParse: 'Failed to parse description:'
+            failedToParse: 'Failed to parse description:',
+            // New entries for export functionality
+            selectFormat: 'Select Format',
+            exportData: 'Export',
+            exportDescriptions: 'Export Descriptions'
         },
         es: {
             expandDescription: 'Ampliar Descripción',
@@ -550,7 +701,11 @@ class TranslationManager {
             nothingToCopy: '¡Nada para copiar!',
             languageSettings: 'Configuración de Idioma',
             errorOccurred: 'Ocurrió un error inesperado',
-            failedToParse: 'Error al analizar la descripción:'
+            failedToParse: 'Error al analizar la descripción:',
+            // New entries for export functionality
+            selectFormat: 'Seleccionar Formato',
+            exportData: 'Exportar',
+            exportDescriptions: 'Exportar Descripciones'
         },
         ca: {
             expandDescription: 'Ampliar Descripció',
@@ -573,7 +728,11 @@ class TranslationManager {
             nothingToCopy: 'Res per copiar!',
             languageSettings: 'Configuració d\'Idioma',
             errorOccurred: 'S\'ha produït un error inesperat',
-            failedToParse: 'Error en analitzar la descripció:'
+            failedToParse: 'Error en analitzar la descripció:',
+            // New entries for export functionality
+            selectFormat: 'Seleccionar Format',
+            exportData: 'Exportar',
+            exportDescriptions: 'Exportar Descripcions'
         },
         tr: {
             expandDescription: 'Açıklamayı Genişlet',
@@ -596,7 +755,11 @@ class TranslationManager {
             nothingToCopy: 'Kopyalanacak bir şey yok!',
             languageSettings: 'Dil Ayarları',
             errorOccurred: 'Beklenmeyen bir hata oluştu',
-            failedToParse: 'Açıklama ayrıştırılamadı:'
+            failedToParse: 'Açıklama ayrıştırılamadı:',
+            // New entries for export functionality
+            selectFormat: 'Format Seçin',
+            exportData: 'Dışa Aktar',
+            exportDescriptions: 'Açıklamaları Dışa Aktar'
         },
         pt: {
             expandDescription: 'Expandir Descrição',
@@ -619,7 +782,11 @@ class TranslationManager {
             nothingToCopy: 'Nada para copiar!',
             languageSettings: 'Configurações de Idioma',
             errorOccurred: 'Ocorreu um erro inesperado',
-            failedToParse: 'Falha ao analisar descrição:'
+            failedToParse: 'Falha ao analisar descrição:',
+            // New entries for export functionality
+            selectFormat: 'Selecionar Formato',
+            exportData: 'Exportar',
+            exportDescriptions: 'Exportar Descrições'
         },
         it: {
             expandDescription: 'Espandi Descrizione',
@@ -642,7 +809,11 @@ class TranslationManager {
             nothingToCopy: 'Niente da copiare!',
             languageSettings: 'Impostazioni Lingua',
             errorOccurred: 'Si è verificato un errore imprevisto',
-            failedToParse: 'Impossibile analizzare la descrizione:'
+            failedToParse: 'Impossibile analizzare la descrizione:',
+            // New entries for export functionality
+            selectFormat: 'Seleziona Formato',
+            exportData: 'Esporta',
+            exportDescriptions: 'Esporta Descrizioni'
         },
         fr: {
             expandDescription: 'Développer Description',
@@ -665,7 +836,11 @@ class TranslationManager {
             nothingToCopy: 'Rien à copier !',
             languageSettings: 'Paramètres de Langue',
             errorOccurred: 'Une erreur inattendue s\'est produite',
-            failedToParse: 'Échec de l\'analyse de la description :'
+            failedToParse: 'Échec de l\'analyse de la description :',
+            // New entries for export functionality
+            selectFormat: 'Sélectionner Format',
+            exportData: 'Exporter',
+            exportDescriptions: 'Exporter les Descriptions'
         },
         de: {
             expandDescription: 'Beschreibung Erweitern',
@@ -688,7 +863,11 @@ class TranslationManager {
             nothingToCopy: 'Nichts zu kopieren!',
             languageSettings: 'Spracheinstellungen',
             errorOccurred: 'Ein unerwarteter Fehler ist aufgetreten',
-            failedToParse: 'Fehler beim Analysieren der Beschreibung:'
+            failedToParse: 'Fehler beim Analysieren der Beschreibung:',
+            // New entries for export functionality
+            selectFormat: 'Format Auswählen',
+            exportData: 'Exportieren',
+            exportDescriptions: 'Beschreibungen Exportieren'
         },
         nl: {
             expandDescription: 'Beschrijving Uitklappen',
@@ -711,7 +890,11 @@ class TranslationManager {
             nothingToCopy: 'Niets om te kopiëren!',
             languageSettings: 'Taalinstellingen',
             errorOccurred: 'Er is een onverwachte fout opgetreden',
-            failedToParse: 'Kan beschrijving niet analyseren:'
+            failedToParse: 'Kan beschrijving niet analyseren:',
+            // New entries for export functionality
+            selectFormat: 'Selecteer Formaat',
+            exportData: 'Exporteren',
+            exportDescriptions: 'Beschrijvingen Exporteren'
         }
     };
 
@@ -1177,6 +1360,182 @@ class DOMObserver {
     }
 }
 
+/**
+ * FormatOption - A reusable component for format selection with conditional options
+ */
+class FormatOption {
+    constructor(config) {
+        this.id = config.id;
+        this.label = config.label;
+        this.description = config.description;
+        this.category = config.category;
+        this.options = config.options || [];
+        this.element = null;
+        this.optionsContainer = null;
+        this.optionValues = {};
+
+        // Initialize default values for options
+        this.options.forEach(option => {
+            this.optionValues[option.id] = option.defaultValue || false;
+        });
+    }
+
+    /**
+     * Create the DOM element for this format option
+     * @param {Function} onSelect - Callback when this option is selected
+     * @returns {HTMLElement} The created element
+     */
+    createElement(onSelect) {
+        // Create main format item
+        this.element = document.createElement('li');
+        this.element.className = 'format-item';
+        this.element.dataset.formatId = this.id;
+        this.element.dataset.category = this.category;
+
+        const formatLabel = document.createElement('div');
+        formatLabel.className = 'format-label';
+        formatLabel.textContent = this.label;
+        formatLabel.title = this.description;
+
+        this.element.appendChild(formatLabel);
+
+        // Handle format selection
+        formatLabel.addEventListener('click', (e) => {
+            if (onSelect) {
+                onSelect(this);
+            }
+            e.stopPropagation();
+        });
+
+        // Create options container if this format has options
+        if (this.options.length > 0) {
+            this.optionsContainer = document.createElement('div');
+            this.optionsContainer.className = 'format-options hidden';
+
+            // Create each option checkbox
+            this.options.forEach(option => {
+                const optionRow = document.createElement('div');
+                optionRow.className = 'option-row';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `option-${this.id}-${option.id}`;
+                checkbox.className = 'option-checkbox';
+                checkbox.checked = option.defaultValue || false;
+
+                const label = document.createElement('label');
+                label.htmlFor = checkbox.id;
+                label.className = 'option-label';
+                label.textContent = option.label;
+                label.title = option.description || '';
+
+                // Handle checkbox change
+                checkbox.addEventListener('change', (e) => {
+                    this.optionValues[option.id] = e.target.checked;
+                    e.stopPropagation();
+                });
+
+                optionRow.appendChild(checkbox);
+                optionRow.appendChild(label);
+                this.optionsContainer.appendChild(optionRow);
+            });
+
+            this.element.appendChild(this.optionsContainer);
+
+            // Add expand/collapse capability for options
+            const expandButton = document.createElement('button');
+            expandButton.className = 'options-toggle';
+            expandButton.innerHTML = '⚙️';
+            expandButton.title = 'Format Options';
+            formatLabel.appendChild(expandButton);
+
+            expandButton.addEventListener('click', (e) => {
+                this.toggleOptions();
+                e.stopPropagation();
+            });
+        }
+
+        return this.element;
+    }
+
+    /**
+     * Toggle options visibility
+     */
+    toggleOptions() {
+        if (this.optionsContainer) {
+            this.optionsContainer.classList.toggle('hidden');
+        }
+    }
+
+    /**
+     * Show options panel
+     */
+    showOptions() {
+        if (this.optionsContainer) {
+            this.optionsContainer.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Hide options panel
+     */
+    hideOptions() {
+        if (this.optionsContainer) {
+            this.optionsContainer.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Get all options values
+     * @returns {Object} The options values
+     */
+    getOptions() {
+        return this.optionValues;
+    }
+
+    /**
+     * Get a specific option value
+     * @param {String} optionId - The option ID
+     * @returns {*} The option value
+     */
+    getOption(optionId) {
+        return this.optionValues[optionId];
+    }
+
+    /**
+     * Set a specific option value
+     * @param {String} optionId - The option ID
+     * @param {*} value - The value to set
+     */
+    setOption(optionId, value) {
+        this.optionValues[optionId] = value;
+
+        // Update checkbox if it exists
+        const checkbox = this.element.querySelector(`#option-${this.id}-${optionId}`);
+        if (checkbox) {
+            checkbox.checked = value;
+        }
+    }
+
+    /**
+     * Mark this format as selected
+     */
+    select() {
+        if (this.element) {
+            this.element.classList.add('selected');
+        }
+    }
+
+    /**
+     * Unselect this format
+     */
+    unselect() {
+        if (this.element) {
+            this.element.classList.remove('selected');
+        }
+    }
+}
+
 class WallapopExpandDescription {
     static async init() {
         Logger.log("Initializing script");
@@ -1344,6 +1703,200 @@ class ControlPanel {
     static container = null;
     static filterInputElement = null;
     static blockedTermsListElement = null;
+    static exportFormats = {
+        // Text-based formats
+        text: {
+            label: 'Text',
+            formats: {
+                'plain': new FormatOption({
+                    id: 'plain',
+                    label: 'Plain Text',
+                    description: 'Simple text list of descriptions',
+                    category: 'text',
+                    options: [
+                        {
+                            id: 'include-images',
+                            label: 'Include images as URLs',
+                            description: 'Add image URLs to the output',
+                            defaultValue: false
+                        }
+                    ]
+                }),
+                'markdown': new FormatOption({
+                    id: 'markdown',
+                    label: 'Markdown',
+                    description: 'Formatted with Markdown syntax',
+                    category: 'text',
+                    options: [
+                        {
+                            id: 'include-images',
+                            label: 'Include images as markdown',
+                            description: 'Add image references using markdown syntax',
+                            defaultValue: true
+                        },
+                        {
+                            id: 'use-frontmatter',
+                            label: 'Use frontmatter',
+                            description: 'Add YAML frontmatter with metadata',
+                            defaultValue: false
+                        }
+                    ]
+                }),
+                'html': new FormatOption({
+                    id: 'html',
+                    label: 'HTML',
+                    description: 'Formatted as HTML document',
+                    category: 'text',
+                    options: [
+                        {
+                            id: 'include-images',
+                            label: 'Include images',
+                            description: 'Add image elements with source URLs',
+                            defaultValue: true
+                        },
+                        {
+                            id: 'include-styles',
+                            label: 'Include CSS styles',
+                            description: 'Add CSS styling to the HTML',
+                            defaultValue: true
+                        }
+                    ]
+                })
+            }
+        },
+        // Data formats
+        data: {
+            label: 'Data',
+            formats: {
+                'json': new FormatOption({
+                    id: 'json',
+                    label: 'JSON',
+                    description: 'JavaScript Object Notation',
+                    category: 'data',
+                    options: [
+                        {
+                            id: 'pretty-print',
+                            label: 'Pretty print',
+                            description: 'Format JSON with indentation',
+                            defaultValue: true
+                        },
+                        {
+                            id: 'include-images',
+                            label: 'Include image URLs',
+                            description: 'Add image URLs to JSON objects',
+                            defaultValue: false
+                        }
+                    ]
+                }),
+                'csv': new FormatOption({
+                    id: 'csv',
+                    label: 'CSV',
+                    description: 'Comma-separated values',
+                    category: 'data',
+                    options: [
+                        {
+                            id: 'include-headers',
+                            label: 'Include headers',
+                            description: 'Add column names as the first row',
+                            defaultValue: true
+                        },
+                        {
+                            id: 'include-images',
+                            label: 'Include image URLs',
+                            description: 'Add image URLs column',
+                            defaultValue: false
+                        }
+                    ]
+                }),
+                'tsv': new FormatOption({
+                    id: 'tsv',
+                    label: 'TSV',
+                    description: 'Tab-separated values',
+                    category: 'data',
+                    options: [
+                        {
+                            id: 'include-headers',
+                            label: 'Include headers',
+                            description: 'Add column names as the first row',
+                            defaultValue: true
+                        },
+                        {
+                            id: 'include-images',
+                            label: 'Include image URLs',
+                            description: 'Add image URLs column',
+                            defaultValue: false
+                        }
+                    ]
+                }),
+                'xml': new FormatOption({
+                    id: 'xml',
+                    label: 'XML',
+                    description: 'Extensible Markup Language',
+                    category: 'data',
+                    options: [
+                        {
+                            id: 'include-images',
+                            label: 'Include image elements',
+                            description: 'Add image URLs as XML elements',
+                            defaultValue: false
+                        },
+                        {
+                            id: 'pretty-print',
+                            label: 'Pretty print',
+                            description: 'Format XML with indentation',
+                            defaultValue: true
+                        }
+                    ]
+                })
+            }
+        },
+        // Spreadsheet formats
+        spreadsheet: {
+            label: 'Spreadsheet',
+            formats: {
+                'excel-csv': new FormatOption({
+                    id: 'excel-csv',
+                    label: 'Excel CSV',
+                    description: 'CSV optimized for Excel import',
+                    category: 'spreadsheet',
+                    options: [
+                        {
+                            id: 'include-headers',
+                            label: 'Include headers',
+                            description: 'Add column names as the first row',
+                            defaultValue: true
+                        },
+                        {
+                            id: 'include-images',
+                            label: 'Include image URLs',
+                            description: 'Add image URLs column',
+                            defaultValue: false
+                        }
+                    ]
+                }),
+                'excel-xml': new FormatOption({
+                    id: 'excel-xml',
+                    label: 'Excel XML',
+                    description: 'XML format for Excel',
+                    category: 'spreadsheet',
+                    options: [
+                        {
+                            id: 'include-headers',
+                            label: 'Include headers',
+                            description: 'Add column names as the first row',
+                            defaultValue: true
+                        },
+                        {
+                            id: 'include-images',
+                            label: 'Include image URLs',
+                            description: 'Add image URLs column',
+                            defaultValue: false
+                        }
+                    ]
+                })
+            }
+        }
+    };
 
     // Store togglers for state management
     static togglers = {
@@ -1423,58 +1976,120 @@ class ControlPanel {
         // Load saved state
         const isExpanded = this.loadPanelState('isCopySectionExpanded', true);
 
+        // Load the last selected format
+        let lastSelectedFormat = this.loadExportFormat();
+
+        // Keep track of the current selected format
+        let selectedFormat = null;
+
         this.togglers.copy = new SectionToggler({
             container,
-            sectionClass: 'copy',
-            titleText: TranslationManager.getText('copyDescriptions'),
+            sectionClass: 'export',
+            titleText: TranslationManager.getText('exportDescriptions'),
             isExpanded,
             onToggle: (state) => {
                 this.savePanelState('isCopySectionExpanded', state);
             },
             contentCreator: (content) => {
-                // JSON copy button
-                const jsonButton = this.createButton(
-                    TranslationManager.getText('copyAsJSON'),
-                    'panel-button copy-json',
-                    () => this.copyToClipboard('json')
+                // Create format selector container
+                const formatSelectorContainer = document.createElement('div');
+                formatSelectorContainer.className = 'format-selector-container';
+
+                // Create format selector button
+                const formatSelector = document.createElement('button');
+                formatSelector.className = 'format-selector';
+                formatSelector.textContent = TranslationManager.getText('selectFormat');
+
+                // Create format dropdown
+                const formatDropdown = document.createElement('div');
+                formatDropdown.className = 'format-dropdown';
+
+                // Toggle dropdown when selector is clicked
+                formatSelector.addEventListener('click', () => {
+                    formatDropdown.classList.toggle('active');
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!formatSelectorContainer.contains(e.target)) {
+                        formatDropdown.classList.remove('active');
+                    }
+                });
+
+                formatSelectorContainer.appendChild(formatSelector);
+                formatSelectorContainer.appendChild(formatDropdown);
+
+                // Create format categories list
+                const formatCategories = document.createElement('ul');
+                formatCategories.className = 'format-categories';
+
+                // Populate categories and formats
+                Object.entries(this.exportFormats).forEach(([categoryId, category]) => {
+                    const categoryItem = document.createElement('li');
+                    categoryItem.className = 'format-category';
+
+                    const categoryLabel = document.createElement('div');
+                    categoryLabel.className = 'format-category-label';
+                    categoryLabel.textContent = category.label;
+                    categoryItem.appendChild(categoryLabel);
+
+                    // Create format list for this category
+                    const formatList = document.createElement('ul');
+                    formatList.className = 'format-list';
+
+                    // Create and add format items
+                    Object.values(category.formats).forEach(format => {
+                        // Create the format item element
+                        const formatElement = format.createElement((selectedFormat) => {
+                            // Unselect the previously selected format
+                            if (window.currentSelectedFormat) {
+                                window.currentSelectedFormat.unselect();
+                            }
+
+                            // Set the new selected format
+                            window.currentSelectedFormat = selectedFormat;
+                            selectedFormat.select();
+
+                            // Update the selector button text
+                            formatSelector.textContent = selectedFormat.label;
+
+                            // Save the selected format
+                            this.saveExportFormat(selectedFormat.id, selectedFormat.category);
+
+                            // Close the dropdown
+                            formatDropdown.classList.remove('active');
+                        });
+
+                        formatList.appendChild(formatElement);
+
+                        // If this is the last selected format, select it
+                        if (lastSelectedFormat &&
+                            lastSelectedFormat.id === format.id &&
+                            lastSelectedFormat.category === format.category) {
+                            // Trigger a click on this format
+                            setTimeout(() => {
+                                const formatLabel = formatElement.querySelector('.format-label');
+                                if (formatLabel) {
+                                    formatLabel.click();
+                                }
+                            }, 0);
+                        }
+                    });
+
+                    categoryItem.appendChild(formatList);
+                    formatCategories.appendChild(categoryItem);
+                });
+
+                formatDropdown.appendChild(formatCategories);
+                content.appendChild(formatSelectorContainer);
+
+                // Create export button
+                const exportButton = this.createButton(
+                    TranslationManager.getText('exportData'),
+                    'export-button',
+                    () => this.exportData()
                 );
-                content.appendChild(jsonButton);
-
-                // Create CSV dropdown
-                const csvDropdown = document.createElement('div');
-                csvDropdown.className = 'copy-dropdown';
-
-                const csvButton = this.createButton(
-                    TranslationManager.getText('copyAsCSV'),
-                    'panel-button copy-csv'
-                );
-
-                const dropdownContent = document.createElement('div');
-                dropdownContent.className = 'dropdown-content';
-
-                // Add mouseover listeners for dropdown positioning
-                csvButton.addEventListener('mouseenter', () => this.positionDropdown());
-                csvDropdown.addEventListener('mouseenter', () => this.positionDropdown());
-
-                // Create dropdown options
-                const csvWithHeadersButton = this.createButton(
-                    TranslationManager.getText('withHeaders'),
-                    '',
-                    () => this.copyToClipboard('csv', true)
-                );
-
-                const csvWithoutHeadersButton = this.createButton(
-                    TranslationManager.getText('withoutHeaders'),
-                    '',
-                    () => this.copyToClipboard('csv', false)
-                );
-
-                dropdownContent.appendChild(csvWithHeadersButton);
-                dropdownContent.appendChild(csvWithoutHeadersButton);
-
-                csvDropdown.appendChild(csvButton);
-                csvDropdown.appendChild(dropdownContent);
-                content.appendChild(csvDropdown);
+                content.appendChild(exportButton);
 
                 // Create clear button
                 const clearButton = this.createButton(
@@ -1490,6 +2105,574 @@ class ControlPanel {
         });
 
         return this.togglers.copy.section;
+    }
+
+    static saveExportFormat(formatId, categoryId) {
+        try {
+            localStorage.setItem('wallapop-export-format', JSON.stringify({id: formatId, category: categoryId}));
+            Logger.log(`Export format saved: ${formatId} (${categoryId})`);
+        } catch (error) {
+            Logger.error(error, "Saving export format");
+        }
+    }
+
+    static loadExportFormat() {
+        try {
+            const savedFormat = localStorage.getItem('wallapop-export-format');
+            if (savedFormat) {
+                const format = JSON.parse(savedFormat);
+                Logger.log(`Export format loaded: ${format.id} (${format.category})`);
+                return format;
+            }
+        } catch (error) {
+            Logger.error(error, "Loading export format");
+        }
+        return null;
+    }
+
+    static exportData() {
+        // Get the currently selected format
+        const selectedFormat = window.currentSelectedFormat;
+        if (!selectedFormat || DescriptionManager.expandedItems.length === 0) {
+            // No format selected or no data to export
+            return;
+        }
+
+        Logger.log(`Exporting data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
+
+        // Get the formatter based on the selected format
+        const formatter = this.getFormatter(selectedFormat);
+        if (!formatter) {
+            Logger.log("No formatter available for", selectedFormat.id);
+            return;
+        }
+
+        // Format the data
+        const formattedData = formatter(DescriptionManager.expandedItems, selectedFormat.getOptions());
+
+        // Copy to clipboard
+        if (formattedData) {
+            GM_setClipboard(formattedData);
+
+            // Visual feedback
+            const exportButton = document.querySelector('.export-button');
+            if (exportButton) {
+                this.showCopySuccess(exportButton, TranslationManager.getText('copied'));
+            }
+        }
+    }
+
+    static getFormatter(format) {
+        // Map of format IDs to formatter functions
+        const formatters = {
+            // Text formats
+            'plain': this.formatAsPlainText,
+            'markdown': this.formatAsMarkdown,
+            'html': this.formatAsHtml,
+
+            // Data formats
+            'json': this.formatAsJson,
+            'csv': this.formatAsCsv,
+            'tsv': this.formatAsTsv,
+            'xml': this.formatAsXml,
+
+            // Spreadsheet formats
+            'excel-csv': this.formatAsExcelCsv,
+            'excel-xml': this.formatAsExcelXml
+        };
+
+        return formatters[format.id];
+    }
+
+    static formatAsPlainText(items, options) {
+        // Simple plain text formatter
+        let result = '';
+
+        items.forEach((item, index) => {
+            result += `== ${item.title} ==\n`;
+            result += `Price: ${item.price || 'N/A'}\n`;
+            result += `Description: ${item.description}\n`;
+
+            // Add images if option is enabled
+            if (options['include-images'] && item.images && item.images.length > 0) {
+                result += 'Images:\n';
+                item.images.forEach(img => {
+                    result += `- ${img}\n`;
+                });
+            }
+
+            result += `URL: ${item.url}\n`;
+
+            // Add separator between items
+            if (index < items.length - 1) {
+                result += '\n--------------------------------------------------\n\n';
+            }
+        });
+
+        return result;
+    }
+
+    static formatAsMarkdown(items, options) {
+        // Markdown formatter
+        let result = '';
+
+        items.forEach((item, index) => {
+            // Add frontmatter if option is enabled
+            if (options['use-frontmatter']) {
+                result += '---\n';
+                result += `title: "${item.title.replace(/"/g, '\\"')}"\n`;
+                result += `price: "${item.price || 'N/A'}"\n`;
+                result += `url: "${item.url}"\n`;
+
+                if (options['include-images'] && item.images && item.images.length > 0) {
+                    result += 'images:\n';
+                    item.images.forEach(img => {
+                        result += `  - ${img}\n`;
+                    });
+                }
+
+                result += '---\n\n';
+            }
+
+            // Add title and details
+            result += `# ${item.title}\n\n`;
+            result += `**Price:** ${item.price || 'N/A'}\n\n`;
+            result += `## Description\n\n${item.description}\n\n`;
+
+            // Add images if option is enabled
+            if (options['include-images'] && item.images && item.images.length > 0) {
+                result += '## Images\n\n';
+                item.images.forEach(img => {
+                    result += `![${item.title}](${img})\n\n`;
+                });
+            }
+
+            result += `**URL:** [${item.title}](${item.url})\n\n`;
+
+            // Add separator between items
+            if (index < items.length - 1) {
+                result += '---\n\n';
+            }
+        });
+
+        return result;
+    }
+
+    static formatAsJson(items, options) {
+        // Filter out image URLs if not needed
+        const processedItems = items.map(item => {
+            const processedItem = {...item};
+
+            // Remove images if option is disabled
+            if (!options['include-images']) {
+                delete processedItem.images;
+            }
+
+            return processedItem;
+        });
+
+        // Pretty print or compact JSON
+        if (options['pretty-print']) {
+            return JSON.stringify(processedItems, null, 2);
+        } else {
+            return JSON.stringify(processedItems);
+        }
+    }
+
+    static formatAsCsv(items, options) {
+        // Determine columns
+        const columns = ['title', 'price', 'description', 'url'];
+
+        // Add images column if needed
+        if (options['include-images']) {
+            columns.push('images');
+        }
+
+        // Start building CSV
+        let csv = '';
+
+        // Add headers if option is enabled
+        if (options['include-headers']) {
+            csv += columns.map(col => `"${col}"`).join(',') + '\n';
+        }
+
+        // Add data rows
+        items.forEach(item => {
+            const row = columns.map(column => {
+                if (column === 'images') {
+                    // Join multiple image URLs with pipe character if they exist
+                    return item.images && item.images.length > 0
+                        ? `"${item.images.join('|')}"`
+                        : '""';
+                } else {
+                    // Escape double quotes and wrap values in quotes
+                    const value = item[column] !== undefined ? String(item[column]) : '';
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+            });
+
+            csv += row.join(',') + '\n';
+        });
+
+        return csv;
+    }
+
+    static formatAsTsv(items, options) {
+        // Determine columns
+        const columns = ['title', 'price', 'description', 'url'];
+
+        // Add images column if needed
+        if (options['include-images']) {
+            columns.push('images');
+        }
+
+        // Start building TSV
+        let tsv = '';
+
+        // Add headers if option is enabled
+        if (options['include-headers']) {
+            tsv += columns.join('\t') + '\n';
+        }
+
+        // Add data rows
+        items.forEach(item => {
+            const row = columns.map(column => {
+                if (column === 'images') {
+                    // Join multiple image URLs with pipe character if they exist
+                    return item.images && item.images.length > 0
+                        ? item.images.join('|')
+                        : '';
+                } else {
+                    // Replace tabs with spaces for TSV compatibility
+                    const value = item[column] !== undefined ? String(item[column]) : '';
+                    return value.replace(/\t/g, ' ');
+                }
+            });
+
+            tsv += row.join('\t') + '\n';
+        });
+
+        return tsv;
+    }
+
+    static formatAsHtml(items, options) {
+        // HTML formatter
+        let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallapop Item Descriptions</title>`;
+
+        // Add CSS if option is enabled
+        if (options['include-styles']) {
+            html += `
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        .item {
+            margin-bottom: 40px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        .item:last-child {
+            border-bottom: none;
+        }
+        .item-title {
+            font-size: 24px;
+            margin: 0 0 10px 0;
+            color: #008080;
+        }
+        .item-price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #e64a19;
+            margin: 0 0 15px 0;
+        }
+        .item-description {
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+        }
+        .item-url {
+            display: inline-block;
+            margin-top: 10px;
+            color: #0277bd;
+            text-decoration: none;
+        }
+        .item-url:hover {
+            text-decoration: underline;
+        }
+        .item-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .item-image {
+            max-width: 200px;
+            max-height: 200px;
+            object-fit: contain;
+            border: 1px solid #ddd;
+        }
+        h2 {
+            color: #555;
+            font-size: 18px;
+            margin: 20px 0 10px 0;
+        }
+    </style>`;
+        }
+
+        html += `
+</head>
+<body>
+    <h1>Wallapop Item Descriptions</h1>`;
+
+        // Add items
+        items.forEach(item => {
+            html += `
+    <div class="item">
+        <h2 class="item-title">${this.escapeHtml(item.title)}</h2>
+        <div class="item-price">Price: ${this.escapeHtml(item.price || 'N/A')}</div>
+        <div class="item-description">${this.escapeHtml(item.description)}</div>`;
+
+            // Add images if option is enabled
+            if (options['include-images'] && item.images && item.images.length > 0) {
+                html += `
+        <div class="item-images">`;
+
+                item.images.forEach(img => {
+                    html += `
+            <img class="item-image" src="${this.escapeHtml(img)}" alt="${this.escapeHtml(item.title)}" />`;
+                });
+
+                html += `
+        </div>`;
+            }
+
+            html += `
+        <a class="item-url" href="${this.escapeHtml(item.url)}" target="_blank">View on Wallapop</a>
+    </div>`;
+        });
+
+        html += `
+</body>
+</html>`;
+
+        return html;
+    }
+
+    static formatAsXml(items, options) {
+        // XML formatter
+        let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<items>\n';
+
+        // Add items
+        items.forEach(item => {
+            xml += '  <item>\n';
+            xml += `    <title>${this.escapeXml(item.title)}</title>\n`;
+            xml += `    <price>${this.escapeXml(item.price || 'N/A')}</price>\n`;
+            xml += `    <description>${this.escapeXml(item.description)}</description>\n`;
+            xml += `    <url>${this.escapeXml(item.url)}</url>\n`;
+
+            // Add images if option is enabled
+            if (options['include-images'] && item.images && item.images.length > 0) {
+                xml += '    <images>\n';
+
+                item.images.forEach(img => {
+                    xml += `      <image>${this.escapeXml(img)}</image>\n`;
+                });
+
+                xml += '    </images>\n';
+            }
+
+            xml += '  </item>\n';
+        });
+
+        xml += '</items>';
+
+        // Format XML with indentation if pretty print is enabled
+        if (!options['pretty-print']) {
+            // Remove line breaks and extra spaces if pretty print is disabled
+            xml = xml.replace(/\n\s*/g, '');
+        }
+
+        return xml;
+    }
+
+    static formatAsExcelCsv(items, options) {
+        // Excel-friendly CSV (uses semicolons as separators in some regions)
+        // Determine columns
+        const columns = ['title', 'price', 'description', 'url'];
+
+        // Add images column if needed
+        if (options['include-images']) {
+            columns.push('images');
+        }
+
+        // Start building CSV
+        let csv = '';
+
+        // Add BOM for Excel
+        const bom = '\uFEFF';
+        csv += bom;
+
+        // Add headers if option is enabled
+        if (options['include-headers']) {
+            csv += columns.map(col => `"${col}"`).join(';') + '\n';
+        }
+
+        // Add data rows
+        items.forEach(item => {
+            const row = columns.map(column => {
+                if (column === 'images') {
+                    // Join multiple image URLs with pipe character if they exist
+                    return item.images && item.images.length > 0
+                        ? `"${item.images.join('|')}"`
+                        : '""';
+                } else {
+                    // Escape double quotes and wrap values in quotes
+                    const value = item[column] !== undefined ? String(item[column]) : '';
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+            });
+
+            csv += row.join(';') + '\n';
+        });
+
+        return csv;
+    }
+
+    static formatAsExcelXml(items, options) {
+        // Excel XML format
+        let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        xml += '<?mso-application progid="Excel.Sheet"?>\n';
+        xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n';
+        xml += '  xmlns:o="urn:schemas-microsoft-com:office:office"\n';
+        xml += '  xmlns:x="urn:schemas-microsoft-com:office:excel"\n';
+        xml += '  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"\n';
+        xml += '  xmlns:html="http://www.w3.org/TR/REC-html40">\n';
+        xml += '  <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">\n';
+        xml += '    <Title>Wallapop Items Export</Title>\n';
+        xml += '    <Author>Wallapop Expand Description</Author>\n';
+        xml += '    <Created>' + new Date().toISOString() + '</Created>\n';
+        xml += '  </DocumentProperties>\n';
+        xml += '  <Styles>\n';
+        xml += '    <Style ss:ID="Default" ss:Name="Normal">\n';
+        xml += '      <Alignment ss:Vertical="Top"/>\n';
+        xml += '      <Borders/>\n';
+        xml += '      <Font ss:FontName="Calibri" x:Family="Swiss" ss:Size="11"/>\n';
+        xml += '      <Interior/>\n';
+        xml += '      <NumberFormat/>\n';
+        xml += '      <Protection/>\n';
+        xml += '    </Style>\n';
+        xml += '    <Style ss:ID="Header">\n';
+        xml += '      <Font ss:FontName="Calibri" x:Family="Swiss" ss:Size="11" ss:Bold="1"/>\n';
+        xml += '      <Interior ss:Color="#C0C0C0" ss:Pattern="Solid"/>\n';
+        xml += '    </Style>\n';
+        xml += '  </Styles>\n';
+        xml += '  <Worksheet ss:Name="Wallapop Items">\n';
+        xml += '    <Table ss:ExpandedColumnCount="5" ss:ExpandedRowCount="' + (items.length + 1) + '" x:FullColumns="1" x:FullRows="1">\n';
+
+        // Define columns
+        const columns = ['title', 'price', 'description', 'url'];
+        if (options['include-images']) {
+            columns.push('images');
+        }
+
+        // Set column widths
+        xml += '      <Column ss:Width="150"/>\n'; // Title
+        xml += '      <Column ss:Width="80"/>\n';  // Price
+        xml += '      <Column ss:Width="250"/>\n'; // Description
+        xml += '      <Column ss:Width="150"/>\n'; // URL
+        if (options['include-images']) {
+            xml += '      <Column ss:Width="250"/>\n'; // Images
+        }
+
+        // Add headers if option is enabled
+        if (options['include-headers']) {
+            xml += '      <Row ss:StyleID="Header">\n';
+
+            columns.forEach(column => {
+                xml += '        <Cell><Data ss:Type="String">' + column + '</Data></Cell>\n';
+            });
+
+            xml += '      </Row>\n';
+        }
+
+        // Add data rows
+        items.forEach(item => {
+            xml += '      <Row>\n';
+
+            columns.forEach(column => {
+                let value = '';
+
+                if (column === 'images') {
+                    // Join multiple image URLs with pipe character if they exist
+                    value = item.images && item.images.length > 0
+                        ? item.images.join('|')
+                        : '';
+                } else {
+                    value = item[column] !== undefined ? String(item[column]) : '';
+                }
+
+                xml += '        <Cell><Data ss:Type="String">' + this.escapeXml(value) + '</Data></Cell>\n';
+            });
+
+            xml += '      </Row>\n';
+        });
+
+        xml += '    </Table>\n';
+        xml += '    <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">\n';
+        xml += '      <PageSetup>\n';
+        xml += '        <Layout x:Orientation="Landscape"/>\n';
+        xml += '        <Header x:Margin="0.3"/>\n';
+        xml += '        <Footer x:Margin="0.3"/>\n';
+        xml += '        <PageMargins x:Bottom="0.75" x:Left="0.7" x:Right="0.7" x:Top="0.75"/>\n';
+        xml += '      </PageSetup>\n';
+        xml += '      <Print>\n';
+        xml += '        <ValidPrinterInfo/>\n';
+        xml += '        <HorizontalResolution>600</HorizontalResolution>\n';
+        xml += '        <VerticalResolution>600</VerticalResolution>\n';
+        xml += '      </Print>\n';
+        xml += '      <Selected/>\n';
+        xml += '      <Panes>\n';
+        xml += '        <Pane>\n';
+        xml += '          <Number>3</Number>\n';
+        xml += '          <ActiveRow>1</ActiveRow>\n';
+        xml += '          <ActiveCol>0</ActiveCol>\n';
+        xml += '        </Pane>\n';
+        xml += '      </Panes>\n';
+        xml += '      <ProtectObjects>False</ProtectObjects>\n';
+        xml += '      <ProtectScenarios>False</ProtectScenarios>\n';
+        xml += '    </WorksheetOptions>\n';
+        xml += '  </Worksheet>\n';
+        xml += '</Workbook>';
+
+        return xml;
+    }
+
+// Helper methods for HTML and XML escaping
+    static escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    static escapeXml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
     }
 
     /**
