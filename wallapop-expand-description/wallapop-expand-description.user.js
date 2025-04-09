@@ -1236,341 +1236,307 @@ class ControlPanel {
     static isCopySectionExpanded = true;
     static isLanguageSectionExpanded = true;
 
-    static createControlPanel() {
-        // Create control panel if it doesn't exist
-        if (!this.container) {
-            this.container = document.createElement('div');
-            this.container.className = 'control-panel';
+    /**
+     * Generic section toggle function to reduce code duplication
+     */
+    static toggleSection(sectionClass, stateProperty) {
+        const contentDiv = this.container.querySelector(`.${sectionClass}-content`);
+        const toggleElement = this.container.querySelector(`.${sectionClass}-section .section-toggle, .panel-toggle`);
 
-            // Create header with expand/collapse toggle
-            const titleDiv = document.createElement('div');
-            titleDiv.className = 'panel-title';
-            titleDiv.innerHTML = '<span>Wallapop Tools</span><span class="panel-toggle">▼</span>';
-            this.container.appendChild(titleDiv);
+        this[stateProperty] = !this[stateProperty];
 
-            // Add toggle functionality for whole panel
-            titleDiv.addEventListener('click', () => this.togglePanel());
+        if (this[stateProperty]) {
+            contentDiv.classList.remove('collapsed');
+            toggleElement.style.transform = 'rotate(0deg)';
+        } else {
+            contentDiv.classList.add('collapsed');
+            toggleElement.style.transform = 'rotate(-90deg)';
+        }
 
-            // Create content container
-            const contentContainer = document.createElement('div');
-            contentContainer.className = 'panel-content';
+        toggleElement.textContent = '▼';
+        this.savePanelStates();
+    }
 
-            // Create Filter Section
-            const filterSection = document.createElement('div');
-            filterSection.className = 'panel-section filter-section';
+    /**
+     * Toggle panel expanded/collapsed state
+     */
+    static togglePanel() {
+        this.toggleSection('panel', 'isPanelExpanded');
+    }
 
-            const filterTitle = document.createElement('div');
-            filterTitle.className = 'section-title';
-            filterTitle.innerHTML = `<span>${TranslationManager.getText('filterUnwantedWords')}</span><span class="section-toggle">▼</span>`;
-            filterSection.appendChild(filterTitle);
+    /**
+     * Toggle filter section expanded/collapsed state
+     */
+    static toggleFilterSection() {
+        this.toggleSection('filter', 'isFilterSectionExpanded');
+    }
 
-            filterTitle.addEventListener('click', () => this.toggleFilterSection());
+    /**
+     * Toggle copy section expanded/collapsed state
+     */
+    static toggleCopySection() {
+        this.toggleSection('copy', 'isCopySectionExpanded');
+    }
 
-            const filterContent = document.createElement('div');
-            filterContent.className = 'section-content filter-content';
+    /**
+     * Toggle language section expanded/collapsed state
+     */
+    static toggleLanguageSection() {
+        this.toggleSection('language', 'isLanguageSectionExpanded');
+    }
 
-            // Filter input
-            this.filterInputElement = document.createElement('input');
-            this.filterInputElement.className = 'filter-input';
-            this.filterInputElement.placeholder = 'Örn: mac, apple, macbook...';
-            filterContent.appendChild(this.filterInputElement);
+    /**
+     * Create a section with standard structure
+     */
+    static createPanelSection(name, titleText, isExpanded, contentCreatorFn) {
+        const section = document.createElement('div');
+        section.className = `panel-section ${name}-section`;
 
-            // Apply button
-            const applyButton = document.createElement('button');
-            applyButton.className = 'panel-button filter-apply';
-            applyButton.textContent = 'Ekle ve Uygula';
-            applyButton.addEventListener('click', () => this.addBlockedTerm());
-            filterContent.appendChild(applyButton);
+        const title = document.createElement('div');
+        title.className = 'section-title';
+        title.innerHTML = `<span>${titleText}</span><span class="section-toggle">▼</span>`;
 
-            // Add enter key listener for input
-            this.filterInputElement.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    this.addBlockedTerm();
-                }
-            });
+        // Configure toggle functionality
+        title.addEventListener('click', () => {
+            if (name === 'panel') {
+                this.togglePanel();
+            } else if (name === 'filter') {
+                this.toggleFilterSection();
+            } else if (name === 'copy') {
+                this.toggleCopySection();
+            } else if (name === 'language') {
+                this.toggleLanguageSection();
+            }
+        });
 
-            // Create list for showing blocked terms
-            this.blockedTermsListElement = document.createElement('div');
-            this.blockedTermsListElement.className = 'blocked-terms-list';
-            filterContent.appendChild(this.blockedTermsListElement);
+        section.appendChild(title);
 
-            filterSection.appendChild(filterContent);
-            contentContainer.appendChild(filterSection);
+        const content = document.createElement('div');
+        content.className = `section-content ${name}-content`;
 
-            // Create Copy Section
-            const copySection = document.createElement('div');
-            copySection.className = 'panel-section copy-section';
+        // Set initial collapsed state based on saved preference
+        if (!isExpanded) {
+            content.classList.add('collapsed');
+            title.querySelector('.section-toggle').style.transform = 'rotate(-90deg)';
+        }
 
-            const copyTitle = document.createElement('div');
-            copyTitle.className = 'section-title';
-            copyTitle.innerHTML = '<span>Açıklamaları Kopyala</span><span class="section-toggle">▼</span>';
-            copySection.appendChild(copyTitle);
+        // Let the caller populate specific content
+        contentCreatorFn(content);
 
-            copyTitle.addEventListener('click', () => this.toggleCopySection());
+        section.appendChild(content);
+        return section;
+    }
 
-            const copyContent = document.createElement('div');
-            copyContent.className = 'section-content copy-content';
+    /**
+     * Create a button with standard style
+     */
+    static createButton(text, className, clickHandler) {
+        const button = document.createElement('button');
+        button.className = className;
+        button.textContent = text;
 
-            // JSON copy button
-            const jsonButton = document.createElement('button');
-            jsonButton.className = 'panel-button copy-json';
-            jsonButton.textContent = 'Copy as JSON';
-            jsonButton.addEventListener('click', () => this.copyToClipboard('json'));
-            copyContent.appendChild(jsonButton);
+        if (clickHandler) {
+            button.addEventListener('click', clickHandler);
+        }
 
-            // Create CSV dropdown
-            const csvDropdown = document.createElement('div');
-            csvDropdown.className = 'copy-dropdown';
+        return button;
+    }
 
-            const csvButton = document.createElement('button');
-            csvButton.className = 'panel-button copy-csv';
-            csvButton.textContent = 'Copy as CSV';
-            csvDropdown.appendChild(csvButton);
+    /**
+     * Create the filter section
+     */
+    static createFilterSection() {
+        return this.createPanelSection(
+            'filter',
+            TranslationManager.getText('filterUnwantedWords'),
+            this.isFilterSectionExpanded,
+            (content) => {
+                // Filter input
+                this.filterInputElement = document.createElement('input');
+                this.filterInputElement.className = 'filter-input';
+                this.filterInputElement.placeholder = TranslationManager.getText('example');
 
-            const dropdownContent = document.createElement('div');
-            dropdownContent.className = 'dropdown-content';
-
-            csvButton.addEventListener('mouseenter', () => this.positionDropdown());
-            csvDropdown.addEventListener('mouseenter', () => this.positionDropdown());
-
-            const csvWithHeadersButton = document.createElement('button');
-            csvWithHeadersButton.textContent = 'With Headers';
-            csvWithHeadersButton.addEventListener('click', () => this.copyToClipboard('csv', true));
-            dropdownContent.appendChild(csvWithHeadersButton);
-
-            const csvWithoutHeadersButton = document.createElement('button');
-            csvWithoutHeadersButton.textContent = 'Without Headers';
-            csvWithoutHeadersButton.addEventListener('click', () => this.copyToClipboard('csv', false));
-            dropdownContent.appendChild(csvWithoutHeadersButton);
-
-            csvDropdown.appendChild(dropdownContent);
-            copyContent.appendChild(csvDropdown);
-
-            // Create clear button
-            const clearButton = document.createElement('button');
-            clearButton.className = 'panel-button copy-clear';
-            clearButton.textContent = 'Clear All';
-            clearButton.addEventListener('click', () => {
-                DescriptionManager.clearItems();
-                this.showCopySuccess(clearButton, 'Cleared!');
-            });
-            copyContent.appendChild(clearButton);
-
-            copySection.appendChild(copyContent);
-            contentContainer.appendChild(copySection);
-
-            // Create Language Section
-            const languageSection = document.createElement('div');
-            languageSection.className = 'panel-section language-section';
-
-            const languageTitle = document.createElement('div');
-            languageTitle.className = 'section-title';
-            languageTitle.innerHTML = `<span>${TranslationManager.getText('languageSettings')}</span><span class="section-toggle">▼</span>`;
-            languageSection.appendChild(languageTitle);
-
-            languageTitle.addEventListener('click', () => this.toggleLanguageSection());
-
-            const languageContent = document.createElement('div');
-            languageContent.className = 'section-content language-content';
-
-            // Create language selector
-            const languageSelector = document.createElement('div');
-            languageSelector.className = 'language-selector';
-
-            // Add language options
-            Object.entries(TranslationManager.availableLanguages).forEach(([code, name]) => {
-                const langButton = document.createElement('button');
-                langButton.className = `lang-button ${code === TranslationManager.currentLanguage ? 'active' : ''}`;
-                langButton.dataset.lang = code;
-                langButton.textContent = name;
-
-                langButton.addEventListener('click', () => {
-                    if (TranslationManager.setLanguage(code)) {
-                        // Mark this button as active and others as inactive
-                        document.querySelectorAll('.lang-button').forEach(btn => {
-                            btn.classList.toggle('active', btn.dataset.lang === code);
-                        });
-
-                        // Update all text in the UI
-                        this.updateUILanguage();
+                // Add enter key listener
+                this.filterInputElement.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.addBlockedTerm();
                     }
                 });
 
-                languageSelector.appendChild(langButton);
-            });
+                content.appendChild(this.filterInputElement);
 
-            languageContent.appendChild(languageSelector);
-            languageSection.appendChild(languageContent);
-            contentContainer.appendChild(languageSection);
+                // Apply button
+                const applyButton = this.createButton(
+                    TranslationManager.getText('addAndApply'),
+                    'panel-button filter-apply',
+                    () => this.addBlockedTerm()
+                );
+                content.appendChild(applyButton);
+
+                // Create list for blocked terms
+                this.blockedTermsListElement = document.createElement('div');
+                this.blockedTermsListElement.className = 'blocked-terms-list';
+                content.appendChild(this.blockedTermsListElement);
+            }
+        );
+    }
+
+    /**
+     * Create the copy section
+     */
+    static createCopySection() {
+        return this.createPanelSection(
+            'copy',
+            TranslationManager.getText('copyDescriptions'),
+            this.isCopySectionExpanded,
+            (content) => {
+                // JSON copy button
+                const jsonButton = this.createButton(
+                    TranslationManager.getText('copyAsJSON'),
+                    'panel-button copy-json',
+                    () => this.copyToClipboard('json')
+                );
+                content.appendChild(jsonButton);
+
+                // Create CSV dropdown
+                const csvDropdown = document.createElement('div');
+                csvDropdown.className = 'copy-dropdown';
+
+                const csvButton = this.createButton(
+                    TranslationManager.getText('copyAsCSV'),
+                    'panel-button copy-csv'
+                );
+
+                const dropdownContent = document.createElement('div');
+                dropdownContent.className = 'dropdown-content';
+
+                // Add mouseover listeners for dropdown positioning
+                csvButton.addEventListener('mouseenter', () => this.positionDropdown());
+                csvDropdown.addEventListener('mouseenter', () => this.positionDropdown());
+
+                // Create dropdown options
+                const csvWithHeadersButton = this.createButton(
+                    TranslationManager.getText('withHeaders'),
+                    '',
+                    () => this.copyToClipboard('csv', true)
+                );
+
+                const csvWithoutHeadersButton = this.createButton(
+                    TranslationManager.getText('withoutHeaders'),
+                    '',
+                    () => this.copyToClipboard('csv', false)
+                );
+
+                dropdownContent.appendChild(csvWithHeadersButton);
+                dropdownContent.appendChild(csvWithoutHeadersButton);
+
+                csvDropdown.appendChild(csvButton);
+                csvDropdown.appendChild(dropdownContent);
+                content.appendChild(csvDropdown);
+
+                // Create clear button
+                const clearButton = this.createButton(
+                    TranslationManager.getText('clearAll'),
+                    'panel-button copy-clear',
+                    () => {
+                        DescriptionManager.clearItems();
+                        this.showCopySuccess(clearButton, TranslationManager.getText('cleared'));
+                    }
+                );
+                content.appendChild(clearButton);
+            }
+        );
+    }
+
+    /**
+     * Create the language section
+     */
+    static createLanguageSection() {
+        return this.createPanelSection(
+            'language',
+            TranslationManager.getText('languageSettings'),
+            this.isLanguageSectionExpanded,
+            (content) => {
+                // Create language selector
+                const languageSelector = document.createElement('div');
+                languageSelector.className = 'language-selector';
+
+                // Add language options
+                Object.entries(TranslationManager.availableLanguages).forEach(([code, name]) => {
+                    const langButton = document.createElement('button');
+                    langButton.className = `lang-button ${code === TranslationManager.currentLanguage ? 'active' : ''}`;
+                    langButton.dataset.lang = code;
+                    langButton.textContent = name;
+
+                    langButton.addEventListener('click', () => {
+                        if (TranslationManager.setLanguage(code)) {
+                            // Mark this button as active and others as inactive
+                            document.querySelectorAll('.lang-button').forEach(btn => {
+                                btn.classList.toggle('active', btn.dataset.lang === code);
+                            });
+
+                            // Update all text in the UI
+                            this.updateUILanguage();
+                        }
+                    });
+
+                    languageSelector.appendChild(langButton);
+                });
+
+                content.appendChild(languageSelector);
+            }
+        );
+    }
+
+    /**
+     * Create the main control panel
+     */
+    static createControlPanel() {
+        // Create control panel if it doesn't exist
+        if (!this.container) {
+            // Load saved panel states before creating UI
+            this.loadPanelStates();
+
+            this.container = document.createElement('div');
+            this.container.className = 'control-panel';
+
+            // Create panel header
+            const panelHeader = document.createElement('div');
+            panelHeader.className = 'panel-title';
+            panelHeader.innerHTML = `<span>${TranslationManager.getText('wallapopTools')}</span><span class="panel-toggle">▼</span>`;
+            panelHeader.addEventListener('click', () => this.togglePanel());
+
+            this.container.appendChild(panelHeader);
+
+            // Create main content container
+            const contentContainer = document.createElement('div');
+            contentContainer.className = 'panel-content';
+
+            // Apply collapsed state if needed
+            if (!this.isPanelExpanded) {
+                contentContainer.classList.add('collapsed');
+                panelHeader.querySelector('.panel-toggle').style.transform = 'rotate(-90deg)';
+            }
+
+            // Add all sections
+            contentContainer.appendChild(this.createFilterSection());
+            contentContainer.appendChild(this.createCopySection());
+            contentContainer.appendChild(this.createLanguageSection());
 
             this.container.appendChild(contentContainer);
             document.body.appendChild(this.container);
 
-            this.loadPanelStates();
-
+            // Apply initial state
             this.updateUILanguage();
-
-            // Load saved blocked terms
             this.loadBlockedTerms();
 
             Logger.log("Control panel created");
         }
     }
 
-    static toggleLanguageSection() {
-        const contentDiv = this.container.querySelector('.language-content');
-        const toggleElement = this.container.querySelector('.language-section .section-toggle');
-
-        this.isLanguageSectionExpanded = !this.isLanguageSectionExpanded;
-
-        if (this.isLanguageSectionExpanded) {
-            contentDiv.classList.remove('collapsed');
-            toggleElement.style.transform = 'rotate(0deg)';
-            toggleElement.textContent = '▼';
-        } else {
-            contentDiv.classList.add('collapsed');
-            toggleElement.style.transform = 'rotate(-90deg)';
-            toggleElement.textContent = '▼';
-        }
-
-        this.savePanelStates();
-    }
-
-    static updateUILanguage() {
-        // Update control panel titles
-        if (this.container) {
-            this.container.querySelector('.panel-title span:first-child').textContent =
-                TranslationManager.getText('wallapopTools');
-
-            // Update filter section texts
-            const filterTitle = this.container.querySelector('.filter-section .section-title span:first-child');
-            if (filterTitle) {
-                filterTitle.textContent = TranslationManager.getText('filterUnwantedWords');
-            }
-
-            const filterInput = this.container.querySelector('.filter-input');
-            if (filterInput) {
-                filterInput.placeholder = TranslationManager.getText('example');
-            }
-
-            const applyButton = this.container.querySelector('.filter-apply');
-            if (applyButton) {
-                applyButton.textContent = TranslationManager.getText('addAndApply');
-            }
-
-            // Update no words message if visible
-            const emptyMessage = this.container.querySelector('.blocked-terms-list div[style*="italic"]');
-            if (emptyMessage) {
-                emptyMessage.textContent = TranslationManager.getText('noWordsToFilter');
-            }
-
-            // Update copy section texts
-            const copyTitle = this.container.querySelector('.copy-section .section-title span:first-child');
-            if (copyTitle) {
-                copyTitle.textContent = TranslationManager.getText('copyDescriptions');
-            }
-
-            const jsonButton = this.container.querySelector('.copy-json');
-            if (jsonButton) {
-                jsonButton.textContent = TranslationManager.getText('copyAsJSON');
-            }
-
-            const csvButton = this.container.querySelector('.copy-csv');
-            if (csvButton) {
-                csvButton.textContent = TranslationManager.getText('copyAsCSV');
-            }
-
-            const withHeadersButton = this.container.querySelector('.dropdown-content button:first-child');
-            if (withHeadersButton) {
-                withHeadersButton.textContent = TranslationManager.getText('withHeaders');
-            }
-
-            const withoutHeadersButton = this.container.querySelector('.dropdown-content button:last-child');
-            if (withoutHeadersButton) {
-                withoutHeadersButton.textContent = TranslationManager.getText('withoutHeaders');
-            }
-
-            const clearButton = this.container.querySelector('.copy-clear');
-            if (clearButton) {
-                clearButton.textContent = TranslationManager.getText('clearAll');
-            }
-
-            // Update language section title
-            const languageTitle = this.container.querySelector('.language-section .section-title span:first-child');
-            if (languageTitle) {
-                languageTitle.textContent = TranslationManager.getText('languageSettings');
-            }
-
-            // Update all expand buttons on the page
-            document.querySelectorAll(SELECTORS.EXPAND_BUTTON).forEach(button => {
-                if (!button.textContent.includes('...')) {
-                    if (button.textContent.includes('Hide')) {
-                        button.textContent = TranslationManager.getText('hideDescription');
-                    } else {
-                        button.textContent = TranslationManager.getText('expandDescription');
-                    }
-                }
-            });
-        }
-    }
-
-    static togglePanel() {
-        const contentDiv = this.container.querySelector('.panel-content');
-        const toggleElement = this.container.querySelector('.panel-toggle');
-
-        this.isPanelExpanded = !this.isPanelExpanded;
-
-        if (this.isPanelExpanded) {
-            contentDiv.classList.remove('collapsed');
-            toggleElement.style.transform = 'rotate(0deg)';
-            toggleElement.textContent = '▼';
-        } else {
-            contentDiv.classList.add('collapsed');
-            toggleElement.style.transform = 'rotate(-90deg)';
-            toggleElement.textContent = '▼';
-        }
-
-        this.savePanelStates();
-    }
-
-    static toggleFilterSection() {
-        const contentDiv = this.container.querySelector('.filter-content');
-        const toggleElement = this.container.querySelector('.filter-section .section-toggle');
-
-        this.isFilterSectionExpanded = !this.isFilterSectionExpanded;
-
-        if (this.isFilterSectionExpanded) {
-            contentDiv.classList.remove('collapsed');
-            toggleElement.style.transform = 'rotate(0deg)';
-            toggleElement.textContent = '▼';
-        } else {
-            contentDiv.classList.add('collapsed');
-            toggleElement.style.transform = 'rotate(-90deg)';
-            toggleElement.textContent = '▼';
-        }
-
-        this.savePanelStates();
-    }
-
-    static toggleCopySection() {
-        const contentDiv = this.container.querySelector('.copy-content');
-        const toggleElement = this.container.querySelector('.copy-section .section-toggle');
-
-        this.isCopySectionExpanded = !this.isCopySectionExpanded;
-
-        if (this.isCopySectionExpanded) {
-            contentDiv.classList.remove('collapsed');
-            toggleElement.style.transform = 'rotate(0deg)';
-            toggleElement.textContent = '▼';
-        } else {
-            contentDiv.classList.add('collapsed');
-            toggleElement.style.transform = 'rotate(-90deg)';
-            toggleElement.textContent = '▼';
-        }
-
-        this.savePanelStates();
-    }
-
+    /**
+     * Position dropdown based on available space
+     */
     static positionDropdown() {
         const dropdownContent = this.container.querySelector('.dropdown-content');
         const dropdownButton = this.container.querySelector('.copy-dropdown .panel-button');
@@ -1578,22 +1544,20 @@ class ControlPanel {
         // Reset position classes
         dropdownContent.classList.remove('top');
 
-        // Get position info
-        const rect = dropdownContent.getBoundingClientRect();
-        const buttonRect = dropdownButton.getBoundingClientRect();
-
         // Check if dropdown would go out of viewport at the bottom
         const viewportHeight = window.innerHeight;
-        const bottomSpace = viewportHeight - buttonRect.bottom;
+        const buttonRect = dropdownButton.getBoundingClientRect();
         const dropdownHeight = 82; // Approximate height of dropdown when expanded
 
         // If not enough space below, position above
-        if (bottomSpace < dropdownHeight) {
+        if (viewportHeight - buttonRect.bottom < dropdownHeight) {
             dropdownContent.classList.add('top');
         }
     }
 
-    // Filter management methods
+    /**
+     * Add a blocked term from the input field
+     */
     static addBlockedTerm() {
         const term = this.filterInputElement.value.trim().toLowerCase();
 
@@ -1610,6 +1574,9 @@ class ControlPanel {
         }
     }
 
+    /**
+     * Remove a blocked term
+     */
     static removeBlockedTerm(term) {
         const index = this.blockedTerms.indexOf(term);
         if (index > -1) {
@@ -1624,58 +1591,78 @@ class ControlPanel {
         }
     }
 
+    /**
+     * Update the list of blocked terms in the UI
+     */
     static updateBlockedTermsList() {
         if (this.blockedTermsListElement) {
             this.blockedTermsListElement.innerHTML = '';
 
             if (this.blockedTerms.length === 0) {
-                const emptyMessage = document.createElement('div');
-                emptyMessage.textContent = 'Filtrelenecek kelime yok';
-                emptyMessage.style.fontStyle = 'italic';
-                emptyMessage.style.color = '#888';
-                emptyMessage.style.padding = '8px 0';
-                emptyMessage.style.opacity = '0';
-                this.blockedTermsListElement.appendChild(emptyMessage);
-
-                // Fade in animation
-                setTimeout(() => {
-                    emptyMessage.style.transition = 'opacity 0.3s ease-in-out';
-                    emptyMessage.style.opacity = '1';
-                }, 10);
+                this.renderNoBlockedTermsMessage();
             } else {
-                this.blockedTerms.forEach(term => {
-                    const termItem = document.createElement('div');
-                    termItem.className = 'blocked-term-item';
-                    termItem.style.opacity = '0';
-                    termItem.style.transform = 'translateY(-10px)';
-
-                    const termText = document.createElement('span');
-                    termText.textContent = term;
-                    termItem.appendChild(termText);
-
-                    const removeButton = document.createElement('button');
-                    removeButton.className = 'remove-term';
-                    removeButton.textContent = '×';
-                    removeButton.title = 'Kaldır';
-                    removeButton.addEventListener('click', () => {
-                        termItem.classList.add('fadeOutAnimation');
-                        setTimeout(() => this.removeBlockedTerm(term), 300);
-                    });
-                    termItem.appendChild(removeButton);
-
-                    this.blockedTermsListElement.appendChild(termItem);
-
-                    // Staggered fade in animation
-                    setTimeout(() => {
-                        termItem.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out';
-                        termItem.style.opacity = '1';
-                        termItem.style.transform = 'translateY(0)';
-                    }, 50 * this.blockedTerms.indexOf(term));
-                });
+                this.renderBlockedTermsList();
             }
         }
     }
 
+    /**
+     * Render message when no terms are blocked
+     */
+    static renderNoBlockedTermsMessage() {
+        const emptyMessage = document.createElement('div');
+        emptyMessage.textContent = TranslationManager.getText('noWordsToFilter');
+        emptyMessage.style.fontStyle = 'italic';
+        emptyMessage.style.color = '#888';
+        emptyMessage.style.padding = '8px 0';
+        emptyMessage.style.opacity = '0';
+        this.blockedTermsListElement.appendChild(emptyMessage);
+
+        // Fade in animation
+        setTimeout(() => {
+            emptyMessage.style.transition = 'opacity 0.3s ease-in-out';
+            emptyMessage.style.opacity = '1';
+        }, 10);
+    }
+
+    /**
+     * Render the list of blocked terms
+     */
+    static renderBlockedTermsList() {
+        this.blockedTerms.forEach((term, index) => {
+            const termItem = document.createElement('div');
+            termItem.className = 'blocked-term-item';
+            termItem.style.opacity = '0';
+            termItem.style.transform = 'translateY(-10px)';
+
+            const termText = document.createElement('span');
+            termText.textContent = term;
+            termItem.appendChild(termText);
+
+            const removeButton = document.createElement('button');
+            removeButton.className = 'remove-term';
+            removeButton.textContent = '×';
+            removeButton.title = TranslationManager.getText('remove');
+            removeButton.addEventListener('click', () => {
+                termItem.classList.add('fadeOutAnimation');
+                setTimeout(() => this.removeBlockedTerm(term), 300);
+            });
+            termItem.appendChild(removeButton);
+
+            this.blockedTermsListElement.appendChild(termItem);
+
+            // Staggered fade in animation
+            setTimeout(() => {
+                termItem.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out';
+                termItem.style.opacity = '1';
+                termItem.style.transform = 'translateY(0)';
+            }, 50 * index);
+        });
+    }
+
+    /**
+     * Save blocked terms to localStorage
+     */
     static saveBlockedTerms() {
         try {
             localStorage.setItem('wallapop-blocked-terms', JSON.stringify(this.blockedTerms));
@@ -1685,6 +1672,9 @@ class ControlPanel {
         }
     }
 
+    /**
+     * Load blocked terms from localStorage
+     */
     static loadBlockedTerms() {
         try {
             const savedTerms = localStorage.getItem('wallapop-blocked-terms');
@@ -1698,6 +1688,9 @@ class ControlPanel {
         }
     }
 
+    /**
+     * Determine if a listing should be hidden based on blocked terms
+     */
     static shouldHideListing(listing) {
         if (this.blockedTerms.length === 0) {
             return false;
@@ -1710,6 +1703,9 @@ class ControlPanel {
         return this.blockedTerms.some(term => listingText.includes(term.toLowerCase()));
     }
 
+    /**
+     * Apply filters to all listings
+     */
     static applyFilters() {
         Logger.log("Applying filters to listings");
 
@@ -1720,40 +1716,54 @@ class ControlPanel {
 
         allListings.forEach(listing => {
             if (this.shouldHideListing(listing)) {
-                // Animate the hiding process
-                if (!listing.classList.contains('hidden-item')) {
-                    listing.classList.add('hiding-animation');
-                    setTimeout(() => {
-                        listing.classList.add('hidden-item');
-                        listing.classList.remove('hiding-animation');
-                    }, 500);
-                }
+                this.hideListing(listing);
                 hiddenCount++;
             } else {
-                // Show previously hidden items with animation
-                if (listing.classList.contains('hidden-item')) {
-                    listing.classList.remove('hidden-item');
-                    listing.style.opacity = 0;
-                    listing.style.transform = 'translateY(-10px)';
-
-                    setTimeout(() => {
-                        listing.style.transition = 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out';
-                        listing.style.opacity = 1;
-                        listing.style.transform = 'translateY(0)';
-
-                        // Clean up after animation
-                        setTimeout(() => {
-                            listing.style.transition = '';
-                        }, 500);
-                    }, 10);
-                }
+                this.showListing(listing);
             }
         });
 
         Logger.log(`Filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
     }
 
-    // Copy functionality
+    /**
+     * Hide a listing with animation
+     */
+    static hideListing(listing) {
+        if (!listing.classList.contains('hidden-item')) {
+            listing.classList.add('hiding-animation');
+            setTimeout(() => {
+                listing.classList.add('hidden-item');
+                listing.classList.remove('hiding-animation');
+            }, 500);
+        }
+    }
+
+    /**
+     * Show a previously hidden listing with animation
+     */
+    static showListing(listing) {
+        if (listing.classList.contains('hidden-item')) {
+            listing.classList.remove('hidden-item');
+            listing.style.opacity = 0;
+            listing.style.transform = 'translateY(-10px)';
+
+            setTimeout(() => {
+                listing.style.transition = 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out';
+                listing.style.opacity = 1;
+                listing.style.transform = 'translateY(0)';
+
+                // Clean up after animation
+                setTimeout(() => {
+                    listing.style.transition = '';
+                }, 500);
+            }, 10);
+        }
+    }
+
+    /**
+     * Copy content to clipboard
+     */
     static copyToClipboard(format, includeHeaders = true) {
         let content = '';
         let button;
@@ -1769,14 +1779,17 @@ class ControlPanel {
         if (content) {
             // Use GM_setClipboard to copy to clipboard
             GM_setClipboard(content);
-            this.showCopySuccess(button, 'Copied!');
+            this.showCopySuccess(button, TranslationManager.getText('copied'));
             Logger.log(`Copied to clipboard in ${format} format`);
         } else {
-            this.showCopySuccess(button, 'Nothing to copy!', false);
+            this.showCopySuccess(button, TranslationManager.getText('nothingToCopy'), false);
             Logger.log("Nothing to copy");
         }
     }
 
+    /**
+     * Show success/failure message after copy attempt
+     */
     static showCopySuccess(button, message, success = true) {
         const originalText = button.textContent;
         button.textContent = message;
@@ -1793,25 +1806,20 @@ class ControlPanel {
         }, 1500);
     }
 
-    // Panel visibility control
+    /**
+     * Update panel visibility based on whether there are expanded descriptions
+     */
     static updatePanelVisibility() {
-        if (DescriptionManager.expandedItems.length > 0) {
-            this.showCopySection();
-        } else {
-            this.hideCopySection();
+        const copySection = this.container.querySelector('.copy-section');
+        if (copySection) {
+            copySection.style.display =
+                DescriptionManager.expandedItems.length > 0 ? 'block' : 'none';
         }
     }
 
-    static showCopySection() {
-        const copySection = this.container.querySelector('.copy-section');
-        copySection.style.display = 'block';
-    }
-
-    static hideCopySection() {
-        const copySection = this.container.querySelector('.copy-section');
-        copySection.style.display = 'none';
-    }
-
+    /**
+     * Save panel expand/collapse states to localStorage
+     */
     static savePanelStates() {
         const states = {
             isPanelExpanded: this.isPanelExpanded,
@@ -1819,9 +1827,17 @@ class ControlPanel {
             isCopySectionExpanded: this.isCopySectionExpanded,
             isLanguageSectionExpanded: this.isLanguageSectionExpanded
         };
-        localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
+
+        try {
+            localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
+        } catch (error) {
+            Logger.error(error, "Saving panel states");
+        }
     }
 
+    /**
+     * Load panel expand/collapse states from localStorage
+     */
     static loadPanelStates() {
         try {
             const savedStates = localStorage.getItem('wallapop-panel-states');
@@ -1832,30 +1848,64 @@ class ControlPanel {
                 this.isCopySectionExpanded = states.isCopySectionExpanded ?? true;
                 this.isLanguageSectionExpanded = states.isLanguageSectionExpanded ?? true;
 
-                // Apply states to UI
-                if (!this.isPanelExpanded) {
-                    this.container.querySelector('.panel-content').classList.add('collapsed');
-                    this.container.querySelector('.panel-toggle').style.transform = 'rotate(-90deg)';
-                }
-
-                if (!this.isFilterSectionExpanded) {
-                    this.container.querySelector('.filter-content').classList.add('collapsed');
-                    this.container.querySelector('.filter-section .section-toggle').style.transform = 'rotate(-90deg)';
-                }
-
-                if (!this.isCopySectionExpanded) {
-                    this.container.querySelector('.copy-content').classList.add('collapsed');
-                    this.container.querySelector('.copy-section .section-toggle').style.transform = 'rotate(-90deg)';
-                }
-
-                if (!this.isLanguageSectionExpanded) {
-                    this.container.querySelector('.language-content').classList.add('collapsed');
-                    this.container.querySelector('.language-section .section-toggle').style.transform = 'rotate(-90deg)';
-                }
+                Logger.log("Panel states loaded from localStorage");
             }
         } catch (error) {
             Logger.error(error, "Loading panel states");
         }
+    }
+
+    /**
+     * Update UI text for all elements based on selected language
+     */
+    static updateUILanguage() {
+        if (!this.container) return;
+
+        // Helper function to update text of elements matching a selector
+        const updateText = (selector, translationKey) => {
+            const element = this.container.querySelector(selector);
+            if (element) {
+                element.textContent = TranslationManager.getText(translationKey);
+            }
+        };
+
+        // Update panel title
+        updateText('.panel-title span:first-child', 'wallapopTools');
+
+        // Update section titles
+        updateText('.filter-section .section-title span:first-child', 'filterUnwantedWords');
+        updateText('.copy-section .section-title span:first-child', 'copyDescriptions');
+        updateText('.language-section .section-title span:first-child', 'languageSettings');
+
+        // Update filter section
+        if (this.filterInputElement) {
+            this.filterInputElement.placeholder = TranslationManager.getText('example');
+        }
+        updateText('.filter-apply', 'addAndApply');
+
+        // Update empty message if visible
+        const emptyMessage = this.container.querySelector('.blocked-terms-list div[style*="italic"]');
+        if (emptyMessage) {
+            emptyMessage.textContent = TranslationManager.getText('noWordsToFilter');
+        }
+
+        // Update copy section buttons
+        updateText('.copy-json', 'copyAsJSON');
+        updateText('.copy-csv', 'copyAsCSV');
+        updateText('.dropdown-content button:first-child', 'withHeaders');
+        updateText('.dropdown-content button:last-child', 'withoutHeaders');
+        updateText('.copy-clear', 'clearAll');
+
+        // Update all expand buttons on the page
+        document.querySelectorAll(SELECTORS.EXPAND_BUTTON).forEach(button => {
+            if (!button.textContent.includes('...')) {
+                if (button.textContent.includes('Hide')) {
+                    button.textContent = TranslationManager.getText('hideDescription');
+                } else {
+                    button.textContent = TranslationManager.getText('expandDescription');
+                }
+            }
+        });
     }
 }
 
