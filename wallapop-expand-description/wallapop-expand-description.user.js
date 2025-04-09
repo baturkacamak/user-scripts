@@ -139,257 +139,340 @@ class Logger {
 
 class StyleManager {
     static addStyles() {
-        GM_addStyle(`
-            /* Animation variables */
-            :root {
-                --transition-speed: 0.3s;
-                --transition-easing: ease-in-out;
-            }
+        const style = document.createElement('style');
+        style.textContent = `
+        :root {
+            --transition-speed: 0.3s;
+            --transition-easing: ease-in-out;
+            --panel-background: #ffffff;
+            --panel-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            --panel-border-radius: 8px;
+            --panel-accent-color: #008080;
+            --panel-hover-color: #006666;
+        }
 
-            ${SELECTORS.EXPAND_BUTTON} {
-                background: none;
-                border: none;
-                color: #008080;
-                cursor: pointer;
-                padding: 5px;
-                font-size: 12px;
-                text-decoration: underline;
-                transition: opacity var(--transition-speed) var(--transition-easing);
-            }
+        /* Control Panel Styles */
+        .control-panel {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            background-color: var(--panel-background);
+            border-radius: var(--panel-border-radius);
+            box-shadow: var(--panel-shadow);
+            padding: 0;
+            z-index: 9999;
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            transition: opacity var(--transition-speed) var(--transition-easing),
+                        transform var(--transition-speed) var(--transition-easing);
+        }
 
-            .description-content {
-                max-height: 0;
-                overflow: hidden;
-                padding: 0 10px;
-                background-color: #f0f0f0;
-                border-radius: 5px;
-                margin-top: 5px;
-                font-size: 14px;
-                white-space: pre-wrap;
-                word-wrap: break-word;
-                transition: max-height var(--transition-speed) var(--transition-easing),
-                            padding var(--transition-speed) var(--transition-easing);
-            }
+        .panel-title, .section-title {
+            font-weight: bold;
+            font-size: 14px;
+            padding: 10px 15px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
 
-            .description-content.expanded {
-                max-height: 1000px; /* Adjust based on expected content height */
-                padding: 10px;
-                transition: max-height 0.5s var(--transition-easing),
-                            padding var(--transition-speed) var(--transition-easing);
-            }
+        .panel-title {
+            background-color: var(--panel-accent-color);
+            color: white;
+            border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
+        }
 
-            .error-message {
-                color: #ff0000;
-                font-style: italic;
-            }
+        .panel-toggle, .section-toggle {
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.3s var(--transition-easing);
+        }
 
-            /* Copy button styles */
-            .copy-button {
-                display: block;
-                background-color: #008080;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 12px;
-                cursor: pointer;
-                font-size: 14px;
-                width: 100%;
-                text-align: left;
-                transition: background-color var(--transition-speed) var(--transition-easing);
-            }
+        .panel-content {
+            display: flex;
+            flex-direction: column;
+            max-height: 700px;
+            overflow: hidden;
+            opacity: 1;
+            transition: max-height var(--transition-speed) var(--transition-easing),
+                        opacity var(--transition-speed) var(--transition-easing);
+        }
 
-            .copy-button:hover {
-                background-color: #006666;
-            }
+        .panel-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
 
-            .copy-success {
-                background-color: #4CAF50;
-                transition: background-color var(--transition-speed) var(--transition-easing);
-            }
+        .panel-section {
+            border-bottom: 1px solid #eee;
+        }
 
-            .copy-dropdown {
-                position: relative;
-                display: inline-block;
-                width: 100%;
-            }
+        .panel-section:last-child {
+            border-bottom: none;
+        }
 
-.dropdown-content {
-    display: block;
-    position: absolute;
-    background-color: #f1f1f1;
-    min-width: 160px;
-    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-    z-index: 1;
-    right: 0;
-    margin-top: 2px;
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: max-height var(--transition-speed) var(--transition-easing),
-                opacity var(--transition-speed) var(--transition-easing);
-    pointer-events: none;
-}
+        .section-content {
+            padding: 15px;
+            max-height: 300px;
+            overflow: hidden;
+            opacity: 1;
+            transition: max-height var(--transition-speed) var(--transition-easing),
+                        opacity var(--transition-speed) var(--transition-easing),
+                        padding var(--transition-speed) var(--transition-easing);
+        }
 
-.dropdown-content.top {
-    bottom: 100%;
-    margin-top: 0;
-    margin-bottom: 2px;
-}
+        .section-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
 
-            .copy-dropdown:hover .dropdown-content {
-                max-height: 200px;
-                opacity: 1;
-                pointer-events: auto;
-            }
+        .filter-input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: border-color var(--transition-speed) var(--transition-easing);
+        }
 
-            .dropdown-content button {
-                color: black;
-                padding: 12px 16px;
-                text-decoration: none;
-                display: block;
-                background: none;
-                border: none;
-                width: 100%;
-                text-align: left;
-                cursor: pointer;
-                transition: background-color var(--transition-speed) var(--transition-easing);
-            }
+        .filter-input:focus {
+            border-color: var(--panel-accent-color);
+            outline: none;
+        }
 
-            .dropdown-content button:hover {
-                background-color: #ddd;
-            }
+        .panel-button {
+            display: block;
+            background-color: var(--panel-accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin-top: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            text-align: center;
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
 
-            /* Filter panel styles */
-            .filter-title {
-                font-weight: bold;
-                font-size: 16px;
-                margin-bottom: 5px;
-                color: #333;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
+        .panel-button:hover,
+        .copy-button:hover {
+            background-color: var(--panel-hover-color);
+        }
 
-            .filter-toggle {
-                cursor: pointer;
-                user-select: none;
-                color: #008080;
-                transition: transform 0.3s var(--transition-easing);
-            }
+        .copy-button {
+            display: block;
+            background-color: var(--panel-accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            text-align: left;
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
 
-            .filter-content {
-                max-height: 500px;
-                overflow: hidden;
-                opacity: 1;
-                transition: max-height var(--transition-speed) var(--transition-easing),
-                            opacity var(--transition-speed) var(--transition-easing);
-            }
+        .copy-success {
+            background-color: #4CAF50;
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
 
-            .filter-content.collapsed {
-                max-height: 0;
+        .blocked-terms-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .blocked-term-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .remove-term {
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: transform var(--transition-speed) var(--transition-easing),
+                        color var(--transition-speed) var(--transition-easing);
+        }
+
+        .remove-term:hover {
+            transform: scale(1.2);
+            color: #ff4040;
+        }
+
+        .copy-dropdown {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .dropdown-content {
+            display: block;
+            position: absolute;
+            background-color: #f1f1f1;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+            right: 0;
+            margin-top: 2px;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+            transition: max-height var(--transition-speed) var(--transition-easing),
+                        opacity var(--transition-speed) var(--transition-easing);
+        }
+
+        .dropdown-content.top {
+            bottom: 100%;
+            margin-top: 0;
+            margin-bottom: 2px;
+        }
+
+        .copy-dropdown:hover .dropdown-content {
+            max-height: 200px;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .dropdown-content button {
+            color: black;
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
+
+        .dropdown-content button:hover {
+            background-color: #ddd;
+        }
+
+        .language-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .lang-button {
+            flex-grow: 1;
+            flex-basis: 45%;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            text-align: center;
+            transition: background-color var(--transition-speed) var(--transition-easing),
+                        border-color var(--transition-speed) var(--transition-easing);
+        }
+
+        .lang-button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .lang-button.active {
+            background-color: var(--panel-accent-color);
+            color: white;
+            border-color: var(--panel-accent-color);
+        }
+
+        ${SELECTORS.EXPAND_BUTTON} {
+            background: none;
+            border: none;
+            color: #008080;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 12px;
+            text-decoration: underline;
+            transition: opacity var(--transition-speed) var(--transition-easing);
+        }
+
+        .description-content {
+            max-height: 0;
+            overflow: hidden;
+            padding: 0 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            margin-top: 5px;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            transition: max-height var(--transition-speed) var(--transition-easing),
+                        padding var(--transition-speed) var(--transition-easing);
+        }
+
+        .description-content.expanded {
+            max-height: 1000px;
+            padding: 10px;
+            transition: max-height 0.5s var(--transition-easing),
+                        padding var(--transition-speed) var(--transition-easing);
+        }
+
+        .error-message {
+            color: #ff0000;
+            font-style: italic;
+        }
+
+        @keyframes fadeIn {
+            from {
                 opacity: 0;
+                transform: translateY(-10px);
             }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
-            ${SELECTORS.FILTER_INPUT} {
-                padding: 8px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                font-size: 14px;
-                width: 100%;
-                box-sizing: border-box;
-                transition: border-color var(--transition-speed) var(--transition-easing);
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
             }
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+        }
 
-            ${SELECTORS.FILTER_INPUT}:focus {
-                border-color: #008080;
-                outline: none;
-            }
+        .fadeOutAnimation {
+            animation: fadeOut 0.3s ease-in-out forwards;
+        }
 
-            ${SELECTORS.FILTER_APPLY} {
-                background-color: #008080;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 12px;
-                cursor: pointer;
-                font-size: 14px;
-                width: 100%;
-                text-align: center;
-                transition: background-color var(--transition-speed) var(--transition-easing);
-            }
+        .hidden-item {
+            display: none !important;
+        }
 
-            ${SELECTORS.FILTER_APPLY}:hover {
-                background-color: #006666;
-            }
-
-            ${SELECTORS.BLOCKED_TERMS_LIST} {
-                max-height: 150px;
-                overflow-y: auto;
-                margin-top: 10px;
-            }
-
-            .blocked-term-item {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px;
-                background-color: #f0f0f0;
-                border-radius: 4px;
-                margin-bottom: 5px;
-                animation: fadeIn 0.3s ease-in-out;
-            }
-
-            .remove-term {
-                background: none;
-                border: none;
-                color: #ff6b6b;
-                cursor: pointer;
-                font-weight: bold;
-                font-size: 16px;
-                transition: transform var(--transition-speed) var(--transition-easing),
-                            color var(--transition-speed) var(--transition-easing);
-            }
-
-            .remove-term:hover {
-                transform: scale(1.2);
-                color: #ff4040;
-            }
-
-            /* Animations */
-            @keyframes fadeIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(-10px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-
-            @keyframes fadeOut {
-                from {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-                to {
-                    opacity: 0;
-                    transform: translateY(-10px);
-                }
-            }
-
-            .fadeOutAnimation {
-                animation: fadeOut 0.3s ease-in-out forwards;
-            }
-
-            .hidden-item {
-                display: none !important;
-            }
-
-            .hiding-animation {
-                animation: fadeOut 0.5s ease-in-out forwards;
-            }
-        `);
+        .hiding-animation {
+            animation: fadeOut 0.5s ease-in-out forwards;
+        }
+    `;
+        document.head.appendChild(style);
     }
 }
 
@@ -403,6 +486,282 @@ class HTMLUtils {
             '"': '&quot;'
         };
         return str.replace(/[&<>'"]/g, tag => escapeMap[tag] || tag);
+    }
+}
+
+class TranslationManager {
+    static availableLanguages = {
+        en: 'English',
+        es: 'Español',
+        ca: 'Català',
+        tr: 'Türkçe', // The script already has some Turkish text
+        pt: 'Português',
+        it: 'Italiano',
+        fr: 'Français',
+        de: 'Deutsch',
+        nl: 'Nederlands'
+    };
+
+    static currentLanguage = 'en'; // Default language
+
+    static translations = {
+        en: {
+            expandDescription: 'Expand Description',
+            hideDescription: 'Hide Description',
+            loading: 'Loading...',
+            wallapopTools: 'Wallapop Tools',
+            filterUnwantedWords: 'Filter Unwanted Words',
+            example: 'E.g: mac, apple, macbook...',
+            addAndApply: 'Add and Apply',
+            noWordsToFilter: 'No words to filter',
+            remove: 'Remove',
+            copyDescriptions: 'Copy Descriptions',
+            copyAsJSON: 'Copy as JSON',
+            copyAsCSV: 'Copy as CSV',
+            withHeaders: 'With Headers',
+            withoutHeaders: 'Without Headers',
+            clearAll: 'Clear All',
+            cleared: 'Cleared!',
+            copied: 'Copied!',
+            nothingToCopy: 'Nothing to copy!',
+            languageSettings: 'Language Settings',
+            errorOccurred: 'An unexpected error occurred',
+            failedToParse: 'Failed to parse description:'
+        },
+        es: {
+            expandDescription: 'Ampliar Descripción',
+            hideDescription: 'Ocultar Descripción',
+            loading: 'Cargando...',
+            wallapopTools: 'Herramientas Wallapop',
+            filterUnwantedWords: 'Filtrar Palabras No Deseadas',
+            example: 'Ej: mac, apple, macbook...',
+            addAndApply: 'Añadir y Aplicar',
+            noWordsToFilter: 'No hay palabras para filtrar',
+            remove: 'Eliminar',
+            copyDescriptions: 'Copiar Descripciones',
+            copyAsJSON: 'Copiar como JSON',
+            copyAsCSV: 'Copiar como CSV',
+            withHeaders: 'Con Encabezados',
+            withoutHeaders: 'Sin Encabezados',
+            clearAll: 'Borrar Todo',
+            cleared: '¡Borrado!',
+            copied: '¡Copiado!',
+            nothingToCopy: '¡Nada para copiar!',
+            languageSettings: 'Configuración de Idioma',
+            errorOccurred: 'Ocurrió un error inesperado',
+            failedToParse: 'Error al analizar la descripción:'
+        },
+        ca: {
+            expandDescription: 'Ampliar Descripció',
+            hideDescription: 'Amagar Descripció',
+            loading: 'Carregant...',
+            wallapopTools: 'Eines de Wallapop',
+            filterUnwantedWords: 'Filtrar Paraules No Desitjades',
+            example: 'Ex: mac, apple, macbook...',
+            addAndApply: 'Afegir i Aplicar',
+            noWordsToFilter: 'No hi ha paraules per filtrar',
+            remove: 'Eliminar',
+            copyDescriptions: 'Copiar Descripcions',
+            copyAsJSON: 'Copiar com a JSON',
+            copyAsCSV: 'Copiar com a CSV',
+            withHeaders: 'Amb Capçaleres',
+            withoutHeaders: 'Sense Capçaleres',
+            clearAll: 'Esborrar Tot',
+            cleared: 'Esborrat!',
+            copied: 'Copiat!',
+            nothingToCopy: 'Res per copiar!',
+            languageSettings: 'Configuració d\'Idioma',
+            errorOccurred: 'S\'ha produït un error inesperat',
+            failedToParse: 'Error en analitzar la descripció:'
+        },
+        tr: {
+            expandDescription: 'Açıklamayı Genişlet',
+            hideDescription: 'Açıklamayı Gizle',
+            loading: 'Yükleniyor...',
+            wallapopTools: 'Wallapop Araçları',
+            filterUnwantedWords: 'İstenmeyen Kelimeleri Filtrele',
+            example: 'Örn: mac, apple, macbook...',
+            addAndApply: 'Ekle ve Uygula',
+            noWordsToFilter: 'Filtrelenecek kelime yok',
+            remove: 'Kaldır',
+            copyDescriptions: 'Açıklamaları Kopyala',
+            copyAsJSON: 'JSON olarak Kopyala',
+            copyAsCSV: 'CSV olarak Kopyala',
+            withHeaders: 'Başlıklarla',
+            withoutHeaders: 'Başlıklar Olmadan',
+            clearAll: 'Tümünü Temizle',
+            cleared: 'Temizlendi!',
+            copied: 'Kopyalandı!',
+            nothingToCopy: 'Kopyalanacak bir şey yok!',
+            languageSettings: 'Dil Ayarları',
+            errorOccurred: 'Beklenmeyen bir hata oluştu',
+            failedToParse: 'Açıklama ayrıştırılamadı:'
+        },
+        pt: {
+            expandDescription: 'Expandir Descrição',
+            hideDescription: 'Ocultar Descrição',
+            loading: 'Carregando...',
+            wallapopTools: 'Ferramentas Wallapop',
+            filterUnwantedWords: 'Filtrar Palavras Indesejadas',
+            example: 'Ex: mac, apple, macbook...',
+            addAndApply: 'Adicionar e Aplicar',
+            noWordsToFilter: 'Sem palavras para filtrar',
+            remove: 'Remover',
+            copyDescriptions: 'Copiar Descrições',
+            copyAsJSON: 'Copiar como JSON',
+            copyAsCSV: 'Copiar como CSV',
+            withHeaders: 'Com Cabeçalhos',
+            withoutHeaders: 'Sem Cabeçalhos',
+            clearAll: 'Limpar Tudo',
+            cleared: 'Limpo!',
+            copied: 'Copiado!',
+            nothingToCopy: 'Nada para copiar!',
+            languageSettings: 'Configurações de Idioma',
+            errorOccurred: 'Ocorreu um erro inesperado',
+            failedToParse: 'Falha ao analisar descrição:'
+        },
+        it: {
+            expandDescription: 'Espandi Descrizione',
+            hideDescription: 'Nascondi Descrizione',
+            loading: 'Caricamento...',
+            wallapopTools: 'Strumenti Wallapop',
+            filterUnwantedWords: 'Filtra Parole Indesiderate',
+            example: 'Es: mac, apple, macbook...',
+            addAndApply: 'Aggiungi e Applica',
+            noWordsToFilter: 'Nessuna parola da filtrare',
+            remove: 'Rimuovi',
+            copyDescriptions: 'Copia Descrizioni',
+            copyAsJSON: 'Copia come JSON',
+            copyAsCSV: 'Copia come CSV',
+            withHeaders: 'Con Intestazioni',
+            withoutHeaders: 'Senza Intestazioni',
+            clearAll: 'Cancella Tutto',
+            cleared: 'Cancellato!',
+            copied: 'Copiato!',
+            nothingToCopy: 'Niente da copiare!',
+            languageSettings: 'Impostazioni Lingua',
+            errorOccurred: 'Si è verificato un errore imprevisto',
+            failedToParse: 'Impossibile analizzare la descrizione:'
+        },
+        fr: {
+            expandDescription: 'Développer Description',
+            hideDescription: 'Masquer Description',
+            loading: 'Chargement...',
+            wallapopTools: 'Outils Wallapop',
+            filterUnwantedWords: 'Filtrer les Mots Indésirables',
+            example: 'Ex: mac, apple, macbook...',
+            addAndApply: 'Ajouter et Appliquer',
+            noWordsToFilter: 'Pas de mots à filtrer',
+            remove: 'Supprimer',
+            copyDescriptions: 'Copier les Descriptions',
+            copyAsJSON: 'Copier en JSON',
+            copyAsCSV: 'Copier en CSV',
+            withHeaders: 'Avec En-têtes',
+            withoutHeaders: 'Sans En-têtes',
+            clearAll: 'Tout Effacer',
+            cleared: 'Effacé !',
+            copied: 'Copié !',
+            nothingToCopy: 'Rien à copier !',
+            languageSettings: 'Paramètres de Langue',
+            errorOccurred: 'Une erreur inattendue s\'est produite',
+            failedToParse: 'Échec de l\'analyse de la description :'
+        },
+        de: {
+            expandDescription: 'Beschreibung Erweitern',
+            hideDescription: 'Beschreibung Ausblenden',
+            loading: 'Wird geladen...',
+            wallapopTools: 'Wallapop-Werkzeuge',
+            filterUnwantedWords: 'Unerwünschte Wörter Filtern',
+            example: 'Z.B: mac, apple, macbook...',
+            addAndApply: 'Hinzufügen und Anwenden',
+            noWordsToFilter: 'Keine Wörter zum Filtern',
+            remove: 'Entfernen',
+            copyDescriptions: 'Beschreibungen Kopieren',
+            copyAsJSON: 'Als JSON Kopieren',
+            copyAsCSV: 'Als CSV Kopieren',
+            withHeaders: 'Mit Überschriften',
+            withoutHeaders: 'Ohne Überschriften',
+            clearAll: 'Alles Löschen',
+            cleared: 'Gelöscht!',
+            copied: 'Kopiert!',
+            nothingToCopy: 'Nichts zu kopieren!',
+            languageSettings: 'Spracheinstellungen',
+            errorOccurred: 'Ein unerwarteter Fehler ist aufgetreten',
+            failedToParse: 'Fehler beim Analysieren der Beschreibung:'
+        },
+        nl: {
+            expandDescription: 'Beschrijving Uitklappen',
+            hideDescription: 'Beschrijving Verbergen',
+            loading: 'Laden...',
+            wallapopTools: 'Wallapop Hulpmiddelen',
+            filterUnwantedWords: 'Ongewenste Woorden Filteren',
+            example: 'Bijv: mac, apple, macbook...',
+            addAndApply: 'Toevoegen en Toepassen',
+            noWordsToFilter: 'Geen woorden om te filteren',
+            remove: 'Verwijderen',
+            copyDescriptions: 'Beschrijvingen Kopiëren',
+            copyAsJSON: 'Kopiëren als JSON',
+            copyAsCSV: 'Kopiëren als CSV',
+            withHeaders: 'Met Headers',
+            withoutHeaders: 'Zonder Headers',
+            clearAll: 'Alles Wissen',
+            cleared: 'Gewist!',
+            copied: 'Gekopieerd!',
+            nothingToCopy: 'Niets om te kopiëren!',
+            languageSettings: 'Taalinstellingen',
+            errorOccurred: 'Er is een onverwachte fout opgetreden',
+            failedToParse: 'Kan beschrijving niet analyseren:'
+        }
+    };
+
+    static getText(key) {
+        const lang = this.currentLanguage;
+        if (this.translations[lang] && this.translations[lang][key]) {
+            return this.translations[lang][key];
+        }
+        // Fallback to English
+        if (this.translations['en'] && this.translations['en'][key]) {
+            return this.translations['en'][key];
+        }
+        // If key is missing completely, return the key itself
+        return key;
+    }
+
+    static saveLanguagePreference() {
+        try {
+            localStorage.setItem('wallapop-language', this.currentLanguage);
+            Logger.log("Language preference saved:", this.currentLanguage);
+        } catch (error) {
+            Logger.error(error, "Saving language preference");
+        }
+    }
+
+    static loadLanguagePreference() {
+        try {
+            const savedLanguage = localStorage.getItem('wallapop-language');
+            if (savedLanguage && this.availableLanguages[savedLanguage]) {
+                this.currentLanguage = savedLanguage;
+                Logger.log("Language preference loaded:", this.currentLanguage);
+            } else {
+                // Try to detect language from browser
+                const browserLang = navigator.language.split('-')[0];
+                if (this.availableLanguages[browserLang]) {
+                    this.currentLanguage = browserLang;
+                    Logger.log("Language detected from browser:", this.currentLanguage);
+                }
+            }
+        } catch (error) {
+            Logger.error(error, "Loading language preference");
+        }
+    }
+
+    static setLanguage(lang) {
+        if (this.availableLanguages[lang]) {
+            this.currentLanguage = lang;
+            this.saveLanguagePreference();
+            return true;
+        }
+        return false;
     }
 }
 
@@ -637,7 +996,7 @@ class ExpandButton {
     createButton() {
         Logger.log("Creating expand button for URL:", this.url);
         this.button = document.createElement('button');
-        this.button.textContent = 'Expand Description';
+        this.button.textContent = TranslationManager.getText('expandDescription');
         this.button.className = SELECTORS.EXPAND_BUTTON.slice(1); // Remove the leading dot
 
         this.descriptionContent = document.createElement('div');
@@ -670,14 +1029,14 @@ class ExpandButton {
     }
 
     async expandDescription() {
-        this.button.textContent = 'Loading...';
+        this.button.textContent = TranslationManager.getText('loading');
         const result = await DescriptionFetcher.getDescription(this.url);
         if (result.success) {
             this.itemData = result.data;
             this.descriptionContent.innerHTML = HTMLUtils.escapeHTML(result.data.description);
             // Use the class toggle approach for smooth transition
             this.descriptionContent.classList.add('expanded');
-            this.button.textContent = 'Hide Description';
+            this.button.textContent = TranslationManager.getText('hideDescription');
             this.expanded = true;
 
             // Add to global description manager
@@ -702,7 +1061,7 @@ class ExpandButton {
         };
         this.descriptionContent.addEventListener('transitionend', transitionEnded);
 
-        this.button.textContent = 'Expand Description';
+        this.button.textContent = TranslationManager.getText('expandDescription');
         this.expanded = false;
 
         // Remove from global description manager
@@ -714,9 +1073,14 @@ class ExpandButton {
     }
 
     showError(message) {
+        if (message.startsWith('Failed to parse description:')) {
+            message = TranslationManager.getText('failedToParse') + message.substring('Failed to parse description:'.length);
+        } else if (message === 'An unexpected error occurred') {
+            message = TranslationManager.getText('errorOccurred');
+        }
         this.descriptionContent.innerHTML = `<span class="error-message">${message}</span>`;
         this.descriptionContent.classList.add('expanded');
-        this.button.textContent = 'Expand Description';
+        this.button.textContent = TranslationManager.getText('expandDescription');
         this.expanded = false;
         Logger.log("Error displaying description for URL:", this.url, message);
     }
@@ -815,6 +1179,10 @@ class DOMObserver {
 class WallapopExpandDescription {
     static async init() {
         Logger.log("Initializing script");
+
+        // Load language preference first
+        TranslationManager.loadLanguagePreference();
+
         StyleManager.addStyles();
 
         // Create unified control panel
@@ -865,6 +1233,7 @@ class ControlPanel {
     static isPanelExpanded = true;
     static isFilterSectionExpanded = true;
     static isCopySectionExpanded = true;
+    static isLanguageSectionExpanded = true;
 
     static createControlPanel() {
         // Create control panel if it doesn't exist
@@ -992,6 +1361,51 @@ class ControlPanel {
             copySection.appendChild(copyContent);
             contentContainer.appendChild(copySection);
 
+            // Create Language Section
+            const languageSection = document.createElement('div');
+            languageSection.className = 'panel-section language-section';
+
+            const languageTitle = document.createElement('div');
+            languageTitle.className = 'section-title';
+            languageTitle.innerHTML = `<span>${TranslationManager.getText('languageSettings')}</span><span class="section-toggle">▼</span>`;
+            languageSection.appendChild(languageTitle);
+
+            const languageToggle = languageTitle.querySelector('.section-toggle');
+            languageToggle.addEventListener('click', () => this.toggleLanguageSection());
+
+            const languageContent = document.createElement('div');
+            languageContent.className = 'section-content language-content';
+
+            // Create language selector
+            const languageSelector = document.createElement('div');
+            languageSelector.className = 'language-selector';
+
+            // Add language options
+            Object.entries(TranslationManager.availableLanguages).forEach(([code, name]) => {
+                const langButton = document.createElement('button');
+                langButton.className = `lang-button ${code === TranslationManager.currentLanguage ? 'active' : ''}`;
+                langButton.dataset.lang = code;
+                langButton.textContent = name;
+
+                langButton.addEventListener('click', () => {
+                    if (TranslationManager.setLanguage(code)) {
+                        // Mark this button as active and others as inactive
+                        document.querySelectorAll('.lang-button').forEach(btn => {
+                            btn.classList.toggle('active', btn.dataset.lang === code);
+                        });
+
+                        // Update all text in the UI
+                        this.updateUILanguage();
+                    }
+                });
+
+                languageSelector.appendChild(langButton);
+            });
+
+            languageContent.appendChild(languageSelector);
+            languageSection.appendChild(languageContent);
+            contentContainer.appendChild(languageSection);
+
             this.container.appendChild(contentContainer);
             document.body.appendChild(this.container);
 
@@ -999,6 +1413,101 @@ class ControlPanel {
             this.loadBlockedTerms();
 
             Logger.log("Control panel created");
+        }
+    }
+
+    static toggleLanguageSection() {
+        const contentDiv = this.container.querySelector('.language-content');
+        const toggleElement = this.container.querySelector('.language-section .section-toggle');
+
+        this.isLanguageSectionExpanded = !this.isLanguageSectionExpanded;
+
+        if (this.isLanguageSectionExpanded) {
+            contentDiv.classList.remove('collapsed');
+            toggleElement.style.transform = 'rotate(0deg)';
+            toggleElement.textContent = '▼';
+        } else {
+            contentDiv.classList.add('collapsed');
+            toggleElement.style.transform = 'rotate(-90deg)';
+            toggleElement.textContent = '▼';
+        }
+    }
+
+    static updateUILanguage() {
+        // Update control panel titles
+        if (this.container) {
+            this.container.querySelector('.panel-title span:first-child').textContent =
+                TranslationManager.getText('wallapopTools');
+
+            // Update filter section texts
+            const filterTitle = this.container.querySelector('.filter-section .section-title span:first-child');
+            if (filterTitle) {
+                filterTitle.textContent = TranslationManager.getText('filterUnwantedWords');
+            }
+
+            const filterInput = this.container.querySelector('.filter-input');
+            if (filterInput) {
+                filterInput.placeholder = TranslationManager.getText('example');
+            }
+
+            const applyButton = this.container.querySelector('.filter-apply');
+            if (applyButton) {
+                applyButton.textContent = TranslationManager.getText('addAndApply');
+            }
+
+            // Update no words message if visible
+            const emptyMessage = this.container.querySelector('.blocked-terms-list div[style*="italic"]');
+            if (emptyMessage) {
+                emptyMessage.textContent = TranslationManager.getText('noWordsToFilter');
+            }
+
+            // Update copy section texts
+            const copyTitle = this.container.querySelector('.copy-section .section-title span:first-child');
+            if (copyTitle) {
+                copyTitle.textContent = TranslationManager.getText('copyDescriptions');
+            }
+
+            const jsonButton = this.container.querySelector('.copy-json');
+            if (jsonButton) {
+                jsonButton.textContent = TranslationManager.getText('copyAsJSON');
+            }
+
+            const csvButton = this.container.querySelector('.copy-csv');
+            if (csvButton) {
+                csvButton.textContent = TranslationManager.getText('copyAsCSV');
+            }
+
+            const withHeadersButton = this.container.querySelector('.dropdown-content button:first-child');
+            if (withHeadersButton) {
+                withHeadersButton.textContent = TranslationManager.getText('withHeaders');
+            }
+
+            const withoutHeadersButton = this.container.querySelector('.dropdown-content button:last-child');
+            if (withoutHeadersButton) {
+                withoutHeadersButton.textContent = TranslationManager.getText('withoutHeaders');
+            }
+
+            const clearButton = this.container.querySelector('.copy-clear');
+            if (clearButton) {
+                clearButton.textContent = TranslationManager.getText('clearAll');
+            }
+
+            // Update language section title
+            const languageTitle = this.container.querySelector('.language-section .section-title span:first-child');
+            if (languageTitle) {
+                languageTitle.textContent = TranslationManager.getText('languageSettings');
+            }
+
+            // Update all expand buttons on the page
+            document.querySelectorAll(SELECTORS.EXPAND_BUTTON).forEach(button => {
+                if (!button.textContent.includes('...')) {
+                    if (button.textContent.includes('Hide')) {
+                        button.textContent = TranslationManager.getText('hideDescription');
+                    } else {
+                        button.textContent = TranslationManager.getText('expandDescription');
+                    }
+                }
+            });
         }
     }
 
@@ -1294,303 +1803,6 @@ class ControlPanel {
         copySection.style.display = 'none';
     }
 }
-
-StyleManager.addStyles = function () {
-    GM_addStyle(`
-        /* Animation variables */
-        :root {
-            --transition-speed: 0.3s;
-            --transition-easing: ease-in-out;
-            --panel-background: #ffffff;
-            --panel-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            --panel-border-radius: 8px;
-            --panel-accent-color: #008080;
-            --panel-hover-color: #006666;
-        }
-
-        /* Control Panel Styles */
-        .control-panel {
-            position: fixed;
-            top: 120px;
-            right: 20px;
-            background-color: var(--panel-background);
-            border-radius: var(--panel-border-radius);
-            box-shadow: var(--panel-shadow);
-            padding: 0;
-            z-index: 9999;
-            width: 280px;
-            display: flex;
-            flex-direction: column;
-            transition: opacity var(--transition-speed) var(--transition-easing),
-                        transform var(--transition-speed) var(--transition-easing);
-        }
-
-        .panel-title, .section-title {
-            font-weight: bold;
-            font-size: 14px;
-            padding: 10px 15px;
-            color: #333;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-        }
-
-        .panel-title {
-            background-color: var(--panel-accent-color);
-            color: white;
-            border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
-        }
-
-        .panel-toggle, .section-toggle {
-            cursor: pointer;
-            user-select: none;
-            transition: transform 0.3s var(--transition-easing);
-        }
-
-        .panel-content {
-            display: flex;
-            flex-direction: column;
-            max-height: 500px;
-            overflow: hidden;
-            opacity: 1;
-            transition: max-height var(--transition-speed) var(--transition-easing),
-                        opacity var(--transition-speed) var(--transition-easing);
-        }
-
-        .panel-content.collapsed {
-            max-height: 0;
-            opacity: 0;
-        }
-
-        .panel-section {
-            border-bottom: 1px solid #eee;
-        }
-
-        .panel-section:last-child {
-            border-bottom: none;
-        }
-
-        .section-content {
-            padding: 15px;
-            max-height: 300px;
-            overflow: hidden;
-            opacity: 1;
-            transition: max-height var(--transition-speed) var(--transition-easing),
-                        opacity var(--transition-speed) var(--transition-easing),
-                        padding var(--transition-speed) var(--transition-easing);
-        }
-
-        .section-content.collapsed {
-            max-height: 0;
-            opacity: 0;
-            padding-top: 0;
-            padding-bottom: 0;
-        }
-
-        /* Filter input and buttons */
-        .filter-input {
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-            width: 100%;
-            box-sizing: border-box;
-            transition: border-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .filter-input:focus {
-            border-color: var(--panel-accent-color);
-            outline: none;
-        }
-
-        .panel-button {
-            display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 12px;
-            margin-top: 10px;
-            cursor: pointer;
-            font-size: 14px;
-            width: 100%;
-            text-align: center;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .panel-button:hover {
-            background-color: var(--panel-hover-color);
-        }
-
-        .copy-success {
-            background-color: #4CAF50;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        /* Blocked terms list */
-        .blocked-terms-list {
-            max-height: 150px;
-            overflow-y: auto;
-            margin-top: 10px;
-        }
-
-        .blocked-term-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px;
-            background-color: #f0f0f0;
-            border-radius: 4px;
-            margin-bottom: 5px;
-            animation: fadeIn 0.3s ease-in-out;
-        }
-
-        .remove-term {
-            background: none;
-            border: none;
-            color: #ff6b6b;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 16px;
-            transition: transform var(--transition-speed) var(--transition-easing),
-                        color var(--transition-speed) var(--transition-easing);
-        }
-
-        .remove-term:hover {
-            transform: scale(1.2);
-            color: #ff4040;
-        }
-
-        /* Copy dropdown */
-        .copy-dropdown {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        .dropdown-content {
-            display: block;
-            position: absolute;
-            background-color: #f1f1f1;
-            min-width: 160px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 1;
-            right: 0;
-            margin-top: 2px;
-            max-height: 0;
-            overflow: hidden;
-            opacity: 0;
-            transition: max-height var(--transition-speed) var(--transition-easing),
-                        opacity var(--transition-speed) var(--transition-easing);
-            pointer-events: none;
-        }
-
-        .dropdown-content.top {
-            bottom: 100%;
-            margin-top: 0;
-            margin-bottom: 2px;
-        }
-
-        .copy-dropdown:hover .dropdown-content {
-            max-height: 200px;
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .dropdown-content button {
-            color: black;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-            background: none;
-            border: none;
-            width: 100%;
-            text-align: left;
-            cursor: pointer;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .dropdown-content button:hover {
-            background-color: #ddd;
-        }
-
-        /* Item card related styles */
-        ${SELECTORS.EXPAND_BUTTON} {
-            background: none;
-            border: none;
-            color: #008080;
-            cursor: pointer;
-            padding: 5px;
-            font-size: 12px;
-            text-decoration: underline;
-            transition: opacity var(--transition-speed) var(--transition-easing);
-        }
-
-        .description-content {
-            max-height: 0;
-            overflow: hidden;
-            padding: 0 10px;
-            background-color: #f0f0f0;
-            border-radius: 5px;
-            margin-top: 5px;
-            font-size: 14px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            transition: max-height var(--transition-speed) var(--transition-easing),
-                        padding var(--transition-speed) var(--transition-easing);
-        }
-
-        .description-content.expanded {
-            max-height: 1000px; /* Adjust based on expected content height */
-            padding: 10px;
-            transition: max-height 0.5s var(--transition-easing),
-                        padding var(--transition-speed) var(--transition-easing);
-        }
-
-        .error-message {
-            color: #ff0000;
-            font-style: italic;
-        }
-
-        /* Animations */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes fadeOut {
-            from {
-                opacity: 1;
-                transform: translateY(0);
-            }
-            to {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-        }
-
-        .fadeOutAnimation {
-            animation: fadeOut 0.3s ease-in-out forwards;
-        }
-
-        .hidden-item {
-            display: none !important;
-        }
-
-        .hiding-animation {
-            animation: fadeOut 0.5s ease-in-out forwards;
-        }
-    `);
-};
 
 // Script initialization
 Logger.log("Script loaded, waiting for page to be ready");
