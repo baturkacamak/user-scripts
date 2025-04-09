@@ -1,15 +1,15 @@
 // ==UserScript==
-// @id           wallapop-expand-description@https://github.com/baturkacamak/userscripts
-// @name         Wallapop Expand Description
+// @id           wallapop-enhanced-tools@https://github.com/baturkacamak/userscripts
+// @name         Wallapop Enhanced Tools
 // @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.4.2
-// @description  Add expand button to show formatted item descriptions on Wallapop listings with copy functionality
+// @version      1.5.0
+// @description  Comprehensive Wallapop enhancement suite: expand formatted descriptions, copy/export listings, filter unwanted items, and multi-language support
 // @author       Batur Kacamak
 // @copyright    2024+, Batur Kacamak (https://batur.info/)
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/wallapop-expand-description#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/wallapop-expand-description#readme
-// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/wallapop-expand-description/wallapop-expand-description.user.js
-// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/wallapop-expand-description/wallapop-expand-description.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/wallapop-enhanced-tools#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/wallapop-enhanced-tools#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
 // @match        https://*.wallapop.com/*
 // @icon         https://es.wallapop.com/favicon.ico
 // @run-at       document-idle
@@ -110,7 +110,7 @@ class Logger {
 
     static log(...args) {
         if (this.DEBUG) {
-            console.log("Wallapop Expand Description Debug:", ...args);
+            console.log("Wallapop Enhanced Tools Debug:", ...args);
         }
     }
 
