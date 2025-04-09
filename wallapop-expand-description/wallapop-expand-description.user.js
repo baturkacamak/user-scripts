@@ -18,6 +18,78 @@
 // @grant        GM_setClipboard
 // ==/UserScript==
 
+// GM function fallbacks for direct browser execution
+if (typeof GM_addStyle === 'undefined') {
+    window.GM_addStyle = function (css) {
+        const style = document.createElement('style');
+        style.textContent = css;
+        document.head.appendChild(style);
+        return style;
+    };
+}
+
+if (typeof GM_xmlhttpRequest === 'undefined') {
+    window.GM_xmlhttpRequest = function (details) {
+        const xhr = new XMLHttpRequest();
+        xhr.open(details.method, details.url);
+
+        if (details.headers) {
+            Object.keys(details.headers).forEach(key => {
+                xhr.setRequestHeader(key, details.headers[key]);
+            });
+        }
+
+        xhr.onload = function () {
+            if (details.onload) {
+                details.onload({
+                    responseText: xhr.responseText,
+                    response: xhr.response,
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    readyState: xhr.readyState
+                });
+            }
+        };
+
+        xhr.onerror = function () {
+            if (details.onerror) {
+                details.onerror(xhr);
+            }
+        };
+
+        xhr.send(details.data);
+        return xhr;
+    };
+}
+
+if (typeof GM_setClipboard === 'undefined') {
+    window.GM_setClipboard = function (text) {
+        // Create a temporary textarea element
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+
+        // Make the textarea not visible
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        // Try to copy the text
+        let success = false;
+        try {
+            success = document.execCommand('copy');
+            console.log('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
+        } catch (err) {
+            console.error('Error copying to clipboard:', err);
+        }
+
+        // Clean up
+        document.body.removeChild(textarea);
+        return success;
+    };
+}
+
 const SELECTORS = {
     ITEM_CARDS: [
         'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
@@ -669,7 +741,7 @@ class DescriptionFetcher {
                             // Get price if available
                             itemData.price = item.price ? `${item.price.cash.amount} ${item.price.cash.currency}` : "";
 
-                            resolve({ success: true, data: itemData });
+                            resolve({success: true, data: itemData});
                         } else {
                             Logger.log("Description not found in JSON structure:", jsonData);
                             throw new Error("Description not found in JSON data");
@@ -700,7 +772,7 @@ class DescriptionFetcher {
                             price: doc.querySelector('[class*="ItemDetail__price"]')?.textContent || ""
                         };
 
-                        resolve({ success: true, data: itemData });
+                        resolve({success: true, data: itemData});
                         return;
                     }
                 }
@@ -709,7 +781,7 @@ class DescriptionFetcher {
             }
         } catch (error) {
             Logger.error(error, "Parsing response");
-            resolve({ success: false, error: "Failed to parse description: " + error.message });
+            resolve({success: false, error: "Failed to parse description: " + error.message});
         }
     }
 
@@ -746,7 +818,7 @@ class DescriptionFetcher {
 
     static handleError(error, resolve) {
         Logger.error(error, "XML HTTP Request");
-        resolve({ success: false, error: "Network error occurred" });
+        resolve({success: false, error: "Network error occurred"});
     }
 }
 
@@ -1115,7 +1187,7 @@ class DOMObserver {
     }
 
     observe() {
-        this.observer.observe(document.body, { childList: true, subtree: true });
+        this.observer.observe(document.body, {childList: true, subtree: true});
         window.addEventListener('popstate', this.handleUrlChange.bind(this));
         Logger.log("MutationObserver and popstate listener set up");
     }
@@ -1125,11 +1197,11 @@ class DOMObserver {
             if (mutation.type === 'childList') {
                 const addedNodes = Array.from(mutation.addedNodes);
                 const hasNewItemCards = addedNodes.some(node =>
-                                                        node.nodeType === Node.ELEMENT_NODE &&
-                                                        SELECTORS.ITEM_CARDS.some(selector =>
-                                                                                  node.matches(selector) || node.querySelector(selector)
-                                                                                 )
-                                                       );
+                    node.nodeType === Node.ELEMENT_NODE &&
+                    SELECTORS.ITEM_CARDS.some(selector =>
+                        node.matches(selector) || node.querySelector(selector)
+                    )
+                );
                 if (hasNewItemCards) {
                     Logger.log("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
