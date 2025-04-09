@@ -1261,7 +1261,7 @@ class ControlPanel {
 
             const filterTitle = document.createElement('div');
             filterTitle.className = 'section-title';
-            filterTitle.innerHTML = '<span>İstenmeyen Kelimeleri Filtrele</span><span class="section-toggle">▼</span>';
+            filterTitle.innerHTML = `<span>${TranslationManager.getText('filterUnwantedWords')}</span><span class="section-toggle">▼</span>`;
             filterSection.appendChild(filterTitle);
 
             filterTitle.addEventListener('click', () => this.toggleFilterSection());
@@ -1407,6 +1407,8 @@ class ControlPanel {
             document.body.appendChild(this.container);
 
             this.loadPanelStates();
+
+            this.updateUILanguage();
 
             // Load saved blocked terms
             this.loadBlockedTerms();
