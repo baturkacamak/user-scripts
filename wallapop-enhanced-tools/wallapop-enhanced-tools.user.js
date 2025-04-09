@@ -115,12 +115,12 @@ class Logger {
     }
 
     static error(error, context) {
-        console.error(`Wallapop Enhanced Tools Error (${context}):`, error);
+        console.error(`Wallapop Expand Description Error (${context}):`, error);
     }
 
     static logHtml(title, htmlContent) {
         if (this.DEBUG) {
-            console.log(`Wallapop Enhanced Tools [${title}]:`);
+            console.log(`Wallapop Expand Description [${title}]:`);
             console.log(htmlContent.substring(0, 1500) + "...");
 
             // HTML'i daha rahat inceleyebilmek için konsol içinde genişletilebilir obje olarak da gösterelim
@@ -132,7 +132,7 @@ class Logger {
 
     static toggleDebug() {
         this.DEBUG = !this.DEBUG;
-        console.log(`Wallapop Enhanced Tools: Debug mode ${this.DEBUG ? 'enabled' : 'disabled'}`);
+        console.log(`Wallapop Expand Description: Debug mode ${this.DEBUG ? 'enabled' : 'disabled'}`);
         return this.DEBUG;
     }
 }
@@ -1178,7 +1178,6 @@ class ExpandButton {
     }
 
     createButton() {
-        console.log('createButton')
         Logger.log("Creating expand button for URL:", this.url);
         this.button = document.createElement('button');
         this.button.textContent = TranslationManager.getText('expandDescription');
@@ -1293,6 +1292,7 @@ class ListingManager {
                             href = `https://es.wallapop.com/${href}`;
                         }
                     }
+
                     if (href && !listing.querySelector(SELECTORS.EXPAND_BUTTON)) {
                         new ExpandButton(listing, href);
                     } else if (!href) {
@@ -1967,25 +1967,6 @@ class ControlPanel {
         });
 
         return this.togglers.filter.section;
-    }
-
-    /**
-     * Add a blocked term from the input field
-     */
-    static addBlockedTerm() {
-        const term = this.filterInputElement.value.trim().toLowerCase();
-
-        if (term && !this.blockedTerms.includes(term)) {
-            this.blockedTerms.push(term);
-            this.saveBlockedTerms();
-            this.updateBlockedTermsList();
-            this.filterInputElement.value = '';
-
-            // Re-apply filters to all listings
-            this.applyFilters();
-
-            Logger.log("Blocked term added:", term);
-        }
     }
 
     /**
@@ -2818,108 +2799,39 @@ class ControlPanel {
             }
         } catch (error) {
             Logger.error(error, "Loading blocked terms");
+            // Initialize with empty array if there's an error
+            this.blockedTerms = [];
         }
     }
 
     /**
-     * Remove a blocked term
+     * Save blocked terms to localStorage
      */
-    static removeBlockedTerm(term) {
-        const index = this.blockedTerms.indexOf(term);
-        if (index > -1) {
-            this.blockedTerms.splice(index, 1);
-            this.saveBlockedTerms();
-            this.updateBlockedTermsList();
-
-            // Re-apply filters to all listings
-            this.applyFilters();
-
-            Logger.log("Blocked term removed:", term);
+    static saveBlockedTerms() {
+        try {
+            localStorage.setItem('wallapop-blocked-terms', JSON.stringify(this.blockedTerms));
+            Logger.log("Blocked terms saved to localStorage");
+        } catch (error) {
+            Logger.error(error, "Saving blocked terms");
         }
     }
 
     /**
-     * Determine if a listing should be hidden based on blocked terms
+     * Load blocked terms from localStorage
      */
-    static shouldHideListing(listing) {
-        if (this.blockedTerms.length === 0) {
-            return false;
-        }
-
-        // Get all text content from the listing
-        const listingText = listing.textContent.toLowerCase();
-
-        // Check if any blocked term is in the listing
-        return this.blockedTerms.some(term => listingText.includes(term.toLowerCase()));
-    }
-
-    /**
-     * Hide a listing with animation
-     */
-    static hideListing(listing) {
-        if (!listing.classList.contains('hidden-item')) {
-            listing.classList.add('hiding-animation');
-            setTimeout(() => {
-                listing.classList.add('hidden-item');
-                listing.classList.remove('hiding-animation');
-            }, 500);
-        }
-    }
-
-    /**
-     * Update panel visibility based on whether there are expanded descriptions
-     */
-    static updatePanelVisibility() {
-        const copySection = this.container.querySelector('.copy-section');
-        if (copySection) {
-            copySection.style.display =
-                DescriptionManager.expandedItems.length > 0 ? 'block' : 'none';
-        }
-    }
-
-    /**
-     * Show a previously hidden listing with animation
-     */
-    static showListing(listing) {
-        if (listing.classList.contains('hidden-item')) {
-            listing.classList.remove('hidden-item');
-            listing.style.opacity = 0;
-            listing.style.transform = 'translateY(-10px)';
-
-            setTimeout(() => {
-                listing.style.transition = 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out';
-                listing.style.opacity = 1;
-                listing.style.transform = 'translateY(0)';
-
-                // Clean up after animation
-                setTimeout(() => {
-                    listing.style.transition = '';
-                }, 500);
-            }, 10);
-        }
-    }
-
-    /**
-     * Apply filters to all listings
-     */
-    static applyFilters() {
-        Logger.log("Applying filters to listings");
-
-        const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
-        const allListings = document.querySelectorAll(allSelectors);
-
-        let hiddenCount = 0;
-
-        allListings.forEach(listing => {
-            if (this.shouldHideListing(listing)) {
-                this.hideListing(listing);
-                hiddenCount++;
-            } else {
-                this.showListing(listing);
+    static loadBlockedTerms() {
+        try {
+            const savedTerms = localStorage.getItem('wallapop-blocked-terms');
+            if (savedTerms) {
+                this.blockedTerms = JSON.parse(savedTerms);
+                this.updateBlockedTermsList();
+                Logger.log("Blocked terms loaded:", this.blockedTerms);
             }
-        });
-
-        Logger.log(`Filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+        } catch (error) {
+            Logger.error(error, "Loading blocked terms");
+            // Initialize with empty array if there's an error
+            this.blockedTerms = [];
+        }
     }
 
     /**
@@ -3004,7 +2916,141 @@ class ControlPanel {
     }
 
     /**
-     * Render message when no terms are blocked
+     * Apply filters to all listings
+     */
+    static applyFilters() {
+        Logger.log("Applying filters to listings");
+
+        const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
+        const allListings = document.querySelectorAll(allSelectors);
+
+        let hiddenCount = 0;
+
+        allListings.forEach(listing => {
+            if (this.shouldHideListing(listing)) {
+                this.hideListing(listing);
+                hiddenCount++;
+            } else {
+                this.showListing(listing);
+            }
+        });
+
+        Logger.log(`Filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+    }
+
+    /**
+     * Update panel visibility based on whether there are expanded descriptions
+     */
+    static updatePanelVisibility() {
+        const copySection = this.container.querySelector('.copy-section');
+        if (copySection) {
+            copySection.style.display =
+                DescriptionManager.expandedItems.length > 0 ? 'block' : 'none';
+        }
+    }
+
+    /**
+     * Show success animation on a button
+     */
+    static showCopySuccess(button, successText) {
+        const originalText = button.textContent;
+        button.textContent = successText || TranslationManager.getText('copied');
+        button.classList.add('copy-success');
+
+        setTimeout(() => {
+            button.classList.remove('copy-success');
+            button.textContent = originalText;
+        }, 1500);
+    }
+
+    /**
+     * Determine if a listing should be hidden based on blocked terms
+     */
+    static shouldHideListing(listing) {
+        if (this.blockedTerms.length === 0) {
+            return false;
+        }
+
+        // Get all text content from the listing
+        const listingText = listing.textContent.toLowerCase();
+
+        // Check if any blocked term is in the listing
+        return this.blockedTerms.some(term => listingText.includes(term.toLowerCase()));
+    }
+
+    /**
+     * Hide a listing with animation
+     */
+    static hideListing(listing) {
+        if (!listing.classList.contains('hidden-item')) {
+            listing.classList.add('hiding-animation');
+            setTimeout(() => {
+                listing.classList.add('hidden-item');
+                listing.classList.remove('hiding-animation');
+            }, 500);
+        }
+    }
+
+    /**
+     * Show a previously hidden listing with animation
+     */
+    static showListing(listing) {
+        if (listing.classList.contains('hidden-item')) {
+            listing.classList.remove('hidden-item');
+            listing.style.opacity = 0;
+            listing.style.transform = 'translateY(-10px)';
+
+            setTimeout(() => {
+                listing.style.transition = 'opacity 0.5s ease-in-out, transform 0.5s ease-in-out';
+                listing.style.opacity = 1;
+                listing.style.transform = 'translateY(0)';
+
+                // Clean up after animation
+                setTimeout(() => {
+                    listing.style.transition = '';
+                }, 500);
+            }, 10);
+        }
+    }
+
+    /**
+     * Add a blocked term from the input field
+     */
+    static addBlockedTerm() {
+        const term = this.filterInputElement.value.trim().toLowerCase();
+
+        if (term && !this.blockedTerms.includes(term)) {
+            this.blockedTerms.push(term);
+            this.saveBlockedTerms();
+            this.updateBlockedTermsList();
+            this.filterInputElement.value = '';
+
+            // Re-apply filters to all listings
+            this.applyFilters();
+
+            Logger.log("Blocked term added:", term);
+        }
+    }
+
+    /**
+     * Remove a blocked term
+     */
+    static removeBlockedTerm(term) {
+        const index = this.blockedTerms.indexOf(term);
+        if (index > -1) {
+            this.blockedTerms.splice(index, 1);
+            this.saveBlockedTerms();
+            this.updateBlockedTermsList();
+
+            // Re-apply filters to all listings
+            this.applyFilters();
+
+            Logger.log("Blocked term removed:", term);
+        }
+    }
+
+    /**
+     * Save a specific panel state to localStorage
      */
     static savePanelState(key, value) {
         try {
