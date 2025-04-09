@@ -666,24 +666,38 @@ class StyleManager {
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
         
-          /* Add these new styles for delivery method filter */
-          .delivery-options {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 10px;
-          }
-          
-          .option-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-          }
-          
-          .option-row input[type="radio"] {
-            margin: 0;
-            cursor: pointer;
-          }
+/* Select box styling */
+.delivery-method-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  outline: none;
+  margin: 8px 0;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.delivery-method-select:focus {
+  border-color: var(--panel-accent-color);
+}
+
+.delivery-method-select option {
+  padding: 8px;
+}
+
+.delivery-method-select option:checked {
+  background-color: var(--panel-accent-color);
+  color: white;
+}
     `;
         document.head.appendChild(style);
     }
@@ -2365,7 +2379,7 @@ class ControlPanel {
     }
 
     /**
-     * Create the delivery method filter section
+     * JavaScript implementation for select box delivery method filter
      */
     static createDeliveryMethodSection(container) {
         // Load saved state
@@ -2380,51 +2394,37 @@ class ControlPanel {
                 this.savePanelState('isDeliveryMethodSectionExpanded', state);
             },
             contentCreator: (content) => {
-                // Create radio buttons for delivery method options
-                const optionsContainer = document.createElement('div');
-                optionsContainer.className = 'delivery-options';
+                // Create select element
+                const selectElement = document.createElement('select');
+                selectElement.className = 'delivery-method-select';
 
-                // Define the options
+                // Define options
                 const options = [
-                    {id: 'all', label: 'showAll', value: 'all'},
-                    {id: 'shipping', label: 'showOnlyShipping', value: 'shipping'},
-                    {id: 'inperson', label: 'showOnlyInPerson', value: 'inperson'}
+                    {value: 'all', label: 'showAll'},
+                    {value: 'shipping', label: 'showOnlyShipping'},
+                    {value: 'inperson', label: 'showOnlyInPerson'}
                 ];
 
                 // Get saved preference
                 const savedOption = this.loadPanelState('deliveryMethodFilter', 'all');
 
-                // Create radio buttons
+                // Create select options
                 options.forEach(option => {
-                    const optionContainer = document.createElement('div');
-                    optionContainer.className = 'option-row';
-
-                    const radio = document.createElement('input');
-                    radio.type = 'radio';
-                    radio.id = `delivery-option-${option.id}`;
-                    radio.name = 'delivery-method';
-                    radio.value = option.value;
-                    radio.checked = savedOption === option.value;
-
-                    const label = document.createElement('label');
-                    label.htmlFor = radio.id;
-                    label.className = 'option-label';
-                    label.textContent = TranslationManager.getText(option.label);
-
-                    // Add event listener
-                    radio.addEventListener('change', () => {
-                        if (radio.checked) {
-                            this.savePanelState('deliveryMethodFilter', option.value);
-                            this.applyDeliveryMethodFilter();
-                        }
-                    });
-
-                    optionContainer.appendChild(radio);
-                    optionContainer.appendChild(label);
-                    optionsContainer.appendChild(optionContainer);
+                    const optionElement = document.createElement('option');
+                    optionElement.value = option.value;
+                    optionElement.textContent = TranslationManager.getText(option.label);
+                    optionElement.selected = savedOption === option.value;
+                    selectElement.appendChild(optionElement);
                 });
 
-                content.appendChild(optionsContainer);
+                // Add change event listener
+                selectElement.addEventListener('change', () => {
+                    const selectedValue = selectElement.value;
+                    this.savePanelState('deliveryMethodFilter', selectedValue);
+                    this.applyDeliveryMethodFilter();
+                });
+
+                content.appendChild(selectElement);
             }
         });
 
