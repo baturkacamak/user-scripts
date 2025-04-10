@@ -1,5 +1,14 @@
 // GM function fallbacks for direct browser execution
-import {DOMObserver, GMFunctions, HTMLUtils, Logger, SectionToggler, StyleManager, TranslationManager} from "../core";
+import {
+    Button,
+    DOMObserver,
+    GMFunctions,
+    HTMLUtils,
+    Logger,
+    SectionToggler, SelectBox,
+    StyleManager,
+    TranslationManager
+} from "../core";
 
 const GM = GMFunctions.initialize();
 
@@ -1172,19 +1181,43 @@ class ExpandButton {
 
     createButton() {
         Logger.log("Creating expand button for URL:", this.url);
-        this.button = document.createElement('button');
-        this.button.textContent = TranslationManager.getText('expandDescription');
-        this.button.className = SELECTORS.EXPAND_BUTTON.slice(1); // Remove the leading dot
 
+        // Create description content container first
         this.descriptionContent = document.createElement('div');
         this.descriptionContent.className = 'description-content';
 
-        this.button.addEventListener('click', this.handleClick.bind(this));
-
+        // Create container for the button and content
         const container = document.createElement('div');
+
+        // Use Button component to create the expand button
+        this.buttonComponent = new Button({
+            text: TranslationManager.getText('expandDescription'),
+            className: 'reusable-button',
+            theme: 'default',
+            size: 'small',
+            onClick: (e) => this.handleClick(e),
+            attributes: {
+                'data-url': this.url
+            }
+        });
+
+        // Set additional CSS to match the old style
+        this.buttonComponent.button.style.background = 'none';
+        this.buttonComponent.button.style.border = 'none';
+        this.buttonComponent.button.style.color = '#008080';
+        this.buttonComponent.button.style.textDecoration = 'underline';
+        this.buttonComponent.button.style.padding = '5px';
+        this.buttonComponent.button.style.fontSize = '12px';
+        this.buttonComponent.button.classList.add(SELECTORS.EXPAND_BUTTON.slice(1));
+
+        // Store reference to the actual button element
+        this.button = this.buttonComponent.button;
+
+        // Add elements to container
         container.appendChild(this.button);
         container.appendChild(this.descriptionContent);
 
+        // Add container to anchor element
         this.anchorElement.appendChild(container);
         Logger.log("Expand button added for URL:", this.url);
     }
@@ -1206,14 +1239,18 @@ class ExpandButton {
     }
 
     async expandDescription() {
-        this.button.textContent = TranslationManager.getText('loading');
+        // Set to loading state
+        this.buttonComponent.setText(TranslationManager.getText('loading'));
+
         const result = await DescriptionFetcher.getDescription(this.url);
         if (result.success) {
             this.itemData = result.data;
             this.descriptionContent.innerHTML = HTMLUtils.escapeHTML(result.data.description);
             // Use the class toggle approach for smooth transition
             this.descriptionContent.classList.add('expanded');
-            this.button.textContent = TranslationManager.getText('hideDescription');
+
+            // Update button text
+            this.buttonComponent.setText(TranslationManager.getText('hideDescription'));
             this.expanded = true;
 
             // Add to global description manager
@@ -1238,7 +1275,8 @@ class ExpandButton {
         };
         this.descriptionContent.addEventListener('transitionend', transitionEnded);
 
-        this.button.textContent = TranslationManager.getText('expandDescription');
+        // Reset button text
+        this.buttonComponent.setText(TranslationManager.getText('expandDescription'));
         this.expanded = false;
 
         // Remove from global description manager
@@ -1257,7 +1295,9 @@ class ExpandButton {
         }
         this.descriptionContent.innerHTML = `<span class="error-message">${message}</span>`;
         this.descriptionContent.classList.add('expanded');
-        this.button.textContent = TranslationManager.getText('expandDescription');
+
+        // Reset button text
+        this.buttonComponent.setText(TranslationManager.getText('expandDescription'));
         this.expanded = false;
         Logger.log("Error displaying description for URL:", this.url, message);
     }
@@ -1716,22 +1756,38 @@ class ControlPanel {
     };
 
     /**
-     * Create a button with standard style
+     * Create a button using Button component
      */
-    static createButton(text, className, clickHandler) {
-        const button = document.createElement('button');
-        button.className = className;
-        button.textContent = text;
+    static createButton(text, className, clickHandler, options = {}) {
+        // Map panel-button class to reusable-button classes
+        let buttonClass = className;
+        let theme = 'primary';
 
-        if (clickHandler) {
-            button.addEventListener('click', clickHandler);
+        // Detect theme from className
+        if (className.includes('danger') || className.includes('error')) {
+            theme = 'danger';
+        } else if (className.includes('success') || className.includes('copy-success')) {
+            theme = 'success';
+        } else if (className.includes('secondary')) {
+            theme = 'secondary';
         }
 
-        return button;
+        // Create button with component
+        const button = new Button({
+            text,
+            className: 'reusable-button',
+            theme,
+            onClick: clickHandler,
+            successText: options.successText || null,
+            successDuration: options.successDuration || 1500,
+            attributes: options.attributes || {}
+        });
+
+        return button.button;
     }
 
     /**
-     * Create a new "Expand All" section in the control panel
+     * Create the expand all section with Button component
      */
     static createExpandAllSection(container) {
         // Load saved state
@@ -1746,13 +1802,15 @@ class ControlPanel {
                 this.savePanelState('isExpandAllSectionExpanded', state);
             },
             contentCreator: (content) => {
-                // Create the expand all button
-                const expandAllButton = this.createButton(
-                    TranslationManager.getText('expandAllVisible'),
-                    'panel-button expand-all-button',
-                    () => this.handleExpandAll()
-                );
-                content.appendChild(expandAllButton);
+                // Create the expand all button with Button component
+                const expandAllButton = new Button({
+                    text: TranslationManager.getText('expandAllVisible'),
+                    className: 'reusable-button',
+                    theme: 'primary',
+                    id: 'expand-all-button',
+                    onClick: () => this.handleExpandAll(),
+                    container: content
+                });
 
                 // Create progress container
                 const progressContainer = document.createElement('div');
@@ -1964,7 +2022,7 @@ class ControlPanel {
     }
 
     /**
-     * Create the filter section
+     * Create the filter section with Button component
      */
     static createFilterSection(container) {
         // Load saved state
@@ -1993,13 +2051,15 @@ class ControlPanel {
 
                 content.appendChild(this.filterInputElement);
 
-                // Apply button
-                const applyButton = this.createButton(
-                    TranslationManager.getText('addAndApply'),
-                    'panel-button filter-apply',
-                    () => this.addBlockedTerm()
-                );
-                content.appendChild(applyButton);
+                // Apply button using Button component
+                const applyButton = new Button({
+                    text: TranslationManager.getText('addAndApply'),
+                    className: 'reusable-button',
+                    theme: 'primary',
+                    size: 'medium',
+                    onClick: () => this.addBlockedTerm(),
+                    container: content
+                });
 
                 // Create list for blocked terms
                 this.blockedTermsListElement = document.createElement('div');
@@ -2012,7 +2072,7 @@ class ControlPanel {
     }
 
     /**
-     * Create the copy section
+     * Create the copy section with Button components
      */
     static createCopySection(container) {
         // Load saved state
@@ -2132,36 +2192,45 @@ class ControlPanel {
                 exportButtonsContainer.style.gap = '10px';
                 exportButtonsContainer.style.marginTop = '10px';
 
-                // Copy button
-                const copyButton = this.createButton(
-                    TranslationManager.getText('copyToClipboard'),
-                    'export-button',
-                    () => this.copyToClipboard()
-                );
-                copyButton.style.flex = '1';
+                // Copy button using Button component
+                const copyButton = new Button({
+                    text: TranslationManager.getText('copyToClipboard'),
+                    className: 'reusable-button',
+                    theme: 'primary',
+                    size: 'medium',
+                    onClick: () => this.copyToClipboard(),
+                    successText: TranslationManager.getText('copied'),
+                    container: exportButtonsContainer
+                });
+                copyButton.button.style.flex = '1';
 
-                // Download button
-                const downloadButton = this.createButton(
-                    TranslationManager.getText('downloadFile'),
-                    'export-button',
-                    () => this.downloadFormatted()
-                );
-                downloadButton.style.flex = '1';
+                // Download button using Button component
+                const downloadButton = new Button({
+                    text: TranslationManager.getText('downloadFile'),
+                    className: 'reusable-button',
+                    theme: 'secondary',
+                    size: 'medium',
+                    onClick: () => this.downloadFormatted(),
+                    successText: TranslationManager.getText('downloaded'),
+                    container: exportButtonsContainer
+                });
+                downloadButton.button.style.flex = '1';
 
-                exportButtonsContainer.appendChild(copyButton);
-                exportButtonsContainer.appendChild(downloadButton);
                 content.appendChild(exportButtonsContainer);
 
-                // Create clear button
-                const clearButton = this.createButton(
-                    TranslationManager.getText('clearAll'),
-                    'panel-button copy-clear',
-                    () => {
+                // Create clear button using Button component
+                const clearButton = new Button({
+                    text: TranslationManager.getText('clearAll'),
+                    className: 'reusable-button',
+                    theme: 'danger',
+                    size: 'medium',
+                    onClick: () => {
                         DescriptionManager.clearItems();
-                        this.showCopySuccess(clearButton, TranslationManager.getText('cleared'));
-                    }
-                );
-                content.appendChild(clearButton);
+                        clearButton.showSuccessState();
+                    },
+                    successText: TranslationManager.getText('cleared'),
+                    container: content
+                });
             }
         });
 
@@ -2306,37 +2375,35 @@ class ControlPanel {
                 this.savePanelState('isDeliveryMethodSectionExpanded', state);
             },
             contentCreator: (content) => {
-                // Create select element
-                const selectElement = document.createElement('select');
-                selectElement.className = 'delivery-method-select';
-
-                // Define options
-                const options = [
-                    {value: 'all', label: 'showAll'},
-                    {value: 'shipping', label: 'showOnlyShipping'},
-                    {value: 'inperson', label: 'showOnlyInPerson'}
-                ];
-
                 // Get saved preference
                 const savedOption = this.loadPanelState('deliveryMethodFilter', 'all');
 
-                // Create select options
-                options.forEach(option => {
-                    const optionElement = document.createElement('option');
-                    optionElement.value = option.value;
-                    optionElement.textContent = TranslationManager.getText(option.label);
-                    optionElement.selected = savedOption === option.value;
-                    selectElement.appendChild(optionElement);
-                });
+                // Create SelectBox items
+                const selectItems = [
+                    {value: 'all', label: TranslationManager.getText('showAll'), selected: savedOption === 'all'},
+                    {
+                        value: 'shipping',
+                        label: TranslationManager.getText('showOnlyShipping'),
+                        selected: savedOption === 'shipping'
+                    },
+                    {
+                        value: 'inperson',
+                        label: TranslationManager.getText('showOnlyInPerson'),
+                        selected: savedOption === 'inperson'
+                    }
+                ];
 
-                // Add change event listener
-                selectElement.addEventListener('change', () => {
-                    const selectedValue = selectElement.value;
-                    this.savePanelState('deliveryMethodFilter', selectedValue);
-                    this.applyDeliveryMethodFilter();
+                // Create select box
+                const deliveryMethodSelect = new SelectBox({
+                    items: selectItems,
+                    id: 'delivery-method-select',
+                    className: 'reusable-select delivery-method-select',
+                    onChange: (value) => {
+                        this.savePanelState('deliveryMethodFilter', value);
+                        this.applyDeliveryMethodFilter();
+                    },
+                    container: content
                 });
-
-                content.appendChild(selectElement);
             }
         });
 

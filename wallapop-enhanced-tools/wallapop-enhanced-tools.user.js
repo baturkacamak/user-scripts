@@ -792,6 +792,415 @@
       }
     }
 
+    /**
+     * SelectBox - A reusable UI component for dropdown selects
+     * Creates customizable, accessible dropdown selects with callbacks
+     */
+    class SelectBox {
+      /**
+         * Create a new select box
+         * @param {Object} options - Configuration options
+         * @param {Array} options.items - Array of items [{value: string, label: string, selected: boolean}]
+         * @param {String} options.name - Name attribute for the select element
+         * @param {String} options.id - ID attribute for the select element
+         * @param {String} options.className - Class name for styling
+         * @param {Function} options.onChange - Callback when selection changes
+         * @param {String} options.placeholder - Placeholder text when no selection
+         * @param {HTMLElement} options.container - Optional container to append the select box
+         * @param {Object} options.attributes - Additional HTML attributes for the select element
+         */
+      constructor(options) {
+        this.items = options.items || [];
+        this.name = options.name || '';
+        this.id = options.id || `select-${Math.random().toString(36).substring(2, 9)}`;
+        this.className = options.className || 'reusable-select';
+        this.onChange = options.onChange;
+        this.placeholder = options.placeholder || 'Select an option';
+        this.container = options.container;
+        this.attributes = options.attributes || {};
+
+        this.selectElement = null;
+        this.create();
+      }
+
+      /**
+         * Create the select box
+         * @return {HTMLElement} The created select element
+         */
+      create() {
+        // Create select element
+        this.selectElement = document.createElement('select');
+        this.selectElement.name = this.name;
+        this.selectElement.id = this.id;
+        this.selectElement.className = this.className;
+
+        // Apply additional attributes
+        Object.entries(this.attributes).forEach(([key, value]) => {
+          this.selectElement.setAttribute(key, value);
+        });
+
+        // Add placeholder option if needed
+        if (this.placeholder) {
+          const placeholderOption = document.createElement('option');
+          placeholderOption.value = '';
+          placeholderOption.textContent = this.placeholder;
+          placeholderOption.disabled = true;
+          placeholderOption.selected = !this.hasSelectedItem();
+          this.selectElement.appendChild(placeholderOption);
+        }
+
+        // Add options
+        this.items.forEach((item) => {
+          const option = document.createElement('option');
+          option.value = item.value;
+          option.textContent = item.label;
+
+          if (item.selected) {
+            option.selected = true;
+          }
+
+          if (item.disabled) {
+            option.disabled = true;
+          }
+
+          this.selectElement.appendChild(option);
+        });
+
+        // Add change event listener
+        if (this.onChange) {
+          this.selectElement.addEventListener('change', (e) => {
+            this.onChange(e.target.value, e);
+          });
+        }
+
+        // Add to container if provided
+        if (this.container) {
+          this.container.appendChild(this.selectElement);
+        }
+
+        return this.selectElement;
+      }
+
+      /**
+         * Check if any item is selected
+         * @return {Boolean} True if at least one item has selected:true
+         */
+      hasSelectedItem() {
+        return this.items.some((item) => item.selected);
+      }
+
+      /**
+         * Get the currently selected value
+         * @return {String} The value of the selected option
+         */
+      getValue() {
+        return this.selectElement.value;
+      }
+
+      /**
+         * Set the selected value
+         * @param {String} value - The value to select
+         * @param {Boolean} triggerChange - Whether to trigger the onChange event
+         */
+      setValue(value, triggerChange = false) {
+        this.selectElement.value = value;
+
+        if (triggerChange && this.onChange) {
+          const event = new Event('change');
+          this.selectElement.dispatchEvent(event);
+        }
+      }
+
+      /**
+         * Add a new option
+         * @param {Object} item - {value: string, label: string, selected: boolean}
+         */
+      addOption(item) {
+        // Add to items array
+        this.items.push(item);
+
+        // Create and add option element
+        const option = document.createElement('option');
+        option.value = item.value;
+        option.textContent = item.label;
+
+        if (item.selected) {
+          option.selected = true;
+        }
+
+        if (item.disabled) {
+          option.disabled = true;
+        }
+
+        this.selectElement.appendChild(option);
+      }
+
+      /**
+         * Remove an option by value
+         * @param {String} value - The value of the option to remove
+         */
+      removeOption(value) {
+        // Remove from items array
+        this.items = this.items.filter((item) => item.value !== value);
+
+        // Remove from select element
+        const option = this.selectElement.querySelector(`option[value="${value}"]`);
+        if (option) {
+          option.remove();
+        }
+      }
+
+      /**
+         * Update the options in the select box
+         * @param {Array} items - New array of items
+         * @param {Boolean} reset - Whether to completely reset (true) or update (false)
+         */
+      updateOptions(items, reset = false) {
+        if (reset) {
+          // Clear all options except placeholder
+          while (this.selectElement.options.length > (this.placeholder ? 1 : 0)) {
+            this.selectElement.remove(this.placeholder ? 1 : 0);
+          }
+          this.items = [];
+        }
+
+        // Add new options
+        items.forEach((item) => {
+          this.addOption(item);
+        });
+      }
+
+      /**
+         * Disable the select box
+         * @param {Boolean} disabled - Whether the select should be disabled
+         */
+      setDisabled(disabled) {
+        this.selectElement.disabled = disabled;
+      }
+    }
+
+    /**
+     * Button - A reusable UI component for buttons
+     * Creates customizable, accessible buttons with various states and callbacks
+     */
+    class Button {
+      /**
+         * Create a new button
+         * @param {Object} options - Configuration options
+         * @param {String} options.text - Button text
+         * @param {String} options.type - Button type (button, submit, reset)
+         * @param {String} options.className - Button CSS class
+         * @param {Function} options.onClick - Click event handler
+         * @param {String} options.id - Button ID
+         * @param {HTMLElement} options.container - Container to append button to
+         * @param {Object} options.attributes - Additional HTML attributes
+         * @param {String} options.theme - Button theme (primary, secondary, success, danger)
+         * @param {String} options.size - Button size (small, medium, large)
+         * @param {Boolean} options.disabled - Whether button is initially disabled
+         * @param {String} options.icon - Optional icon HTML to show before text
+         * @param {String} options.successText - Text to show on success state
+         * @param {Number} options.successDuration - Duration to show success state (ms)
+         */
+      constructor(options) {
+        this.text = options.text || '';
+        this.type = options.type || 'button';
+        this.className = options.className || 'reusable-button';
+        this.onClick = options.onClick;
+        this.id = options.id;
+        this.container = options.container;
+        this.attributes = options.attributes || {};
+        this.theme = options.theme || 'default';
+        this.size = options.size || 'medium';
+        this.disabled = options.disabled || false;
+        this.icon = options.icon || null;
+        this.successText = options.successText || null;
+        this.successDuration = options.successDuration || 1500;
+        this.originalText = this.text;
+
+        this.button = null;
+        this.create();
+      }
+
+      /**
+         * Create the button element
+         * @return {HTMLButtonElement} The created button
+         */
+      create() {
+        this.button = document.createElement('button');
+
+        // Set basic properties
+        this.button.type = this.type;
+        this.button.className = this.getButtonClasses();
+        this.button.disabled = this.disabled;
+
+        // Set ID if provided
+        if (this.id) {
+          this.button.id = this.id;
+        }
+
+        // Set content (icon + text)
+        this.updateContent();
+
+        // Add click handler
+        if (this.onClick) {
+          this.button.addEventListener('click', (e) => this.handleClick(e));
+        }
+
+        // Add additional attributes
+        Object.entries(this.attributes).forEach(([key, value]) => {
+          this.button.setAttribute(key, value);
+        });
+
+        // Add to container if provided
+        if (this.container) {
+          this.container.appendChild(this.button);
+        }
+
+        return this.button;
+      }
+
+      /**
+         * Handle click events, with success state support
+         * @param {Event} e - Click event
+         */
+      handleClick(e) {
+        if (this.disabled) return;
+
+        // Call the onClick handler
+        const result = this.onClick(e);
+
+        // Handle success state if successText is set
+        if (this.successText && false !== result) {
+          this.showSuccessState();
+        }
+      }
+
+      /**
+         * Show success state animation
+         */
+      showSuccessState() {
+        // Store original button state
+        const originalText = this.text;
+        const originalClasses = this.button.className;
+
+        // Update to success state
+        this.setText(this.successText);
+        this.button.className = this.getButtonClasses('success');
+
+        // Set timeout to revert back
+        setTimeout(() => {
+          this.setText(originalText);
+          this.button.className = originalClasses;
+        }, this.successDuration);
+      }
+
+      /**
+         * Generate button classes based on theme and size
+         * @param {String} state - Optional state override (success, error, etc)
+         * @return {String} Combined CSS classes
+         */
+      getButtonClasses(state = null) {
+        const classes = [this.className];
+
+        // Add theme class
+        const theme = state || this.theme;
+        classes.push(`${this.className}--${theme}`);
+
+        // Add size class
+        classes.push(`${this.className}--${this.size}`);
+
+        return classes.join(' ');
+      }
+
+      /**
+         * Update button content (icon + text)
+         */
+      updateContent() {
+        // Clear existing content
+        this.button.innerHTML = '';
+
+        // Add icon if present
+        if (this.icon) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = `${this.className}__icon`;
+          iconSpan.innerHTML = this.icon;
+          this.button.appendChild(iconSpan);
+        }
+
+        // Add text
+        const textSpan = document.createElement('span');
+        textSpan.className = `${this.className}__text`;
+        textSpan.textContent = this.text;
+        this.button.appendChild(textSpan);
+      }
+
+      /**
+         * Set button text
+         * @param {String} text - New button text
+         */
+      setText(text) {
+        this.text = text;
+        const textElement = this.button.querySelector(`.${this.className}__text`);
+        if (textElement) {
+          textElement.textContent = text;
+        } else {
+          this.updateContent();
+        }
+      }
+
+      /**
+         * Reset button text to original
+         */
+      resetText() {
+        this.setText(this.originalText);
+      }
+
+      /**
+         * Set icon content
+         * @param {String} iconHtml - HTML for the icon
+         */
+      setIcon(iconHtml) {
+        this.icon = iconHtml;
+        this.updateContent();
+      }
+
+      /**
+         * Enable or disable the button
+         * @param {Boolean} disabled - Whether the button should be disabled
+         */
+      setDisabled(disabled) {
+        this.disabled = disabled;
+        this.button.disabled = disabled;
+      }
+
+      /**
+         * Toggle button disabled state
+         * @return {Boolean} New disabled state
+         */
+      toggleDisabled() {
+        this.setDisabled(!this.disabled);
+        return this.disabled;
+      }
+
+      /**
+         * Set button theme
+         * @param {String} theme - Theme name
+         */
+      setTheme(theme) {
+        this.theme = theme;
+        this.button.className = this.getButtonClasses();
+      }
+
+      /**
+         * Set button size
+         * @param {String} size - Size name
+         */
+      setSize(size) {
+        this.size = size;
+        this.button.className = this.getButtonClasses();
+      }
+    }
+
     // GM function fallbacks for direct browser execution
 
     GMFunctions.initialize();
@@ -1965,19 +2374,43 @@
 
         createButton() {
             Logger.log("Creating expand button for URL:", this.url);
-            this.button = document.createElement('button');
-            this.button.textContent = TranslationManager.getText('expandDescription');
-            this.button.className = SELECTORS.EXPAND_BUTTON.slice(1); // Remove the leading dot
 
+            // Create description content container first
             this.descriptionContent = document.createElement('div');
             this.descriptionContent.className = 'description-content';
 
-            this.button.addEventListener('click', this.handleClick.bind(this));
-
+            // Create container for the button and content
             const container = document.createElement('div');
+
+            // Use Button component to create the expand button
+            this.buttonComponent = new Button({
+                text: TranslationManager.getText('expandDescription'),
+                className: 'reusable-button',
+                theme: 'default',
+                size: 'small',
+                onClick: (e) => this.handleClick(e),
+                attributes: {
+                    'data-url': this.url
+                }
+            });
+
+            // Set additional CSS to match the old style
+            this.buttonComponent.button.style.background = 'none';
+            this.buttonComponent.button.style.border = 'none';
+            this.buttonComponent.button.style.color = '#008080';
+            this.buttonComponent.button.style.textDecoration = 'underline';
+            this.buttonComponent.button.style.padding = '5px';
+            this.buttonComponent.button.style.fontSize = '12px';
+            this.buttonComponent.button.classList.add(SELECTORS.EXPAND_BUTTON.slice(1));
+
+            // Store reference to the actual button element
+            this.button = this.buttonComponent.button;
+
+            // Add elements to container
             container.appendChild(this.button);
             container.appendChild(this.descriptionContent);
 
+            // Add container to anchor element
             this.anchorElement.appendChild(container);
             Logger.log("Expand button added for URL:", this.url);
         }
@@ -1999,14 +2432,18 @@
         }
 
         async expandDescription() {
-            this.button.textContent = TranslationManager.getText('loading');
+            // Set to loading state
+            this.buttonComponent.setText(TranslationManager.getText('loading'));
+
             const result = await DescriptionFetcher.getDescription(this.url);
             if (result.success) {
                 this.itemData = result.data;
                 this.descriptionContent.innerHTML = HTMLUtils.escapeHTML(result.data.description);
                 // Use the class toggle approach for smooth transition
                 this.descriptionContent.classList.add('expanded');
-                this.button.textContent = TranslationManager.getText('hideDescription');
+
+                // Update button text
+                this.buttonComponent.setText(TranslationManager.getText('hideDescription'));
                 this.expanded = true;
 
                 // Add to global description manager
@@ -2029,7 +2466,8 @@
             };
             this.descriptionContent.addEventListener('transitionend', transitionEnded);
 
-            this.button.textContent = TranslationManager.getText('expandDescription');
+            // Reset button text
+            this.buttonComponent.setText(TranslationManager.getText('expandDescription'));
             this.expanded = false;
 
             // Remove from global description manager
@@ -2048,7 +2486,9 @@
             }
             this.descriptionContent.innerHTML = `<span class="error-message">${message}</span>`;
             this.descriptionContent.classList.add('expanded');
-            this.button.textContent = TranslationManager.getText('expandDescription');
+
+            // Reset button text
+            this.buttonComponent.setText(TranslationManager.getText('expandDescription'));
             this.expanded = false;
             Logger.log("Error displaying description for URL:", this.url, message);
         }
@@ -2507,22 +2947,36 @@
         };
 
         /**
-         * Create a button with standard style
+         * Create a button using Button component
          */
-        static createButton(text, className, clickHandler) {
-            const button = document.createElement('button');
-            button.className = className;
-            button.textContent = text;
+        static createButton(text, className, clickHandler, options = {}) {
+            let theme = 'primary';
 
-            if (clickHandler) {
-                button.addEventListener('click', clickHandler);
+            // Detect theme from className
+            if (className.includes('danger') || className.includes('error')) {
+                theme = 'danger';
+            } else if (className.includes('success') || className.includes('copy-success')) {
+                theme = 'success';
+            } else if (className.includes('secondary')) {
+                theme = 'secondary';
             }
 
-            return button;
+            // Create button with component
+            const button = new Button({
+                text,
+                className: 'reusable-button',
+                theme,
+                onClick: clickHandler,
+                successText: options.successText || null,
+                successDuration: options.successDuration || 1500,
+                attributes: options.attributes || {}
+            });
+
+            return button.button;
         }
 
         /**
-         * Create a new "Expand All" section in the control panel
+         * Create the expand all section with Button component
          */
         static createExpandAllSection(container) {
             // Load saved state
@@ -2537,13 +2991,15 @@
                     this.savePanelState('isExpandAllSectionExpanded', state);
                 },
                 contentCreator: (content) => {
-                    // Create the expand all button
-                    const expandAllButton = this.createButton(
-                        TranslationManager.getText('expandAllVisible'),
-                        'panel-button expand-all-button',
-                        () => this.handleExpandAll()
-                    );
-                    content.appendChild(expandAllButton);
+                    // Create the expand all button with Button component
+                    new Button({
+                        text: TranslationManager.getText('expandAllVisible'),
+                        className: 'reusable-button',
+                        theme: 'primary',
+                        id: 'expand-all-button',
+                        onClick: () => this.handleExpandAll(),
+                        container: content
+                    });
 
                     // Create progress container
                     const progressContainer = document.createElement('div');
@@ -2755,7 +3211,7 @@
         }
 
         /**
-         * Create the filter section
+         * Create the filter section with Button component
          */
         static createFilterSection(container) {
             // Load saved state
@@ -2784,13 +3240,15 @@
 
                     content.appendChild(this.filterInputElement);
 
-                    // Apply button
-                    const applyButton = this.createButton(
-                        TranslationManager.getText('addAndApply'),
-                        'panel-button filter-apply',
-                        () => this.addBlockedTerm()
-                    );
-                    content.appendChild(applyButton);
+                    // Apply button using Button component
+                    new Button({
+                        text: TranslationManager.getText('addAndApply'),
+                        className: 'reusable-button',
+                        theme: 'primary',
+                        size: 'medium',
+                        onClick: () => this.addBlockedTerm(),
+                        container: content
+                    });
 
                     // Create list for blocked terms
                     this.blockedTermsListElement = document.createElement('div');
@@ -2803,7 +3261,7 @@
         }
 
         /**
-         * Create the copy section
+         * Create the copy section with Button components
          */
         static createCopySection(container) {
             // Load saved state
@@ -2920,36 +3378,45 @@
                     exportButtonsContainer.style.gap = '10px';
                     exportButtonsContainer.style.marginTop = '10px';
 
-                    // Copy button
-                    const copyButton = this.createButton(
-                        TranslationManager.getText('copyToClipboard'),
-                        'export-button',
-                        () => this.copyToClipboard()
-                    );
-                    copyButton.style.flex = '1';
+                    // Copy button using Button component
+                    const copyButton = new Button({
+                        text: TranslationManager.getText('copyToClipboard'),
+                        className: 'reusable-button',
+                        theme: 'primary',
+                        size: 'medium',
+                        onClick: () => this.copyToClipboard(),
+                        successText: TranslationManager.getText('copied'),
+                        container: exportButtonsContainer
+                    });
+                    copyButton.button.style.flex = '1';
 
-                    // Download button
-                    const downloadButton = this.createButton(
-                        TranslationManager.getText('downloadFile'),
-                        'export-button',
-                        () => this.downloadFormatted()
-                    );
-                    downloadButton.style.flex = '1';
+                    // Download button using Button component
+                    const downloadButton = new Button({
+                        text: TranslationManager.getText('downloadFile'),
+                        className: 'reusable-button',
+                        theme: 'secondary',
+                        size: 'medium',
+                        onClick: () => this.downloadFormatted(),
+                        successText: TranslationManager.getText('downloaded'),
+                        container: exportButtonsContainer
+                    });
+                    downloadButton.button.style.flex = '1';
 
-                    exportButtonsContainer.appendChild(copyButton);
-                    exportButtonsContainer.appendChild(downloadButton);
                     content.appendChild(exportButtonsContainer);
 
-                    // Create clear button
-                    const clearButton = this.createButton(
-                        TranslationManager.getText('clearAll'),
-                        'panel-button copy-clear',
-                        () => {
+                    // Create clear button using Button component
+                    const clearButton = new Button({
+                        text: TranslationManager.getText('clearAll'),
+                        className: 'reusable-button',
+                        theme: 'danger',
+                        size: 'medium',
+                        onClick: () => {
                             DescriptionManager.clearItems();
-                            this.showCopySuccess(clearButton, TranslationManager.getText('cleared'));
-                        }
-                    );
-                    content.appendChild(clearButton);
+                            clearButton.showSuccessState();
+                        },
+                        successText: TranslationManager.getText('cleared'),
+                        container: content
+                    });
                 }
             });
 
@@ -3094,37 +3561,35 @@
                     this.savePanelState('isDeliveryMethodSectionExpanded', state);
                 },
                 contentCreator: (content) => {
-                    // Create select element
-                    const selectElement = document.createElement('select');
-                    selectElement.className = 'delivery-method-select';
-
-                    // Define options
-                    const options = [
-                        {value: 'all', label: 'showAll'},
-                        {value: 'shipping', label: 'showOnlyShipping'},
-                        {value: 'inperson', label: 'showOnlyInPerson'}
-                    ];
-
                     // Get saved preference
                     const savedOption = this.loadPanelState('deliveryMethodFilter', 'all');
 
-                    // Create select options
-                    options.forEach(option => {
-                        const optionElement = document.createElement('option');
-                        optionElement.value = option.value;
-                        optionElement.textContent = TranslationManager.getText(option.label);
-                        optionElement.selected = savedOption === option.value;
-                        selectElement.appendChild(optionElement);
-                    });
+                    // Create SelectBox items
+                    const selectItems = [
+                        {value: 'all', label: TranslationManager.getText('showAll'), selected: savedOption === 'all'},
+                        {
+                            value: 'shipping',
+                            label: TranslationManager.getText('showOnlyShipping'),
+                            selected: savedOption === 'shipping'
+                        },
+                        {
+                            value: 'inperson',
+                            label: TranslationManager.getText('showOnlyInPerson'),
+                            selected: savedOption === 'inperson'
+                        }
+                    ];
 
-                    // Add change event listener
-                    selectElement.addEventListener('change', () => {
-                        const selectedValue = selectElement.value;
-                        this.savePanelState('deliveryMethodFilter', selectedValue);
-                        this.applyDeliveryMethodFilter();
+                    // Create select box
+                    new SelectBox({
+                        items: selectItems,
+                        id: 'delivery-method-select',
+                        className: 'reusable-select delivery-method-select',
+                        onChange: (value) => {
+                            this.savePanelState('deliveryMethodFilter', value);
+                            this.applyDeliveryMethodFilter();
+                        },
+                        container: content
                     });
-
-                    content.appendChild(selectElement);
                 }
             });
 
