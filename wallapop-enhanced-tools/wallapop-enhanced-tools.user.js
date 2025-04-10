@@ -583,7 +583,99 @@
      * SectionToggler - A reusable component for toggling UI sections
      * Handles expand/collapse functionality with transitions
      */
+
     class SectionToggler {
+      /**
+         * Initialize styles for all section togglers
+         */
+      static initStyles() {
+        // This will be called only once, when the first instance is created
+        if (SectionToggler.stylesInitialized) return;
+
+        // Use StyleManager instead of directly creating style elements
+        StyleManager.addStyles(`
+      .reusable-section {
+        border-radius: 0.375rem;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 1rem;
+        overflow: hidden;
+      }
+      
+      .reusable-section-title {
+        font-weight: 600;
+        font-size: 0.875rem;
+        padding: 0.75rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        border-bottom: 1px solid transparent;
+        background-color: #f9fafb;
+        transition: background-color 0.2s ease;
+      }
+      
+      .reusable-section-title:hover {
+        background-color: #f3f4f6;
+      }
+      
+      .reusable-section-toggle {
+        transition: transform 0.3s ease;
+        font-size: 0.75rem;
+        width: 1rem;
+        height: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #6b7280;
+      }
+      
+      .reusable-section-content {
+        max-height: 1000px;
+        opacity: 1;
+        overflow: hidden;
+        padding: 1rem;
+        transition: max-height 0.3s ease,
+                    opacity 0.3s ease,
+                    padding 0.3s ease;
+      }
+      
+      .reusable-section-content.collapsed {
+        max-height: 0;
+        opacity: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+      }
+      
+      /* Theme variations */
+      .reusable-section--default .reusable-section-title {
+        background-color: #f9fafb;
+        color: #374151;
+      }
+      
+      .reusable-section--primary .reusable-section-title {
+        background-color: #eff6ff;
+        color: #1e40af;
+      }
+      
+      .reusable-section--success .reusable-section-title {
+        background-color: #ecfdf5;
+        color: #065f46;
+      }
+      
+      .reusable-section--danger .reusable-section-title {
+        background-color: #fef2f2;
+        color: #b91c1c;
+      }
+      
+      .reusable-section--warning .reusable-section-title {
+        background-color: #fffbeb;
+        color: #92400e;
+      }
+    `, 'reusable-section-styles');
+
+        SectionToggler.stylesInitialized = true;
+      }
       /**
          * Create a new section toggler
          * @param {Object} options - Configuration options
@@ -593,6 +685,7 @@
          * @param {Boolean} options.isExpanded - Initial expanded state
          * @param {Function} options.contentCreator - Function to create section content
          * @param {Function} options.onToggle - Callback when toggle state changes
+         * @param {String} options.theme - Theme name (default, primary, etc.)
          */
       constructor(options) {
         this.container = options.container;
@@ -601,13 +694,16 @@
         this.isExpanded = options.isExpanded !== undefined ? options.isExpanded : true;
         this.contentCreator = options.contentCreator;
         this.onToggle = options.onToggle;
+        this.theme = options.theme || 'default';
 
         this.section = null;
         this.toggleElement = null;
         this.contentElement = null;
 
+        this.initStyles();
         this.create();
       }
+
 
       /**
          * Create the toggle section
@@ -616,13 +712,13 @@
       create() {
         // Create section container
         this.section = document.createElement('div');
-        this.section.className = `panel-section ${this.sectionClass}-section`;
+        this.section.className = `reusable-section ${this.sectionClass}-section reusable-section--${this.theme}`;
 
         // Create section title
         const titleElement = document.createElement('div');
-        titleElement.className = 'section-title';
-        titleElement.innerHTML = `<span>${this.titleText}</span><span class="section-toggle">▼</span>`;
-        this.toggleElement = titleElement.querySelector('.section-toggle');
+        titleElement.className = 'reusable-section-title';
+        titleElement.innerHTML = `<span>${this.titleText}</span><span class="reusable-section-toggle">▼</span>`;
+        this.toggleElement = titleElement.querySelector('.reusable-section-toggle');
 
         // Add toggle behavior
         titleElement.addEventListener('click', () => this.toggle());
@@ -630,7 +726,7 @@
 
         // Create content container
         this.contentElement = document.createElement('div');
-        this.contentElement.className = `section-content ${this.sectionClass}-content`;
+        this.contentElement.className = `reusable-section-content ${this.sectionClass}-content`;
 
         // Apply initial state
         if (!this.isExpanded) {
@@ -690,12 +786,35 @@
           this.toggle();
         }
       }
+
+      /**
+         * Set the theme of the section toggler
+         * @param {String} theme - Theme name
+         */
+      setTheme(theme) {
+        this.theme = theme;
+
+        // Update class name with new theme
+        const classNames = this.section.className.split(' ');
+        const themeRegex = new RegExp('reusable-section--[a-z]+');
+        const filteredClasses = classNames.filter((className) => !themeRegex.test(className));
+        filteredClasses.push(`reusable-section--${this.theme}`);
+        this.section.className = filteredClasses.join(' ');
+      }
     }
+
+    // Static property to track if styles have been initialized
+    SectionToggler.stylesInitialized = false;
+
+    // Initialize styles when imported
+    SectionToggler.initStyles();
 
     /**
      * DOMObserver - Observes DOM changes and triggers callbacks
      * Useful for watching for dynamic content loading
      */
+    alert('asdasd');
+
     class DOMObserver {
       /**
          * Wait for elements matching a selector
@@ -796,7 +915,114 @@
      * SelectBox - A reusable UI component for dropdown selects
      * Creates customizable, accessible dropdown selects with callbacks
      */
+
     class SelectBox {
+      /**
+         * Initialize styles for all select boxes
+         */
+      static initStyles() {
+        // This will be called only once, when the first instance is created
+        if (SelectBox.stylesInitialized) return;
+
+        // Use StyleManager instead of directly creating style elements
+        StyleManager.addStyles(`
+      .reusable-select {
+        appearance: none;
+        background-color: #ffffff;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        padding: 0.5rem 2rem 0.5rem 0.75rem;
+        font-family: inherit;
+        color: #374151;
+        cursor: pointer;
+        width: 100%;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 1rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      }
+      
+      .reusable-select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+      }
+      
+      .reusable-select:disabled {
+        background-color: #f3f4f6;
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+      
+      .reusable-select option {
+        padding: 0.5rem;
+      }
+      
+      /* Select sizes */
+      .reusable-select--small {
+        font-size: 0.75rem;
+        padding: 0.25rem 1.75rem 0.25rem 0.5rem;
+        min-height: 1.75rem;
+      }
+      
+      .reusable-select--medium {
+        font-size: 0.875rem;
+        padding: 0.5rem 2rem 0.5rem 0.75rem;
+        min-height: 2.25rem;
+      }
+      
+      .reusable-select--large {
+        font-size: 1rem;
+        padding: 0.75rem 2.25rem 0.75rem 1rem;
+        min-height: 2.75rem;
+      }
+      
+      /* Select themes */
+      .reusable-select--default {
+        border-color: #d1d5db;
+      }
+      
+      .reusable-select--primary {
+        border-color: #3b82f6;
+      }
+      
+      .reusable-select--primary:focus {
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+      }
+      
+      .reusable-select--success {
+        border-color: #10b981;
+      }
+      
+      .reusable-select--success:focus {
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.4);
+      }
+      
+      .reusable-select--danger {
+        border-color: #ef4444;
+      }
+      
+      .reusable-select--danger:focus {
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4);
+      }
+      
+      .reusable-select-container {
+        position: relative;
+        width: 100%;
+      }
+      
+      .reusable-select-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+      }
+    `, 'reusable-select-styles');
+
+        SelectBox.stylesInitialized = true;
+      }
       /**
          * Create a new select box
          * @param {Object} options - Configuration options
@@ -808,6 +1034,8 @@
          * @param {String} options.placeholder - Placeholder text when no selection
          * @param {HTMLElement} options.container - Optional container to append the select box
          * @param {Object} options.attributes - Additional HTML attributes for the select element
+         * @param {String} options.theme - Theme name (default, primary, etc.)
+         * @param {String} options.size - Size name (small, medium, large)
          */
       constructor(options) {
         this.items = options.items || [];
@@ -818,10 +1046,14 @@
         this.placeholder = options.placeholder || 'Select an option';
         this.container = options.container;
         this.attributes = options.attributes || {};
+        this.theme = options.theme || 'default';
+        this.size = options.size || 'medium';
 
         this.selectElement = null;
+        this.initStyles();
         this.create();
       }
+
 
       /**
          * Create the select box
@@ -832,7 +1064,7 @@
         this.selectElement = document.createElement('select');
         this.selectElement.name = this.name;
         this.selectElement.id = this.id;
-        this.selectElement.className = this.className;
+        this.selectElement.className = `${this.className} ${this.className}--${this.theme} ${this.className}--${this.size}`;
 
         // Apply additional attributes
         Object.entries(this.attributes).forEach(([key, value]) => {
@@ -977,13 +1209,172 @@
       setDisabled(disabled) {
         this.selectElement.disabled = disabled;
       }
+
+      /**
+         * Set the theme of the select box
+         * @param {String} theme - Theme name
+         */
+      setTheme(theme) {
+        this.theme = theme;
+
+        // Update class name with new theme
+        const classNames = this.selectElement.className.split(' ');
+        const themeRegex = new RegExp(`${this.className}--[a-z]+`);
+        const filteredClasses = classNames.filter((className) => !themeRegex.test(className) || !className.includes('--theme-'));
+        filteredClasses.push(`${this.className}--${this.theme}`);
+        this.selectElement.className = filteredClasses.join(' ');
+      }
+
+      /**
+         * Set the size of the select box
+         * @param {String} size - Size name
+         */
+      setSize(size) {
+        this.size = size;
+
+        // Update class name with new size
+        const classNames = this.selectElement.className.split(' ');
+        const sizeRegex = new RegExp(`${this.className}--[a-z]+`);
+        const filteredClasses = classNames.filter((className) => !sizeRegex.test(className) || !className.includes('--size-'));
+        filteredClasses.push(`${this.className}--${this.size}`);
+        this.selectElement.className = filteredClasses.join(' ');
+      }
     }
+
+    // Static property to track if styles have been initialized
+    SelectBox.stylesInitialized = false;
+
+    // Initialize styles when imported
+    SelectBox.initStyles();
 
     /**
      * Button - A reusable UI component for buttons
      * Creates customizable, accessible buttons with various states and callbacks
      */
+
     class Button {
+      /**
+         * Initialize styles for all buttons
+         */
+      static initStyles() {
+        // This will be called only once, when the first instance is created
+        if (Button.stylesInitialized) return;
+
+        // Use StyleManager instead of directly creating style elements
+        StyleManager.addStyles(`
+      .reusable-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-family: inherit;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        white-space: nowrap;
+        text-align: center;
+      }
+      
+      /* Button sizes */
+      .reusable-button--small {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        min-height: 1.75rem;
+      }
+      
+      .reusable-button--medium {
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+        min-height: 2.25rem;
+      }
+      
+      .reusable-button--large {
+        font-size: 1rem;
+        padding: 0.75rem 1.5rem;
+        min-height: 2.75rem;
+      }
+      
+      /* Button themes */
+      .reusable-button--default {
+        background-color: #f3f4f6;
+        color: #374151;
+        border-color: #d1d5db;
+      }
+      
+      .reusable-button--default:hover:not(:disabled) {
+        background-color: #e5e7eb;
+      }
+      
+      .reusable-button--primary {
+        background-color: #3b82f6;
+        color: #ffffff;
+        border-color: #3b82f6;
+      }
+      
+      .reusable-button--primary:hover:not(:disabled) {
+        background-color: #2563eb;
+        border-color: #2563eb;
+      }
+      
+      .reusable-button--secondary {
+        background-color: #6b7280;
+        color: #ffffff;
+        border-color: #6b7280;
+      }
+      
+      .reusable-button--secondary:hover:not(:disabled) {
+        background-color: #4b5563;
+        border-color: #4b5563;
+      }
+      
+      .reusable-button--success {
+        background-color: #10b981;
+        color: #ffffff;
+        border-color: #10b981;
+      }
+      
+      .reusable-button--success:hover:not(:disabled) {
+        background-color: #059669;
+        border-color: #059669;
+      }
+      
+      .reusable-button--danger {
+        background-color: #ef4444;
+        color: #ffffff;
+        border-color: #ef4444;
+      }
+      
+      .reusable-button--danger:hover:not(:disabled) {
+        background-color: #dc2626;
+        border-color: #dc2626;
+      }
+      
+      /* Button states */
+      .reusable-button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      
+      .reusable-button:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+      }
+      
+      /* Button content */
+      .reusable-button__icon {
+        display: inline-flex;
+        margin-right: 0.5rem;
+      }
+      
+      .reusable-button__text {
+        display: inline-block;
+      }
+    `, 'reusable-button-styles');
+
+        Button.stylesInitialized = true;
+      }
       /**
          * Create a new button
          * @param {Object} options - Configuration options
@@ -1018,8 +1409,10 @@
         this.originalText = this.text;
 
         this.button = null;
+        this.initStyles();
         this.create();
       }
+
 
       /**
          * Create the button element
@@ -1200,6 +1593,576 @@
         this.button.className = this.getButtonClasses();
       }
     }
+
+    // Static property to track if styles have been initialized
+    Button.stylesInitialized = false;
+
+    // Initialize styles when imported
+    Button.initStyles();
+
+    /**
+     * Slider - A reusable UI component for range inputs
+     * Creates customizable, accessible sliders with various states and callbacks
+     */
+
+    class Slider {
+      /**
+         * Initialize styles for all sliders
+         */
+      static initStyles() {
+        // This will be called only once, when the first instance is created
+        if (Slider.stylesInitialized) return;
+
+        // Use StyleManager instead of directly creating style elements
+        StyleManager.addStyles(`
+      .reusable-slider {
+        width: 100%;
+        margin: 15px 0;
+      }
+      
+      .reusable-slider-label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+      }
+      
+      .reusable-slider-input {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background-color: #e5e7eb;
+        outline: none;
+        transition: background-color 0.2s;
+      }
+      
+      .reusable-slider-input::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background-color: #3b82f6;
+        cursor: pointer;
+        border: none;
+        transition: background-color 0.2s, transform 0.2s;
+      }
+      
+      .reusable-slider-input::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background-color: #3b82f6;
+        cursor: pointer;
+        border: none;
+        transition: background-color 0.2s, transform 0.2s;
+      }
+      
+      .reusable-slider-input::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+      }
+      
+      .reusable-slider-input::-moz-range-thumb:hover {
+        transform: scale(1.1);
+      }
+      
+      .reusable-slider-value {
+        display: block;
+        margin-top: 6px;
+        font-size: 0.875rem;
+        color: #4b5563;
+        text-align: center;
+      }
+      
+      /* Themes */
+      .reusable-slider--default .reusable-slider-input::-webkit-slider-thumb {
+        background-color: #6b7280;
+      }
+      
+      .reusable-slider--default .reusable-slider-input::-moz-range-thumb {
+        background-color: #6b7280;
+      }
+      
+      .reusable-slider--primary .reusable-slider-input::-webkit-slider-thumb {
+        background-color: #3b82f6;
+      }
+      
+      .reusable-slider--primary .reusable-slider-input::-moz-range-thumb {
+        background-color: #3b82f6;
+      }
+      
+      .reusable-slider--success .reusable-slider-input::-webkit-slider-thumb {
+        background-color: #10b981;
+      }
+      
+      .reusable-slider--success .reusable-slider-input::-moz-range-thumb {
+        background-color: #10b981;
+      }
+      
+      .reusable-slider--danger .reusable-slider-input::-webkit-slider-thumb {
+        background-color: #ef4444;
+      }
+      
+      .reusable-slider--danger .reusable-slider-input::-moz-range-thumb {
+        background-color: #ef4444;
+      }
+      
+      /* Sizes */
+      .reusable-slider--small .reusable-slider-input {
+        height: 4px;
+      }
+      
+      .reusable-slider--small .reusable-slider-input::-webkit-slider-thumb {
+        width: 14px;
+        height: 14px;
+      }
+      
+      .reusable-slider--small .reusable-slider-input::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+      }
+      
+      .reusable-slider--large .reusable-slider-input {
+        height: 8px;
+      }
+      
+      .reusable-slider--large .reusable-slider-input::-webkit-slider-thumb {
+        width: 22px;
+        height: 22px;
+      }
+      
+      .reusable-slider--large .reusable-slider-input::-moz-range-thumb {
+        width: 22px;
+        height: 22px;
+      }
+    `, 'reusable-slider-styles');
+
+        Slider.stylesInitialized = true;
+      }
+      /**
+         * Create a new slider
+         * @param {Object} options - Configuration options
+         * @param {Number} options.min - Minimum value
+         * @param {Number} options.max - Maximum value
+         * @param {Number} options.value - Initial value
+         * @param {Number} options.step - Step increment
+         * @param {String} options.className - CSS class for styling
+         * @param {Function} options.onChange - Callback when value changes
+         * @param {Function} options.onInput - Callback during input (before change is finalized)
+         * @param {String} options.id - ID attribute
+         * @param {HTMLElement} options.container - Container to append to
+         * @param {Boolean} options.showValue - Whether to show the current value
+         * @param {String} options.label - Label text
+         * @param {String} options.theme - Theme (default, primary, etc.)
+         * @param {String} options.size - Size (small, medium, large)
+         * @param {String} options.valuePrefix - Text to show before the value
+         * @param {String} options.valueSuffix - Text to show after the value
+         */
+      constructor(options) {
+        this.min = options.min !== undefined ? options.min : 0;
+        this.max = options.max !== undefined ? options.max : 100;
+        this.value = options.value !== undefined ? options.value : this.min;
+        this.step = options.step !== undefined ? options.step : 1;
+        this.className = options.className || 'reusable-slider';
+        this.onChange = options.onChange;
+        this.onInput = options.onInput;
+        this.id = options.id || `slider-${Math.random().toString(36).substring(2, 9)}`;
+        this.container = options.container;
+        this.showValue = options.showValue !== undefined ? options.showValue : true;
+        this.label = options.label || '';
+        this.theme = options.theme || 'default';
+        this.size = options.size || 'medium';
+        this.valuePrefix = options.valuePrefix || '';
+        this.valueSuffix = options.valueSuffix || '';
+
+        this.sliderElement = null;
+        this.inputElement = null;
+        this.valueElement = null;
+        this.labelElement = null;
+
+        this.create();
+      }
+
+
+      /**
+         * Create the slider element
+         * @return {HTMLElement} The slider container element
+         */
+      create() {
+        // Create container
+        this.sliderElement = document.createElement('div');
+        this.sliderElement.className = `${this.className} ${this.className}--${this.theme} ${this.className}--${this.size}`;
+
+        // Add label if provided
+        if (this.label) {
+          this.labelElement = document.createElement('label');
+          this.labelElement.className = `${this.className}-label`;
+          this.labelElement.htmlFor = this.id;
+          this.labelElement.textContent = this.label;
+          this.sliderElement.appendChild(this.labelElement);
+        }
+
+        // Create input element
+        this.inputElement = document.createElement('input');
+        this.inputElement.type = 'range';
+        this.inputElement.className = `${this.className}-input`;
+        this.inputElement.id = this.id;
+        this.inputElement.min = this.min;
+        this.inputElement.max = this.max;
+        this.inputElement.step = this.step;
+        this.inputElement.value = this.value;
+
+        // Add event listeners
+        this.inputElement.addEventListener('input', (e) => {
+          this.value = parseFloat(e.target.value);
+          this.updateValue();
+
+          if (this.onInput) {
+            this.onInput(this.value, e);
+          }
+        });
+
+        this.inputElement.addEventListener('change', (e) => {
+          if (this.onChange) {
+            this.onChange(this.value, e);
+          }
+        });
+
+        this.sliderElement.appendChild(this.inputElement);
+
+        // Add value display if enabled
+        if (this.showValue) {
+          this.valueElement = document.createElement('span');
+          this.valueElement.className = `${this.className}-value`;
+          this.updateValue();
+          this.sliderElement.appendChild(this.valueElement);
+        }
+
+        // Add to container if provided
+        if (this.container) {
+          this.container.appendChild(this.sliderElement);
+        }
+
+        return this.sliderElement;
+      }
+
+      /**
+         * Update the displayed value
+         */
+      updateValue() {
+        if (this.showValue && this.valueElement) {
+          this.valueElement.textContent = `${this.valuePrefix}${this.value}${this.valueSuffix}`;
+        }
+      }
+
+      /**
+         * Get the current value
+         * @return {Number} The current value
+         */
+      getValue() {
+        return this.value;
+      }
+
+      /**
+         * Set the slider value
+         * @param {Number} value - The new value
+         * @param {Boolean} triggerEvent - Whether to trigger the onChange event
+         */
+      setValue(value, triggerEvent = false) {
+        // Ensure value is within min/max bounds
+        this.value = Math.min(Math.max(value, this.min), this.max);
+
+        // Update input element
+        if (this.inputElement) {
+          this.inputElement.value = this.value;
+        }
+
+        // Update displayed value
+        this.updateValue();
+
+        // Trigger event if requested
+        if (triggerEvent && this.onChange) {
+          this.onChange(this.value);
+        }
+
+        return this.value;
+      }
+
+      /**
+         * Set the theme of the slider
+         * @param {String} theme - Theme name
+         */
+      setTheme(theme) {
+        this.theme = theme;
+
+        if (this.sliderElement) {
+          // Update class name with new theme
+          const classNames = this.sliderElement.className.split(' ');
+          const themeRegex = new RegExp(`${this.className}--[a-z]+`);
+          const filteredClasses = classNames.filter((className) => !themeRegex.test(className) || !className.includes('--theme-'));
+          filteredClasses.push(`${this.className}--${this.theme}`);
+          this.sliderElement.className = filteredClasses.join(' ');
+        }
+      }
+
+      /**
+         * Set the size of the slider
+         * @param {String} size - Size name
+         */
+      setSize(size) {
+        this.size = size;
+
+        if (this.sliderElement) {
+          // Update class name with new size
+          const classNames = this.sliderElement.className.split(' ');
+          const sizeRegex = new RegExp(`${this.className}--[a-z]+`);
+          const filteredClasses = classNames.filter((className) => !sizeRegex.test(className) || !className.includes('--size-'));
+          filteredClasses.push(`${this.className}--${this.size}`);
+          this.sliderElement.className = filteredClasses.join(' ');
+        }
+      }
+
+      /**
+         * Enable or disable the slider
+         * @param {Boolean} disabled - Whether the slider should be disabled
+         */
+      setDisabled(disabled) {
+        if (this.inputElement) {
+          this.inputElement.disabled = disabled;
+        }
+      }
+    }
+
+    // Static property to track if styles have been initialized
+    Slider.stylesInitialized = false;
+
+    // Initialize styles when imported
+    Slider.initStyles();
+
+    /**
+     * ProgressBar - A reusable UI component for displaying progress
+     * Provides customizable, animated progress indicators
+     */
+
+    class ProgressBar {
+      /**
+         * Initialize styles for all progress bars
+         */
+      static initStyles() {
+        // This will be called only once, when the first instance is created
+        if (ProgressBar.stylesInitialized) return;
+
+        // Use StyleManager instead of directly creating style elements
+        StyleManager.addStyles(`
+      .reusable-progress {
+        width: 100%;
+        margin: 10px 0;
+      }
+      
+      .reusable-progress-label {
+        font-size: 0.875rem;
+        margin-bottom: 4px;
+        display: block;
+        color: #555;
+      }
+      
+      .reusable-progress-bar {
+        height: 8px;
+        background-color: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+      }
+      
+      .reusable-progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+      
+      .reusable-progress-text {
+        font-size: 0.75rem;
+        text-align: right;
+        margin-top: 4px;
+        color: #555;
+      }
+      
+      /* Themes */
+      .reusable-progress--default .reusable-progress-fill {
+        background-color: #6b7280;
+      }
+      
+      .reusable-progress--primary .reusable-progress-fill {
+        background-color: #3b82f6;
+      }
+      
+      .reusable-progress--success .reusable-progress-fill {
+        background-color: #10b981;
+      }
+      
+      .reusable-progress--danger .reusable-progress-fill {
+        background-color: #ef4444;
+      }
+      
+      .reusable-progress--warning .reusable-progress-fill {
+        background-color: #f59e0b;
+      }
+      
+      /* Sizes */
+      .reusable-progress--small .reusable-progress-bar {
+        height: 4px;
+      }
+      
+      .reusable-progress--large .reusable-progress-bar {
+        height: 12px;
+      }
+    `, 'reusable-progress-styles');
+
+        ProgressBar.stylesInitialized = true;
+      }
+      /**
+         * Create a new progress bar
+         * @param {Object} options - Configuration options
+         * @param {Number} options.initialValue - Initial progress value (0-100)
+         * @param {String} options.className - CSS class for styling
+         * @param {HTMLElement} options.container - Container to append to
+         * @param {Boolean} options.showText - Whether to show progress text
+         * @param {Boolean} options.showLabel - Whether to show a label
+         * @param {String} options.label - Label text (if showLabel is true)
+         * @param {String} options.theme - Theme (default, primary, success, etc.)
+         */
+      constructor(options) {
+        this.value = options.initialValue || 0;
+        this.className = options.className || 'reusable-progress';
+        this.container = options.container;
+        this.showText = options.showText !== undefined ? options.showText : true;
+        this.showLabel = options.showLabel || false;
+        this.label = options.label || '';
+        this.theme = options.theme || 'default';
+
+        this.progressElement = null;
+        this.progressBarElement = null;
+        this.progressFillElement = null;
+        this.progressTextElement = null;
+        this.labelElement = null;
+
+        this.initStyles();
+        this.create();
+      }
+
+
+      /**
+         * Create the progress bar elements
+         * @return {HTMLElement} The created progress bar container
+         */
+      create() {
+        // Create container
+        this.progressElement = document.createElement('div');
+        this.progressElement.className = `${this.className} ${this.className}--${this.theme}`;
+
+        // Add label if needed
+        if (this.showLabel) {
+          this.labelElement = document.createElement('span');
+          this.labelElement.className = `${this.className}-label`;
+          this.labelElement.textContent = this.label;
+          this.progressElement.appendChild(this.labelElement);
+        }
+
+        // Create progress bar
+        this.progressBarElement = document.createElement('div');
+        this.progressBarElement.className = `${this.className}-bar`;
+
+        this.progressFillElement = document.createElement('div');
+        this.progressFillElement.className = `${this.className}-fill`;
+        this.progressFillElement.style.width = `${this.value}%`;
+        this.progressBarElement.appendChild(this.progressFillElement);
+
+        this.progressElement.appendChild(this.progressBarElement);
+
+        // Add text if needed
+        if (this.showText) {
+          this.progressTextElement = document.createElement('div');
+          this.progressTextElement.className = `${this.className}-text`;
+          this.progressTextElement.textContent = `${this.value}%`;
+          this.progressElement.appendChild(this.progressTextElement);
+        }
+
+        // Add to container if provided
+        if (this.container) {
+          this.container.appendChild(this.progressElement);
+        }
+
+        return this.progressElement;
+      }
+
+      /**
+         * Set progress value
+         * @param {Number} value - New progress value (0-100)
+         * @param {String} text - Optional custom text to display
+         */
+      setValue(value, text) {
+        // Ensure value is between 0 and 100
+        this.value = Math.min(100, Math.max(0, value));
+
+        // Update fill width
+        if (this.progressFillElement) {
+          this.progressFillElement.style.width = `${this.value}%`;
+        }
+
+        // Update text if visible
+        if (this.showText && this.progressTextElement) {
+          this.progressTextElement.textContent = text || `${this.value}%`;
+        }
+
+        return this.value;
+      }
+
+      /**
+         * Set the theme of the progress bar
+         * @param {String} theme - Theme name
+         */
+      setTheme(theme) {
+        this.theme = theme;
+        if (this.progressElement) {
+          // Remove all theme classes
+          const classNames = this.progressElement.className.split(' ');
+          const nonThemeClasses = classNames.filter((className) => !className.includes('--'));
+
+          // Add new theme class
+          this.progressElement.className = `${nonThemeClasses.join(' ')} ${this.className}--${this.theme}`;
+        }
+      }
+
+      /**
+         * Set the label text
+         * @param {String} label - New label text
+         */
+      setLabel(label) {
+        this.label = label;
+        if (this.labelElement) {
+          this.labelElement.textContent = this.label;
+        }
+      }
+
+      /**
+         * Show or hide the progress bar
+         * @param {Boolean} visible - Whether the progress bar should be visible
+         */
+      setVisible(visible) {
+        if (this.progressElement) {
+          this.progressElement.style.display = visible ? '' : 'none';
+        }
+      }
+    }
+
+    // Static property to track if styles have been initialized
+    ProgressBar.stylesInitialized = false;
+
+    // Initialize styles when imported
+    ProgressBar.initStyles();
 
     // GM function fallbacks for direct browser execution
 

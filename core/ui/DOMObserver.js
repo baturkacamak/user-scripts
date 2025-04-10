@@ -2,6 +2,8 @@
  * DOMObserver - Observes DOM changes and triggers callbacks
  * Useful for watching for dynamic content loading
  */
+alert('asdasd');
+
 class DOMObserver {
   /**
      * Wait for elements matching a selector

@@ -2,7 +2,131 @@
  * Button - A reusable UI component for buttons
  * Creates customizable, accessible buttons with various states and callbacks
  */
+import StyleManager from '../utils/StyleManager.js';
+
 class Button {
+  /**
+     * Initialize styles for all buttons
+     */
+  static initStyles() {
+    // This will be called only once, when the first instance is created
+    if (Button.stylesInitialized) return;
+
+    // Use StyleManager instead of directly creating style elements
+    StyleManager.addStyles(`
+      .reusable-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-family: inherit;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        white-space: nowrap;
+        text-align: center;
+      }
+      
+      /* Button sizes */
+      .reusable-button--small {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        min-height: 1.75rem;
+      }
+      
+      .reusable-button--medium {
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+        min-height: 2.25rem;
+      }
+      
+      .reusable-button--large {
+        font-size: 1rem;
+        padding: 0.75rem 1.5rem;
+        min-height: 2.75rem;
+      }
+      
+      /* Button themes */
+      .reusable-button--default {
+        background-color: #f3f4f6;
+        color: #374151;
+        border-color: #d1d5db;
+      }
+      
+      .reusable-button--default:hover:not(:disabled) {
+        background-color: #e5e7eb;
+      }
+      
+      .reusable-button--primary {
+        background-color: #3b82f6;
+        color: #ffffff;
+        border-color: #3b82f6;
+      }
+      
+      .reusable-button--primary:hover:not(:disabled) {
+        background-color: #2563eb;
+        border-color: #2563eb;
+      }
+      
+      .reusable-button--secondary {
+        background-color: #6b7280;
+        color: #ffffff;
+        border-color: #6b7280;
+      }
+      
+      .reusable-button--secondary:hover:not(:disabled) {
+        background-color: #4b5563;
+        border-color: #4b5563;
+      }
+      
+      .reusable-button--success {
+        background-color: #10b981;
+        color: #ffffff;
+        border-color: #10b981;
+      }
+      
+      .reusable-button--success:hover:not(:disabled) {
+        background-color: #059669;
+        border-color: #059669;
+      }
+      
+      .reusable-button--danger {
+        background-color: #ef4444;
+        color: #ffffff;
+        border-color: #ef4444;
+      }
+      
+      .reusable-button--danger:hover:not(:disabled) {
+        background-color: #dc2626;
+        border-color: #dc2626;
+      }
+      
+      /* Button states */
+      .reusable-button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      
+      .reusable-button:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+      }
+      
+      /* Button content */
+      .reusable-button__icon {
+        display: inline-flex;
+        margin-right: 0.5rem;
+      }
+      
+      .reusable-button__text {
+        display: inline-block;
+      }
+    `, 'reusable-button-styles');
+
+    Button.stylesInitialized = true;
+  }
   /**
      * Create a new button
      * @param {Object} options - Configuration options
@@ -37,8 +161,10 @@ class Button {
     this.originalText = this.text;
 
     this.button = null;
+    this.initStyles();
     this.create();
   }
+
 
   /**
      * Create the button element
@@ -219,5 +345,11 @@ class Button {
     this.button.className = this.getButtonClasses();
   }
 }
+
+// Static property to track if styles have been initialized
+Button.stylesInitialized = false;
+
+// Initialize styles when imported
+Button.initStyles();
 
 export default Button;
