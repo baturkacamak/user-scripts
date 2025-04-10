@@ -1,104 +1,9 @@
 // GM function fallbacks for direct browser execution
-if (typeof GM_addStyle === 'undefined') {
-    window.GM_addStyle = function (css) {
-        const style = document.createElement('style');
-        style.textContent = css;
-        document.head.appendChild(style);
-        return style;
-    };
-}
+import {GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager} from "../core";
 
-if (typeof GM_xmlhttpRequest === 'undefined') {
-    window.GM_xmlhttpRequest = function (details) {
-        const xhr = new XMLHttpRequest();
-        xhr.open(details.method, details.url);
+const GM = GMFunctions.initialize();
 
-        if (details.headers) {
-            Object.keys(details.headers).forEach(key => {
-                xhr.setRequestHeader(key, details.headers[key]);
-            });
-        }
-
-        xhr.onload = function () {
-            if (details.onload) {
-                details.onload({
-                    responseText: xhr.responseText,
-                    response: xhr.response,
-                    status: xhr.status,
-                    statusText: xhr.statusText,
-                    readyState: xhr.readyState
-                });
-            }
-        };
-
-        xhr.onerror = function () {
-            if (details.onerror) {
-                details.onerror(xhr);
-            }
-        };
-
-        xhr.send(details.data);
-        return xhr;
-    };
-}
-
-if (typeof GM_setClipboard === 'undefined') {
-    window.GM_setClipboard = function (text) {
-        // Create a temporary textarea element
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-
-        // Make the textarea not visible
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-
-        document.body.appendChild(textarea);
-        textarea.select();
-
-        // Try to copy the text
-        let success = false;
-        try {
-            success = document.execCommand('copy');
-            console.log('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
-        } catch (err) {
-            console.error('Error copying to clipboard:', err);
-        }
-
-        // Clean up
-        document.body.removeChild(textarea);
-        return success;
-    };
-}
-
-if (typeof GM_download === 'undefined') {
-    window.GM_download = function (options) {
-        try {
-            const {url, name, onload, onerror} = options;
-
-            // Create download link
-            const downloadLink = document.createElement('a');
-            downloadLink.href = url;
-            downloadLink.download = name || 'download';
-            downloadLink.style.display = 'none';
-
-            // Add to document, click, and remove
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-
-            // Clean up
-            setTimeout(() => {
-                document.body.removeChild(downloadLink);
-                if (onload) onload();
-            }, 100);
-
-            return true;
-        } catch (err) {
-            console.error('Error downloading file:', err);
-            if (options.onerror) options.onerror(err);
-            return false;
-        }
-    };
-}
+Logger.setPrefix("Wallapop Enhanced Tools");
 
 const SELECTORS = {
     ITEM_CARDS: [
@@ -115,42 +20,7 @@ const SELECTORS = {
     BLOCKED_TERMS_LIST: '.blocked-terms-list'
 };
 
-class Logger {
-    static DEBUG = true;
-
-    static log(...args) {
-        if (this.DEBUG) {
-            console.log("Wallapop Enhanced Tools Debug:", ...args);
-        }
-    }
-
-    static error(error, context) {
-        console.error(`Wallapop Expand Description Error (${context}):`, error);
-    }
-
-    static logHtml(title, htmlContent) {
-        if (this.DEBUG) {
-            console.log(`Wallapop Expand Description [${title}]:`);
-            console.log(htmlContent.substring(0, 1500) + "...");
-
-            // HTML'i daha rahat inceleyebilmek için konsol içinde genişletilebilir obje olarak da gösterelim
-            console.groupCollapsed(`HTML Detayları (${title})`);
-            console.log("Tam HTML:", htmlContent);
-            console.groupEnd();
-        }
-    }
-
-    static toggleDebug() {
-        this.DEBUG = !this.DEBUG;
-        console.log(`Wallapop Expand Description: Debug mode ${this.DEBUG ? 'enabled' : 'disabled'}`);
-        return this.DEBUG;
-    }
-}
-
-class StyleManager {
-    static addStyles() {
-        const style = document.createElement('style');
-        style.textContent = `
+StyleManager.addStyles(`
         :root {
             --transition-speed: 0.3s;
             --transition-easing: ease-in-out;
@@ -684,72 +554,53 @@ class StyleManager {
                 cursor: not-allowed;
             }
 
-/* Select box styling */
-.delivery-method-select {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background-color: white;
-  font-size: 14px;
-  color: #333;
-  cursor: pointer;
-  outline: none;
-  margin: 8px 0;
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-}
+            /* Select box styling */
+            .delivery-method-select {
+              width: 100%;
+              padding: 8px 10px;
+              border: 1px solid #ccc;
+              border-radius: 4px;
+              background-color: white;
+              font-size: 14px;
+              color: #333;
+              cursor: pointer;
+              outline: none;
+              margin: 8px 0;
+              appearance: none;
+              -webkit-appearance: none;
+              position: relative;
+              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+              background-repeat: no-repeat;
+              background-position: right 10px center;
+            }
+            
+            .delivery-method-select:focus {
+              border-color: var(--panel-accent-color);
+            }
+            
+            .delivery-method-select option {
+              padding: 8px;
+            }
+            
+            .delivery-method-select option:checked {
+              background-color: var(--panel-accent-color);
+              color: white;
+            }
+`, 'wallapop-enhanced-tools');
 
-.delivery-method-select:focus {
-  border-color: var(--panel-accent-color);
-}
-
-.delivery-method-select option {
-  padding: 8px;
-}
-
-.delivery-method-select option:checked {
-  background-color: var(--panel-accent-color);
-  color: white;
-}
-    `;
-        document.head.appendChild(style);
-    }
-}
-
-class HTMLUtils {
-    static escapeHTML(str) {
-        const escapeMap = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            "'": '&#39;',
-            '"': '&quot;'
-        };
-        return str.replace(/[&<>'"]/g, tag => escapeMap[tag] || tag);
-    }
-}
-
-class TranslationManager {
-    static availableLanguages = {
+TranslationManager.init({
+    languages: {
         en: 'English',
         es: 'Español',
         ca: 'Català',
-        tr: 'Türkçe', // The script already has some Turkish text
+        tr: 'Türkçe',
         pt: 'Português',
         it: 'Italiano',
         fr: 'Français',
         de: 'Deutsch',
         nl: 'Nederlands'
-    };
-
-    static currentLanguage = 'en'; // Default language
-
-    static translations = {
+    },
+    translations: {
         en: {
             expandDescription: 'Expand Description',
             hideDescription: 'Hide Description',
@@ -1044,58 +895,10 @@ class TranslationManager {
             downloadFile: 'Bestand Downloaden',
             downloaded: 'Gedownload!'
         }
-    };
-
-    static getText(key) {
-        const lang = this.currentLanguage;
-        if (this.translations[lang] && this.translations[lang][key]) {
-            return this.translations[lang][key];
-        }
-        // Fallback to English
-        if (this.translations['en'] && this.translations['en'][key]) {
-            return this.translations['en'][key];
-        }
-        // If key is missing completely, return the key itself
-        return key;
-    }
-
-    static saveLanguagePreference() {
-        try {
-            localStorage.setItem('wallapop-language', this.currentLanguage);
-            Logger.log("Language preference saved:", this.currentLanguage);
-        } catch (error) {
-            Logger.error(error, "Saving language preference");
-        }
-    }
-
-    static loadLanguagePreference() {
-        try {
-            const savedLanguage = localStorage.getItem('wallapop-language');
-            if (savedLanguage && this.availableLanguages[savedLanguage]) {
-                this.currentLanguage = savedLanguage;
-                Logger.log("Language preference loaded:", this.currentLanguage);
-            } else {
-                // Try to detect language from browser
-                const browserLang = navigator.language.split('-')[0];
-                if (this.availableLanguages[browserLang]) {
-                    this.currentLanguage = browserLang;
-                    Logger.log("Language detected from browser:", this.currentLanguage);
-                }
-            }
-        } catch (error) {
-            Logger.error(error, "Loading language preference");
-        }
-    }
-
-    static setLanguage(lang) {
-        if (this.availableLanguages[lang]) {
-            this.currentLanguage = lang;
-            this.saveLanguagePreference();
-            return true;
-        }
-        return false;
-    }
-}
+    },
+    defaultLanguage: 'en',
+    storageKey: 'wallapop-language'
+});
 
 class DescriptionFetcher {
     static async getDescription(url) {
@@ -1473,11 +1276,11 @@ class DOMObserver {
             if (mutation.type === 'childList') {
                 const addedNodes = Array.from(mutation.addedNodes);
                 const hasNewItemCards = addedNodes.some(node =>
-                                                        node.nodeType === Node.ELEMENT_NODE &&
-                                                        SELECTORS.ITEM_CARDS.some(selector =>
-                                                                                  node.matches(selector) || node.querySelector(selector)
-                                                                                 )
-                                                       );
+                    node.nodeType === Node.ELEMENT_NODE &&
+                    SELECTORS.ITEM_CARDS.some(selector =>
+                        node.matches(selector) || node.querySelector(selector)
+                    )
+                );
                 if (hasNewItemCards) {
                     Logger.log("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
@@ -2179,15 +1982,15 @@ class ControlPanel {
     static async handleExpandAll() {
         // Find all unexpanded descriptions that are visible (not filtered)
         const allExpandButtons = Array.from(document.querySelectorAll(SELECTORS.EXPAND_BUTTON))
-        .filter(button => {
-            // Only include buttons that are for expanding (not hiding)
-            const isExpandButton = button.textContent === TranslationManager.getText('expandDescription');
-            // Only include buttons for listings that are visible (not filtered out)
-            const listing = this.getListingFromButton(button);
-            const isVisible = listing && !listing.classList.contains('hidden-item');
+            .filter(button => {
+                // Only include buttons that are for expanding (not hiding)
+                const isExpandButton = button.textContent === TranslationManager.getText('expandDescription');
+                // Only include buttons for listings that are visible (not filtered out)
+                const listing = this.getListingFromButton(button);
+                const isVisible = listing && !listing.classList.contains('hidden-item');
 
-            return isExpandButton && isVisible;
-        });
+                return isExpandButton && isVisible;
+            });
 
         const totalButtons = allExpandButtons.length;
 
@@ -2275,8 +2078,8 @@ class ControlPanel {
             const matchesSelector = SELECTORS.ITEM_CARDS.some(selector => {
                 // Remove the prefix if it's a child selector
                 const simpleSelector = selector.includes(' ')
-                ? selector.split(' ').pop()
-                : selector;
+                    ? selector.split(' ').pop()
+                    : selector;
 
                 return element.matches(simpleSelector);
             });
@@ -2776,20 +2579,20 @@ class ControlPanel {
 
         // Check for shipping badge in shadow DOM
         const hasShippingBadge = shadowRoots.some(root =>
-                                                  root.querySelector('.wallapop-badge--shippingAvailable') !== null ||
-                                                  root.querySelector('[class*="wallapop-badge"][class*="shippingAvailable"]') !== null
-                                                 );
+            root.querySelector('.wallapop-badge--shippingAvailable') !== null ||
+            root.querySelector('[class*="wallapop-badge"][class*="shippingAvailable"]') !== null
+        );
 
         // Check for in-person badge in shadow DOM
         const hasInPersonBadge = shadowRoots.some(root =>
-                                                  root.querySelector('.wallapop-badge--faceToFace') !== null ||
-                                                  root.querySelector('[class*="wallapop-badge"][class*="faceToFace"]') !== null
-                                                 );
+            root.querySelector('.wallapop-badge--faceToFace') !== null ||
+            root.querySelector('[class*="wallapop-badge"][class*="faceToFace"]') !== null
+        );
 
         // Text fallback as a last resort
         const shippingText = listing.textContent.includes('Envío disponible');
         const inPersonText = listing.textContent.includes('Sólo venta en persona') ||
-              listing.textContent.includes('Solo venta en persona');
+            listing.textContent.includes('Solo venta en persona');
 
         // Determine delivery method
         if (hasShippingBadge || (!hasInPersonBadge && shippingText)) {
@@ -2800,11 +2603,11 @@ class ControlPanel {
             // Add additional fallback based on HTML structure
             // Check if there's an icon that might indicate shipping or in-person
             const hasShippingIcon = shadowRoots.some(root =>
-                                                     root.querySelector('walla-icon[class*="shipping"]') !== null
-                                                    );
+                root.querySelector('walla-icon[class*="shipping"]') !== null
+            );
             const hasInPersonIcon = shadowRoots.some(root =>
-                                                     root.querySelector('walla-icon[class*="faceToFace"]') !== null
-                                                    );
+                root.querySelector('walla-icon[class*="faceToFace"]') !== null
+            );
 
             if (hasShippingIcon) {
                 return 'shipping';
@@ -2936,7 +2739,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     return item.images && item.images.length > 0
                         ? `"${item.images.join('|')}"`
-                    : '""';
+                        : '""';
                 } else {
                     // Escape double quotes and wrap values in quotes
                     const value = item[column] !== undefined ? String(item[column]) : '';
@@ -2974,7 +2777,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     return item.images && item.images.length > 0
                         ? item.images.join('|')
-                    : '';
+                        : '';
                 } else {
                     // Replace tabs with spaces for TSV compatibility
                     const value = item[column] !== undefined ? String(item[column]) : '';
@@ -3166,7 +2969,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     return item.images && item.images.length > 0
                         ? `"${item.images.join('|')}"`
-                    : '""';
+                        : '""';
                 } else {
                     // Escape double quotes and wrap values in quotes
                     const value = item[column] !== undefined ? String(item[column]) : '';
@@ -3248,7 +3051,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     value = item.images && item.images.length > 0
                         ? item.images.join('|')
-                    : '';
+                        : '';
                 } else {
                     value = item[column] !== undefined ? String(item[column]) : '';
                 }
@@ -3360,7 +3163,7 @@ class ControlPanel {
     /**
      * Create the main control panel
      */
-   static createControlPanel() {
+    static createControlPanel() {
         // Create control panel if it doesn't exist
         if (!this.container) {
             this.container = document.createElement('div');
