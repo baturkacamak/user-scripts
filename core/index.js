@@ -15,6 +15,8 @@ import TranslationManager from './i18n/TranslationManager.js';
 // UI Components
 import SectionToggler from './ui/SectionToggler.js';
 import DOMObserver from './ui/DOMObserver.js';
+import SelectBox from './ui/SelectBox.js';
+import Button from './ui/Button.js';
 
 // Export all components
 export {
@@ -30,6 +32,8 @@ export {
   // UI Components
   SectionToggler,
   DOMObserver,
+  SelectBox,
+  Button,
 };
 
 // Also export as default for convenience
@@ -40,4 +44,6 @@ export default {
   TranslationManager,
   SectionToggler,
   DOMObserver,
+  SelectBox,
+  Button,
 };
