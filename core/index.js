@@ -17,6 +17,8 @@ import SectionToggler from './ui/SectionToggler.js';
 import DOMObserver from './ui/DOMObserver.js';
 import SelectBox from './ui/SelectBox.js';
 import Button from './ui/Button.js';
+import Slider from './ui/Slider.js';
+import ProgressBar from './ui/ProgressBar.js';
 
 // Export all components
 export {
@@ -34,6 +36,8 @@ export {
   DOMObserver,
   SelectBox,
   Button,
+  Slider,
+  ProgressBar,
 };
 
 // Also export as default for convenience
