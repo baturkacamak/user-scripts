@@ -1,5 +1,5 @@
 // GM function fallbacks for direct browser execution
-import {GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager} from "../core";
+import {DOMObserver, GMFunctions, HTMLUtils, Logger, SectionToggler, StyleManager, TranslationManager} from "../core";
 
 const GM = GMFunctions.initialize();
 
@@ -900,6 +900,48 @@ TranslationManager.init({
     storageKey: 'wallapop-language'
 });
 
+const setupDOMObserver = () => {
+    const observer = new DOMObserver(
+        // Mutation callback
+        (mutations) => {
+            for (let mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    const addedNodes = Array.from(mutation.addedNodes);
+                    const hasNewItemCards = addedNodes.some(node =>
+                        node.nodeType === Node.ELEMENT_NODE &&
+                        SELECTORS.ITEM_CARDS.some(selector =>
+                            node.matches(selector) || node.querySelector(selector)
+                        )
+                    );
+
+                    if (hasNewItemCards) {
+                        Logger.log("New ItemCards detected, adding expand buttons");
+                        ListingManager.addExpandButtonsToListings();
+
+                        // Apply filters to new listings
+                        ControlPanel.applyFilters();
+                    }
+                }
+            }
+        },
+
+        // URL change callback
+        (newUrl, oldUrl) => {
+            Logger.log("URL changed:", newUrl);
+            setTimeout(() => {
+                ListingManager.addExpandButtonsToListings();
+                // Apply filters after URL change
+                ControlPanel.applyFilters();
+            }, 1000); // Delay to allow for dynamic content to load
+        }
+    );
+
+    // Start observing
+    observer.observe();
+
+    return observer;
+};
+
 class DescriptionFetcher {
     static async getDescription(url) {
         Logger.log("Fetching description for URL:", url);
@@ -1259,58 +1301,6 @@ class ListingManager {
     }
 }
 
-class DOMObserver {
-    constructor() {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-    }
-
-    observe() {
-        this.observer.observe(document.body, {childList: true, subtree: true});
-        window.addEventListener('popstate', this.handleUrlChange.bind(this));
-        Logger.log("MutationObserver and popstate listener set up");
-    }
-
-    handleMutations(mutations) {
-        for (let mutation of mutations) {
-            if (mutation.type === 'childList') {
-                const addedNodes = Array.from(mutation.addedNodes);
-                const hasNewItemCards = addedNodes.some(node =>
-                    node.nodeType === Node.ELEMENT_NODE &&
-                    SELECTORS.ITEM_CARDS.some(selector =>
-                        node.matches(selector) || node.querySelector(selector)
-                    )
-                );
-                if (hasNewItemCards) {
-                    Logger.log("New ItemCards detected, adding expand buttons");
-                    ListingManager.addExpandButtonsToListings();
-
-                    // Apply filters to new listings
-                    ControlPanel.applyFilters();
-                }
-            }
-        }
-        this.checkUrlChange();
-    }
-
-    checkUrlChange() {
-        if (this.lastUrl !== location.href) {
-            Logger.log("URL changed:", location.href);
-            this.lastUrl = location.href;
-            this.handleUrlChange();
-        }
-    }
-
-    handleUrlChange() {
-        Logger.log("Handling URL change");
-        setTimeout(() => {
-            ListingManager.addExpandButtonsToListings();
-            // Apply filters after URL change
-            ControlPanel.applyFilters();
-        }, 1000); // Delay to allow for dynamic content to load
-    }
-}
-
 /**
  * FormatOption - A reusable component for format selection with conditional options
  */
@@ -1487,164 +1477,32 @@ class FormatOption {
     }
 }
 
-class WallapopExpandDescription {
+class WallapopEnhancedTools {
     static async init() {
         Logger.log("Initializing script");
-
-        // Load language preference first
-        TranslationManager.loadLanguagePreference();
-
-        StyleManager.addStyles();
 
         // Create unified control panel
         ControlPanel.createControlPanel();
 
-        await this.waitForElements(SELECTORS.ITEM_CARDS);
-        ListingManager.addExpandButtonsToListings();
+        // Wait for listing elements
+        try {
+            // Using static method from DOMObserver
+            await DOMObserver.waitForElements(SELECTORS.ITEM_CARDS.join(', '));
+            ListingManager.addExpandButtonsToListings();
 
-        // Apply filters to initial listings
-        ControlPanel.applyFilters();
+            // Apply filters to initial listings
+            ControlPanel.applyFilters();
 
-        new DOMObserver().observe();
-    }
+            // Set up DOM observation
+            setupDOMObserver();
 
-    static waitForElements(selectors, timeout = 10000) {
-        Logger.log("Waiting for elements:", selectors);
-        return new Promise((resolve, reject) => {
-            const startTime = Date.now();
+            Logger.log("Script initialized successfully");
+        } catch (error) {
+            Logger.error(error, "Initialization");
+            Logger.log("Continuing with partial initialization");
 
-            function checkElements() {
-                for (const selector of selectors) {
-                    const elements = document.querySelectorAll(selector);
-                    if (elements.length > 0) {
-                        Logger.log("Elements found:", selector, elements.length);
-                        resolve(elements);
-                        return;
-                    }
-                }
-
-                if (Date.now() - startTime > timeout) {
-                    Logger.log("Timeout waiting for elements");
-                    reject(new Error(`Timeout waiting for elements`));
-                } else {
-                    requestAnimationFrame(checkElements);
-                }
-            }
-
-            checkElements();
-        });
-    }
-}
-
-/**
- * Reusable Toggler Component
- * Handles section toggling with consistent behavior
- */
-class SectionToggler {
-    /**
-     * Create a new section toggler
-     * @param {Object} options - Configuration options
-     * @param {HTMLElement} options.container - Container element for the toggle section
-     * @param {String} options.sectionClass - Base class name for the section
-     * @param {String} options.titleText - Text to display in the section title
-     * @param {Boolean} options.isExpanded - Initial expanded state
-     * @param {Function} options.contentCreator - Function to create section content
-     * @param {Function} options.onToggle - Callback when toggle state changes
-     */
-    constructor(options) {
-        this.container = options.container;
-        this.sectionClass = options.sectionClass;
-        this.titleText = options.titleText;
-        this.isExpanded = options.isExpanded !== undefined ? options.isExpanded : true;
-        this.contentCreator = options.contentCreator;
-        this.onToggle = options.onToggle;
-
-        this.section = null;
-        this.toggleElement = null;
-        this.contentElement = null;
-
-        this.create();
-    }
-
-    /**
-     * Create the toggle section
-     * @returns {HTMLElement} The created section element
-     */
-    create() {
-        // Create section container
-        this.section = document.createElement('div');
-        this.section.className = `panel-section ${this.sectionClass}-section`;
-
-        // Create section title
-        const titleElement = document.createElement('div');
-        titleElement.className = 'section-title';
-        titleElement.innerHTML = `<span>${this.titleText}</span><span class="section-toggle">▼</span>`;
-        this.toggleElement = titleElement.querySelector('.section-toggle');
-
-        // Add toggle behavior
-        titleElement.addEventListener('click', () => this.toggle());
-        this.section.appendChild(titleElement);
-
-        // Create content container
-        this.contentElement = document.createElement('div');
-        this.contentElement.className = `section-content ${this.sectionClass}-content`;
-
-        // Apply initial state
-        if (!this.isExpanded) {
-            this.contentElement.classList.add('collapsed');
-            this.toggleElement.style.transform = 'rotate(-90deg)';
-        }
-
-        // Create content
-        if (this.contentCreator) {
-            this.contentCreator(this.contentElement);
-        }
-
-        this.section.appendChild(this.contentElement);
-
-        // Add to container if provided
-        if (this.container) {
-            this.container.appendChild(this.section);
-        }
-
-        return this.section;
-    }
-
-    /**
-     * Toggle the section expanded/collapsed state
-     */
-    toggle() {
-        this.isExpanded = !this.isExpanded;
-
-        if (this.isExpanded) {
-            this.contentElement.classList.remove('collapsed');
-            this.toggleElement.style.transform = 'rotate(0deg)';
-        } else {
-            this.contentElement.classList.add('collapsed');
-            this.toggleElement.style.transform = 'rotate(-90deg)';
-        }
-
-        // Execute callback if provided
-        if (this.onToggle) {
-            this.onToggle(this.isExpanded);
-        }
-    }
-
-    /**
-     * Get the current expanded state
-     * @returns {Boolean} True if expanded, false if collapsed
-     */
-    getState() {
-        return this.isExpanded;
-    }
-
-    /**
-     * Set the expanded state
-     * @param {Boolean} expanded - Whether the section should be expanded
-     */
-    setState(expanded) {
-        if (this.isExpanded !== expanded) {
-            this.toggle();
+            // Still set up observer to catch elements when they do appear
+            setupDOMObserver();
         }
     }
 }
@@ -3729,9 +3587,9 @@ class ControlPanel {
 // Script initialization
 Logger.log("Script loaded, waiting for page to be ready");
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', WallapopExpandDescription.init.bind(WallapopExpandDescription));
+    document.addEventListener('DOMContentLoaded', WallapopEnhancedTools.init.bind(WallapopEnhancedTools));
     Logger.log("Added DOMContentLoaded event listener");
 } else {
     Logger.log("Document already loaded, initializing script immediately");
-    WallapopExpandDescription.init();
+    WallapopEnhancedTools.init();
 }
