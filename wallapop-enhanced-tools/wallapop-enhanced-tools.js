@@ -1812,80 +1812,41 @@ class ControlPanel {
                     container: content
                 });
 
-                // Create progress container
-                const progressContainer = document.createElement('div');
-                progressContainer.className = 'expand-progress-container';
-                progressContainer.style.display = 'none';
-                progressContainer.style.marginTop = '10px';
+                // Create progress bar using ProgressBar component
+                this.progressBar = new ProgressBar({
+                    initialValue: 0,
+                    className: 'reusable-progress',
+                    theme: 'primary',
+                    showText: true,
+                    showLabel: true,
+                    label: TranslationManager.getText('expandingProgress').replace('{current}', '0').replace('{total}', '0'),
+                    container: content
+                });
 
-                // Create progress text
-                const progressText = document.createElement('div');
-                progressText.className = 'expand-progress-text';
-                progressText.style.fontSize = '12px';
-                progressText.style.marginBottom = '5px';
-                progressText.style.textAlign = 'center';
-                progressContainer.appendChild(progressText);
+                // Hide progress bar initially
+                this.progressBar.setVisible(false);
 
-                // Create progress bar
-                const progressBar = document.createElement('div');
-                progressBar.className = 'expand-progress-bar';
-                progressBar.style.height = '5px';
-                progressBar.style.backgroundColor = '#eee';
-                progressBar.style.borderRadius = '3px';
-                progressBar.style.overflow = 'hidden';
-
-                const progressFill = document.createElement('div');
-                progressFill.className = 'expand-progress-fill';
-                progressFill.style.height = '100%';
-                progressFill.style.backgroundColor = 'var(--panel-accent-color)';
-                progressFill.style.width = '0%';
-                progressFill.style.transition = 'width 0.3s ease-in-out';
-
-                progressBar.appendChild(progressFill);
-                progressContainer.appendChild(progressBar);
-                content.appendChild(progressContainer);
-
-                // Add delay option
-                const delayContainer = document.createElement('div');
-                delayContainer.style.marginTop = '10px';
-                delayContainer.style.fontSize = '12px';
-
-                const delayLabel = document.createElement('label');
+                // Add delay slider using Slider component
+                const delayLabel = document.createElement('div');
                 delayLabel.textContent = TranslationManager.getText('delayBetweenRequests');
-                delayLabel.htmlFor = 'expand-delay-input';
-                delayLabel.style.display = 'block';
-                delayLabel.style.marginBottom = '5px';
-                delayContainer.appendChild(delayLabel);
+                delayLabel.style.marginTop = '10px';
+                delayLabel.style.fontSize = '14px';
+                content.appendChild(delayLabel);
 
-                const delayInput = document.createElement('input');
-                delayInput.id = 'expand-delay-input';
-                delayInput.type = 'range';
-                delayInput.min = '500';
-                delayInput.max = '3000';
-                delayInput.step = '100';
-                delayInput.value = this.loadPanelState('expandAllDelay', '1000');
-                delayInput.style.width = '100%';
-
-                // Add event listener to save the delay value
-                delayInput.addEventListener('change', () => {
-                    this.savePanelState('expandAllDelay', delayInput.value);
+                this.delaySlider = new Slider({
+                    min: 500,
+                    max: 3000,
+                    step: 100,
+                    value: this.loadPanelState('expandAllDelay', 1000),
+                    className: 'reusable-slider',
+                    theme: 'primary',
+                    showValue: true,
+                    valueSuffix: 'ms',
+                    onChange: (value) => {
+                        this.savePanelState('expandAllDelay', value);
+                    },
+                    container: content
                 });
-
-                delayContainer.appendChild(delayInput);
-
-                // Display the current delay value
-                const delayValue = document.createElement('div');
-                delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
-                delayValue.style.textAlign = 'center';
-                delayValue.style.marginTop = '5px';
-
-                // Update displayed value when slider moves
-                delayInput.addEventListener('input', () => {
-                    delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
-                });
-
-                delayContainer.appendChild(delayValue);
-                content.appendChild(delayContainer);
             }
         });
 
@@ -1918,15 +1879,16 @@ class ControlPanel {
         // Get the delay setting
         const delay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
 
-        // Get progress elements
-        const expandAllButton = document.querySelector('.expand-all-button');
-        const progressContainer = document.querySelector('.expand-progress-container');
-        const progressText = document.querySelector('.expand-progress-text');
-        const progressFill = document.querySelector('.expand-progress-fill');
-
-        // Update UI to show progress
+        // Get expand all button and show progress bar
+        const expandAllButton = document.querySelector('#expand-all-button');
         if (expandAllButton) expandAllButton.disabled = true;
-        if (progressContainer) progressContainer.style.display = 'block';
+
+        // Show and initialize progress bar
+        this.progressBar.setVisible(true);
+        this.progressBar.setLabel(TranslationManager.getText('expandingProgress')
+            .replace('{current}', '0')
+            .replace('{total}', totalButtons.toString()));
+        this.progressBar.setValue(0);
 
         let expanded = 0;
         let errors = 0;
@@ -1934,15 +1896,11 @@ class ControlPanel {
         // Process buttons one at a time
         for (const button of allExpandButtons) {
             // Update progress
-            if (progressText) {
-                progressText.textContent = TranslationManager.getText('expandingProgress')
-                    .replace('{current}', expanded + 1)
-                    .replace('{total}', totalButtons);
-            }
+            this.progressBar.setLabel(TranslationManager.getText('expandingProgress')
+                .replace('{current}', (expanded + 1).toString())
+                .replace('{total}', totalButtons.toString()));
 
-            if (progressFill) {
-                progressFill.style.width = `${(expanded / totalButtons) * 100}%`;
-            }
+            this.progressBar.setValue((expanded / totalButtons) * 100);
 
             try {
                 // Click the button to expand
@@ -1958,14 +1916,12 @@ class ControlPanel {
             }
         }
 
-        // Update UI when finished
-        if (progressFill) progressFill.style.width = '100%';
-        if (progressText) {
-            progressText.textContent = TranslationManager.getText('expandingComplete')
-                .replace('{count}', expanded)
-                .replace('{total}', totalButtons)
-                .replace('{errors}', errors);
-        }
+        // Update progress bar to complete
+        this.progressBar.setValue(100);
+        this.progressBar.setLabel(TranslationManager.getText('expandingComplete')
+            .replace('{count}', expanded.toString())
+            .replace('{total}', totalButtons.toString())
+            .replace('{errors}', errors.toString()));
 
         // Re-enable the button after 2 seconds
         setTimeout(() => {
@@ -1973,7 +1929,7 @@ class ControlPanel {
 
             // Hide progress after 5 seconds
             setTimeout(() => {
-                if (progressContainer) progressContainer.style.display = 'none';
+                this.progressBar.setVisible(false);
             }, 3000);
         }, 2000);
     }
@@ -2010,14 +1966,28 @@ class ControlPanel {
      * Show a message in the expand all section
      */
     static showExpandAllMessage(message) {
-        const expandAllButton = document.querySelector('.expand-all-button');
-        if (expandAllButton) {
-            const originalText = expandAllButton.textContent;
-            expandAllButton.textContent = message;
+        const expandAllButton = document.querySelector('#expand-all-button');
+        if (expandAllButton && expandAllButton instanceof HTMLElement) {
+            // Find the Button component and use its methods
+            const buttonComponents = Object.values(this.togglers.expandAll.section.querySelectorAll('.reusable-button'))
+                .filter(btn => btn.id === 'expand-all-button');
 
-            setTimeout(() => {
-                expandAllButton.textContent = originalText;
-            }, 2000);
+            if (buttonComponents.length > 0 && buttonComponents[0].setText) {
+                const originalText = buttonComponents[0].getText ? buttonComponents[0].getText() : TranslationManager.getText('expandAllVisible');
+                buttonComponents[0].setText(message);
+
+                setTimeout(() => {
+                    buttonComponents[0].setText(originalText);
+                }, 2000);
+            } else {
+                // Fallback if Button component not found
+                const originalText = expandAllButton.textContent;
+                expandAllButton.textContent = message;
+
+                setTimeout(() => {
+                    expandAllButton.textContent = originalText;
+                }, 2000);
+            }
         }
     }
 
