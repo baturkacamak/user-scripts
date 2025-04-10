@@ -5,15 +5,21 @@
   "author": "Batur Kacamak",
   "license": "ISC",
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "chokidar": "^4.0.3",
     "eslint": "^7.32.0",
     "eslint-config-google": "^0.14.0",
     "eslint-plugin-import": "^2.22.0",
-    "eslint-plugin-sort-class-members": "^1.7.0"
+    "eslint-plugin-sort-class-members": "^1.7.0",
+    "rollup": "^4.39.0",
+    "rollup-plugin-userscript-metablock": "^0.4.2"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "5.0.0"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "node build.js",
+    "watch": "node build.js --watch"
   }
 }
