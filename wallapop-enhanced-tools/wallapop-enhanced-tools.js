@@ -8,7 +8,6 @@ if (typeof GM_addStyle === 'undefined') {
     };
 }
 
-
 if (typeof GM_xmlhttpRequest === 'undefined') {
     window.GM_xmlhttpRequest = function (details) {
         const xhr = new XMLHttpRequest();
@@ -482,17 +481,17 @@ class StyleManager {
         .hiding-animation {
             animation: fadeOut 0.5s ease-in-out forwards;
         }
-        
+
         /* Export Format Styles */
         .export-section {
             position: relative;
         }
-        
+
         .format-selector-container {
             position: relative;
             margin-top: 10px;
         }
-        
+
         .format-selector {
             width: 100%;
             padding: 8px 12px;
@@ -504,7 +503,7 @@ class StyleManager {
             text-align: left;
             position: relative;
         }
-        
+
         .format-selector:after {
             content: '▼';
             position: absolute;
@@ -512,7 +511,7 @@ class StyleManager {
             top: 50%;
             transform: translateY(-50%);
         }
-        
+
         .format-dropdown {
             position: absolute;
             width: 100%;
@@ -524,51 +523,51 @@ class StyleManager {
             z-index: 10;
             transition: max-height var(--transition-speed) var(--transition-easing);
         }
-        
+
         .format-dropdown.active {
             max-height: 300px;
             overflow-y: auto;
             border: 1px solid #ccc;
         }
-        
+
         .format-categories {
             list-style: none;
             padding: 0;
             margin: 0;
         }
-        
+
         .format-category-label {
             padding: 8px 12px;
             font-weight: bold;
             background-color: #f5f5f5;
             border-bottom: 1px solid #eee;
         }
-        
+
         .format-list {
             list-style: none;
             padding: 0;
             margin: 0;
         }
-        
+
         .format-item {
             position: relative;
             cursor: pointer;
         }
-        
+
         .format-label {
             padding: 8px 12px 8px 20px;
             border-bottom: 1px solid #eee;
         }
-        
+
         .format-item.selected .format-label {
             background-color: #e0f0f0;
             color: var(--panel-accent-color);
         }
-        
+
         .format-item:hover .format-label {
             background-color: #f0f0f0;
         }
-        
+
         .options-toggle {
             position: absolute;
             right: 10px;
@@ -581,32 +580,32 @@ class StyleManager {
             cursor: pointer;
             padding: 4px;
         }
-        
+
         .format-options {
             padding: 5px 10px;
             background-color: #f9f9f9;
             border-bottom: 1px solid #eee;
         }
-        
+
         .format-options.hidden {
             display: none;
         }
-        
+
         .option-row {
             display: flex;
             align-items: center;
             margin: 5px 0;
         }
-        
+
         .option-checkbox {
             margin-right: 8px;
         }
-        
+
         .option-label {
             font-size: 12px;
             color: #555;
         }
-        
+
         .export-button {
             display: block;
             background-color: var(--panel-accent-color);
@@ -621,31 +620,70 @@ class StyleManager {
             text-align: center;
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
-        
+
         .export-button:hover {
             background-color: var(--panel-hover-color);
         }
-        
+
         .export-success {
             background-color: #4CAF50;
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
-        
+
         .export-buttons-container {
             display: flex;
             gap: 10px;
             margin-top: 10px;
         }
-        
+
         .export-buttons-container .export-button {
             flex: 1;
         }
-        
+
         .downloaded {
             background-color: #4CAF50;
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
-        
+
+           .expand-progress-container {
+                margin-top: 10px;
+                padding: 5px;
+                background-color: #f9f9f9;
+                border-radius: 4px;
+            }
+
+            input[type="range"] {
+                -webkit-appearance: none;
+                width: 100%;
+                height: 5px;
+                border-radius: 5px;
+                background: #d3d3d3;
+                outline: none;
+            }
+
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 15px;
+                height: 15px;
+                border-radius: 50%;
+                background: var(--panel-accent-color);
+                cursor: pointer;
+            }
+
+            input[type="range"]::-moz-range-thumb {
+                width: 15px;
+                height: 15px;
+                border-radius: 50%;
+                background: var(--panel-accent-color);
+                cursor: pointer;
+            }
+
+            .panel-button:disabled {
+                background-color: #cccccc;
+                cursor: not-allowed;
+            }
+
 /* Select box styling */
 .delivery-method-select {
   width: 100%;
@@ -1435,11 +1473,11 @@ class DOMObserver {
             if (mutation.type === 'childList') {
                 const addedNodes = Array.from(mutation.addedNodes);
                 const hasNewItemCards = addedNodes.some(node =>
-                    node.nodeType === Node.ELEMENT_NODE &&
-                    SELECTORS.ITEM_CARDS.some(selector =>
-                        node.matches(selector) || node.querySelector(selector)
-                    )
-                );
+                                                        node.nodeType === Node.ELEMENT_NODE &&
+                                                        SELECTORS.ITEM_CARDS.some(selector =>
+                                                                                  node.matches(selector) || node.querySelector(selector)
+                                                                                 )
+                                                       );
                 if (hasNewItemCards) {
                     Logger.log("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
@@ -2032,6 +2070,239 @@ class ControlPanel {
     }
 
     /**
+     * Create a new "Expand All" section in the control panel
+     */
+    static createExpandAllSection(container) {
+        // Load saved state
+        const isExpanded = this.loadPanelState('isExpandAllSectionExpanded', true);
+
+        this.togglers.expandAll = new SectionToggler({
+            container,
+            sectionClass: 'expand-all',
+            titleText: TranslationManager.getText('expandAllDescriptions'),
+            isExpanded,
+            onToggle: (state) => {
+                this.savePanelState('isExpandAllSectionExpanded', state);
+            },
+            contentCreator: (content) => {
+                // Create the expand all button
+                const expandAllButton = this.createButton(
+                    TranslationManager.getText('expandAllVisible'),
+                    'panel-button expand-all-button',
+                    () => this.handleExpandAll()
+                );
+                content.appendChild(expandAllButton);
+
+                // Create progress container
+                const progressContainer = document.createElement('div');
+                progressContainer.className = 'expand-progress-container';
+                progressContainer.style.display = 'none';
+                progressContainer.style.marginTop = '10px';
+
+                // Create progress text
+                const progressText = document.createElement('div');
+                progressText.className = 'expand-progress-text';
+                progressText.style.fontSize = '12px';
+                progressText.style.marginBottom = '5px';
+                progressText.style.textAlign = 'center';
+                progressContainer.appendChild(progressText);
+
+                // Create progress bar
+                const progressBar = document.createElement('div');
+                progressBar.className = 'expand-progress-bar';
+                progressBar.style.height = '5px';
+                progressBar.style.backgroundColor = '#eee';
+                progressBar.style.borderRadius = '3px';
+                progressBar.style.overflow = 'hidden';
+
+                const progressFill = document.createElement('div');
+                progressFill.className = 'expand-progress-fill';
+                progressFill.style.height = '100%';
+                progressFill.style.backgroundColor = 'var(--panel-accent-color)';
+                progressFill.style.width = '0%';
+                progressFill.style.transition = 'width 0.3s ease-in-out';
+
+                progressBar.appendChild(progressFill);
+                progressContainer.appendChild(progressBar);
+                content.appendChild(progressContainer);
+
+                // Add delay option
+                const delayContainer = document.createElement('div');
+                delayContainer.style.marginTop = '10px';
+                delayContainer.style.fontSize = '12px';
+
+                const delayLabel = document.createElement('label');
+                delayLabel.textContent = TranslationManager.getText('delayBetweenRequests');
+                delayLabel.htmlFor = 'expand-delay-input';
+                delayLabel.style.display = 'block';
+                delayLabel.style.marginBottom = '5px';
+                delayContainer.appendChild(delayLabel);
+
+                const delayInput = document.createElement('input');
+                delayInput.id = 'expand-delay-input';
+                delayInput.type = 'range';
+                delayInput.min = '500';
+                delayInput.max = '3000';
+                delayInput.step = '100';
+                delayInput.value = this.loadPanelState('expandAllDelay', '1000');
+                delayInput.style.width = '100%';
+
+                // Add event listener to save the delay value
+                delayInput.addEventListener('change', () => {
+                    this.savePanelState('expandAllDelay', delayInput.value);
+                });
+
+                delayContainer.appendChild(delayInput);
+
+                // Display the current delay value
+                const delayValue = document.createElement('div');
+                delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
+                delayValue.style.textAlign = 'center';
+                delayValue.style.marginTop = '5px';
+
+                // Update displayed value when slider moves
+                delayInput.addEventListener('input', () => {
+                    delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
+                });
+
+                delayContainer.appendChild(delayValue);
+                content.appendChild(delayContainer);
+            }
+        });
+
+        return this.togglers.expandAll.section;
+    }
+
+    /**
+     * Expand all visible descriptions sequentially
+     */
+    static async handleExpandAll() {
+        // Find all unexpanded descriptions that are visible (not filtered)
+        const allExpandButtons = Array.from(document.querySelectorAll(SELECTORS.EXPAND_BUTTON))
+        .filter(button => {
+            // Only include buttons that are for expanding (not hiding)
+            const isExpandButton = button.textContent === TranslationManager.getText('expandDescription');
+            // Only include buttons for listings that are visible (not filtered out)
+            const listing = this.getListingFromButton(button);
+            const isVisible = listing && !listing.classList.contains('hidden-item');
+
+            return isExpandButton && isVisible;
+        });
+
+        const totalButtons = allExpandButtons.length;
+
+        if (totalButtons === 0) {
+            this.showExpandAllMessage(TranslationManager.getText('noDescriptionsToExpand'));
+            return;
+        }
+
+        // Get the delay setting
+        const delay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
+
+        // Get progress elements
+        const expandAllButton = document.querySelector('.expand-all-button');
+        const progressContainer = document.querySelector('.expand-progress-container');
+        const progressText = document.querySelector('.expand-progress-text');
+        const progressFill = document.querySelector('.expand-progress-fill');
+
+        // Update UI to show progress
+        if (expandAllButton) expandAllButton.disabled = true;
+        if (progressContainer) progressContainer.style.display = 'block';
+
+        let expanded = 0;
+        let errors = 0;
+
+        // Process buttons one at a time
+        for (const button of allExpandButtons) {
+            // Update progress
+            if (progressText) {
+                progressText.textContent = TranslationManager.getText('expandingProgress')
+                    .replace('{current}', expanded + 1)
+                    .replace('{total}', totalButtons);
+            }
+
+            if (progressFill) {
+                progressFill.style.width = `${(expanded / totalButtons) * 100}%`;
+            }
+
+            try {
+                // Click the button to expand
+                button.click();
+
+                // Wait for the specified delay
+                await new Promise(resolve => setTimeout(resolve, delay));
+
+                expanded++;
+            } catch (error) {
+                Logger.error(error, "Expanding description in sequence");
+                errors++;
+            }
+        }
+
+        // Update UI when finished
+        if (progressFill) progressFill.style.width = '100%';
+        if (progressText) {
+            progressText.textContent = TranslationManager.getText('expandingComplete')
+                .replace('{count}', expanded)
+                .replace('{total}', totalButtons)
+                .replace('{errors}', errors);
+        }
+
+        // Re-enable the button after 2 seconds
+        setTimeout(() => {
+            if (expandAllButton) expandAllButton.disabled = false;
+
+            // Hide progress after 5 seconds
+            setTimeout(() => {
+                if (progressContainer) progressContainer.style.display = 'none';
+            }, 3000);
+        }, 2000);
+    }
+
+    /**
+     * Get the listing element that contains the button
+     */
+    static getListingFromButton(button) {
+        // Traverse up to find the listing container
+        let element = button;
+
+        // Check SELECTORS.ITEM_CARDS selectors to find which one matches
+        for (let i = 0; i < 10; i++) {  // Limit to 10 levels to avoid infinite loop
+            element = element.parentElement;
+
+            if (!element) break;
+
+            const matchesSelector = SELECTORS.ITEM_CARDS.some(selector => {
+                // Remove the prefix if it's a child selector
+                const simpleSelector = selector.includes(' ')
+                ? selector.split(' ').pop()
+                : selector;
+
+                return element.matches(simpleSelector);
+            });
+
+            if (matchesSelector) return element;
+        }
+
+        return null;
+    }
+
+    /**
+     * Show a message in the expand all section
+     */
+    static showExpandAllMessage(message) {
+        const expandAllButton = document.querySelector('.expand-all-button');
+        if (expandAllButton) {
+            const originalText = expandAllButton.textContent;
+            expandAllButton.textContent = message;
+
+            setTimeout(() => {
+                expandAllButton.textContent = originalText;
+            }, 2000);
+        }
+    }
+
+    /**
      * Create the filter section
      */
     static createFilterSection(container) {
@@ -2505,20 +2776,20 @@ class ControlPanel {
 
         // Check for shipping badge in shadow DOM
         const hasShippingBadge = shadowRoots.some(root =>
-            root.querySelector('.wallapop-badge--shippingAvailable') !== null ||
-            root.querySelector('[class*="wallapop-badge"][class*="shippingAvailable"]') !== null
-        );
+                                                  root.querySelector('.wallapop-badge--shippingAvailable') !== null ||
+                                                  root.querySelector('[class*="wallapop-badge"][class*="shippingAvailable"]') !== null
+                                                 );
 
         // Check for in-person badge in shadow DOM
         const hasInPersonBadge = shadowRoots.some(root =>
-            root.querySelector('.wallapop-badge--faceToFace') !== null ||
-            root.querySelector('[class*="wallapop-badge"][class*="faceToFace"]') !== null
-        );
+                                                  root.querySelector('.wallapop-badge--faceToFace') !== null ||
+                                                  root.querySelector('[class*="wallapop-badge"][class*="faceToFace"]') !== null
+                                                 );
 
         // Text fallback as a last resort
         const shippingText = listing.textContent.includes('Envío disponible');
         const inPersonText = listing.textContent.includes('Sólo venta en persona') ||
-            listing.textContent.includes('Solo venta en persona');
+              listing.textContent.includes('Solo venta en persona');
 
         // Determine delivery method
         if (hasShippingBadge || (!hasInPersonBadge && shippingText)) {
@@ -2529,11 +2800,11 @@ class ControlPanel {
             // Add additional fallback based on HTML structure
             // Check if there's an icon that might indicate shipping or in-person
             const hasShippingIcon = shadowRoots.some(root =>
-                root.querySelector('walla-icon[class*="shipping"]') !== null
-            );
+                                                     root.querySelector('walla-icon[class*="shipping"]') !== null
+                                                    );
             const hasInPersonIcon = shadowRoots.some(root =>
-                root.querySelector('walla-icon[class*="faceToFace"]') !== null
-            );
+                                                     root.querySelector('walla-icon[class*="faceToFace"]') !== null
+                                                    );
 
             if (hasShippingIcon) {
                 return 'shipping';
@@ -2665,7 +2936,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     return item.images && item.images.length > 0
                         ? `"${item.images.join('|')}"`
-                        : '""';
+                    : '""';
                 } else {
                     // Escape double quotes and wrap values in quotes
                     const value = item[column] !== undefined ? String(item[column]) : '';
@@ -2703,7 +2974,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     return item.images && item.images.length > 0
                         ? item.images.join('|')
-                        : '';
+                    : '';
                 } else {
                     // Replace tabs with spaces for TSV compatibility
                     const value = item[column] !== undefined ? String(item[column]) : '';
@@ -2895,7 +3166,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     return item.images && item.images.length > 0
                         ? `"${item.images.join('|')}"`
-                        : '""';
+                    : '""';
                 } else {
                     // Escape double quotes and wrap values in quotes
                     const value = item[column] !== undefined ? String(item[column]) : '';
@@ -2977,7 +3248,7 @@ class ControlPanel {
                     // Join multiple image URLs with pipe character if they exist
                     value = item.images && item.images.length > 0
                         ? item.images.join('|')
-                        : '';
+                    : '';
                 } else {
                     value = item[column] !== undefined ? String(item[column]) : '';
                 }
@@ -3018,7 +3289,7 @@ class ControlPanel {
         return xml;
     }
 
-// Helper methods for HTML and XML escaping
+    // Helper methods for HTML and XML escaping
     static escapeHtml(str) {
         return String(str)
             .replace(/&/g, '&amp;')
@@ -3089,7 +3360,7 @@ class ControlPanel {
     /**
      * Create the main control panel
      */
-    static createControlPanel() {
+   static createControlPanel() {
         // Create control panel if it doesn't exist
         if (!this.container) {
             this.container = document.createElement('div');
@@ -3131,9 +3402,10 @@ class ControlPanel {
                 contentContainer.classList.add('collapsed');
             }
 
-            // Add all sections to content container including the new delivery method section
+            // Add all sections to content container, including the new Expand All section
+            this.createExpandAllSection(contentContainer); // Add the new Expand All section first
             this.createFilterSection(contentContainer);
-            this.createDeliveryMethodSection(contentContainer); // Add the new filter section
+            this.createDeliveryMethodSection(contentContainer);
             this.createCopySection(contentContainer);
             this.createLanguageSection(contentContainer);
 
