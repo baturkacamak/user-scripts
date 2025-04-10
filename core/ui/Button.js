@@ -344,6 +344,10 @@ class Button {
     this.size = size;
     this.button.className = this.getButtonClasses();
   }
+
+  getText() {
+    return this.text;
+  }
 }
 
 // Static property to track if styles have been initialized
