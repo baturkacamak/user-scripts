@@ -21,8 +21,7 @@
     "start": "node server.js",
     "build": "node build.js",
     "watch": "node build.js --watch",
-    "build:wallapop": "node build.js --dir wallapop-enhanced-tools",
-    "analyze": "node build.js --analyze --dir",
-    "analyze:wallapop": "node build.js --analyze --dir wallapop-enhanced-tools"
+    "watch:verbose": "node build.js --watch --verbose",
+    "build:wallapop": "node build.js --dir wallapop-enhanced-tools"
   }
 }
