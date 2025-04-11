@@ -584,7 +584,7 @@
      * Handles expand/collapse functionality with transitions
      */
 
-    class SectionToggler {
+    let SectionToggler$1 = class SectionToggler {
       /**
          * Initialize styles for all section togglers
          */
@@ -801,115 +801,13 @@
         filteredClasses.push(`reusable-section--${this.theme}`);
         this.section.className = filteredClasses.join(' ');
       }
-    }
+    };
 
     // Static property to track if styles have been initialized
-    SectionToggler.stylesInitialized = false;
+    SectionToggler$1.stylesInitialized = false;
 
     // Initialize styles when imported
-    SectionToggler.initStyles();
-
-    /**
-     * DOMObserver - Observes DOM changes and triggers callbacks
-     * Useful for watching for dynamic content loading
-     */
-    alert('asdasd');
-
-    class DOMObserver {
-      /**
-         * Wait for elements matching a selector
-         * @param {string} selector - CSS selector to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @return {Promise<NodeList>} - Promise resolving to found elements
-         */
-      static waitForElements(selector, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-
-          function checkElements() {
-            const elements = document.querySelectorAll(selector);
-            if (0 < elements.length) {
-              resolve(elements);
-              return;
-            }
-
-            if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selector}`));
-              return;
-            }
-
-            requestAnimationFrame(checkElements);
-          }
-
-          checkElements();
-        });
-      }
-      /**
-         * Create a new DOMObserver
-         * @param {Function} onMutation - Callback for handling mutations
-         * @param {Function} onUrlChange - Callback for handling URL changes
-         */
-      constructor(onMutation, onUrlChange) {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-        this.onMutation = onMutation;
-        this.onUrlChange = onUrlChange;
-      }
-
-
-      /**
-         * Start observing DOM changes
-         * @param {HTMLElement} target - Element to observe (defaults to document.body)
-         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
-         */
-      observe(target = document.body, config = {childList: true, subtree: true}) {
-        this.observer.observe(target, config);
-        window.addEventListener('popstate', this.handleUrlChange.bind(this));
-      }
-
-      /**
-         * Stop observing DOM changes
-         */
-      disconnect() {
-        this.observer.disconnect();
-        window.removeEventListener('popstate', this.handleUrlChange.bind(this));
-      }
-
-      /**
-         * Handle mutations
-         * @param {MutationRecord[]} mutations - Array of mutation records
-         * @private
-         */
-      handleMutations(mutations) {
-        if (this.onMutation) {
-          this.onMutation(mutations);
-        }
-        this.checkUrlChange();
-      }
-
-      /**
-         * Check if URL has changed
-         * @private
-         */
-      checkUrlChange() {
-        if (this.lastUrl !== location.href) {
-          const oldUrl = this.lastUrl;
-          this.lastUrl = location.href;
-          this.handleUrlChange(oldUrl);
-        }
-      }
-
-      /**
-         * Handle URL changes
-         * @param {string} oldUrl - Previous URL before change
-         * @private
-         */
-      handleUrlChange(oldUrl) {
-        if (this.onUrlChange) {
-          this.onUrlChange(location.href, oldUrl);
-        }
-      }
-    }
+    SectionToggler$1.initStyles();
 
     /**
      * SelectBox - A reusable UI component for dropdown selects
@@ -2292,45 +2190,6 @@
             outline: none;
         }
 
-        .panel-button {
-            display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 12px;
-            margin-top: 10px;
-            cursor: pointer;
-            font-size: 14px;
-            width: 100%;
-            text-align: center;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .panel-button:hover,
-        .copy-button:hover {
-            background-color: var(--panel-hover-color);
-        }
-
-        .copy-button {
-            display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 12px;
-            cursor: pointer;
-            font-size: 14px;
-            width: 100%;
-            text-align: left;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .copy-success {
-            background-color: #4CAF50;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
         .blocked-terms-list {
             max-height: 150px;
             overflow-y: auto;
@@ -3065,48 +2924,6 @@
         storageKey: 'wallapop-language'
     });
 
-    const setupDOMObserver = () => {
-        const observer = new DOMObserver(
-            // Mutation callback
-            (mutations) => {
-                for (let mutation of mutations) {
-                    if (mutation.type === 'childList') {
-                        const addedNodes = Array.from(mutation.addedNodes);
-                        const hasNewItemCards = addedNodes.some(node =>
-                            node.nodeType === Node.ELEMENT_NODE &&
-                            SELECTORS.ITEM_CARDS.some(selector =>
-                                node.matches(selector) || node.querySelector(selector)
-                            )
-                        );
-
-                        if (hasNewItemCards) {
-                            Logger.log("New ItemCards detected, adding expand buttons");
-                            ListingManager.addExpandButtonsToListings();
-
-                            // Apply filters to new listings
-                            ControlPanel.applyFilters();
-                        }
-                    }
-                }
-            },
-
-            // URL change callback
-            (newUrl, oldUrl) => {
-                Logger.log("URL changed:", newUrl);
-                setTimeout(() => {
-                    ListingManager.addExpandButtonsToListings();
-                    // Apply filters after URL change
-                    ControlPanel.applyFilters();
-                }, 1000); // Delay to allow for dynamic content to load
-            }
-        );
-
-        // Start observing
-        observer.observe();
-
-        return observer;
-    };
-
     class DescriptionFetcher {
         static async getDescription(url) {
             Logger.log("Fetching description for URL:", url);
@@ -3337,43 +3154,19 @@
 
         createButton() {
             Logger.log("Creating expand button for URL:", this.url);
+            this.button = document.createElement('button');
+            this.button.textContent = TranslationManager.getText('expandDescription');
+            this.button.className = SELECTORS.EXPAND_BUTTON.slice(1); // Remove the leading dot
 
-            // Create description content container first
             this.descriptionContent = document.createElement('div');
             this.descriptionContent.className = 'description-content';
 
-            // Create container for the button and content
+            this.button.addEventListener('click', this.handleClick.bind(this));
+
             const container = document.createElement('div');
-
-            // Use Button component to create the expand button
-            this.buttonComponent = new Button({
-                text: TranslationManager.getText('expandDescription'),
-                className: 'reusable-button',
-                theme: 'default',
-                size: 'small',
-                onClick: (e) => this.handleClick(e),
-                attributes: {
-                    'data-url': this.url
-                }
-            });
-
-            // Set additional CSS to match the old style
-            this.buttonComponent.button.style.background = 'none';
-            this.buttonComponent.button.style.border = 'none';
-            this.buttonComponent.button.style.color = '#008080';
-            this.buttonComponent.button.style.textDecoration = 'underline';
-            this.buttonComponent.button.style.padding = '5px';
-            this.buttonComponent.button.style.fontSize = '12px';
-            this.buttonComponent.button.classList.add(SELECTORS.EXPAND_BUTTON.slice(1));
-
-            // Store reference to the actual button element
-            this.button = this.buttonComponent.button;
-
-            // Add elements to container
             container.appendChild(this.button);
             container.appendChild(this.descriptionContent);
 
-            // Add container to anchor element
             this.anchorElement.appendChild(container);
             Logger.log("Expand button added for URL:", this.url);
         }
@@ -3395,18 +3188,14 @@
         }
 
         async expandDescription() {
-            // Set to loading state
-            this.buttonComponent.setText(TranslationManager.getText('loading'));
-
+            this.button.textContent = TranslationManager.getText('loading');
             const result = await DescriptionFetcher.getDescription(this.url);
             if (result.success) {
                 this.itemData = result.data;
                 this.descriptionContent.innerHTML = HTMLUtils.escapeHTML(result.data.description);
                 // Use the class toggle approach for smooth transition
                 this.descriptionContent.classList.add('expanded');
-
-                // Update button text
-                this.buttonComponent.setText(TranslationManager.getText('hideDescription'));
+                this.button.textContent = TranslationManager.getText('hideDescription');
                 this.expanded = true;
 
                 // Add to global description manager
@@ -3429,8 +3218,7 @@
             };
             this.descriptionContent.addEventListener('transitionend', transitionEnded);
 
-            // Reset button text
-            this.buttonComponent.setText(TranslationManager.getText('expandDescription'));
+            this.button.textContent = TranslationManager.getText('expandDescription');
             this.expanded = false;
 
             // Remove from global description manager
@@ -3449,9 +3237,7 @@
             }
             this.descriptionContent.innerHTML = `<span class="error-message">${message}</span>`;
             this.descriptionContent.classList.add('expanded');
-
-            // Reset button text
-            this.buttonComponent.setText(TranslationManager.getText('expandDescription'));
+            this.button.textContent = TranslationManager.getText('expandDescription');
             this.expanded = false;
             Logger.log("Error displaying description for URL:", this.url, message);
         }
@@ -3492,6 +3278,58 @@
             });
 
             Logger.log("Total listings processed:", totalListings);
+        }
+    }
+
+    class DOMObserver {
+        constructor() {
+            this.observer = new MutationObserver(this.handleMutations.bind(this));
+            this.lastUrl = location.href;
+        }
+
+        observe() {
+            this.observer.observe(document.body, {childList: true, subtree: true});
+            window.addEventListener('popstate', this.handleUrlChange.bind(this));
+            Logger.log("MutationObserver and popstate listener set up");
+        }
+
+        handleMutations(mutations) {
+            for (let mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    const addedNodes = Array.from(mutation.addedNodes);
+                    const hasNewItemCards = addedNodes.some(node =>
+                        node.nodeType === Node.ELEMENT_NODE &&
+                        SELECTORS.ITEM_CARDS.some(selector =>
+                            node.matches(selector) || node.querySelector(selector)
+                        )
+                    );
+                    if (hasNewItemCards) {
+                        Logger.log("New ItemCards detected, adding expand buttons");
+                        ListingManager.addExpandButtonsToListings();
+
+                        // Apply filters to new listings
+                        ControlPanel.applyFilters();
+                    }
+                }
+            }
+            this.checkUrlChange();
+        }
+
+        checkUrlChange() {
+            if (this.lastUrl !== location.href) {
+                Logger.log("URL changed:", location.href);
+                this.lastUrl = location.href;
+                this.handleUrlChange();
+            }
+        }
+
+        handleUrlChange() {
+            Logger.log("Handling URL change");
+            setTimeout(() => {
+                ListingManager.addExpandButtonsToListings();
+                // Apply filters after URL change
+                ControlPanel.applyFilters();
+            }, 1000); // Delay to allow for dynamic content to load
         }
     }
 
@@ -3671,32 +3509,164 @@
         }
     }
 
-    class WallapopEnhancedTools {
+    class WallapopExpandDescription {
         static async init() {
             Logger.log("Initializing script");
+
+            // Load language preference first
+            TranslationManager.loadLanguagePreference();
+
+            StyleManager.addStyles();
 
             // Create unified control panel
             ControlPanel.createControlPanel();
 
-            // Wait for listing elements
-            try {
-                // Using static method from DOMObserver
-                await DOMObserver.waitForElements(SELECTORS.ITEM_CARDS.join(', '));
-                ListingManager.addExpandButtonsToListings();
+            await this.waitForElements(SELECTORS.ITEM_CARDS);
+            ListingManager.addExpandButtonsToListings();
 
-                // Apply filters to initial listings
-                ControlPanel.applyFilters();
+            // Apply filters to initial listings
+            ControlPanel.applyFilters();
 
-                // Set up DOM observation
-                setupDOMObserver();
+            new DOMObserver().observe();
+        }
 
-                Logger.log("Script initialized successfully");
-            } catch (error) {
-                Logger.error(error, "Initialization");
-                Logger.log("Continuing with partial initialization");
+        static waitForElements(selectors, timeout = 10000) {
+            Logger.log("Waiting for elements:", selectors);
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
 
-                // Still set up observer to catch elements when they do appear
-                setupDOMObserver();
+                function checkElements() {
+                    for (const selector of selectors) {
+                        const elements = document.querySelectorAll(selector);
+                        if (elements.length > 0) {
+                            Logger.log("Elements found:", selector, elements.length);
+                            resolve(elements);
+                            return;
+                        }
+                    }
+
+                    if (Date.now() - startTime > timeout) {
+                        Logger.log("Timeout waiting for elements");
+                        reject(new Error(`Timeout waiting for elements`));
+                    } else {
+                        requestAnimationFrame(checkElements);
+                    }
+                }
+
+                checkElements();
+            });
+        }
+    }
+
+    /**
+     * Reusable Toggler Component
+     * Handles section toggling with consistent behavior
+     */
+    class SectionToggler {
+        /**
+         * Create a new section toggler
+         * @param {Object} options - Configuration options
+         * @param {HTMLElement} options.container - Container element for the toggle section
+         * @param {String} options.sectionClass - Base class name for the section
+         * @param {String} options.titleText - Text to display in the section title
+         * @param {Boolean} options.isExpanded - Initial expanded state
+         * @param {Function} options.contentCreator - Function to create section content
+         * @param {Function} options.onToggle - Callback when toggle state changes
+         */
+        constructor(options) {
+            this.container = options.container;
+            this.sectionClass = options.sectionClass;
+            this.titleText = options.titleText;
+            this.isExpanded = options.isExpanded !== undefined ? options.isExpanded : true;
+            this.contentCreator = options.contentCreator;
+            this.onToggle = options.onToggle;
+
+            this.section = null;
+            this.toggleElement = null;
+            this.contentElement = null;
+
+            this.create();
+        }
+
+        /**
+         * Create the toggle section
+         * @returns {HTMLElement} The created section element
+         */
+        create() {
+            // Create section container
+            this.section = document.createElement('div');
+            this.section.className = `panel-section ${this.sectionClass}-section`;
+
+            // Create section title
+            const titleElement = document.createElement('div');
+            titleElement.className = 'section-title';
+            titleElement.innerHTML = `<span>${this.titleText}</span><span class="section-toggle">▼</span>`;
+            this.toggleElement = titleElement.querySelector('.section-toggle');
+
+            // Add toggle behavior
+            titleElement.addEventListener('click', () => this.toggle());
+            this.section.appendChild(titleElement);
+
+            // Create content container
+            this.contentElement = document.createElement('div');
+            this.contentElement.className = `section-content ${this.sectionClass}-content`;
+
+            // Apply initial state
+            if (!this.isExpanded) {
+                this.contentElement.classList.add('collapsed');
+                this.toggleElement.style.transform = 'rotate(-90deg)';
+            }
+
+            // Create content
+            if (this.contentCreator) {
+                this.contentCreator(this.contentElement);
+            }
+
+            this.section.appendChild(this.contentElement);
+
+            // Add to container if provided
+            if (this.container) {
+                this.container.appendChild(this.section);
+            }
+
+            return this.section;
+        }
+
+        /**
+         * Toggle the section expanded/collapsed state
+         */
+        toggle() {
+            this.isExpanded = !this.isExpanded;
+
+            if (this.isExpanded) {
+                this.contentElement.classList.remove('collapsed');
+                this.toggleElement.style.transform = 'rotate(0deg)';
+            } else {
+                this.contentElement.classList.add('collapsed');
+                this.toggleElement.style.transform = 'rotate(-90deg)';
+            }
+
+            // Execute callback if provided
+            if (this.onToggle) {
+                this.onToggle(this.isExpanded);
+            }
+        }
+
+        /**
+         * Get the current expanded state
+         * @returns {Boolean} True if expanded, false if collapsed
+         */
+        getState() {
+            return this.isExpanded;
+        }
+
+        /**
+         * Set the expanded state
+         * @param {Boolean} expanded - Whether the section should be expanded
+         */
+        setState(expanded) {
+            if (this.isExpanded !== expanded) {
+                this.toggle();
             }
         }
     }
@@ -3910,36 +3880,22 @@
         };
 
         /**
-         * Create a button using Button component
+         * Create a button with standard style
          */
-        static createButton(text, className, clickHandler, options = {}) {
-            let theme = 'primary';
-
-            // Detect theme from className
-            if (className.includes('danger') || className.includes('error')) {
-                theme = 'danger';
-            } else if (className.includes('success') || className.includes('copy-success')) {
-                theme = 'success';
-            } else if (className.includes('secondary')) {
-                theme = 'secondary';
-            }
-
-            // Create button with component
-            const button = new Button({
-                text,
-                className: 'reusable-button',
-                theme,
+        static createButton(text, className, clickHandler) {
+            const buttonInstance = new Button({
+                text: text,
+                className: className,
                 onClick: clickHandler,
-                successText: options.successText || null,
-                successDuration: options.successDuration || 1500,
-                attributes: options.attributes || {}
+                theme: 'primary',
+                size: 'medium'
             });
 
-            return button.button;
+            return buttonInstance.button;
         }
 
         /**
-         * Create the expand all section with Button component
+         * Create a new "Expand All" section in the control panel
          */
         static createExpandAllSection(container) {
             // Load saved state
@@ -3954,15 +3910,15 @@
                     this.savePanelState('isExpandAllSectionExpanded', state);
                 },
                 contentCreator: (content) => {
-                    // Create the expand all button with Button component
-                    new Button({
+                    // Create the expand all button
+                    const expandAllButton = new Button({
                         text: TranslationManager.getText('expandAllVisible'),
-                        className: 'reusable-button',
-                        theme: 'primary',
-                        id: 'expand-all-button',
+                        className: 'panel-button expand-all-button',
                         onClick: () => this.handleExpandAll(),
-                        container: content
+                        theme: 'primary',
+                        size: 'medium'
                     });
+                    content.appendChild(expandAllButton.button);
 
                     // Create progress container
                     const progressContainer = document.createElement('div');
@@ -4174,7 +4130,7 @@
         }
 
         /**
-         * Create the filter section with Button component
+         * Create the filter section
          */
         static createFilterSection(container) {
             // Load saved state
@@ -4203,15 +4159,15 @@
 
                     content.appendChild(this.filterInputElement);
 
-                    // Apply button using Button component
-                    new Button({
+                    // Apply button
+                    const applyButton = new Button({
                         text: TranslationManager.getText('addAndApply'),
-                        className: 'reusable-button',
-                        theme: 'primary',
-                        size: 'medium',
+                        className: 'panel-button filter-apply',
                         onClick: () => this.addBlockedTerm(),
-                        container: content
+                        theme: 'primary',
+                        size: 'medium'
                     });
+                    content.appendChild(applyButton.button);
 
                     // Create list for blocked terms
                     this.blockedTermsListElement = document.createElement('div');
@@ -4224,7 +4180,7 @@
         }
 
         /**
-         * Create the copy section with Button components
+         * Create the copy section
          */
         static createCopySection(container) {
             // Load saved state
@@ -4341,45 +4297,42 @@
                     exportButtonsContainer.style.gap = '10px';
                     exportButtonsContainer.style.marginTop = '10px';
 
-                    // Copy button using Button component
+                    // Copy button
                     const copyButton = new Button({
                         text: TranslationManager.getText('copyToClipboard'),
-                        className: 'reusable-button',
-                        theme: 'primary',
-                        size: 'medium',
+                        className: 'export-button',
                         onClick: () => this.copyToClipboard(),
-                        successText: TranslationManager.getText('copied'),
-                        container: exportButtonsContainer
+                        theme: 'primary',
+                        size: 'medium'
                     });
                     copyButton.button.style.flex = '1';
 
-                    // Download button using Button component
+                    // Download button
                     const downloadButton = new Button({
                         text: TranslationManager.getText('downloadFile'),
-                        className: 'reusable-button',
-                        theme: 'secondary',
-                        size: 'medium',
+                        className: 'export-button',
                         onClick: () => this.downloadFormatted(),
-                        successText: TranslationManager.getText('downloaded'),
-                        container: exportButtonsContainer
+                        theme: 'primary',
+                        size: 'medium'
                     });
                     downloadButton.button.style.flex = '1';
 
+                    exportButtonsContainer.appendChild(copyButton.button);
+                    exportButtonsContainer.appendChild(downloadButton.button);
                     content.appendChild(exportButtonsContainer);
 
-                    // Create clear button using Button component
+                    // Create clear button
                     const clearButton = new Button({
                         text: TranslationManager.getText('clearAll'),
-                        className: 'reusable-button',
-                        theme: 'danger',
-                        size: 'medium',
+                        className: 'panel-button copy-clear',
                         onClick: () => {
                             DescriptionManager.clearItems();
-                            clearButton.showSuccessState();
+                            this.showCopySuccess(clearButton, TranslationManager.getText('cleared'));
                         },
-                        successText: TranslationManager.getText('cleared'),
-                        container: content
+                        theme: 'secondary',
+                        size: 'medium'
                     });
+                    content.appendChild(clearButton.button);
                 }
             });
 
@@ -4524,35 +4477,37 @@
                     this.savePanelState('isDeliveryMethodSectionExpanded', state);
                 },
                 contentCreator: (content) => {
+                    // Create select element
+                    const selectElement = document.createElement('select');
+                    selectElement.className = 'delivery-method-select';
+
+                    // Define options
+                    const options = [
+                        {value: 'all', label: 'showAll'},
+                        {value: 'shipping', label: 'showOnlyShipping'},
+                        {value: 'inperson', label: 'showOnlyInPerson'}
+                    ];
+
                     // Get saved preference
                     const savedOption = this.loadPanelState('deliveryMethodFilter', 'all');
 
-                    // Create SelectBox items
-                    const selectItems = [
-                        {value: 'all', label: TranslationManager.getText('showAll'), selected: savedOption === 'all'},
-                        {
-                            value: 'shipping',
-                            label: TranslationManager.getText('showOnlyShipping'),
-                            selected: savedOption === 'shipping'
-                        },
-                        {
-                            value: 'inperson',
-                            label: TranslationManager.getText('showOnlyInPerson'),
-                            selected: savedOption === 'inperson'
-                        }
-                    ];
-
-                    // Create select box
-                    new SelectBox({
-                        items: selectItems,
-                        id: 'delivery-method-select',
-                        className: 'reusable-select delivery-method-select',
-                        onChange: (value) => {
-                            this.savePanelState('deliveryMethodFilter', value);
-                            this.applyDeliveryMethodFilter();
-                        },
-                        container: content
+                    // Create select options
+                    options.forEach(option => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = option.value;
+                        optionElement.textContent = TranslationManager.getText(option.label);
+                        optionElement.selected = savedOption === option.value;
+                        selectElement.appendChild(optionElement);
                     });
+
+                    // Add change event listener
+                    selectElement.addEventListener('change', () => {
+                        const selectedValue = selectElement.value;
+                        this.savePanelState('deliveryMethodFilter', selectedValue);
+                        this.applyDeliveryMethodFilter();
+                    });
+
+                    content.appendChild(selectElement);
                 }
             });
 
@@ -5443,14 +5398,22 @@
          * Show success animation on a button
          */
         static showCopySuccess(button, successText) {
-            const originalText = button.textContent;
-            button.textContent = successText || TranslationManager.getText('copied');
-            button.classList.add('copy-success');
+            // Check if it's a Button instance or regular button element
+            if (button instanceof Button) {
+                // Using Button component's success state
+                button.setText(successText || TranslationManager.getText('copied'));
+                button.showSuccessState();
+            } else {
+                // For regular HTML buttons (legacy)
+                const originalText = button.textContent;
+                button.textContent = successText || TranslationManager.getText('copied');
+                button.classList.add('copy-success');
 
-            setTimeout(() => {
-                button.classList.remove('copy-success');
-                button.textContent = originalText;
-            }, 1500);
+                setTimeout(() => {
+                    button.classList.remove('copy-success');
+                    button.textContent = originalText;
+                }, 1500);
+            }
         }
 
         /**
@@ -5641,7 +5604,12 @@
             const updateText = (selector, translationKey) => {
                 const element = this.container.querySelector(selector);
                 if (element) {
-                    element.textContent = TranslationManager.getText(translationKey);
+                    // Check if it's a Button instance
+                    if (element._buttonInstance) {
+                        element._buttonInstance.setText(TranslationManager.getText(translationKey));
+                    } else {
+                        element.textContent = TranslationManager.getText(translationKey);
+                    }
                 }
             };
 
@@ -5777,11 +5745,11 @@
     // Script initialization
     Logger.log("Script loaded, waiting for page to be ready");
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', WallapopEnhancedTools.init.bind(WallapopEnhancedTools));
+        document.addEventListener('DOMContentLoaded', WallapopExpandDescription.init.bind(WallapopExpandDescription));
         Logger.log("Added DOMContentLoaded event listener");
     } else {
         Logger.log("Document already loaded, initializing script immediately");
-        WallapopEnhancedTools.init();
+        WallapopExpandDescription.init();
     }
 
 })();
