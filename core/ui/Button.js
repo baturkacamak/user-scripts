@@ -161,7 +161,7 @@ class Button {
     this.originalText = this.text;
 
     this.button = null;
-    this.initStyles();
+    Button.initStyles();
     this.create();
   }
 

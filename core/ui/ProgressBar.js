@@ -107,7 +107,7 @@ class ProgressBar {
     this.progressTextElement = null;
     this.labelElement = null;
 
-    this.initStyles();
+    ProgressBar.initStyles();
     this.create();
   }
 
