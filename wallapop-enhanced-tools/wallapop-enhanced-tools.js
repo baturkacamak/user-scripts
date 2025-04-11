@@ -1,5 +1,5 @@
 // GM function fallbacks for direct browser execution
-import {Button, GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager} from "../core";
+import {Button, GMFunctions, HTMLUtils, Logger, ProgressBar, StyleManager, TranslationManager} from "../core";
 
 const GM = GMFunctions.initialize();
 
@@ -27,6 +27,23 @@ StyleManager.addStyles(`
             --panel-border-radius: 8px;
             --panel-accent-color: #008080;
             --panel-hover-color: #006666;
+            
+            /* Set Wallapop colors for progress bar components */
+            --userscripts-progress-bar-bg: #f3f3f3;
+            --userscripts-progress-label-color: #333;
+            --userscripts-progress-text-color: #333;
+            
+            /* Teal color theme for Wallapop */
+            --userscripts-progress-primary-fill-gradient-start: #008080;
+            --userscripts-progress-primary-fill-gradient-end: #006666;
+            
+            /* Success theme (green) */
+            --userscripts-progress-success-fill-gradient-start: #4CAF50;
+            --userscripts-progress-success-fill-gradient-end: #45a049;
+            
+            /* Warning theme (orange) */
+            --userscripts-progress-warning-fill-gradient-start: #FF9800;
+            --userscripts-progress-warning-fill-gradient-end: #F57C00;
         }
 
         /* Control Panel Styles */
@@ -507,7 +524,6 @@ StyleManager.addStyles(`
        .expand-progress-container {
             margin-top: 10px;
             padding: 5px;
-            background-color: #f9f9f9;
             border-radius: 4px;
         }
 
@@ -628,6 +644,13 @@ TranslationManager.init({
             showOnlyShipping: 'Show Only Shipping',
             showOnlyInPerson: 'Show Only In-Person',
             noDeliveryOption: 'No delivery option found',
+            preparingToExpand: 'Preparing to expand descriptions...',
+            expandingProgress: 'Expanding {current} of {total}',
+            expandingComplete: 'Expanded {count} of {total} descriptions ({errors} errors)',
+            noDescriptionsToExpand: 'No descriptions to expand',
+            expandAllVisible: 'Expand All Visible',
+            expandAllDescriptions: 'Expand All Descriptions',
+            delayBetweenRequests: 'Delay between requests:',
         },
         es: {
             expandDescription: 'Ampliar Descripción',
@@ -1910,37 +1933,14 @@ class ControlPanel {
                 );
                 content.appendChild(expandAllButton);
 
-                // Create progress container
+                // Create progress container (empty container to hold the progress bar)
                 const progressContainer = document.createElement('div');
                 progressContainer.className = 'expand-progress-container';
                 progressContainer.style.display = 'none';
                 progressContainer.style.marginTop = '10px';
 
-                // Create progress text
-                const progressText = document.createElement('div');
-                progressText.className = 'expand-progress-text';
-                progressText.style.fontSize = '12px';
-                progressText.style.marginBottom = '5px';
-                progressText.style.textAlign = 'center';
-                progressContainer.appendChild(progressText);
-
-                // Create progress bar
-                const progressBar = document.createElement('div');
-                progressBar.className = 'expand-progress-bar';
-                progressBar.style.height = '5px';
-                progressBar.style.backgroundColor = '#eee';
-                progressBar.style.borderRadius = '3px';
-                progressBar.style.overflow = 'hidden';
-
-                const progressFill = document.createElement('div');
-                progressFill.className = 'expand-progress-fill';
-                progressFill.style.height = '100%';
-                progressFill.style.backgroundColor = 'var(--panel-accent-color)';
-                progressFill.style.width = '0%';
-                progressFill.style.transition = 'width 0.3s ease-in-out';
-
-                progressBar.appendChild(progressFill);
-                progressContainer.appendChild(progressBar);
+                // Store the container for later access
+                this.expandProgressContainer = progressContainer;
                 content.appendChild(progressContainer);
 
                 // Add delay option
@@ -2016,33 +2016,46 @@ class ControlPanel {
         // Get the delay setting
         const delay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
 
-        // Get progress elements
+        // Get expand button and disable it
         const expandAllButton = document.querySelector('.expand-all-button');
-        const progressContainer = document.querySelector('.expand-progress-container');
-        const progressText = document.querySelector('.expand-progress-text');
-        const progressFill = document.querySelector('.expand-progress-fill');
-
-        // Update UI to show progress
         if (expandAllButton) expandAllButton.disabled = true;
-        if (progressContainer) progressContainer.style.display = 'block';
+
+        // Show the progress container and create a new ProgressBar instance
+        if (this.expandProgressContainer) {
+            this.expandProgressContainer.innerHTML = '';
+            this.expandProgressContainer.style.display = 'block';
+
+            // Create the progress bar using the enhanced ProgressBar component
+            this.progressBar = new ProgressBar({
+                initialValue: 0,
+                container: this.expandProgressContainer,
+                showText: true,
+                theme: 'primary',
+                size: 'normal'  // can be 'small', 'normal', or 'large'
+            });
+
+            // Set initial text
+            this.progressBar.setValue(0, `Expanding 0 of ${totalButtons}`);
+        }
 
         let expanded = 0;
         let errors = 0;
 
         // Process buttons one at a time
         for (const button of allExpandButtons) {
-            // Update progress
-            if (progressText) {
-                progressText.textContent = TranslationManager.getText('expandingProgress')
-                    .replace('{current}', expanded + 1)
-                    .replace('{total}', totalButtons);
-            }
-
-            if (progressFill) {
-                progressFill.style.width = `${(expanded / totalButtons) * 100}%`;
-            }
-
             try {
+                // Update progress bar with current status
+                if (this.progressBar) {
+                    // Calculate percentage
+                    const progress = Math.floor((expanded / totalButtons) * 100);
+
+                    // Update progress bar with custom text
+                    this.progressBar.setValue(
+                        progress,
+                        `Expanding ${expanded + 1} of ${totalButtons}`
+                    );
+                }
+
                 // Click the button to expand
                 button.click();
 
@@ -2057,12 +2070,17 @@ class ControlPanel {
         }
 
         // Update UI when finished
-        if (progressFill) progressFill.style.width = '100%';
-        if (progressText) {
-            progressText.textContent = TranslationManager.getText('expandingComplete')
-                .replace('{count}', expanded)
-                .replace('{total}', totalButtons)
-                .replace('{errors}', errors);
+        if (this.progressBar) {
+            // Set to 100% complete
+            this.progressBar.setValue(100);
+
+            // Change theme based on success or errors
+            this.progressBar.setTheme(errors > 0 ? 'warning' : 'success');
+
+            // Update the text with completion message
+            const completionText = `Expanded ${expanded} of ${totalButtons}` +
+                (errors > 0 ? ` (${errors} errors)` : '');
+            this.progressBar.setValue(100, completionText);
         }
 
         // Re-enable the button after 2 seconds
@@ -2071,7 +2089,15 @@ class ControlPanel {
 
             // Hide progress after 5 seconds
             setTimeout(() => {
-                if (progressContainer) progressContainer.style.display = 'none';
+                if (this.expandProgressContainer) {
+                    this.expandProgressContainer.style.display = 'none';
+
+                    // Clean up the progress bar instance
+                    if (this.progressBar) {
+                        this.progressBar.destroy();
+                        this.progressBar = null;
+                    }
+                }
             }, 3000);
         }, 2000);
     }
