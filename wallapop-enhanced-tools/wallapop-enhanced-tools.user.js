@@ -1552,165 +1552,234 @@
 
     class Slider {
       /**
-         * Initialize styles for all sliders
+         * Returns the unique base CSS class for the Slider component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for sliders.
+         */
+      static get BASE_SLIDER_CLASS() {
+        return 'userscripts-slider';
+      }
+      /**
+         * Returns the CSS variable prefix used for theming the Slider component.
+         * This prefix scopes all custom CSS variables (e.g., colors) related to the slider.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+      static get CSS_VAR_PREFIX() {
+        return '--userscripts-slider-';
+      }
+      /**
+         * Initialize styles for all sliders.
+         * These styles reference the CSS variables with our defined prefix.
          */
       static initStyles() {
-        // This will be called only once, when the first instance is created
         if (Slider.stylesInitialized) return;
 
-        // Use StyleManager instead of directly creating style elements
         StyleManager.addStyles(`
-      .reusable-slider {
+      /* Scoped styles for Userscripts Slider Component */
+      .${Slider.BASE_SLIDER_CLASS} {
         width: 100%;
         margin: 15px 0;
       }
       
-      .reusable-slider-label {
+      .${Slider.BASE_SLIDER_CLASS}-label {
         display: block;
         margin-bottom: 6px;
         font-size: 0.875rem;
         font-weight: 500;
-        color: #374151;
+        color: var(${Slider.CSS_VAR_PREFIX}label-color);
       }
       
-      .reusable-slider-input {
+      .${Slider.BASE_SLIDER_CLASS}-input {
         -webkit-appearance: none;
         width: 100%;
-        height: 6px;
+        height: var(${Slider.CSS_VAR_PREFIX}track-height);
         border-radius: 3px;
-        background-color: #e5e7eb;
+        background-color: var(${Slider.CSS_VAR_PREFIX}track-bg);
         outline: none;
         transition: background-color 0.2s;
       }
       
-      .reusable-slider-input::-webkit-slider-thumb {
+      .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;
-        width: 18px;
-        height: 18px;
+        width: var(${Slider.CSS_VAR_PREFIX}thumb-size);
+        height: var(${Slider.CSS_VAR_PREFIX}thumb-size);
         border-radius: 50%;
-        background-color: #3b82f6;
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-bg);
         cursor: pointer;
         border: none;
         transition: background-color 0.2s, transform 0.2s;
       }
       
-      .reusable-slider-input::-moz-range-thumb {
-        width: 18px;
-        height: 18px;
+      .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb {
+        width: var(${Slider.CSS_VAR_PREFIX}thumb-size);
+        height: var(${Slider.CSS_VAR_PREFIX}thumb-size);
         border-radius: 50%;
-        background-color: #3b82f6;
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-bg);
         cursor: pointer;
         border: none;
         transition: background-color 0.2s, transform 0.2s;
       }
       
-      .reusable-slider-input::-webkit-slider-thumb:hover {
+      .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb:hover {
         transform: scale(1.1);
       }
       
-      .reusable-slider-input::-moz-range-thumb:hover {
+      .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb:hover {
         transform: scale(1.1);
       }
       
-      .reusable-slider-value {
+      .${Slider.BASE_SLIDER_CLASS}-value {
         display: block;
         margin-top: 6px;
         font-size: 0.875rem;
-        color: #4b5563;
+        color: var(${Slider.CSS_VAR_PREFIX}value-color);
         text-align: center;
       }
       
       /* Themes */
-      .reusable-slider--default .reusable-slider-input::-webkit-slider-thumb {
-        background-color: #6b7280;
+      .${Slider.BASE_SLIDER_CLASS}--default .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-default);
       }
       
-      .reusable-slider--default .reusable-slider-input::-moz-range-thumb {
-        background-color: #6b7280;
+      .${Slider.BASE_SLIDER_CLASS}--default .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-default);
       }
       
-      .reusable-slider--primary .reusable-slider-input::-webkit-slider-thumb {
-        background-color: #3b82f6;
+      .${Slider.BASE_SLIDER_CLASS}--primary .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-primary);
       }
       
-      .reusable-slider--primary .reusable-slider-input::-moz-range-thumb {
-        background-color: #3b82f6;
+      .${Slider.BASE_SLIDER_CLASS}--primary .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-primary);
       }
       
-      .reusable-slider--success .reusable-slider-input::-webkit-slider-thumb {
-        background-color: #10b981;
+      .${Slider.BASE_SLIDER_CLASS}--success .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-success);
       }
       
-      .reusable-slider--success .reusable-slider-input::-moz-range-thumb {
-        background-color: #10b981;
+      .${Slider.BASE_SLIDER_CLASS}--success .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-success);
       }
       
-      .reusable-slider--danger .reusable-slider-input::-webkit-slider-thumb {
-        background-color: #ef4444;
+      .${Slider.BASE_SLIDER_CLASS}--danger .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-danger);
       }
       
-      .reusable-slider--danger .reusable-slider-input::-moz-range-thumb {
-        background-color: #ef4444;
+      .${Slider.BASE_SLIDER_CLASS}--danger .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb {
+        background-color: var(${Slider.CSS_VAR_PREFIX}thumb-danger);
       }
       
       /* Sizes */
-      .reusable-slider--small .reusable-slider-input {
-        height: 4px;
+      .${Slider.BASE_SLIDER_CLASS}--small .${Slider.BASE_SLIDER_CLASS}-input {
+        height: var(${Slider.CSS_VAR_PREFIX}track-height-small);
       }
       
-      .reusable-slider--small .reusable-slider-input::-webkit-slider-thumb {
-        width: 14px;
-        height: 14px;
+      .${Slider.BASE_SLIDER_CLASS}--small .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb {
+        width: var(${Slider.CSS_VAR_PREFIX}thumb-size-small);
+        height: var(${Slider.CSS_VAR_PREFIX}thumb-size-small);
       }
       
-      .reusable-slider--small .reusable-slider-input::-moz-range-thumb {
-        width: 14px;
-        height: 14px;
+      .${Slider.BASE_SLIDER_CLASS}--small .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb {
+        width: var(${Slider.CSS_VAR_PREFIX}thumb-size-small);
+        height: var(${Slider.CSS_VAR_PREFIX}thumb-size-small);
       }
       
-      .reusable-slider--large .reusable-slider-input {
-        height: 8px;
+      .${Slider.BASE_SLIDER_CLASS}--large .${Slider.BASE_SLIDER_CLASS}-input {
+        height: var(${Slider.CSS_VAR_PREFIX}track-height-large);
       }
       
-      .reusable-slider--large .reusable-slider-input::-webkit-slider-thumb {
-        width: 22px;
-        height: 22px;
+      .${Slider.BASE_SLIDER_CLASS}--large .${Slider.BASE_SLIDER_CLASS}-input::-webkit-slider-thumb {
+        width: var(${Slider.CSS_VAR_PREFIX}thumb-size-large);
+        height: var(${Slider.CSS_VAR_PREFIX}thumb-size-large);
       }
       
-      .reusable-slider--large .reusable-slider-input::-moz-range-thumb {
-        width: 22px;
-        height: 22px;
+      .${Slider.BASE_SLIDER_CLASS}--large .${Slider.BASE_SLIDER_CLASS}-input::-moz-range-thumb {
+        width: var(${Slider.CSS_VAR_PREFIX}thumb-size-large);
+        height: var(${Slider.CSS_VAR_PREFIX}thumb-size-large);
       }
-    `, 'reusable-slider-styles');
+      
+      /* Disabled state */
+      .${Slider.BASE_SLIDER_CLASS}-input:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      
+      .${Slider.BASE_SLIDER_CLASS}-input:disabled::-webkit-slider-thumb {
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      .${Slider.BASE_SLIDER_CLASS}-input:disabled::-moz-range-thumb {
+        cursor: not-allowed;
+        transform: none;
+      }
+    `, 'userscripts-slider-styles');
 
         Slider.stylesInitialized = true;
       }
       /**
+         * Injects default color variables for the Slider component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+      static useDefaultColors() {
+        const styleId = 'userscripts-slider-default-colors';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.innerHTML = `
+        :root {
+          /* Base colors */
+          ${Slider.CSS_VAR_PREFIX}label-color: #374151;
+          ${Slider.CSS_VAR_PREFIX}track-bg: #e5e7eb;
+          ${Slider.CSS_VAR_PREFIX}value-color: #4b5563;
+          
+          /* Theme colors */
+          ${Slider.CSS_VAR_PREFIX}thumb-default: #6b7280;
+          ${Slider.CSS_VAR_PREFIX}thumb-primary: #3b82f6;
+          ${Slider.CSS_VAR_PREFIX}thumb-success: #10b981;
+          ${Slider.CSS_VAR_PREFIX}thumb-danger: #ef4444;
+          
+          /* Sizing variables */
+          ${Slider.CSS_VAR_PREFIX}track-height: 6px;
+          ${Slider.CSS_VAR_PREFIX}track-height-small: 4px;
+          ${Slider.CSS_VAR_PREFIX}track-height-large: 8px;
+          
+          ${Slider.CSS_VAR_PREFIX}thumb-size: 18px;
+          ${Slider.CSS_VAR_PREFIX}thumb-size-small: 14px;
+          ${Slider.CSS_VAR_PREFIX}thumb-size-large: 22px;
+        }
+      `;
+          document.head.appendChild(style);
+        }
+      }
+      /**
          * Create a new slider
          * @param {Object} options - Configuration options
-         * @param {Number} options.min - Minimum value
-         * @param {Number} options.max - Maximum value
-         * @param {Number} options.value - Initial value
-         * @param {Number} options.step - Step increment
-         * @param {String} options.className - CSS class for styling
-         * @param {Function} options.onChange - Callback when value changes
-         * @param {Function} options.onInput - Callback during input (before change is finalized)
-         * @param {String} options.id - ID attribute
-         * @param {HTMLElement} options.container - Container to append to
-         * @param {Boolean} options.showValue - Whether to show the current value
-         * @param {String} options.label - Label text
-         * @param {String} options.theme - Theme (default, primary, etc.)
-         * @param {String} options.size - Size (small, medium, large)
-         * @param {String} options.valuePrefix - Text to show before the value
-         * @param {String} options.valueSuffix - Text to show after the value
+         * @param {Number} [options.min=0] - Minimum value
+         * @param {Number} [options.max=100] - Maximum value
+         * @param {Number} [options.value] - Initial value
+         * @param {Number} [options.step=1] - Step increment
+         * @param {String} [options.className] - Additional CSS class for styling
+         * @param {Function} [options.onChange] - Callback when value changes
+         * @param {Function} [options.onInput] - Callback during input (before change is finalized)
+         * @param {String} [options.id] - ID attribute
+         * @param {HTMLElement} [options.container] - Container to append to
+         * @param {Boolean} [options.showValue=true] - Whether to show the current value
+         * @param {String} [options.label] - Label text
+         * @param {String} [options.theme='default'] - Theme (default, primary, etc.)
+         * @param {String} [options.size='medium'] - Size (small, medium, large)
+         * @param {String} [options.valuePrefix] - Text to show before the value
+         * @param {String} [options.valueSuffix] - Text to show after the value
          */
-      constructor(options) {
+      constructor(options = {}) {
         this.min = options.min !== undefined ? options.min : 0;
         this.max = options.max !== undefined ? options.max : 100;
         this.value = options.value !== undefined ? options.value : this.min;
         this.step = options.step !== undefined ? options.step : 1;
-        this.className = options.className || 'reusable-slider';
+        this.customClassName = options.className || '';
         this.onChange = options.onChange;
         this.onInput = options.onInput;
         this.id = options.id || `slider-${Math.random().toString(36).substring(2, 9)}`;
@@ -1727,70 +1796,107 @@
         this.valueElement = null;
         this.labelElement = null;
 
+        Slider.initStyles();
         this.create();
       }
 
 
       /**
-         * Create the slider element
-         * @return {HTMLElement} The slider container element
+         * Create the slider element.
+         * @return {HTMLElement} The slider container element.
          */
       create() {
-        // Create container
+        // Create the slider container
         this.sliderElement = document.createElement('div');
-        this.sliderElement.className = `${this.className} ${this.className}--${this.theme} ${this.className}--${this.size}`;
+        this.updateSliderClasses(); // Sets the appropriate classes based on theme, size, and custom classes
 
-        // Add label if provided
+        // If a label is provided, create and append the label element
         if (this.label) {
           this.labelElement = document.createElement('label');
-          this.labelElement.className = `${this.className}-label`;
+          this.labelElement.className = `${Slider.BASE_SLIDER_CLASS}-label`;
           this.labelElement.htmlFor = this.id;
           this.labelElement.textContent = this.label;
           this.sliderElement.appendChild(this.labelElement);
         }
 
-        // Create input element
+        // Create the input element of type range
         this.inputElement = document.createElement('input');
         this.inputElement.type = 'range';
-        this.inputElement.className = `${this.className}-input`;
+        this.inputElement.className = `${Slider.BASE_SLIDER_CLASS}-input`;
         this.inputElement.id = this.id;
         this.inputElement.min = this.min;
         this.inputElement.max = this.max;
         this.inputElement.step = this.step;
         this.inputElement.value = this.value;
 
-        // Add event listeners
+        // Cancel any ongoing smooth transition animation when the user initiates a drag.
+        // Using "pointerdown" covers both mouse and touch events.
+        this.inputElement.addEventListener('pointerdown', () => {
+          if (this._animationFrame) {
+            cancelAnimationFrame(this._animationFrame);
+            this._animationFrame = null;
+          }
+        });
+
+        // Listen for input events to update the value and display
         this.inputElement.addEventListener('input', (e) => {
+          // Update the slider's value
           this.value = parseFloat(e.target.value);
           this.updateValue();
-
           if (this.onInput) {
             this.onInput(this.value, e);
           }
         });
 
+        // Listen for change events (when value change is finalized)
         this.inputElement.addEventListener('change', (e) => {
           if (this.onChange) {
             this.onChange(this.value, e);
           }
         });
 
+        // Append the input element to the slider container
         this.sliderElement.appendChild(this.inputElement);
 
-        // Add value display if enabled
+        // Optionally create and append a value display element
         if (this.showValue) {
           this.valueElement = document.createElement('span');
-          this.valueElement.className = `${this.className}-value`;
+          this.valueElement.className = `${Slider.BASE_SLIDER_CLASS}-value`;
           this.updateValue();
           this.sliderElement.appendChild(this.valueElement);
         }
 
-        // Add to container if provided
+        // Append the slider container to the provided container, if one was specified
         if (this.container) {
           this.container.appendChild(this.sliderElement);
         }
 
         return this.sliderElement;
+      }
+
+
+      /**
+         * Update the classes on the slider element based on theme, size, and custom classes.
+         */
+      updateSliderClasses() {
+        const classNames = [Slider.BASE_SLIDER_CLASS];
+
+        // Add theme class
+        if ('medium' !== this.theme) {
+          classNames.push(`${Slider.BASE_SLIDER_CLASS}--${this.theme}`);
+        }
+
+        // Add size class if not the default
+        if ('medium' !== this.size) {
+          classNames.push(`${Slider.BASE_SLIDER_CLASS}--${this.size}`);
+        }
+
+        // Add custom class if specified
+        if (this.customClassName) {
+          classNames.push(this.customClassName);
+        }
+
+        this.sliderElement.className = classNames.join(' ');
       }
 
       /**
@@ -1813,7 +1919,8 @@
       /**
          * Set the slider value
          * @param {Number} value - The new value
-         * @param {Boolean} triggerEvent - Whether to trigger the onChange event
+         * @param {Boolean} [triggerEvent=false] - Whether to trigger the onChange event
+         * @return {Number} The new value (clamped to min/max)
          */
       setValue(value, triggerEvent = false) {
         // Ensure value is within min/max bounds
@@ -1840,32 +1947,50 @@
          * @param {String} theme - Theme name
          */
       setTheme(theme) {
+        // Remove current theme class
+        if (this.sliderElement) {
+          this.sliderElement.classList.remove(`${Slider.BASE_SLIDER_CLASS}--${this.theme}`);
+        }
+
+        // Update theme and add new theme class
         this.theme = theme;
 
         if (this.sliderElement) {
-          // Update class name with new theme
-          const classNames = this.sliderElement.className.split(' ');
-          const themeRegex = new RegExp(`${this.className}--[a-z]+`);
-          const filteredClasses = classNames.filter((className) => !themeRegex.test(className) || !className.includes('--theme-'));
-          filteredClasses.push(`${this.className}--${this.theme}`);
-          this.sliderElement.className = filteredClasses.join(' ');
+          this.sliderElement.classList.add(`${Slider.BASE_SLIDER_CLASS}--${this.theme}`);
         }
       }
 
       /**
          * Set the size of the slider
-         * @param {String} size - Size name
+         * @param {String} size - Size name (small, medium, large)
          */
       setSize(size) {
+        // Remove current size class
+        if (this.sliderElement) {
+          this.sliderElement.classList.remove(`${Slider.BASE_SLIDER_CLASS}--${this.size}`);
+        }
+
+        // Update size and add new size class
         this.size = size;
 
-        if (this.sliderElement) {
-          // Update class name with new size
-          const classNames = this.sliderElement.className.split(' ');
-          const sizeRegex = new RegExp(`${this.className}--[a-z]+`);
-          const filteredClasses = classNames.filter((className) => !sizeRegex.test(className) || !className.includes('--size-'));
-          filteredClasses.push(`${this.className}--${this.size}`);
-          this.sliderElement.className = filteredClasses.join(' ');
+        if (this.sliderElement && 'medium' !== size) {
+          this.sliderElement.classList.add(`${Slider.BASE_SLIDER_CLASS}--${this.size}`);
+        }
+      }
+
+      /**
+         * Set a custom CSS class for the slider
+         * @param {String} className - The custom class name
+         */
+      setCustomClass(className) {
+        if (this.customClassName && this.sliderElement) {
+          this.sliderElement.classList.remove(this.customClassName);
+        }
+
+        this.customClassName = className;
+
+        if (className && this.sliderElement) {
+          this.sliderElement.classList.add(className);
         }
       }
 
@@ -1878,13 +2003,134 @@
           this.inputElement.disabled = disabled;
         }
       }
+
+      /**
+         * Set the label text
+         * @param {String} label - New label text
+         */
+      setLabel(label) {
+        this.label = label;
+
+        if (this.labelElement) {
+          this.labelElement.textContent = label;
+        } else if (label && this.sliderElement) {
+          // Create label if it doesn't exist but is now needed
+          this.labelElement = document.createElement('label');
+          this.labelElement.className = `${Slider.BASE_SLIDER_CLASS}-label`;
+          this.labelElement.htmlFor = this.id;
+          this.labelElement.textContent = label;
+          this.sliderElement.insertBefore(this.labelElement, this.sliderElement.firstChild);
+        }
+      }
+
+      /**
+         * Snap a given value to the nearest valid step increment within [this.min, this.max].
+         * @param {number} val - The raw floating-point value to snap.
+         * @return {number} The stepped value, clamped to min/max.
+         */
+      snapValueToStep(val) {
+        // Constrain into [min, max] first
+        const clamped = Math.max(this.min, Math.min(this.max, val));
+
+        // Compute how many steps from this.min
+        const stepsFromMin = Math.round((clamped - this.min) / this.step);
+        // Snap back to [min, max]
+        return this.min + (stepsFromMin * this.step);
+      }
+
+      /**
+         * Animate the slider from its current value to a target value
+         * with snapping to steps at each frame.
+         *
+         * @param {number} rawTargetValue - The raw target (e.g. from click).
+         * @param {number} [duration=300] - The animation duration in ms.
+         */
+      animateToValue(rawTargetValue, duration = 300) {
+        // Snap the final target to a valid step before we start animating:
+        const targetValue = this.snapValueToStep(rawTargetValue);
+
+        // Cancel any existing animation frame
+        if (this._animationFrame) {
+          cancelAnimationFrame(this._animationFrame);
+          this._animationFrame = null;
+        }
+
+        const startValue = this.value; // Current slider value
+        const startTime = performance.now();
+        const range = targetValue - startValue;
+
+        const step = (now) => {
+          const elapsed = now - startTime;
+          const t = Math.min(elapsed / duration, 1); // interpolation factor [0..1]
+          // Compute new float value
+          const newFloatValue = startValue + t * range;
+
+          // Snap each intermediate to the nearest step:
+          const snapped = this.snapValueToStep(newFloatValue);
+
+          // Update the slider's value without a final change event
+          this.setValue(snapped, false);
+
+          if (1 > t) {
+            this._animationFrame = requestAnimationFrame(step);
+          } else {
+            // End exactly on the snapped target, triggering an onChange if desired
+            this._animationFrame = null;
+            this.setValue(targetValue, true);
+          }
+        };
+
+        this._animationFrame = requestAnimationFrame(step);
+      }
+
+      /**
+         * Set the value prefix and suffix
+         * @param {String} prefix - Text to show before the value
+         * @param {String} suffix - Text to show after the value
+         */
+      setValueFormat(prefix, suffix) {
+        this.valuePrefix = prefix || '';
+        this.valueSuffix = suffix || '';
+        this.updateValue();
+      }
+
+      /**
+         * Show or hide the value display
+         * @param {Boolean} show - Whether to show the value
+         */
+      setShowValue(show) {
+        this.showValue = show;
+
+        if (show && !this.valueElement && this.sliderElement) {
+          // Create value element if it doesn't exist but is now needed
+          this.valueElement = document.createElement('span');
+          this.valueElement.className = `${Slider.BASE_SLIDER_CLASS}-value`;
+          this.updateValue();
+          this.sliderElement.appendChild(this.valueElement);
+        } else if (!show && this.valueElement) {
+          // Remove value element if it exists but is no longer needed
+          this.valueElement.remove();
+          this.valueElement = null;
+        }
+      }
+
+      /**
+         * Destroys the slider and removes it from the DOM.
+         */
+      destroy() {
+        if (this.sliderElement && this.sliderElement.parentNode) {
+          this.sliderElement.parentNode.removeChild(this.sliderElement);
+        }
+
+        this.sliderElement = null;
+        this.inputElement = null;
+        this.valueElement = null;
+        this.labelElement = null;
+      }
     }
 
     // Static property to track if styles have been initialized
     Slider.stylesInitialized = false;
-
-    // Initialize styles when imported
-    Slider.initStyles();
 
     /**
      * Enhanced version of the ProgressBar core component with Eksi-style UI
@@ -2818,6 +3064,37 @@
         .panel-button:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
+        }
+
+        .userscripts-slider-input::-webkit-slider-thumb {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            width: 18px !important;
+            height: 18px !important;
+            border-radius: 50% !important;
+            background-color: #008080 !important;
+            cursor: pointer !important;
+            border: none !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+        }
+        
+        .userscripts-slider-input::-moz-range-thumb {
+            width: 18px !important;
+            height: 18px !important;
+            border-radius: 50% !important;
+            background-color: #008080 !important;
+            cursor: pointer !important;
+            border: none !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+        }
+        
+        .userscripts-slider-input {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            height: 6px !important;
+            border-radius: 3px !important;
+            background-color: #e5e7eb !important;
+            outline: none !important;
         }
 
         /* Select box styling */
@@ -4202,46 +4479,28 @@
                     this.expandProgressContainer = progressContainer;
                     content.appendChild(progressContainer);
 
-                    // Add delay option
+                    // Add delay option using the Slider component
                     const delayContainer = document.createElement('div');
                     delayContainer.style.marginTop = '10px';
-                    delayContainer.style.fontSize = '12px';
 
-                    const delayLabel = document.createElement('label');
-                    delayLabel.textContent = TranslationManager.getText('delayBetweenRequests');
-                    delayLabel.htmlFor = 'expand-delay-input';
-                    delayLabel.style.display = 'block';
-                    delayLabel.style.marginBottom = '5px';
-                    delayContainer.appendChild(delayLabel);
+                    // Get saved delay value
+                    const savedDelay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
 
-                    const delayInput = document.createElement('input');
-                    delayInput.id = 'expand-delay-input';
-                    delayInput.type = 'range';
-                    delayInput.min = '500';
-                    delayInput.max = '3000';
-                    delayInput.step = '100';
-                    delayInput.value = this.loadPanelState('expandAllDelay', '1000');
-                    delayInput.style.width = '100%';
-
-                    // Add event listener to save the delay value
-                    delayInput.addEventListener('change', () => {
-                        this.savePanelState('expandAllDelay', delayInput.value);
+                    // Create the slider with the Slider component
+                    this.delaySlider = new Slider({
+                        container: delayContainer,
+                        min: 500,
+                        max: 3000,
+                        step: 100,
+                        value: savedDelay,
+                        label: TranslationManager.getText('delayBetweenRequests'),
+                        theme: 'primary',
+                        valueSuffix: 'ms',
+                        onChange: (value) => {
+                            this.savePanelState('expandAllDelay', value.toString());
+                        }
                     });
 
-                    delayContainer.appendChild(delayInput);
-
-                    // Display the current delay value
-                    const delayValue = document.createElement('div');
-                    delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
-                    delayValue.style.textAlign = 'center';
-                    delayValue.style.marginTop = '5px';
-
-                    // Update displayed value when slider moves
-                    delayInput.addEventListener('input', () => {
-                        delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
-                    });
-
-                    delayContainer.appendChild(delayValue);
                     content.appendChild(delayContainer);
                 }
             });
@@ -4272,8 +4531,8 @@
                 return;
             }
 
-            // Get the delay setting
-            const delay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
+            // Get the delay setting from the slider
+            const delay = this.delaySlider ? this.delaySlider.getValue() : parseInt(this.loadPanelState('expandAllDelay', '1000'));
 
             // Get expand button and disable it
             const expandAllButton = document.querySelector('.expand-all-button');
