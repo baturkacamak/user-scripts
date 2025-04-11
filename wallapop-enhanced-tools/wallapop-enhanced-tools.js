@@ -1,5 +1,5 @@
 // GM function fallbacks for direct browser execution
-import {GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager} from "../core";
+import {Button, GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager} from "../core";
 
 const GM = GMFunctions.initialize();
 
@@ -125,45 +125,6 @@ StyleManager.addStyles(`
         .filter-input:focus {
             border-color: var(--panel-accent-color);
             outline: none;
-        }
-
-        .panel-button {
-            display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 12px;
-            margin-top: 10px;
-            cursor: pointer;
-            font-size: 14px;
-            width: 100%;
-            text-align: center;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .panel-button:hover,
-        .copy-button:hover {
-            background-color: var(--panel-hover-color);
-        }
-
-        .copy-button {
-            display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 12px;
-            cursor: pointer;
-            font-size: 14px;
-            width: 100%;
-            text-align: left;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .copy-success {
-            background-color: #4CAF50;
-            transition: background-color var(--transition-speed) var(--transition-easing);
         }
 
         .blocked-terms-list {
@@ -1861,15 +1822,15 @@ class ControlPanel {
      * Create a button with standard style
      */
     static createButton(text, className, clickHandler) {
-        const button = document.createElement('button');
-        button.className = className;
-        button.textContent = text;
+        const buttonInstance = new Button({
+            text: text,
+            className: className,
+            onClick: clickHandler,
+            theme: 'primary',
+            size: 'medium'
+        });
 
-        if (clickHandler) {
-            button.addEventListener('click', clickHandler);
-        }
-
-        return button;
+        return buttonInstance.button;
     }
 
     /**
@@ -1889,12 +1850,14 @@ class ControlPanel {
             },
             contentCreator: (content) => {
                 // Create the expand all button
-                const expandAllButton = this.createButton(
-                    TranslationManager.getText('expandAllVisible'),
-                    'panel-button expand-all-button',
-                    () => this.handleExpandAll()
-                );
-                content.appendChild(expandAllButton);
+                const expandAllButton = new Button({
+                    text: TranslationManager.getText('expandAllVisible'),
+                    className: 'panel-button expand-all-button',
+                    onClick: () => this.handleExpandAll(),
+                    theme: 'primary',
+                    size: 'medium'
+                });
+                content.appendChild(expandAllButton.button);
 
                 // Create progress container
                 const progressContainer = document.createElement('div');
@@ -2136,12 +2099,14 @@ class ControlPanel {
                 content.appendChild(this.filterInputElement);
 
                 // Apply button
-                const applyButton = this.createButton(
-                    TranslationManager.getText('addAndApply'),
-                    'panel-button filter-apply',
-                    () => this.addBlockedTerm()
-                );
-                content.appendChild(applyButton);
+                const applyButton = new Button({
+                    text: TranslationManager.getText('addAndApply'),
+                    className: 'panel-button filter-apply',
+                    onClick: () => this.addBlockedTerm(),
+                    theme: 'primary',
+                    size: 'medium'
+                });
+                content.appendChild(applyButton.button);
 
                 // Create list for blocked terms
                 this.blockedTermsListElement = document.createElement('div');
@@ -2275,35 +2240,41 @@ class ControlPanel {
                 exportButtonsContainer.style.marginTop = '10px';
 
                 // Copy button
-                const copyButton = this.createButton(
-                    TranslationManager.getText('copyToClipboard'),
-                    'export-button',
-                    () => this.copyToClipboard()
-                );
-                copyButton.style.flex = '1';
+                const copyButton = new Button({
+                    text: TranslationManager.getText('copyToClipboard'),
+                    className: 'export-button',
+                    onClick: () => this.copyToClipboard(),
+                    theme: 'primary',
+                    size: 'medium'
+                });
+                copyButton.button.style.flex = '1';
 
                 // Download button
-                const downloadButton = this.createButton(
-                    TranslationManager.getText('downloadFile'),
-                    'export-button',
-                    () => this.downloadFormatted()
-                );
-                downloadButton.style.flex = '1';
+                const downloadButton = new Button({
+                    text: TranslationManager.getText('downloadFile'),
+                    className: 'export-button',
+                    onClick: () => this.downloadFormatted(),
+                    theme: 'primary',
+                    size: 'medium'
+                });
+                downloadButton.button.style.flex = '1';
 
-                exportButtonsContainer.appendChild(copyButton);
-                exportButtonsContainer.appendChild(downloadButton);
+                exportButtonsContainer.appendChild(copyButton.button);
+                exportButtonsContainer.appendChild(downloadButton.button);
                 content.appendChild(exportButtonsContainer);
 
                 // Create clear button
-                const clearButton = this.createButton(
-                    TranslationManager.getText('clearAll'),
-                    'panel-button copy-clear',
-                    () => {
+                const clearButton = new Button({
+                    text: TranslationManager.getText('clearAll'),
+                    className: 'panel-button copy-clear',
+                    onClick: () => {
                         DescriptionManager.clearItems();
                         this.showCopySuccess(clearButton, TranslationManager.getText('cleared'));
-                    }
-                );
-                content.appendChild(clearButton);
+                    },
+                    theme: 'secondary',
+                    size: 'medium'
+                });
+                content.appendChild(clearButton.button);
             }
         });
 
@@ -3395,14 +3366,22 @@ class ControlPanel {
      * Show success animation on a button
      */
     static showCopySuccess(button, successText) {
-        const originalText = button.textContent;
-        button.textContent = successText || TranslationManager.getText('copied');
-        button.classList.add('copy-success');
+        // Check if it's a Button instance or regular button element
+        if (button instanceof Button) {
+            // Using Button component's success state
+            button.setText(successText || TranslationManager.getText('copied'));
+            button.showSuccessState();
+        } else {
+            // For regular HTML buttons (legacy)
+            const originalText = button.textContent;
+            button.textContent = successText || TranslationManager.getText('copied');
+            button.classList.add('copy-success');
 
-        setTimeout(() => {
-            button.classList.remove('copy-success');
-            button.textContent = originalText;
-        }, 1500);
+            setTimeout(() => {
+                button.classList.remove('copy-success');
+                button.textContent = originalText;
+            }, 1500);
+        }
     }
 
     /**
@@ -3593,7 +3572,12 @@ class ControlPanel {
         const updateText = (selector, translationKey) => {
             const element = this.container.querySelector(selector);
             if (element) {
-                element.textContent = TranslationManager.getText(translationKey);
+                // Check if it's a Button instance
+                if (element._buttonInstance) {
+                    element._buttonInstance.setText(TranslationManager.getText(translationKey));
+                } else {
+                    element.textContent = TranslationManager.getText(translationKey);
+                }
             }
         };
 
