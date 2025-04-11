@@ -10,6 +10,7 @@ import {
     StyleManager,
     TranslationManager
 } from "../core";
+import Checkbox from "../core/ui/Checkbox";
 
 const GM = GMFunctions.initialize();
 
@@ -54,6 +55,16 @@ StyleManager.addStyles(`
             /* Warning theme (orange) */
             --userscripts-progress-warning-fill-gradient-start: #FF9800;
             --userscripts-progress-warning-fill-gradient-end: #F57C00;
+            
+                /* Checkbox component variables */
+            --userscripts-checkbox-bg: #ffffff;
+            --userscripts-checkbox-border-color: #d1d5db;
+            --userscripts-checkbox-hover-bg: #f0f0f0;
+            --userscripts-checkbox-hover-border: #9ca3af;
+            --userscripts-checkbox-checked-bg: #008080;
+            --userscripts-checkbox-checked-border: #008080;
+            --userscripts-checkbox-checkmark-color: #ffffff;
+            --userscripts-checkbox-focus-shadow: rgba(0, 128, 128, 0.3);
         }
 
         /* Control Panel Styles */
@@ -485,14 +496,15 @@ StyleManager.addStyles(`
         .option-row {
             display: flex;
             align-items: center;
-            margin: 5px 0;
+            margin: 8px 0;
         }
-
-        .option-checkbox {
-            margin-right: 8px;
+        
+        /* Customize Checkbox component to match existing styling */
+        .option-row .userscripts-checkbox-container {
+            width: 100%;
         }
-
-        .option-label {
+        
+        .option-row .userscripts-checkbox-label {
             font-size: 12px;
             color: #555;
         }
@@ -1424,26 +1436,22 @@ class FormatOption {
                 const optionRow = document.createElement('div');
                 optionRow.className = 'option-row';
 
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.id = `option-${this.id}-${option.id}`;
-                checkbox.className = 'option-checkbox';
-                checkbox.checked = option.defaultValue || false;
-
-                const label = document.createElement('label');
-                label.htmlFor = checkbox.id;
-                label.className = 'option-label';
-                label.textContent = option.label;
-                label.title = option.description || '';
-
-                // Handle checkbox change
-                checkbox.addEventListener('change', (e) => {
-                    this.optionValues[option.id] = e.target.checked;
-                    e.stopPropagation();
+                // Create checkbox using the Checkbox component
+                new Checkbox({
+                    id: `option-${this.id}-${option.id}`,
+                    label: option.label,
+                    checked: option.defaultValue || false,
+                    container: optionRow,
+                    size: 'small',
+                    attributes: {
+                        title: option.description || ''
+                    },
+                    onChange: (e) => {
+                        this.optionValues[option.id] = e.target.checked;
+                        e.stopPropagation();
+                    }
                 });
 
-                optionRow.appendChild(checkbox);
-                optionRow.appendChild(label);
                 this.optionsContainer.appendChild(optionRow);
             });
 
@@ -1517,10 +1525,10 @@ class FormatOption {
     setOption(optionId, value) {
         this.optionValues[optionId] = value;
 
-        // Update checkbox if it exists
-        const checkbox = this.element.querySelector(`#option-${this.id}-${optionId}`);
-        if (checkbox) {
-            checkbox.checked = value;
+        // Update checkbox if it exists - find the checkbox component instead of the raw element
+        const checkboxContainer = this.element.querySelector(`#option-${this.id}-${optionId}`).closest('.userscripts-checkbox-container');
+        if (checkboxContainer && checkboxContainer._checkboxInstance) {
+            checkboxContainer._checkboxInstance.setChecked(value);
         }
     }
 
@@ -2240,30 +2248,26 @@ class ControlPanel {
         optionsLabel.textContent = 'Format Options:';
         container.appendChild(optionsLabel);
 
-        // Create options
+        // Create options using Checkbox component
         format.options.forEach(option => {
             const optionRow = document.createElement('div');
             optionRow.className = 'option-row';
 
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `option-${format.id}-${option.id}`;
-            checkbox.className = 'option-checkbox';
-            checkbox.checked = option.defaultValue || false;
-
-            // Update option value when changed
-            checkbox.addEventListener('change', (e) => {
-                format.setOption(option.id, e.target.checked);
+            // Create checkbox using the Checkbox component
+            new Checkbox({
+                id: `option-${format.id}-${option.id}`,
+                label: option.label,
+                checked: option.defaultValue || false,
+                container: optionRow,
+                size: 'small',
+                attributes: {
+                    title: option.description || ''
+                },
+                onChange: (e) => {
+                    format.setOption(option.id, e.target.checked);
+                }
             });
 
-            const label = document.createElement('label');
-            label.htmlFor = checkbox.id;
-            label.className = 'option-label';
-            label.textContent = option.label;
-            label.title = option.description || '';
-
-            optionRow.appendChild(checkbox);
-            optionRow.appendChild(label);
             container.appendChild(optionRow);
         });
     }
@@ -2401,7 +2405,7 @@ class ControlPanel {
                     // Update options display
                     this.updateFormatOptions(format, formatOptionsContainer);
                 };
-                
+
                 if (lastSelectedFormat) {
                     // Get currently selected value from select box
                     const selectedValue = this.formatSelector.getValue();
@@ -2565,9 +2569,6 @@ class ControlPanel {
             },
             contentCreator: (content) => {
                 // Create select element
-                const selectElement = document.createElement('select');
-                selectElement.className = 'delivery-method-select';
-
                 new SelectBox({
                     items: [
                         {
