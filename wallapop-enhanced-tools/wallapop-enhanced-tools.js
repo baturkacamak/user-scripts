@@ -1,5 +1,15 @@
 // GM function fallbacks for direct browser execution
-import {Button, GMFunctions, HTMLUtils, Logger, ProgressBar, Slider, StyleManager, TranslationManager} from "../core";
+import {
+    Button,
+    GMFunctions,
+    HTMLUtils,
+    Logger,
+    ProgressBar,
+    SelectBox,
+    Slider,
+    StyleManager,
+    TranslationManager
+} from "../core";
 
 const GM = GMFunctions.initialize();
 
@@ -2502,33 +2512,27 @@ class ControlPanel {
                 const selectElement = document.createElement('select');
                 selectElement.className = 'delivery-method-select';
 
-                // Define options
-                const options = [
-                    {value: 'all', label: 'showAll'},
-                    {value: 'shipping', label: 'showOnlyShipping'},
-                    {value: 'inperson', label: 'showOnlyInPerson'}
-                ];
-
-                // Get saved preference
-                const savedOption = this.loadPanelState('deliveryMethodFilter', 'all');
-
-                // Create select options
-                options.forEach(option => {
-                    const optionElement = document.createElement('option');
-                    optionElement.value = option.value;
-                    optionElement.textContent = TranslationManager.getText(option.label);
-                    optionElement.selected = savedOption === option.value;
-                    selectElement.appendChild(optionElement);
+                new SelectBox({
+                    items: [
+                        {
+                            value: 'all',
+                            label: TranslationManager.getText('showAll'),
+                            selected: this.loadPanelState('deliveryMethodFilter', 'all') === 'all'
+                        },
+                        {value: 'shipping', label: TranslationManager.getText('showOnlyShipping')},
+                        {value: 'inperson', label: TranslationManager.getText('showOnlyInPerson')}
+                    ],
+                    name: 'delivery-method',
+                    id: 'delivery-method-select',
+                    container: content, // the container passed to the contentCreator callback
+                    onChange: (value, event) => {
+                        this.savePanelState('deliveryMethodFilter', value);
+                        this.applyDeliveryMethodFilter();
+                    },
+                    theme: 'default', // or set a different theme if needed
+                    size: 'medium',
+                    placeholder: TranslationManager.getText('selectDeliveryMethod') // Make sure to add this key in translations if required
                 });
-
-                // Add change event listener
-                selectElement.addEventListener('change', () => {
-                    const selectedValue = selectElement.value;
-                    this.savePanelState('deliveryMethodFilter', selectedValue);
-                    this.applyDeliveryMethodFilter();
-                });
-
-                content.appendChild(selectElement);
             }
         });
 
