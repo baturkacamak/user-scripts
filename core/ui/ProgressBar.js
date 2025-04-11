@@ -1,6 +1,6 @@
 /**
- * ProgressBar - A reusable UI component for displaying progress.
- * Provides customizable, animated progress indicators using CSS variable theming.
+ * Enhanced version of the ProgressBar core component with Eksi-style UI
+ * This replaces the existing ProgressBar.js file in the core/ui directory
  */
 import StyleManager from '../utils/StyleManager.js';
 
@@ -34,66 +34,125 @@ class ProgressBar {
       .${ProgressBar.BASE_PROGRESS_CLASS} {
         width: 100%;
         margin: 10px 0;
+        position: relative;
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}-label {
         font-size: 0.875rem;
         margin-bottom: 4px;
         display: block;
-        color: var(${ProgressBar.CSS_VAR_PREFIX}label-color);
+        color: var(${ProgressBar.CSS_VAR_PREFIX}label-color, #555);
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}-bar {
-        height: 8px;
-        background-color: var(${ProgressBar.CSS_VAR_PREFIX}bar-bg);
-        border-radius: 4px;
+        height: 20px;
+        background-color: var(${ProgressBar.CSS_VAR_PREFIX}bar-bg, #f3f3f3);
+        border-radius: 10px;
         overflow: hidden;
         position: relative;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
         height: 100%;
         width: 0%;
-        border-radius: 4px;
-        transition: width 0.3s ease;
-        background-color: var(${ProgressBar.CSS_VAR_PREFIX}fill-bg);
+        border-radius: 10px;
+        transition: width 0.5s ease;
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}fill-bg)), 
+          var(${ProgressBar.CSS_VAR_PREFIX}fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}fill-bg))
+        );
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}-fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.1) 25%,
+          transparent 25%,
+          transparent 50%,
+          rgba(255, 255, 255, 0.1) 50%,
+          rgba(255, 255, 255, 0.1) 75%,
+          transparent 75%,
+          transparent 100%
+        );
+        background-size: 30px 30px;
+        animation: ${ProgressBar.BASE_PROGRESS_CLASS}-stripes 1s linear infinite;
+      }
+      
+      @keyframes ${ProgressBar.BASE_PROGRESS_CLASS}-stripes {
+        0% {
+          background-position: 0 0;
+        }
+        100% {
+          background-position: 30px 0;
+        }
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}-text {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 10px;
         font-size: 0.75rem;
-        text-align: right;
-        margin-top: 4px;
-        color: var(${ProgressBar.CSS_VAR_PREFIX}text-color);
+        color: var(${ProgressBar.CSS_VAR_PREFIX}text-color, #333);
+        font-weight: bold;
+        text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+        z-index: 1;
       }
       
       /* Themes */
       .${ProgressBar.BASE_PROGRESS_CLASS}--default .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
-        background-color: var(${ProgressBar.CSS_VAR_PREFIX}default-fill-bg);
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}default-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}default-fill-bg))
+        );
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}--primary .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
-        background-color: var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-bg);
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-bg))
+        );
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}--success .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
-        background-color: var(${ProgressBar.CSS_VAR_PREFIX}success-fill-bg);
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}success-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}success-fill-bg))
+        );
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}--danger .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
-        background-color: var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-bg);
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-bg))
+        );
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}--warning .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
-        background-color: var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-bg);
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-bg))
+        );
       }
       
       /* Sizes */
       .${ProgressBar.BASE_PROGRESS_CLASS}--small .${ProgressBar.BASE_PROGRESS_CLASS}-bar {
-        height: 4px;
+        height: 8px;
       }
       
       .${ProgressBar.BASE_PROGRESS_CLASS}--large .${ProgressBar.BASE_PROGRESS_CLASS}-bar {
-        height: 12px;
+        height: 24px;
       }
     `, 'userscripts-progress-styles');
     ProgressBar.stylesInitialized = true;
@@ -109,16 +168,32 @@ class ProgressBar {
       style.id = styleId;
       style.innerHTML = `
         :root {
+          /* Base colors */
           ${ProgressBar.CSS_VAR_PREFIX}label-color: #555;
-          ${ProgressBar.CSS_VAR_PREFIX}bar-bg: #e0e0e0;
+          ${ProgressBar.CSS_VAR_PREFIX}bar-bg: #f3f3f3;
           ${ProgressBar.CSS_VAR_PREFIX}fill-bg: #6b7280;
-          ${ProgressBar.CSS_VAR_PREFIX}text-color: #555;
+          ${ProgressBar.CSS_VAR_PREFIX}text-color: #333;
           
+          /* Theme colors with gradients */
           ${ProgressBar.CSS_VAR_PREFIX}default-fill-bg: #6b7280;
+          ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start: #6b7280;
+          ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end: #4b5563;
+          
           ${ProgressBar.CSS_VAR_PREFIX}primary-fill-bg: #3b82f6;
+          ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start: #3b82f6;
+          ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end: #2563eb;
+          
           ${ProgressBar.CSS_VAR_PREFIX}success-fill-bg: #10b981;
+          ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start: #10b981;
+          ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end: #059669;
+          
           ${ProgressBar.CSS_VAR_PREFIX}danger-fill-bg: #ef4444;
+          ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start: #ef4444;
+          ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end: #dc2626;
+          
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-bg: #f59e0b;
+          ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
+          ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
         }
       `;
       document.head.appendChild(style);
@@ -134,6 +209,7 @@ class ProgressBar {
      * @param {boolean} [options.showLabel=false] - Whether to display a label above the progress bar.
      * @param {string} [options.label=''] - Label text to display if showLabel is true.
      * @param {string} [options.theme='default'] - Theme for the progress bar (e.g., "default", "primary", "success").
+     * @param {string} [options.size='normal'] - Size of the progress bar ('small', 'normal', 'large').
      */
   constructor(options) {
     this.value = options.initialValue || 0;
@@ -143,6 +219,7 @@ class ProgressBar {
     this.showLabel = options.showLabel || false;
     this.label = options.label || '';
     this.theme = options.theme || 'default';
+    this.size = options.size || 'normal';
 
     this.progressElement = null;
     this.progressBarElement = null;
@@ -164,6 +241,10 @@ class ProgressBar {
     this.progressElement = document.createElement('div');
     this.progressElement.className = `${this.className} ${this.className}--${this.theme}`;
 
+    if ('normal' !== this.size) {
+      this.progressElement.classList.add(`${this.className}--${this.size}`);
+    }
+
     // Add a label if requested
     if (this.showLabel) {
       this.labelElement = document.createElement('span');
@@ -175,18 +256,20 @@ class ProgressBar {
     // Create the progress bar and its fill
     this.progressBarElement = document.createElement('div');
     this.progressBarElement.className = `${this.className}-bar`;
+
     this.progressFillElement = document.createElement('div');
     this.progressFillElement.className = `${this.className}-fill`;
     this.progressFillElement.style.width = `${this.value}%`;
+
     this.progressBarElement.appendChild(this.progressFillElement);
     this.progressElement.appendChild(this.progressBarElement);
 
-    // Add progress text if requested
+    // Add progress text as absolute positioned element
     if (this.showText) {
       this.progressTextElement = document.createElement('div');
       this.progressTextElement.className = `${this.className}-text`;
       this.progressTextElement.textContent = `${this.value}%`;
-      this.progressElement.appendChild(this.progressTextElement);
+      this.progressBarElement.appendChild(this.progressTextElement);
     }
 
     // Append the entire progress element to the container, if one was provided
@@ -222,8 +305,29 @@ class ProgressBar {
     if (this.progressElement) {
       // Remove any existing theme class (assumed to be in the format `${this.className}--<theme>`)
       const classes = this.progressElement.className.split(' ');
-      const nonThemeClasses = classes.filter((cls) => !cls.startsWith(`${this.className}--`));
+      const nonThemeClasses = classes.filter((cls) =>
+        !cls.startsWith(`${this.className}--`) ||
+                cls === `${this.className}--${this.size}`, // Keep size class
+      );
       this.progressElement.className = `${nonThemeClasses.join(' ')} ${this.className}--${this.theme}`;
+    }
+  }
+
+  /**
+     * Changes the progress bar size.
+     * @param {string} size - The new size ('small', 'normal', 'large').
+     */
+  setSize(size) {
+    this.size = size;
+    if (this.progressElement) {
+      // Remove size classes
+      this.progressElement.classList.remove(`${this.className}--small`);
+      this.progressElement.classList.remove(`${this.className}--large`);
+
+      // Add new size class if not normal
+      if ('normal' !== size) {
+        this.progressElement.classList.add(`${this.className}--${size}`);
+      }
     }
   }
 
@@ -246,6 +350,20 @@ class ProgressBar {
     if (this.progressElement) {
       this.progressElement.style.display = visible ? '' : 'none';
     }
+  }
+
+  /**
+     * Destroys the progress bar and removes it from the DOM.
+     */
+  destroy() {
+    if (this.progressElement && this.progressElement.parentNode) {
+      this.progressElement.parentNode.removeChild(this.progressElement);
+    }
+    this.progressElement = null;
+    this.progressBarElement = null;
+    this.progressFillElement = null;
+    this.progressTextElement = null;
+    this.labelElement = null;
   }
 }
 
