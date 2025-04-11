@@ -20,6 +20,9 @@
   "scripts": {
     "start": "node server.js",
     "build": "node build.js",
-    "watch": "node build.js --watch"
+    "watch": "node build.js --watch",
+    "build:wallapop": "node build.js --dir wallapop-enhanced-tools",
+    "analyze": "node build.js --analyze --dir",
+    "analyze:wallapop": "node build.js --analyze --dir wallapop-enhanced-tools"
   }
 }
