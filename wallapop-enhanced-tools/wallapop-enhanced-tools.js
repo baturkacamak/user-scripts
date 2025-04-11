@@ -3,8 +3,6 @@ import {Button, GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager
 
 const GM = GMFunctions.initialize();
 
-Logger.setPrefix("Wallapop Enhanced Tools");
-
 const SELECTORS = {
     ITEM_CARDS: [
         'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
@@ -128,9 +126,10 @@ StyleManager.addStyles(`
         }
 
         .panel-button {
+            ${Button.CSS_VAR_PREFIX}bg-hover: var(--panel-hover-color);
+            ${Button.CSS_VAR_PREFIX}bg: var(--panel-accent-color);
+            ${Button.CSS_VAR_PREFIX}color: white;
             display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
             border: none;
             border-radius: 4px;
             padding: 8px 12px;
@@ -142,15 +141,11 @@ StyleManager.addStyles(`
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
 
-        .panel-button:hover,
-        .copy-button:hover {
-            background-color: var(--panel-hover-color);
-        }
-
         .copy-button {
+            ${Button.CSS_VAR_PREFIX}bg-hover: var(--panel-hover-color);
+            ${Button.CSS_VAR_PREFIX}bg: var(--panel-accent-color);
+            ${Button.CSS_VAR_PREFIX}color: white;
             display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
             border: none;
             border-radius: 4px;
             padding: 8px 12px;
@@ -258,10 +253,13 @@ StyleManager.addStyles(`
         }
 
      .language-selector .userscripts-button.lang-button {
+            ${Button.CSS_VAR_PREFIX}bg: #f0f0f0;
+            ${Button.CSS_VAR_PREFIX}bg-hover: #e0e0e0;
+            ${Button.CSS_VAR_PREFIX}border: #ccc;
             flex-grow: 1;
             flex-basis: 45%;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
+            border-width: 1px;
+            border-style: solid;
             border-radius: 4px;
             padding: 8px 12px;
             cursor: pointer;
@@ -269,10 +267,6 @@ StyleManager.addStyles(`
             text-align: center;
             transition: background-color var(--transition-speed) var(--transition-easing),
                         border-color var(--transition-speed) var(--transition-easing);
-        }
-        
-        .language-selector .userscripts-button.lang-button:hover {
-            background-color: #e0e0e0;
         }
         
         .language-selector .userscripts-button.lang-button.active {
@@ -476,10 +470,24 @@ StyleManager.addStyles(`
             color: #555;
         }
 
-        .export-button {
+        .export-buttons-container .export-success {
+            ${Button.CSS_VAR_PREFIX}bg: #4CAF50;
+            ${Button.CSS_VAR_PREFIX}bg-hover: var(--panel-hover-color);
+            transition: background-color var(--transition-speed) var(--transition-easing);
+        }
+
+        .export-buttons-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .export-buttons-container .export-button {
+            ${Button.CSS_VAR_PREFIX}bg: var(--panel-accent-color);
+            ${Button.CSS_VAR_PREFIX}bg-hover: var(--panel-hover-color);
+            ${Button.CSS_VAR_PREFIX}color: white;
+            flex: 1;
             display: block;
-            background-color: var(--panel-accent-color);
-            color: white;
             border: none;
             border-radius: 4px;
             padding: 8px 12px;
@@ -491,102 +499,86 @@ StyleManager.addStyles(`
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
 
-        .export-button:hover {
-            background-color: var(--panel-hover-color);
-        }
-
-        .export-success {
-            background-color: #4CAF50;
-            transition: background-color var(--transition-speed) var(--transition-easing);
-        }
-
-        .export-buttons-container {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .export-buttons-container .export-button {
-            flex: 1;
-        }
-
         .downloaded {
             background-color: #4CAF50;
             transition: background-color var(--transition-speed) var(--transition-easing);
         }
 
-           .expand-progress-container {
-                margin-top: 10px;
-                padding: 5px;
-                background-color: #f9f9f9;
-                border-radius: 4px;
-            }
+       .expand-progress-container {
+            margin-top: 10px;
+            padding: 5px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
 
-            input[type="range"] {
-                -webkit-appearance: none;
-                width: 100%;
-                height: 5px;
-                border-radius: 5px;
-                background: #d3d3d3;
-                outline: none;
-            }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 5px;
+            background: #d3d3d3;
+            outline: none;
+        }
 
-            input[type="range"]::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                appearance: none;
-                width: 15px;
-                height: 15px;
-                border-radius: 50%;
-                background: var(--panel-accent-color);
-                cursor: pointer;
-            }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: var(--panel-accent-color);
+            cursor: pointer;
+        }
 
-            input[type="range"]::-moz-range-thumb {
-                width: 15px;
-                height: 15px;
-                border-radius: 50%;
-                background: var(--panel-accent-color);
-                cursor: pointer;
-            }
+        input[type="range"]::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: var(--panel-accent-color);
+            cursor: pointer;
+        }
 
-            .panel-button:disabled {
-                background-color: #cccccc;
-                cursor: not-allowed;
-            }
+        .panel-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
 
-            /* Select box styling */
-            .delivery-method-select {
-              width: 100%;
-              padding: 8px 10px;
-              border: 1px solid #ccc;
-              border-radius: 4px;
-              background-color: white;
-              font-size: 14px;
-              color: #333;
-              cursor: pointer;
-              outline: none;
-              margin: 8px 0;
-              appearance: none;
-              -webkit-appearance: none;
-              position: relative;
-              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-              background-repeat: no-repeat;
-              background-position: right 10px center;
-            }
-            
-            .delivery-method-select:focus {
-              border-color: var(--panel-accent-color);
-            }
-            
-            .delivery-method-select option {
-              padding: 8px;
-            }
-            
-            .delivery-method-select option:checked {
-              background-color: var(--panel-accent-color);
-              color: white;
-            }
+        /* Select box styling */
+        .delivery-method-select {
+          width: 100%;
+          padding: 8px 10px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          background-color: white;
+          font-size: 14px;
+          color: #333;
+          cursor: pointer;
+          outline: none;
+          margin: 8px 0;
+          appearance: none;
+          -webkit-appearance: none;
+          position: relative;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23666'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 10px center;
+        }
+        
+        .delivery-method-select:focus {
+          border-color: var(--panel-accent-color);
+        }
+        
+        .delivery-method-select option {
+          padding: 8px;
+        }
+        
+        .delivery-method-select option:checked {
+          background-color: var(--panel-accent-color);
+          color: white;
+        }
 `, 'wallapop-enhanced-tools');
+
+Logger.setPrefix("Wallapop Enhanced Tools");
+
 
 TranslationManager.init({
     languages: {
@@ -2292,9 +2284,6 @@ class ControlPanel {
                 // Create export buttons container
                 const exportButtonsContainer = document.createElement('div');
                 exportButtonsContainer.className = 'export-buttons-container';
-                exportButtonsContainer.style.display = 'flex';
-                exportButtonsContainer.style.gap = '10px';
-                exportButtonsContainer.style.marginTop = '10px';
 
                 // Copy button
                 const copyButton = this.createButton(
