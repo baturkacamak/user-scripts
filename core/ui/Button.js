@@ -4,20 +4,37 @@
  */
 import StyleManager from '../utils/StyleManager.js';
 
-// Define a unique base class for buttons to avoid collisions.
-const BASE_BUTTON_CLASS = 'userscripts-button';
-
+/**
+ * A reusable UI component for creating accessible, customizable buttons.
+ */
 class Button {
   /**
+     * Returns the unique base CSS class for the Button component.
+     * This class is used as the root for all styling and helps prevent CSS collisions.
+     *
+     * @return {string} The base CSS class name for buttons.
+     */
+  static get BASE_BUTTON_CLASS() {
+    return 'userscripts-button';
+  }
+  /**
+     * Returns the CSS variable prefix used for theming and styling the Button component.
+     * This prefix scopes all custom CSS variables (e.g., colors, borders) related to the button.
+     *
+     * @return {string} The CSS variable prefix.
+     */
+  static get CSS_VAR_PREFIX() {
+    return '--userscripts-button-';
+  }
+  /**
      * Initialize styles for all buttons.
+     * These styles reference the CSS variables with our defined prefix.
      */
   static initStyles() {
-    // Only add styles once.
     if (Button.stylesInitialized) return;
-
-    // Use template literals to inject the BASE_BUTTON_CLASS variable
     StyleManager.addStyles(`
-      .${BASE_BUTTON_CLASS} {
+      /* Scoped styles for Userscripts Button Component */
+      .${Button.Button.BASE_BUTTON_CLASS} {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -27,125 +44,161 @@ class Button {
         border: 1px solid transparent;
         cursor: pointer;
         transition: all 0.15s ease-in-out;
-        white-space: nowrap;
         text-align: center;
       }
       
       /* Button sizes */
-      .${BASE_BUTTON_CLASS}--small {
+      .${Button.Button.BASE_BUTTON_CLASS}--small {
         font-size: 0.75rem;
         padding: 0.25rem 0.5rem;
         min-height: 1.75rem;
       }
-      
-      .${BASE_BUTTON_CLASS}--medium {
+      .${Button.Button.BASE_BUTTON_CLASS}--medium {
         font-size: 0.875rem;
         padding: 0.5rem 1rem;
         min-height: 2.25rem;
       }
-      
-      .${BASE_BUTTON_CLASS}--large {
+      .${Button.Button.BASE_BUTTON_CLASS}--large {
         font-size: 1rem;
         padding: 0.75rem 1.5rem;
         min-height: 2.75rem;
       }
       
-      /* Button themes */
-      .${BASE_BUTTON_CLASS}--default {
-        background-color: #f3f4f6;
-        color: #374151;
-        border-color: #d1d5db;
+      /* Button themes using CSS variables */
+      .${Button.Button.BASE_BUTTON_CLASS}--default {
+        background-color: var(${Button.cssVarPrefix}bg-default);
+        color: var(${Button.cssVarPrefix}color-default);
+        border-color: var(${Button.cssVarPrefix}border-default);
+      }
+      .${Button.Button.BASE_BUTTON_CLASS}--default:hover:not(:disabled) {
+        background-color: var(${Button.cssVarPrefix}bg-default-hover);
       }
       
-      .${BASE_BUTTON_CLASS}--default:hover:not(:disabled) {
-        background-color: #e5e7eb;
+      .${Button.Button.BASE_BUTTON_CLASS}--primary {
+        background-color: var(${Button.cssVarPrefix}bg-primary);
+        color: var(${Button.cssVarPrefix}color-primary);
+        border-color: var(${Button.cssVarPrefix}border-primary);
+      }
+      .${Button.Button.BASE_BUTTON_CLASS}--primary:hover:not(:disabled) {
+        background-color: var(${Button.cssVarPrefix}bg-primary-hover);
+        border-color: var(${Button.cssVarPrefix}border-primary-hover);
       }
       
-      .${BASE_BUTTON_CLASS}--primary {
-        background-color: #3b82f6;
-        color: #ffffff;
-        border-color: #3b82f6;
+      .${Button.Button.BASE_BUTTON_CLASS}--secondary {
+        background-color: var(${Button.cssVarPrefix}bg-secondary);
+        color: var(${Button.cssVarPrefix}color-secondary);
+        border-color: var(${Button.cssVarPrefix}border-secondary);
+      }
+      .${Button.Button.BASE_BUTTON_CLASS}--secondary:hover:not(:disabled) {
+        background-color: var(${Button.cssVarPrefix}bg-secondary-hover);
+        border-color: var(${Button.cssVarPrefix}border-secondary-hover);
       }
       
-      .${BASE_BUTTON_CLASS}--primary:hover:not(:disabled) {
-        background-color: #2563eb;
-        border-color: #2563eb;
+      .${Button.Button.BASE_BUTTON_CLASS}--success {
+        background-color: var(${Button.cssVarPrefix}bg-success);
+        color: var(${Button.cssVarPrefix}color-success);
+        border-color: var(${Button.cssVarPrefix}border-success);
+      }
+      .${Button.Button.BASE_BUTTON_CLASS}--success:hover:not(:disabled) {
+        background-color: var(${Button.cssVarPrefix}bg-success-hover);
+        border-color: var(${Button.cssVarPrefix}border-success-hover);
       }
       
-      .${BASE_BUTTON_CLASS}--secondary {
-        background-color: #6b7280;
-        color: #ffffff;
-        border-color: #6b7280;
+      .${Button.Button.BASE_BUTTON_CLASS}--danger {
+        background-color: var(${Button.cssVarPrefix}bg-danger);
+        color: var(${Button.cssVarPrefix}color-danger);
+        border-color: var(${Button.cssVarPrefix}border-danger);
+      }
+      .${Button.Button.BASE_BUTTON_CLASS}--danger:hover:not(:disabled) {
+        background-color: var(${Button.cssVarPrefix}bg-danger-hover);
+        border-color: var(${Button.cssVarPrefix}border-danger-hover);
       }
       
-      .${BASE_BUTTON_CLASS}--secondary:hover:not(:disabled) {
-        background-color: #4b5563;
-        border-color: #4b5563;
-      }
-      
-      .${BASE_BUTTON_CLASS}--success {
-        background-color: #10b981;
-        color: #ffffff;
-        border-color: #10b981;
-      }
-      
-      .${BASE_BUTTON_CLASS}--success:hover:not(:disabled) {
-        background-color: #059669;
-        border-color: #059669;
-      }
-      
-      .${BASE_BUTTON_CLASS}--danger {
-        background-color: #ef4444;
-        color: #ffffff;
-        border-color: #ef4444;
-      }
-      
-      .${BASE_BUTTON_CLASS}--danger:hover:not(:disabled) {
-        background-color: #dc2626;
-        border-color: #dc2626;
-      }
-      
-      /* Button states */
-      .${BASE_BUTTON_CLASS}:disabled {
+      /* Button state styles */
+      .${Button.Button.BASE_BUTTON_CLASS}:disabled {
         opacity: 0.65;
         cursor: not-allowed;
         pointer-events: none;
       }
-      
-      .${BASE_BUTTON_CLASS}:focus {
+      .${Button.Button.BASE_BUTTON_CLASS}:focus {
         outline: none;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        box-shadow: 0 0 0 3px var(${Button.cssVarPrefix}focus-shadow);
       }
       
       /* Button content */
-      .${BASE_BUTTON_CLASS}__icon {
+      .${Button.Button.BASE_BUTTON_CLASS}__icon {
         display: inline-flex;
         margin-right: 0.5rem;
       }
-      
-      .${BASE_BUTTON_CLASS}__text {
+      .${Button.Button.BASE_BUTTON_CLASS}__text {
         display: inline-block;
       }
-    `, 'reusable-button-styles');
+    `, 'userscripts-button-styles');
 
     Button.stylesInitialized = true;
+  }
+  /**
+     * Inject default color variables for the button component into the :root.
+     * Users can call this method to automatically set a default color palette.
+     */
+  static useDefaultColors() {
+    const styleId = 'userscripts-button-default-colors';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.innerHTML = `
+        :root {
+          ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
+          ${Button.CSS_VAR_PREFIX}color-default: #374151;
+          ${Button.CSS_VAR_PREFIX}border-default: #d1d5db;
+          ${Button.CSS_VAR_PREFIX}bg-default-hover: #e5e7eb;
+          
+          ${Button.CSS_VAR_PREFIX}bg-primary: #3b82f6;
+          ${Button.CSS_VAR_PREFIX}color-primary: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-primary: #3b82f6;
+          ${Button.CSS_VAR_PREFIX}bg-primary-hover: #2563eb;
+          ${Button.CSS_VAR_PREFIX}border-primary-hover: #2563eb;
+          
+          ${Button.CSS_VAR_PREFIX}bg-secondary: #6b7280;
+          ${Button.CSS_VAR_PREFIX}color-secondary: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-secondary: #6b7280;
+          ${Button.CSS_VAR_PREFIX}bg-secondary-hover: #4b5563;
+          ${Button.CSS_VAR_PREFIX}border-secondary-hover: #4b5563;
+          
+          ${Button.CSS_VAR_PREFIX}bg-success: #10b981;
+          ${Button.CSS_VAR_PREFIX}color-success: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-success: #10b981;
+          ${Button.CSS_VAR_PREFIX}bg-success-hover: #059669;
+          ${Button.CSS_VAR_PREFIX}border-success-hover: #059669;
+          
+          ${Button.CSS_VAR_PREFIX}bg-danger: #ef4444;
+          ${Button.CSS_VAR_PREFIX}color-danger: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-danger: #ef4444;
+          ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
+          ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
+          
+          ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }
   /**
      * Create a new Button.
      * @param {Object} options - Configuration options.
      * @param {String} options.text - Button text.
-     * @param {String} [options.type="button"] - Button type (e.g., "button", "submit").
-     * @param {String} [options.className] - Additional custom CSS class for the button.
+     * @param {String} [options.type="button"] - Button type.
+     * @param {String} [options.className] - Additional custom CSS class.
      * @param {Function} options.onClick - Click event handler.
      * @param {String} [options.id] - Button ID.
      * @param {HTMLElement} [options.container] - Container to append the button to.
      * @param {Object} [options.attributes={}] - Additional HTML attributes.
-     * @param {String} [options.theme="default"] - Button theme ("default", "primary", etc.).
-     * @param {String} [options.size="medium"] - Button size ("small", "medium", "large").
-     * @param {Boolean} [options.disabled=false] - Initial disabled state.
-     * @param {String} [options.icon] - Optional HTML for an icon to display.
-     * @param {String} [options.successText] - Text to show on success state.
-     * @param {Number} [options.successDuration=1500] - Duration (ms) to show success state.
+     * @param {String} [options.theme="default"] - Button theme.
+     * @param {String} [options.size="medium"] - Button size.
+     * @param {Boolean} [options.disabled=false] - Disabled state.
+     * @param {String} [options.icon] - Optional icon HTML.
+     * @param {String} [options.successText] - Success state text.
+     * @param {Number} [options.successDuration=1500] - Success state duration (ms).
      */
   constructor(options) {
     this.text = options.text || '';
@@ -162,88 +215,57 @@ class Button {
     this.successText = options.successText || null;
     this.successDuration = options.successDuration || 1500;
     this.originalText = this.text;
-
-    // These properties will refer to the DOM elements.
     this.button = null;
     this.textElement = null;
-
-    // Initialize styles (only once globally)
     Button.initStyles();
     this.create();
   }
 
 
   /**
-     * Create the button element and append it to the container if provided.
+     * Create the button element and, if a container is provided, append it.
      * @return {HTMLButtonElement} The created button element.
      */
   create() {
     this.button = document.createElement('button');
     this.button.type = this.type;
     this.button.disabled = this.disabled;
-    if (this.id) {
-      this.button.id = this.id;
-    }
-    // Store the button instance in the DOM element for external reference.
+    if (this.id) this.button.id = this.id;
     this.button._buttonInstance = this;
-
-    // Apply classes based on theme, size, and any custom class.
     this.updateButtonClasses();
-
-    // Set the button's content (icon and text).
     this.updateContent();
-
-    // Set up click handler if provided.
-    if (this.onClick) {
-      this.button.addEventListener('click', (e) => this.handleClick(e));
-    }
-
-    // Add any additional attributes.
+    if (this.onClick) this.button.addEventListener('click', (e) => this.handleClick(e));
     Object.entries(this.attributes).forEach(([key, value]) => {
       this.button.setAttribute(key, value);
     });
-
-    // Append to the container if provided.
-    if (this.container) {
-      this.container.appendChild(this.button);
-    }
-
+    if (this.container) this.container.appendChild(this.button);
     return this.button;
   }
 
   /**
-     * Update the classes on the button element.
-     * Uses the base class defined in BASE_BUTTON_CLASS.
+     * Update the classes on the button element based on theme, size, and custom classes.
      */
   updateButtonClasses() {
-    const classNames = [BASE_BUTTON_CLASS];
-    classNames.push(`${BASE_BUTTON_CLASS}--${this.theme}`);
-    classNames.push(`${BASE_BUTTON_CLASS}--${this.size}`);
-    if (this.customClassName) {
-      classNames.push(this.customClassName);
-    }
+    const classNames = [Button.BASE_BUTTON_CLASS];
+    classNames.push(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
+    classNames.push(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
+    if (this.customClassName) classNames.push(this.customClassName);
     this.button.className = classNames.join(' ');
   }
 
   /**
-     * Update the content of the button (icon and text).
-     * The icon (if provided) is inserted first, followed by the text.
+     * Update the button content (icon and text).
      */
   updateContent() {
-    // Clear any existing content.
     this.button.innerHTML = '';
-
-    // Add icon if provided.
     if (this.icon) {
       const iconSpan = document.createElement('span');
-      iconSpan.className = `${BASE_BUTTON_CLASS}__icon`;
+      iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
       iconSpan.innerHTML = this.icon;
       this.button.appendChild(iconSpan);
     }
-
-    // Create a span for the text.
     this.textElement = document.createElement('span');
-    this.textElement.className = `${BASE_BUTTON_CLASS}__text`;
+    this.textElement.className = `${Button.BASE_BUTTON_CLASS}__text`;
     this.textElement.textContent = this.text;
     this.button.appendChild(this.textElement);
   }
@@ -255,7 +277,6 @@ class Button {
   handleClick(e) {
     if (this.disabled) return;
     const result = this.onClick(e);
-    // If onClick returns something other than false and successText is defined, show success animation.
     if (this.successText && false !== result) {
       this.showSuccessState();
     }
@@ -324,26 +345,22 @@ class Button {
 
   /**
      * Change the button's theme.
-     * @param {String} theme - The new theme (e.g., 'default', 'primary', etc.).
+     * @param {String} theme - The new theme (e.g., "default", "primary", etc.).
      */
   setTheme(theme) {
-    // Remove the old theme class.
-    this.button.classList.remove(`${BASE_BUTTON_CLASS}--${this.theme}`);
+    this.button.classList.remove(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
     this.theme = theme;
-    // Add the new theme class.
-    this.button.classList.add(`${BASE_BUTTON_CLASS}--${this.theme}`);
+    this.button.classList.add(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
   }
 
   /**
      * Change the button's size.
-     * @param {String} size - The new size (e.g., 'small', 'medium', 'large').
+     * @param {String} size - The new size (e.g., "small", "medium", "large").
      */
   setSize(size) {
-    // Remove the old size class.
-    this.button.classList.remove(`${BASE_BUTTON_CLASS}--${this.size}`);
+    this.button.classList.remove(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
     this.size = size;
-    // Add the new size class.
-    this.button.classList.add(`${BASE_BUTTON_CLASS}--${this.size}`);
+    this.button.classList.add(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
   }
 
   /**
@@ -363,8 +380,6 @@ class Button {
 
 // Static property to track if styles have been initialized.
 Button.stylesInitialized = false;
-
-// Initialize styles when imported.
 Button.initStyles();
 
 export default Button;
