@@ -1,5 +1,5 @@
 // GM function fallbacks for direct browser execution
-import {GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager} from "../core";
+import {Button, GMFunctions, HTMLUtils, Logger, StyleManager, TranslationManager} from "../core";
 
 const GM = GMFunctions.initialize();
 
@@ -257,7 +257,7 @@ StyleManager.addStyles(`
             margin-top: 10px;
         }
 
-        .lang-button {
+     .language-selector .userscripts-button.lang-button {
             flex-grow: 1;
             flex-basis: 45%;
             background-color: #f0f0f0;
@@ -270,12 +270,12 @@ StyleManager.addStyles(`
             transition: background-color var(--transition-speed) var(--transition-easing),
                         border-color var(--transition-speed) var(--transition-easing);
         }
-
-        .lang-button:hover {
+        
+        .language-selector .userscripts-button.lang-button:hover {
             background-color: #e0e0e0;
         }
-
-        .lang-button.active {
+        
+        .language-selector .userscripts-button.lang-button.active {
             background-color: var(--panel-accent-color);
             color: white;
             border-color: var(--panel-accent-color);
@@ -1860,16 +1860,38 @@ class ControlPanel {
     /**
      * Create a button with standard style
      */
-    static createButton(text, className, clickHandler) {
-        const button = document.createElement('button');
-        button.className = className;
-        button.textContent = text;
+    /**
+     * Create a button with standard style using the Button component
+     * @param {string} text - Button text
+     * @param {string} className - CSS class for the button
+     * @param {Function} clickHandler - Click event handler
+     * @param {Object} options - Additional button options
+     * @returns {HTMLElement} - The created button element
+     */
+    static createButton(text, className, clickHandler, options = {}) {
+        // Configure button options
+        const buttonOptions = {
+            text: text,
+            className: className, // Use the original class name
+            onClick: clickHandler,
+            disabled: options.disabled || false,
+            successText: options.successText || null,
+            successDuration: options.successDuration || 1500,
+            container: options.container || null
+        };
 
-        if (clickHandler) {
-            button.addEventListener('click', clickHandler);
+        // Create button using Button component
+        const buttonComponent = new Button(buttonOptions);
+        const buttonElement = buttonComponent.button;
+
+        // Add any dataset properties
+        if (options.dataset) {
+            Object.entries(options.dataset).forEach(([key, value]) => {
+                buttonElement.dataset[key] = value;
+            });
         }
 
-        return button;
+        return buttonElement;
     }
 
     /**
@@ -3114,6 +3136,9 @@ class ControlPanel {
     /**
      * Create the language section
      */
+    /**
+     * Create the language section using Button component with CSS styling
+     */
     static createLanguageSection(container) {
         // Load saved state
         const isExpanded = this.loadPanelState('isLanguageSectionExpanded', true);
@@ -3131,26 +3156,40 @@ class ControlPanel {
                 const languageSelector = document.createElement('div');
                 languageSelector.className = 'language-selector';
 
-                // Add language options
+                // Add language options using Button component
                 Object.entries(TranslationManager.availableLanguages).forEach(([code, name]) => {
-                    const langButton = document.createElement('button');
-                    langButton.className = `lang-button ${code === TranslationManager.currentLanguage ? 'active' : ''}`;
-                    langButton.dataset.lang = code;
-                    langButton.textContent = name;
+                    const isActive = code === TranslationManager.currentLanguage;
 
-                    langButton.addEventListener('click', () => {
-                        if (TranslationManager.setLanguage(code)) {
-                            // Mark this button as active and others as inactive
-                            document.querySelectorAll('.lang-button').forEach(btn => {
-                                btn.classList.toggle('active', btn.dataset.lang === code);
-                            });
+                    // Use Button component with CSS class for styling
+                    const langButton = this.createButton(
+                        name,
+                        `lang-button ${isActive ? 'active' : ''}`,
+                        () => {
+                            if (TranslationManager.setLanguage(code)) {
+                                // Update all language buttons' active state
+                                document.querySelectorAll('.lang-button').forEach(btn => {
+                                    const btnCode = btn.dataset.lang;
+                                    if (btnCode === code) {
+                                        btn.classList.add('active');
+                                    } else {
+                                        btn.classList.remove('active');
+                                    }
+                                });
 
-                            // Update all text in the UI
-                            this.updateUILanguage();
+                                // Update all text in the UI
+                                this.updateUILanguage();
+                                return true;
+                            }
+                            return false;
+                        },
+                        {
+                            container: languageSelector,
+                            preserveStyles: true // Use our custom option to preserve CSS classes
                         }
-                    });
+                    );
 
-                    languageSelector.appendChild(langButton);
+                    // Add dataset attribute for language code
+                    langButton.dataset.lang = code;
                 });
 
                 content.appendChild(languageSelector);
