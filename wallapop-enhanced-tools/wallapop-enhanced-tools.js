@@ -2217,6 +2217,58 @@ class ControlPanel {
     }
 
     /**
+     * Update format options display based on the selected format
+     * @param {FormatOption} format - The selected format
+     * @param {HTMLElement} container - The container for options
+     */
+    static updateFormatOptions(format, container) {
+        // Clear existing options
+        container.innerHTML = '';
+
+        // If no options, hide the container
+        if (!format.options || format.options.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        // Show the container
+        container.style.display = 'block';
+
+        // Create a label
+        const optionsLabel = document.createElement('div');
+        optionsLabel.className = 'format-options-label';
+        optionsLabel.textContent = 'Format Options:';
+        container.appendChild(optionsLabel);
+
+        // Create options
+        format.options.forEach(option => {
+            const optionRow = document.createElement('div');
+            optionRow.className = 'option-row';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `option-${format.id}-${option.id}`;
+            checkbox.className = 'option-checkbox';
+            checkbox.checked = option.defaultValue || false;
+
+            // Update option value when changed
+            checkbox.addEventListener('change', (e) => {
+                format.setOption(option.id, e.target.checked);
+            });
+
+            const label = document.createElement('label');
+            label.htmlFor = checkbox.id;
+            label.className = 'option-label';
+            label.textContent = option.label;
+            label.title = option.description || '';
+
+            optionRow.appendChild(checkbox);
+            optionRow.appendChild(label);
+            container.appendChild(optionRow);
+        });
+    }
+
+    /**
      * Create the copy section
      */
     static createCopySection(container) {
@@ -2225,9 +2277,6 @@ class ControlPanel {
 
         // Load the last selected format
         let lastSelectedFormat = this.loadExportFormat();
-
-        // Keep track of the current selected format
-        let selectedFormat = null;
 
         this.togglers.copy = new SectionToggler({
             container,
@@ -2238,97 +2287,79 @@ class ControlPanel {
                 this.savePanelState('isCopySectionExpanded', state);
             },
             contentCreator: (content) => {
-                // Create format selector container
-                const formatSelectorContainer = document.createElement('div');
-                formatSelectorContainer.className = 'format-selector-container';
+                // Convert export formats to SelectBox items format
+                const selectItems = [];
 
-                // Create format selector button
-                const formatSelector = document.createElement('button');
-                formatSelector.className = 'format-selector';
-                formatSelector.textContent = TranslationManager.getText('selectFormat');
+                // Process each category
+                Object.entries(this.exportFormats).forEach(([categoryId, category]) => {
+                    // Create a category item with nested formats
+                    const categoryItems = {
+                        label: category.label,
+                        items: []
+                    };
 
-                // Create format dropdown
-                const formatDropdown = document.createElement('div');
-                formatDropdown.className = 'format-dropdown';
+                    // Add formats to this category
+                    Object.entries(category.formats).forEach(([formatId, format]) => {
+                        categoryItems.items.push({
+                            value: `${categoryId}:${formatId}`,
+                            label: format.label,
+                            // Select this format if it matches last saved format
+                            selected: lastSelectedFormat &&
+                                lastSelectedFormat.category === categoryId &&
+                                lastSelectedFormat.id === formatId
+                        });
+                    });
 
-                // Toggle dropdown when selector is clicked
-                formatSelector.addEventListener('click', () => {
-                    formatDropdown.classList.toggle('active');
+                    selectItems.push(categoryItems);
                 });
 
-                // Close dropdown when clicking outside
-                document.addEventListener('click', (e) => {
-                    if (!formatSelectorContainer.contains(e.target)) {
-                        formatDropdown.classList.remove('active');
+                // Create format selector using SelectBox
+                const formatSelectorContainer = document.createElement('div');
+                formatSelectorContainer.className = 'format-selector-container';
+                content.appendChild(formatSelectorContainer);
+
+                // Initialize SelectBox
+                this.formatSelector = new SelectBox({
+                    items: selectItems,
+                    name: 'export-format',
+                    id: 'export-format-select',
+                    placeholder: TranslationManager.getText('selectFormat'),
+                    container: formatSelectorContainer,
+                    theme: 'default',
+                    size: 'medium',
+                    useCategorizedUI: true,
+                    onChange: (value) => {
+                        // Parse the value (category:formatId)
+                        const [categoryId, formatId] = value.split(':');
+
+                        // Save the selected format
+                        this.saveExportFormat(formatId, categoryId);
+
+                        // Store current selected format for use in export functions
+                        window.currentSelectedFormat = this.exportFormats[categoryId].formats[formatId];
                     }
                 });
 
-                formatSelectorContainer.appendChild(formatSelector);
-                formatSelectorContainer.appendChild(formatDropdown);
+                const formatOptionsContainer = document.createElement('div');
+                formatOptionsContainer.className = 'format-options-container';
+                formatOptionsContainer.style.display = 'none'; // Hide initially
+                content.appendChild(formatOptionsContainer);
 
-                // Create format categories list
-                const formatCategories = document.createElement('ul');
-                formatCategories.className = 'format-categories';
+                // Update when format changes
+                this.formatSelector.onChange = (value) => {
+                    // Parse the value (category:formatId)
+                    const [categoryId, formatId] = value.split(':');
 
-                // Populate categories and formats
-                Object.entries(this.exportFormats).forEach(([categoryId, category]) => {
-                    const categoryItem = document.createElement('li');
-                    categoryItem.className = 'format-category';
+                    // Save the selected format
+                    this.saveExportFormat(formatId, categoryId);
 
-                    const categoryLabel = document.createElement('div');
-                    categoryLabel.className = 'format-category-label';
-                    categoryLabel.textContent = category.label;
-                    categoryItem.appendChild(categoryLabel);
+                    // Get the format
+                    const format = this.exportFormats[categoryId].formats[formatId];
+                    window.currentSelectedFormat = format;
 
-                    // Create format list for this category
-                    const formatList = document.createElement('ul');
-                    formatList.className = 'format-list';
-
-                    // Create and add format items
-                    Object.values(category.formats).forEach(format => {
-                        // Create the format item element
-                        const formatElement = format.createElement((selectedFormat) => {
-                            // Unselect the previously selected format
-                            if (window.currentSelectedFormat) {
-                                window.currentSelectedFormat.unselect();
-                            }
-
-                            // Set the new selected format
-                            window.currentSelectedFormat = selectedFormat;
-                            selectedFormat.select();
-
-                            // Update the selector button text
-                            formatSelector.textContent = selectedFormat.label;
-
-                            // Save the selected format
-                            this.saveExportFormat(selectedFormat.id, selectedFormat.category);
-
-                            // Close the dropdown
-                            formatDropdown.classList.remove('active');
-                        });
-
-                        formatList.appendChild(formatElement);
-
-                        // If this is the last selected format, select it
-                        if (lastSelectedFormat &&
-                            lastSelectedFormat.id === format.id &&
-                            lastSelectedFormat.category === format.category) {
-                            // Trigger a click on this format
-                            setTimeout(() => {
-                                const formatLabel = formatElement.querySelector('.format-label');
-                                if (formatLabel) {
-                                    formatLabel.click();
-                                }
-                            }, 0);
-                        }
-                    });
-
-                    categoryItem.appendChild(formatList);
-                    formatCategories.appendChild(categoryItem);
-                });
-
-                formatDropdown.appendChild(formatCategories);
-                content.appendChild(formatSelectorContainer);
+                    // Update options display
+                    this.updateFormatOptions(format, formatOptionsContainer);
+                };
 
                 // Create export buttons container
                 const exportButtonsContainer = document.createElement('div');
@@ -2353,6 +2384,31 @@ class ControlPanel {
                 exportButtonsContainer.appendChild(copyButton);
                 exportButtonsContainer.appendChild(downloadButton);
                 content.appendChild(exportButtonsContainer);
+
+                content.insertBefore(formatOptionsContainer, exportButtonsContainer);
+
+                const handleFormatSelection = (value) => {
+                    // Parse the value (category:formatId)
+                    const [categoryId, formatId] = value.split(':');
+
+                    // Save the selected format
+                    this.saveExportFormat(formatId, categoryId);
+
+                    // Get the format
+                    const format = this.exportFormats[categoryId].formats[formatId];
+                    window.currentSelectedFormat = format;
+
+                    // Update options display
+                    this.updateFormatOptions(format, formatOptionsContainer);
+                };
+                
+                if (lastSelectedFormat) {
+                    // Get currently selected value from select box
+                    const selectedValue = this.formatSelector.getValue();
+                    if (selectedValue) {
+                        handleFormatSelection(selectedValue);
+                    }
+                }
 
                 // Create clear button
                 const clearButton = this.createButton(
