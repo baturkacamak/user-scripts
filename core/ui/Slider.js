@@ -256,15 +256,15 @@ class Slider {
 
 
   /**
-     * Create the slider element
-     * @return {HTMLElement} The slider container element
+     * Create the slider element.
+     * @return {HTMLElement} The slider container element.
      */
   create() {
-    // Create container
+    // Create the slider container
     this.sliderElement = document.createElement('div');
-    this.updateSliderClasses();
+    this.updateSliderClasses(); // Sets the appropriate classes based on theme, size, and custom classes
 
-    // Add label if provided
+    // If a label is provided, create and append the label element
     if (this.label) {
       this.labelElement = document.createElement('label');
       this.labelElement.className = `${Slider.BASE_SLIDER_CLASS}-label`;
@@ -273,7 +273,7 @@ class Slider {
       this.sliderElement.appendChild(this.labelElement);
     }
 
-    // Create input element
+    // Create the input element of type range
     this.inputElement = document.createElement('input');
     this.inputElement.type = 'range';
     this.inputElement.className = `${Slider.BASE_SLIDER_CLASS}-input`;
@@ -283,25 +283,36 @@ class Slider {
     this.inputElement.step = this.step;
     this.inputElement.value = this.value;
 
-    // Add event listeners
+    // Cancel any ongoing smooth transition animation when the user initiates a drag.
+    // Using "pointerdown" covers both mouse and touch events.
+    this.inputElement.addEventListener('pointerdown', () => {
+      if (this._animationFrame) {
+        cancelAnimationFrame(this._animationFrame);
+        this._animationFrame = null;
+      }
+    });
+
+    // Listen for input events to update the value and display
     this.inputElement.addEventListener('input', (e) => {
+      // Update the slider's value
       this.value = parseFloat(e.target.value);
       this.updateValue();
-
       if (this.onInput) {
         this.onInput(this.value, e);
       }
     });
 
+    // Listen for change events (when value change is finalized)
     this.inputElement.addEventListener('change', (e) => {
       if (this.onChange) {
         this.onChange(this.value, e);
       }
     });
 
+    // Append the input element to the slider container
     this.sliderElement.appendChild(this.inputElement);
 
-    // Add value display if enabled
+    // Optionally create and append a value display element
     if (this.showValue) {
       this.valueElement = document.createElement('span');
       this.valueElement.className = `${Slider.BASE_SLIDER_CLASS}-value`;
@@ -309,13 +320,14 @@ class Slider {
       this.sliderElement.appendChild(this.valueElement);
     }
 
-    // Add to container if provided
+    // Append the slider container to the provided container, if one was specified
     if (this.container) {
       this.container.appendChild(this.sliderElement);
     }
 
     return this.sliderElement;
   }
+
 
   /**
      * Update the classes on the slider element based on theme, size, and custom classes.
@@ -463,6 +475,66 @@ class Slider {
       this.labelElement.textContent = label;
       this.sliderElement.insertBefore(this.labelElement, this.sliderElement.firstChild);
     }
+  }
+
+  /**
+     * Snap a given value to the nearest valid step increment within [this.min, this.max].
+     * @param {number} val - The raw floating-point value to snap.
+     * @return {number} The stepped value, clamped to min/max.
+     */
+  snapValueToStep(val) {
+    // Constrain into [min, max] first
+    const clamped = Math.max(this.min, Math.min(this.max, val));
+
+    // Compute how many steps from this.min
+    const stepsFromMin = Math.round((clamped - this.min) / this.step);
+    // Snap back to [min, max]
+    return this.min + (stepsFromMin * this.step);
+  }
+
+  /**
+     * Animate the slider from its current value to a target value
+     * with snapping to steps at each frame.
+     *
+     * @param {number} rawTargetValue - The raw target (e.g. from click).
+     * @param {number} [duration=300] - The animation duration in ms.
+     */
+  animateToValue(rawTargetValue, duration = 300) {
+    // Snap the final target to a valid step before we start animating:
+    const targetValue = this.snapValueToStep(rawTargetValue);
+
+    // Cancel any existing animation frame
+    if (this._animationFrame) {
+      cancelAnimationFrame(this._animationFrame);
+      this._animationFrame = null;
+    }
+
+    const startValue = this.value; // Current slider value
+    const startTime = performance.now();
+    const range = targetValue - startValue;
+
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1); // interpolation factor [0..1]
+      // Compute new float value
+      const newFloatValue = startValue + t * range;
+
+      // Snap each intermediate to the nearest step:
+      const snapped = this.snapValueToStep(newFloatValue);
+
+      // Update the slider's value without a final change event
+      this.setValue(snapped, false);
+
+      if (1 > t) {
+        this._animationFrame = requestAnimationFrame(step);
+      } else {
+        // End exactly on the snapped target, triggering an onChange if desired
+        this._animationFrame = null;
+        this.setValue(targetValue, true);
+      }
+    };
+
+    this._animationFrame = requestAnimationFrame(step);
   }
 
   /**

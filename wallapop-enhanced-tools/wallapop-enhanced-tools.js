@@ -1,5 +1,5 @@
 // GM function fallbacks for direct browser execution
-import {Button, GMFunctions, HTMLUtils, Logger, ProgressBar, StyleManager, TranslationManager} from "../core";
+import {Button, GMFunctions, HTMLUtils, Logger, ProgressBar, Slider, StyleManager, TranslationManager} from "../core";
 
 const GM = GMFunctions.initialize();
 
@@ -557,6 +557,37 @@ StyleManager.addStyles(`
         .panel-button:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
+        }
+
+        .userscripts-slider-input::-webkit-slider-thumb {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            width: 18px !important;
+            height: 18px !important;
+            border-radius: 50% !important;
+            background-color: #008080 !important;
+            cursor: pointer !important;
+            border: none !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+        }
+        
+        .userscripts-slider-input::-moz-range-thumb {
+            width: 18px !important;
+            height: 18px !important;
+            border-radius: 50% !important;
+            background-color: #008080 !important;
+            cursor: pointer !important;
+            border: none !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+        }
+        
+        .userscripts-slider-input {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            height: 6px !important;
+            border-radius: 3px !important;
+            background-color: #e5e7eb !important;
+            outline: none !important;
         }
 
         /* Select box styling */
@@ -1943,46 +1974,28 @@ class ControlPanel {
                 this.expandProgressContainer = progressContainer;
                 content.appendChild(progressContainer);
 
-                // Add delay option
+                // Add delay option using the Slider component
                 const delayContainer = document.createElement('div');
                 delayContainer.style.marginTop = '10px';
-                delayContainer.style.fontSize = '12px';
 
-                const delayLabel = document.createElement('label');
-                delayLabel.textContent = TranslationManager.getText('delayBetweenRequests');
-                delayLabel.htmlFor = 'expand-delay-input';
-                delayLabel.style.display = 'block';
-                delayLabel.style.marginBottom = '5px';
-                delayContainer.appendChild(delayLabel);
+                // Get saved delay value
+                const savedDelay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
 
-                const delayInput = document.createElement('input');
-                delayInput.id = 'expand-delay-input';
-                delayInput.type = 'range';
-                delayInput.min = '500';
-                delayInput.max = '3000';
-                delayInput.step = '100';
-                delayInput.value = this.loadPanelState('expandAllDelay', '1000');
-                delayInput.style.width = '100%';
-
-                // Add event listener to save the delay value
-                delayInput.addEventListener('change', () => {
-                    this.savePanelState('expandAllDelay', delayInput.value);
+                // Create the slider with the Slider component
+                this.delaySlider = new Slider({
+                    container: delayContainer,
+                    min: 500,
+                    max: 3000,
+                    step: 100,
+                    value: savedDelay,
+                    label: TranslationManager.getText('delayBetweenRequests'),
+                    theme: 'primary',
+                    valueSuffix: 'ms',
+                    onChange: (value) => {
+                        this.savePanelState('expandAllDelay', value.toString());
+                    }
                 });
 
-                delayContainer.appendChild(delayInput);
-
-                // Display the current delay value
-                const delayValue = document.createElement('div');
-                delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
-                delayValue.style.textAlign = 'center';
-                delayValue.style.marginTop = '5px';
-
-                // Update displayed value when slider moves
-                delayInput.addEventListener('input', () => {
-                    delayValue.textContent = `${parseInt(delayInput.value) / 1000}s`;
-                });
-
-                delayContainer.appendChild(delayValue);
                 content.appendChild(delayContainer);
             }
         });
@@ -2013,8 +2026,8 @@ class ControlPanel {
             return;
         }
 
-        // Get the delay setting
-        const delay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
+        // Get the delay setting from the slider
+        const delay = this.delaySlider ? this.delaySlider.getValue() : parseInt(this.loadPanelState('expandAllDelay', '1000'));
 
         // Get expand button and disable it
         const expandAllButton = document.querySelector('.expand-all-button');
