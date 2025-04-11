@@ -700,7 +700,7 @@
         this.toggleElement = null;
         this.contentElement = null;
 
-        this.initStyles();
+        SectionToggler.initStyles();
         this.create();
       }
 
@@ -948,7 +948,7 @@
         this.size = options.size || 'medium';
 
         this.selectElement = null;
-        this.initStyles();
+        SelectBox.initStyles();
         this.create();
       }
 
@@ -1307,7 +1307,7 @@
         this.originalText = this.text;
 
         this.button = null;
-        this.initStyles();
+        Button.initStyles();
         this.create();
       }
 
@@ -1947,7 +1947,7 @@
         this.progressTextElement = null;
         this.labelElement = null;
 
-        this.initStyles();
+        ProgressBar.initStyles();
         this.create();
       }
 

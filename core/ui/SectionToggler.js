@@ -120,7 +120,7 @@ class SectionToggler {
     this.toggleElement = null;
     this.contentElement = null;
 
-    this.initStyles();
+    SectionToggler.initStyles();
     this.create();
   }
 

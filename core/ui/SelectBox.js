@@ -138,7 +138,7 @@ class SelectBox {
     this.size = options.size || 'medium';
 
     this.selectElement = null;
-    this.initStyles();
+    SelectBox.initStyles();
     this.create();
   }
 
