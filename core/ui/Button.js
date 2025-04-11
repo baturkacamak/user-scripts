@@ -34,7 +34,7 @@ class Button {
     if (Button.stylesInitialized) return;
     StyleManager.addStyles(`
       /* Scoped styles for Userscripts Button Component */
-      .${Button.Button.BASE_BUTTON_CLASS} {
+      .${Button.BASE_BUTTON_CLASS} {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -45,92 +45,103 @@ class Button {
         cursor: pointer;
         transition: all 0.15s ease-in-out;
         text-align: center;
+        background-color: var(${Button.CSS_VAR_PREFIX}bg);
+        color: var(${Button.CSS_VAR_PREFIX}color);
+        border-color: var(${Button.CSS_VAR_PREFIX}border);
       }
       
       /* Button sizes */
-      .${Button.Button.BASE_BUTTON_CLASS}--small {
+      .${Button.BASE_BUTTON_CLASS}--small {
         font-size: 0.75rem;
         padding: 0.25rem 0.5rem;
         min-height: 1.75rem;
       }
-      .${Button.Button.BASE_BUTTON_CLASS}--medium {
+      .${Button.BASE_BUTTON_CLASS}--medium {
         font-size: 0.875rem;
         padding: 0.5rem 1rem;
         min-height: 2.25rem;
       }
-      .${Button.Button.BASE_BUTTON_CLASS}--large {
+      .${Button.BASE_BUTTON_CLASS}--large {
         font-size: 1rem;
         padding: 0.75rem 1.5rem;
         min-height: 2.75rem;
       }
       
       /* Button themes using CSS variables */
-      .${Button.Button.BASE_BUTTON_CLASS}--default {
-        background-color: var(${Button.cssVarPrefix}bg-default);
-        color: var(${Button.cssVarPrefix}color-default);
-        border-color: var(${Button.cssVarPrefix}border-default);
+      .${Button.BASE_BUTTON_CLASS}--default {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-default);
+        color: var(${Button.CSS_VAR_PREFIX}color-default);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-default);
       }
-      .${Button.Button.BASE_BUTTON_CLASS}--default:hover:not(:disabled) {
-        background-color: var(${Button.cssVarPrefix}bg-default-hover);
-      }
-      
-      .${Button.Button.BASE_BUTTON_CLASS}--primary {
-        background-color: var(${Button.cssVarPrefix}bg-primary);
-        color: var(${Button.cssVarPrefix}color-primary);
-        border-color: var(${Button.cssVarPrefix}border-primary);
-      }
-      .${Button.Button.BASE_BUTTON_CLASS}--primary:hover:not(:disabled) {
-        background-color: var(${Button.cssVarPrefix}bg-primary-hover);
-        border-color: var(${Button.cssVarPrefix}border-primary-hover);
+      .${Button.BASE_BUTTON_CLASS}--default:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-default-hover);
       }
       
-      .${Button.Button.BASE_BUTTON_CLASS}--secondary {
-        background-color: var(${Button.cssVarPrefix}bg-secondary);
-        color: var(${Button.cssVarPrefix}color-secondary);
-        border-color: var(${Button.cssVarPrefix}border-secondary);
+      .${Button.BASE_BUTTON_CLASS}--primary {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-primary);
+        color: var(${Button.CSS_VAR_PREFIX}color-primary);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-primary);
       }
-      .${Button.Button.BASE_BUTTON_CLASS}--secondary:hover:not(:disabled) {
-        background-color: var(${Button.cssVarPrefix}bg-secondary-hover);
-        border-color: var(${Button.cssVarPrefix}border-secondary-hover);
-      }
-      
-      .${Button.Button.BASE_BUTTON_CLASS}--success {
-        background-color: var(${Button.cssVarPrefix}bg-success);
-        color: var(${Button.cssVarPrefix}color-success);
-        border-color: var(${Button.cssVarPrefix}border-success);
-      }
-      .${Button.Button.BASE_BUTTON_CLASS}--success:hover:not(:disabled) {
-        background-color: var(${Button.cssVarPrefix}bg-success-hover);
-        border-color: var(${Button.cssVarPrefix}border-success-hover);
+      .${Button.BASE_BUTTON_CLASS}--primary:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-primary-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-primary-hover);
       }
       
-      .${Button.Button.BASE_BUTTON_CLASS}--danger {
-        background-color: var(${Button.cssVarPrefix}bg-danger);
-        color: var(${Button.cssVarPrefix}color-danger);
-        border-color: var(${Button.cssVarPrefix}border-danger);
+      .${Button.BASE_BUTTON_CLASS}--secondary {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-secondary);
+        color: var(${Button.CSS_VAR_PREFIX}color-secondary);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-secondary);
       }
-      .${Button.Button.BASE_BUTTON_CLASS}--danger:hover:not(:disabled) {
-        background-color: var(${Button.cssVarPrefix}bg-danger-hover);
-        border-color: var(${Button.cssVarPrefix}border-danger-hover);
+      .${Button.BASE_BUTTON_CLASS}--secondary:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-secondary-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-secondary-hover);
       }
       
-      /* Button state styles */
-      .${Button.Button.BASE_BUTTON_CLASS}:disabled {
+      .${Button.BASE_BUTTON_CLASS}--success {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-success);
+        color: var(${Button.CSS_VAR_PREFIX}color-success);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-success);
+      }
+      .${Button.BASE_BUTTON_CLASS}--success:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-success-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-success-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--danger {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-danger);
+        color: var(${Button.CSS_VAR_PREFIX}color-danger);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-danger);
+      }
+      .${Button.BASE_BUTTON_CLASS}--danger:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-danger-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-danger-hover);
+      }
+      
+      /* Generic state styles */
+      .${Button.BASE_BUTTON_CLASS}:disabled {
         opacity: 0.65;
         cursor: not-allowed;
         pointer-events: none;
       }
-      .${Button.Button.BASE_BUTTON_CLASS}:focus {
+      .${Button.BASE_BUTTON_CLASS}:focus {
         outline: none;
-        box-shadow: 0 0 0 3px var(${Button.cssVarPrefix}focus-shadow);
+        box-shadow: 0 0 0 3px var(${Button.CSS_VAR_PREFIX}focus-shadow);
+      }
+      
+      /* Generic pseudo-class rules */
+      .${Button.BASE_BUTTON_CLASS}:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-hover);
+      }
+      .${Button.BASE_BUTTON_CLASS}:active:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-active);
       }
       
       /* Button content */
-      .${Button.Button.BASE_BUTTON_CLASS}__icon {
+      .${Button.BASE_BUTTON_CLASS}__icon {
         display: inline-flex;
         margin-right: 0.5rem;
       }
-      .${Button.Button.BASE_BUTTON_CLASS}__text {
+      .${Button.BASE_BUTTON_CLASS}__text {
         display: inline-block;
       }
     `, 'userscripts-button-styles');
@@ -177,6 +188,9 @@ class Button {
           ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
           ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
           
+          ${Button.CSS_VAR_PREFIX}bg-hover: #e0e0e0;
+          ${Button.CSS_VAR_PREFIX}bg-active: #d0d0d0;
+          
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
       `;
@@ -208,15 +222,18 @@ class Button {
     this.id = options.id;
     this.container = options.container;
     this.attributes = options.attributes || {};
-    this.theme = options.theme || 'default';
+    this.theme = options.theme;
     this.size = options.size || 'medium';
     this.disabled = options.disabled || false;
     this.icon = options.icon || null;
     this.successText = options.successText || null;
     this.successDuration = options.successDuration || 1500;
     this.originalText = this.text;
+
+    // These properties will refer to the DOM elements.
     this.button = null;
     this.textElement = null;
+
     Button.initStyles();
     this.create();
   }
