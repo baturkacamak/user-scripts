@@ -1811,14 +1811,6 @@ class ControlPanel {
     /**
      * Create a button with standard style
      */
-    /**
-     * Create a button with standard style using the Button component
-     * @param {string} text - Button text
-     * @param {string} className - CSS class for the button
-     * @param {Function} clickHandler - Click event handler
-     * @param {Object} options - Additional button options
-     * @returns {HTMLElement} - The created button element
-     */
     static createButton(text, className, clickHandler, options = {}) {
         // Configure button options
         const buttonOptions = {
