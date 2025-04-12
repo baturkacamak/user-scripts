@@ -7174,6 +7174,8 @@
                     }
                 });
 
+                this.container.appendChild(this.togglers.panel.sectionElement);
+
                 // Apply initial collapsed state if needed
                 if (!isPanelExpanded) {
                     contentContainer.classList.add('collapsed');
