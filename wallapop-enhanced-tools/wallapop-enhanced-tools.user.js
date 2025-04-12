@@ -610,150 +610,157 @@
       static initStyles() {
         if (SectionToggler.stylesInitialized) return;
         StyleManager.addStyles(`
-      /* Scoped styles for Userscripts SectionToggler Component */
-      .${SectionToggler.BASE_SECTION_CLASS} {
-        width: 100%;
-        margin-bottom: 0.5rem;
-        border-radius: 0.375rem;
-        border: 1px solid var(${SectionToggler.CSS_VAR_PREFIX}border-color, #e5e7eb);
-        background-color: var(${SectionToggler.CSS_VAR_PREFIX}bg, #ffffff);
-        overflow: hidden;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}__header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.75rem 1rem;
-        background-color: var(${SectionToggler.CSS_VAR_PREFIX}header-bg, #f9fafb);
-        cursor: pointer;
-        user-select: none;
-        border-bottom: 1px solid transparent;
-        transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}__header:hover {
-        background-color: var(${SectionToggler.CSS_VAR_PREFIX}header-hover-bg, #f3f4f6);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}__title {
-        font-weight: 500;
-        font-size: 0.875rem;
-        color: var(${SectionToggler.CSS_VAR_PREFIX}title-color, #374151);
-      }
-      
+    /* Scoped styles for Userscripts SectionToggler Component */
+    .${SectionToggler.BASE_SECTION_CLASS} {
+      width: 100%;
+      margin-bottom: 0.5rem;
+      border-radius: 0.375rem;
+      border: 1px solid var(${SectionToggler.CSS_VAR_PREFIX}border-color, #e5e7eb);
+      background-color: var(${SectionToggler.CSS_VAR_PREFIX}bg, #ffffff);
+      overflow: hidden;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background-color: var(${SectionToggler.CSS_VAR_PREFIX}header-bg, #f9fafb);
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+      transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}__header:hover {
+      background-color: var(${SectionToggler.CSS_VAR_PREFIX}header-hover-bg, #f3f4f6);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}__title {
+      font-weight: 700;
+      font-size: 0.875rem;
+      color: var(${SectionToggler.CSS_VAR_PREFIX}title-color, #374151);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}__icon {
+      width: 1rem;
+      height: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease-in-out;
+      color: var(${SectionToggler.CSS_VAR_PREFIX}icon-color, #9ca3af);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}__icon svg {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}__header:hover .${SectionToggler.BASE_SECTION_CLASS}__icon {
+      color: var(${SectionToggler.CSS_VAR_PREFIX}icon-hover-color, #6b7280);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}__content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out, opacity 0.3s ease-in-out;
+      opacity: 0;
+      padding: 0 1rem;
+      background-color: var(${SectionToggler.CSS_VAR_PREFIX}content-bg, #ffffff);
+    }
+    
+    /* Direct child selector for nested section support */
+    .${SectionToggler.BASE_SECTION_CLASS}--expanded > .${SectionToggler.BASE_SECTION_CLASS}__content {
+      max-height: var(${SectionToggler.CSS_VAR_PREFIX}content-max-height, 500px);
+      padding: 1rem;
+      opacity: 1;
+    }
+    
+    /* Ensure nested sections keep their own styles regardless of parent state */
+    .${SectionToggler.BASE_SECTION_CLASS}__content .${SectionToggler.BASE_SECTION_CLASS} {
+      max-height: none;
+      opacity: 1;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--expanded > .${SectionToggler.BASE_SECTION_CLASS}__header {
+      border-bottom: 1px solid var(${SectionToggler.CSS_VAR_PREFIX}border-color, #e5e7eb);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--expanded > .${SectionToggler.BASE_SECTION_CLASS}__header .${SectionToggler.BASE_SECTION_CLASS}__icon {
+      transform: rotate(180deg);
+    }
+    
+    /* Section sizes */
+    .${SectionToggler.BASE_SECTION_CLASS}--small > .${SectionToggler.BASE_SECTION_CLASS}__header {
+      padding: 0.5rem 0.75rem;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--small > .${SectionToggler.BASE_SECTION_CLASS}__header .${SectionToggler.BASE_SECTION_CLASS}__title {
+      font-size: 0.75rem;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--large > .${SectionToggler.BASE_SECTION_CLASS}__header {
+      padding: 1rem 1.25rem;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--large > .${SectionToggler.BASE_SECTION_CLASS}__header .${SectionToggler.BASE_SECTION_CLASS}__title {
+      font-size: 1rem;
+    }
+    
+    /* Themes */
+    .${SectionToggler.BASE_SECTION_CLASS}--primary > .${SectionToggler.BASE_SECTION_CLASS}__header {
+      background-color: var(${SectionToggler.CSS_VAR_PREFIX}primary-header-bg, #eff6ff);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--primary > .${SectionToggler.BASE_SECTION_CLASS}__header .${SectionToggler.BASE_SECTION_CLASS}__title {
+      color: var(${SectionToggler.CSS_VAR_PREFIX}primary-title-color, #2563eb);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--primary > .${SectionToggler.BASE_SECTION_CLASS}__header .${SectionToggler.BASE_SECTION_CLASS}__icon {
+      color: var(${SectionToggler.CSS_VAR_PREFIX}primary-icon-color, #3b82f6);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--success > .${SectionToggler.BASE_SECTION_CLASS}__header {
+      background-color: var(${SectionToggler.CSS_VAR_PREFIX}success-header-bg, #ecfdf5);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--success > .${SectionToggler.BASE_SECTION_CLASS}__header .${SectionToggler.BASE_SECTION_CLASS}__title {
+      color: var(${SectionToggler.CSS_VAR_PREFIX}success-title-color, #059669);
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--success > .${SectionToggler.BASE_SECTION_CLASS}__header .${SectionToggler.BASE_SECTION_CLASS}__icon {
+      color: var(${SectionToggler.CSS_VAR_PREFIX}success-icon-color, #10b981);
+    }
+    
+    /* Badge for counters or status indicators */
+    .${SectionToggler.BASE_SECTION_CLASS}__badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(${SectionToggler.CSS_VAR_PREFIX}badge-bg, #e5e7eb);
+      color: var(${SectionToggler.CSS_VAR_PREFIX}badge-color, #4b5563);
+      font-size: 0.75rem;
+      line-height: 1;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      margin-left: 0.5rem;
+      font-weight: 500;
+    }
+    
+    .${SectionToggler.BASE_SECTION_CLASS}--disabled {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    
+    /* For improved accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      .${SectionToggler.BASE_SECTION_CLASS}__content,
       .${SectionToggler.BASE_SECTION_CLASS}__icon {
-        width: 1rem;
-        height: 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: transform 0.2s ease-in-out;
-        color: var(${SectionToggler.CSS_VAR_PREFIX}icon-color, #9ca3af);
+        transition: none;
       }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}__icon svg {
-        width: 100%;
-        height: 100%;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}__header:hover .${SectionToggler.BASE_SECTION_CLASS}__icon {
-        color: var(${SectionToggler.CSS_VAR_PREFIX}icon-hover-color, #6b7280);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}__content {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out, opacity 0.3s ease-in-out;
-        opacity: 0;
-        padding: 0 1rem;
-        background-color: var(${SectionToggler.CSS_VAR_PREFIX}content-bg, #ffffff);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--expanded .${SectionToggler.BASE_SECTION_CLASS}__content {
-        max-height: var(${SectionToggler.CSS_VAR_PREFIX}content-max-height, 500px);
-        padding: 1rem;
-        opacity: 1;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--expanded .${SectionToggler.BASE_SECTION_CLASS}__header {
-        border-bottom: 1px solid var(${SectionToggler.CSS_VAR_PREFIX}border-color, #e5e7eb);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--expanded .${SectionToggler.BASE_SECTION_CLASS}__icon {
-        transform: rotate(180deg);
-      }
-      
-      /* Section sizes */
-      .${SectionToggler.BASE_SECTION_CLASS}--small .${SectionToggler.BASE_SECTION_CLASS}__header {
-        padding: 0.5rem 0.75rem;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--small .${SectionToggler.BASE_SECTION_CLASS}__title {
-        font-size: 0.75rem;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--large .${SectionToggler.BASE_SECTION_CLASS}__header {
-        padding: 1rem 1.25rem;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--large .${SectionToggler.BASE_SECTION_CLASS}__title {
-        font-size: 1rem;
-      }
-      
-      /* Themes */
-      .${SectionToggler.BASE_SECTION_CLASS}--primary .${SectionToggler.BASE_SECTION_CLASS}__header {
-        background-color: var(${SectionToggler.CSS_VAR_PREFIX}primary-header-bg, #eff6ff);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--primary .${SectionToggler.BASE_SECTION_CLASS}__title {
-        color: var(${SectionToggler.CSS_VAR_PREFIX}primary-title-color, #2563eb);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--primary .${SectionToggler.BASE_SECTION_CLASS}__icon {
-        color: var(${SectionToggler.CSS_VAR_PREFIX}primary-icon-color, #3b82f6);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--success .${SectionToggler.BASE_SECTION_CLASS}__header {
-        background-color: var(${SectionToggler.CSS_VAR_PREFIX}success-header-bg, #ecfdf5);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--success .${SectionToggler.BASE_SECTION_CLASS}__title {
-        color: var(${SectionToggler.CSS_VAR_PREFIX}success-title-color, #059669);
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--success .${SectionToggler.BASE_SECTION_CLASS}__icon {
-        color: var(${SectionToggler.CSS_VAR_PREFIX}success-icon-color, #10b981);
-      }
-      
-      /* Badge for counters or status indicators */
-      .${SectionToggler.BASE_SECTION_CLASS}__badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background-color: var(${SectionToggler.CSS_VAR_PREFIX}badge-bg, #e5e7eb);
-        color: var(${SectionToggler.CSS_VAR_PREFIX}badge-color, #4b5563);
-        font-size: 0.75rem;
-        line-height: 1;
-        padding: 0.25rem 0.5rem;
-        border-radius: 9999px;
-        margin-left: 0.5rem;
-        font-weight: 500;
-      }
-      
-      .${SectionToggler.BASE_SECTION_CLASS}--disabled {
-        opacity: 0.6;
-        pointer-events: none;
-      }
-      
-      /* For improved accessibility */
-      @media (prefers-reduced-motion: reduce) {
-        .${SectionToggler.BASE_SECTION_CLASS}__content,
-        .${SectionToggler.BASE_SECTION_CLASS}__icon {
-          transition: none;
-        }
-      }
-    `, 'userscripts-section-toggler-styles');
+    }
+  `, 'userscripts-section-toggler-styles');
 
         SectionToggler.stylesInitialized = true;
       }
@@ -869,7 +876,7 @@
         }
 
         if (this.customClassName) {
-          this.sectionElement.classList.add(this.customClassName);
+          this._addCustomClassWithBEM(this.customClassName);
         }
 
         if (this.id) {
@@ -1108,7 +1115,7 @@
         }
         this.customClassName = className;
         if (className) {
-          this.sectionElement.classList.add(className);
+          this._addCustomClassWithBEM(className);
         }
       }
 
@@ -1127,6 +1134,31 @@
           } else if (content instanceof HTMLElement) {
             this.contentElement.appendChild(content);
           }
+        }
+      }
+
+      /**
+         * Get the content element of the section.
+         * @return {HTMLElement} The content element.
+         */
+      getContentElement() {
+        return this.contentElement;
+      }
+
+      /**
+         * Private helper method to handle adding custom class following BEM convention
+         * @param {string} className - The custom class to add
+         * @private
+         */
+      _addCustomClassWithBEM(className) {
+        if (!className) return;
+
+        // If the class already follows BEM format, use it as is
+        if (className.startsWith(`${SectionToggler.BASE_SECTION_CLASS}--`)) {
+          this.sectionElement.classList.add(className);
+        } else {
+          // Otherwise add it as a BEM modifier
+          this.sectionElement.classList.add(`${SectionToggler.BASE_SECTION_CLASS}--${className}`);
         }
       }
     }
@@ -4134,8 +4166,15 @@
             transition: opacity var(--transition-speed) var(--transition-easing),
                         transform var(--transition-speed) var(--transition-easing);
         }
+        
+        .userscripts-section.userscripts-section--main-panel {
+            margin-bottom: 0;
+        }
 
-        .panel-title {
+        .userscripts-section--main-panel > .userscripts-section__header {
+            --userscripts-section-header-bg: var(--panel-accent-color);
+            --userscripts-section-header-color: white;
+            --userscripts-section-header-hover-bg: var(--panel-accent-color);
             font-weight: bold;
             font-size: 14px;
             padding: 10px 15px;
@@ -4143,10 +4182,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: var(--panel-accent-color);
             border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
-            cursor: pointer;
-            user-select: none;
+        }
+        
+        .userscripts-section--main-panel.userscripts-section > .userscripts-section__content {
+            padding: 0
+        }
+        
+        .userscripts-section .userscripts-section {
+            margin: 0;
         }
 
         .panel-toggle {
@@ -7159,19 +7203,16 @@
                 contentContainer.className = 'panel-content';
                 // Create panel toggler (header)
                 this.togglers.panel = new SectionToggler({
-                    customClassName: 'panel',
+                    className: 'main-panel',
                     title: TranslationManager.getText('wallapopTools'),
                     isExpanded: isPanelExpanded,
                     onToggle: (state) => {
                         this.savePanelState('isPanelExpanded', state);
-                        // Unlike other togglers, we need to manually toggle content visibility
-                        // since we're using header + separate content container
+                        contentContainer.classList.add('collapsed');
                         if (state) {
                             contentContainer.classList.remove('collapsed');
-                        } else {
-                            contentContainer.classList.add('collapsed');
                         }
-                    }
+                    },
                 });
 
                 this.container.appendChild(this.togglers.panel.sectionElement);
@@ -7182,11 +7223,11 @@
                 }
 
                 // Add all sections to content container, including the new Expand All section
-                this.createExpandAllSection(contentContainer); // Add the new Expand All section first
-                this.createFilterSection(contentContainer);
-                this.createDeliveryMethodSection(contentContainer);
-                this.createCopySection(contentContainer);
-                this.createLanguageSection(contentContainer);
+                this.createExpandAllSection(this.togglers.panel.getContentElement());
+                this.createFilterSection(this.togglers.panel.getContentElement());
+                this.createDeliveryMethodSection(this.togglers.panel.getContentElement());
+                this.createCopySection(this.togglers.panel.getContentElement());
+                this.createLanguageSection(this.togglers.panel.getContentElement());
 
                 // Add content container to main container
                 this.container.appendChild(contentContainer);
@@ -7574,7 +7615,7 @@
             };
 
             // Update panel title
-            updateText('.panel-title span:first-child', 'wallapopTools');
+            updateText('.userscripts-section--main-panel div:first-child', 'wallapopTools');
 
             // Update section titles
             updateText('.filter-section .section-title span:first-child', 'filterUnwantedWords');
