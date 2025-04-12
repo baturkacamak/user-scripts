@@ -4128,6 +4128,7 @@
         border-radius: var(${DraggableContainer.CSS_VAR_PREFIX}border-radius);
         background-color: var(${DraggableContainer.CSS_VAR_PREFIX}bg);
         box-shadow: var(${DraggableContainer.CSS_VAR_PREFIX}shadow);
+        box-sizing: border-box;
         overflow: hidden; /* Keep overflow hidden for content */
         /* Add top and left to the transition */
         transition: opacity 0.3s ease, transform 0.2s ease,
@@ -4528,42 +4529,140 @@
 
       /**
          * Sets up the ResizeObserver to monitor container size changes.
+         * Enforces maximum height based on content scrollHeight during user resize.
          */
       setupResizeObserver() {
         if (this._resizeObserver) {
           this._resizeObserver.disconnect();
         }
         this._resizeObserver = new ResizeObserver((entries) => {
-          window.requestAnimationFrame(() => { // Use rAF
+          window.requestAnimationFrame(() => {
             for (const entry of entries) {
-              if (entry.target === this.containerElement) {
-                // Check if minimized *after* potential resize completes
-                if (!this.containerElement.classList.contains(`${DraggableContainer.BASE_CONTAINER_CLASS}--minimized`)) {
-                  const newWidth = entry.contentRect.width;
-                  const newHeight = entry.contentRect.height;
-                  this._log(`Resized to ${newWidth}x${newHeight}`);
+              if (entry.target === this.containerElement &&
+                            !this.containerElement.classList.contains(`${DraggableContainer.BASE_CONTAINER_CLASS}--minimized`)) {
+                const currentReportedRect = entry.contentRect; // From observer
+                const currentWidth = currentReportedRect.width;
+                // We need the *actual current total height* for comparison, not just contentRect.height
+                const currentTotalHeight = this.containerElement.offsetHeight;
 
-                  // Call the onResize callback *before* potentially snapping
-                  if (this.onResize) {
-                    try {
-                      this.onResize({width: newWidth, height: newHeight}, this);
-                    } catch (e) {
-                      this._logError(e, 'running onResize callback');
+                let finalHeight = currentTotalHeight; // Start with current actual height
+                let heightAdjusted = false;
+
+                // --- Calculate Max Allowed Container Height ---
+                let maxContainerHeight = Infinity;
+                if (this.contentElement && this.handleElement) {
+                  try {
+                    const contentScrollHeight = this.contentElement.scrollHeight;
+                    const handleHeight = this.handleElement.offsetHeight; // Height of handle (includes its padding/border)
+
+                    // Get computed style for content padding (already included in scrollHeight conceptually, but needed if borders are on content itself)
+                    const contentStyle = getComputedStyle(this.contentElement);
+                    const contentPaddingTop = parseFloat(contentStyle.paddingTop) || 0;
+                    const contentPaddingBottom = parseFloat(contentStyle.paddingBottom) || 0;
+                    // Content border if contentElement itself has border (usually 0)
+                    const contentBorderTop = parseFloat(contentStyle.borderTopWidth) || 0;
+                    const contentBorderBottom = parseFloat(contentStyle.borderBottomWidth) || 0;
+
+
+                    // Max height calculation assuming container is border-box:
+                    // Handle height + Content scroll height + content vertical padding + content vertical border
+                    maxContainerHeight = handleHeight +
+                                        contentScrollHeight +
+                                        contentPaddingTop +
+                                        contentPaddingBottom +
+                                        contentBorderTop +
+                                        contentBorderBottom;
+
+
+                    // Alternative simple calculation if content has no border/complex box model:
+                    // maxContainerHeight = handleHeight + this.contentElement.scrollHeight + (contentPaddingTop + contentPaddingBottom);
+                    // Check this calculation works with your specific styling.
+
+                    // Get container's own top/bottom border widths if needed (usually 0 if border is only on handle bottom)
+                    // const containerStyle = getComputedStyle(this.containerElement);
+                    // const containerBorderTop = parseFloat(containerStyle.borderTopWidth) || 0;
+                    // const containerBorderBottom = parseFloat(containerStyle.borderBottomWidth) || 0;
+                    // maxContainerHeight += containerBorderTop + containerBorderBottom;
+
+
+                    // Respect the CSS max-height (e.g., 90vh) - Check computed style
+                    const cssMaxHeightStyle = getComputedStyle(this.containerElement).maxHeight;
+                    if (cssMaxHeightStyle && 'none' !== cssMaxHeightStyle) {
+                      // Need a robust way to get pixel value from vh/etc.
+                      // Simple approach: Use getBoundingClientRect height as a proxy for rendered max-height if available
+                      // Or, more simply, just check against window height for vh units
+                      if (cssMaxHeightStyle.endsWith('vh')) {
+                        const vhValue = parseFloat(cssMaxHeightStyle);
+                        if (!isNaN(vhValue)) {
+                          maxContainerHeight = Math.min(maxContainerHeight, window.innerHeight * (vhValue / 100));
+                        }
+                      } else if (cssMaxHeightStyle.endsWith('px')) {
+                        const pxValue = parseFloat(cssMaxHeightStyle);
+                        if (!isNaN(pxValue)) {
+                          maxContainerHeight = Math.min(maxContainerHeight, pxValue);
+                        }
+                      }
                     }
-                  }
 
-                  // Check viewport bounds AFTER resize has occurred
-                  this.ensureInViewport(() => {
-                    // Save position after resize and potential snapping
-                    this.savePosition();
-                  });
+
+                    // Ensure minimum height (at least the handle height)
+                    maxContainerHeight = Math.max(maxContainerHeight, handleHeight);
+                  } catch (e) {
+                    this._logError(e, 'calculating max height during resize');
+                    maxContainerHeight = Infinity;
+                  }
                 }
+                // --- End Calculate Max Height ---
+
+
+                // --- Apply Height Constraint ---
+                // Compare the *actual current total height* against the calculated max
+                const tolerance = 1; // Tolerance for floating point issues
+                if (currentTotalHeight > maxContainerHeight + tolerance) {
+                  this._log(`Height constraint applied: Actual H ${currentTotalHeight.toFixed(2)} > Max H ${maxContainerHeight.toFixed(2)}. Clamping.`);
+                  // Clamp the height by setting the style
+                  this.containerElement.style.height = `${maxContainerHeight}px`;
+                  // Update the final height variable for callbacks/saving
+                  finalHeight = maxContainerHeight;
+                  heightAdjusted = true;
+                }
+                // --- End Apply Height Constraint ---
+
+                // Use finalHeight (potentially clamped) for logging and callbacks
+                this._log(`Resize event: W=${currentWidth.toFixed(2)}, H=${finalHeight.toFixed(2)} (Adjusted: ${heightAdjusted})`);
+
+                // Call the onResize callback *before* viewport check, passing the final dimensions
+                if (this.onResize && (heightAdjusted || entry.contentRect.height !== this._lastReportedHeight || entry.contentRect.width !== this._lastReportedWidth)) {
+                  // Only call if size actually changed or was clamped
+                  try {
+                    this.onResize({width: currentWidth, height: finalHeight}, this);
+                    this._lastReportedHeight = finalHeight; // Store last reported values
+                    this._lastReportedWidth = currentWidth;
+                  } catch (e) {
+                    this._logError(e, 'running onResize callback');
+                  }
+                } else {
+                  // Update last known height even if callback wasn't called, to prevent unnecessary future callbacks
+                  this._lastReportedHeight = finalHeight;
+                  this._lastReportedWidth = currentWidth;
+                }
+
+
+                // Check viewport bounds AFTER resize and potential height clamping
+                this.ensureInViewport((finalPosition) => {
+                  // Save position *after* all adjustments (height clamp, viewport snap)
+                  this.savePosition();
+                });
               }
             }
           });
         });
+        // Initialize last reported dimensions to prevent initial unnecessary callback
+        this._lastReportedHeight = this.containerElement?.offsetHeight;
+        this._lastReportedWidth = this.containerElement?.offsetWidth;
+
         this._resizeObserver.observe(this.containerElement);
-        this._log('Resize observer attached');
+        this._log('Resize observer attached (with revised height constraint logic)');
       }
 
       /**
@@ -5172,7 +5271,6 @@
         }
       }
 
-
       _logError(error, context) {
         Logger.setPrefix(this._loggerPrefix); // Ensure correct prefix
         Logger.error(error, context);
@@ -5268,6 +5366,7 @@
             ${DraggableContainer.CSS_VAR_PREFIX}bg: white;
             ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-color: white;
             ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-bg: var(--panel-accent-color);
+            ${DraggableContainer.CSS_VAR_PREFIX}shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
 
         /* Control Panel Styles */
@@ -5296,10 +5395,6 @@
             justify-content: space-between;
             align-items: center;
             border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
-        }
-        
-        .userscripts-section--main-panel.userscripts-section > .userscripts-section__content {
-            padding: 0
         }
         
         .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section {
