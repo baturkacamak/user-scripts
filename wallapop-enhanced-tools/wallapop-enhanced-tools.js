@@ -12,6 +12,7 @@ import {
     Checkbox,
     SectionToggler,
 } from "../core";
+import DraggableContainer from "../core/ui/DraggableContainer";
 
 const GM = GMFunctions.initialize();
 
@@ -3160,52 +3161,45 @@ class ControlPanel {
     static createControlPanel() {
         // Create control panel if it doesn't exist
         if (!this.container) {
-            this.container = document.createElement('div');
-            this.container.className = 'control-panel';
-
-            // Load panel expanded state
-            const isPanelExpanded = this.loadPanelState('isPanelExpanded', true);
-
-            // Create panel content container
-            const contentContainer = document.createElement('div');
-            contentContainer.className = 'panel-content';
-            // Create panel toggler (header)
-            this.togglers.panel = new SectionToggler({
-                className: 'main-panel',
+            // Initialize the draggable container
+            const dragContainer = new DraggableContainer({
                 title: TranslationManager.getText('wallapopTools'),
-                isExpanded: isPanelExpanded,
-                onToggle: (state) => {
-                    this.savePanelState('isPanelExpanded', state);
-                    contentContainer.classList.add('collapsed');
-                    if (state) {
-                        contentContainer.classList.remove('collapsed');
-                    }
+                id: 'wallapop-tools-panel',
+                className: 'control-panel wallapop-enhanced-tools',
+                theme: 'primary',
+                size: 'medium',
+                minimizable: true,
+                closable: false,
+                resizable: true,
+                defaultX: window.innerWidth - 300 - 20, // 20px from right edge
+                defaultY: 120, // 120px from top
+                onMinimize: (isMinimized) => {
+                    this.savePanelState('isPanelExpanded', !isMinimized);
                 },
+                onMove: (position) => {
+                    // Optional: Add custom behavior on move
+                    Logger.log("Panel moved to:", position);
+                }
             });
 
-            this.container.appendChild(this.togglers.panel.sectionElement);
+            // Store container reference
+            this.container = dragContainer.containerElement;
 
-            // Apply initial collapsed state if needed
-            if (!isPanelExpanded) {
-                contentContainer.classList.add('collapsed');
-            }
+            // Get content container
+            const contentContainer = dragContainer.contentElement;
 
-            // Add all sections to content container, including the new Expand All section
-            this.createExpandAllSection(this.togglers.panel.getContentElement());
-            this.createFilterSection(this.togglers.panel.getContentElement());
-            this.createDeliveryMethodSection(this.togglers.panel.getContentElement());
-            this.createCopySection(this.togglers.panel.getContentElement());
-            this.createLanguageSection(this.togglers.panel.getContentElement());
-
-            // Add content container to main container
-            this.container.appendChild(contentContainer);
-            document.body.appendChild(this.container);
+            // Create sections for panel content
+            this.createExpandAllSection(contentContainer);
+            this.createFilterSection(contentContainer);
+            this.createDeliveryMethodSection(contentContainer);
+            this.createCopySection(contentContainer);
+            this.createLanguageSection(contentContainer);
 
             // Apply initial state
             this.updateUILanguage();
             this.loadBlockedTerms();
 
-            Logger.log("Control panel created with SectionToggler");
+            Logger.log("Draggable control panel created");
         }
     }
 
@@ -3369,7 +3363,8 @@ class ControlPanel {
      * Update panel visibility based on whether there are expanded descriptions
      */
     static updatePanelVisibility() {
-        const copySection = this.container.querySelector('.copy-section');
+        // If using draggable container, we'll show/hide specific sections instead
+        const copySection = document.querySelector('.userscripts-section.export');
         if (copySection) {
             copySection.style.display =
                 DescriptionManager.expandedItems.length > 0 ? 'block' : 'none';
