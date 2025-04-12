@@ -9,7 +9,8 @@ import {
     Slider,
     StyleManager,
     TranslationManager,
-    Checkbox, SectionToggler,
+    Checkbox,
+    SectionToggler,
 } from "../core";
 
 const GM = GMFunctions.initialize();
@@ -29,6 +30,7 @@ const SELECTORS = {
     BLOCKED_TERMS_LIST: '.blocked-terms-list'
 };
 
+// Find the CSS styles section in the script
 StyleManager.addStyles(`
         :root {
             --transition-speed: 0.3s;
@@ -56,7 +58,7 @@ StyleManager.addStyles(`
             --userscripts-progress-warning-fill-gradient-start: #FF9800;
             --userscripts-progress-warning-fill-gradient-end: #F57C00;
             
-                /* Checkbox component variables */
+            /* Checkbox component variables */
             --userscripts-checkbox-bg: #ffffff;
             --userscripts-checkbox-border-color: #d1d5db;
             --userscripts-checkbox-hover-bg: #f0f0f0;
@@ -65,6 +67,27 @@ StyleManager.addStyles(`
             --userscripts-checkbox-checked-border: #008080;
             --userscripts-checkbox-checkmark-color: #ffffff;
             --userscripts-checkbox-focus-shadow: rgba(0, 128, 128, 0.3);
+            
+            /* SectionToggler variables */
+            --userscripts-section-bg: #ffffff;
+            --userscripts-section-border-color: #e5e7eb;
+            --userscripts-section-header-bg: #f9fafb;
+            --userscripts-section-header-hover-bg: #f3f4f6;
+            --userscripts-section-title-color: #374151;
+            --userscripts-section-icon-color: #9ca3af;
+            --userscripts-section-icon-hover-color: #6b7280;
+            --userscripts-section-content-bg: #ffffff;
+            --userscripts-section-content-max-height: 500px;
+            
+            /* SectionToggler primary theme */
+            --userscripts-section-primary-header-bg: #f0f8f8;
+            --userscripts-section-primary-title-color: #008080;
+            --userscripts-section-primary-icon-color: #008080;
+            
+            /* SectionToggler success theme */
+            --userscripts-section-success-header-bg: #ecfdf5;
+            --userscripts-section-success-title-color: #059669;
+            --userscripts-section-success-icon-color: #10b981;
         }
 
         /* Control Panel Styles */
@@ -84,26 +107,21 @@ StyleManager.addStyles(`
                         transform var(--transition-speed) var(--transition-easing);
         }
 
-        .panel-title, .section-title {
+        .panel-title {
             font-weight: bold;
             font-size: 14px;
             padding: 10px 15px;
-            color: #333;
+            color: #fff;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #eee;
+            background-color: var(--panel-accent-color);
+            border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
             cursor: pointer;
             user-select: none;
         }
 
-        .panel-title {
-            background-color: var(--panel-accent-color);
-            color: white;
-            border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
-        }
-
-        .panel-toggle, .section-toggle {
+        .panel-toggle {
             cursor: pointer;
             user-select: none;
             transition: transform 0.3s var(--transition-easing);
@@ -130,22 +148,6 @@ StyleManager.addStyles(`
 
         .panel-section:last-child {
             border-bottom: none;
-        }
-
-        .section-content {
-            padding: 15px;
-            max-height: 300px;
-            opacity: 1;
-            transition: max-height var(--transition-speed) var(--transition-easing),
-                        opacity var(--transition-speed) var(--transition-easing),
-                        padding var(--transition-speed) var(--transition-easing);
-        }
-
-        .section-content.collapsed {
-            max-height: 0;
-            opacity: 0;
-            padding-top: 0;
-            padding-bottom: 0;
         }
 
         .filter-input {
@@ -237,6 +239,11 @@ StyleManager.addStyles(`
             display: inline-block;
             width: 100%;
             margin-top: 10px;
+        }
+
+        .panel-content .${SectionToggler.BASE_SECTION_CLASS} {
+            margin-bottom: 0;
+            border: 0 none;
         }
 
         .dropdown-content {
@@ -547,38 +554,6 @@ StyleManager.addStyles(`
             margin-top: 10px;
             padding: 5px;
             border-radius: 4px;
-        }
-
-        input[type="range"] {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 5px;
-            border-radius: 5px;
-            background: #d3d3d3;
-            outline: none;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 15px;
-            height: 15px;
-            border-radius: 50%;
-            background: var(--panel-accent-color);
-            cursor: pointer;
-        }
-
-        input[type="range"]::-moz-range-thumb {
-            width: 15px;
-            height: 15px;
-            border-radius: 50%;
-            background: var(--panel-accent-color);
-            cursor: pointer;
-        }
-
-        .panel-button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
         }
 
         .userscripts-slider-input::-webkit-slider-thumb {
@@ -1846,8 +1821,8 @@ class ControlPanel {
 
         this.togglers.expandAll = new SectionToggler({
             container,
-            sectionClass: 'expand-all',
-            titleText: TranslationManager.getText('expandAllDescriptions'),
+            customClassName: 'expand-all',
+            title: TranslationManager.getText('expandAllDescriptions'),
             isExpanded,
             onToggle: (state) => {
                 this.savePanelState('isExpandAllSectionExpanded', state);
@@ -2065,7 +2040,7 @@ class ControlPanel {
         this.togglers.filter = new SectionToggler({
             container,
             sectionClass: 'filter',
-            titleText: TranslationManager.getText('filterUnwantedWords'),
+            title: TranslationManager.getText('filterUnwantedWords'),
             isExpanded,
             onToggle: (state) => {
                 this.savePanelState('isFilterSectionExpanded', state);
@@ -2164,7 +2139,7 @@ class ControlPanel {
         this.togglers.copy = new SectionToggler({
             container,
             sectionClass: 'export',
-            titleText: TranslationManager.getText('exportDescriptions'),
+            title: TranslationManager.getText('exportDescriptions'),
             isExpanded,
             onToggle: (state) => {
                 this.savePanelState('isCopySectionExpanded', state);
@@ -2441,7 +2416,7 @@ class ControlPanel {
         this.togglers.deliveryMethod = new SectionToggler({
             container,
             sectionClass: 'delivery-method',
-            titleText: TranslationManager.getText('deliveryMethodFilter'),
+            title: TranslationManager.getText('deliveryMethodFilter'),
             isExpanded,
             onToggle: (state) => {
                 this.savePanelState('isDeliveryMethodSectionExpanded', state);
@@ -3114,7 +3089,7 @@ class ControlPanel {
         this.togglers.language = new SectionToggler({
             container,
             sectionClass: 'language',
-            titleText: TranslationManager.getText('languageSettings'),
+            title: TranslationManager.getText('languageSettings'),
             isExpanded,
             onToggle: (state) => {
                 this.savePanelState('isLanguageSectionExpanded', state);
@@ -3182,11 +3157,10 @@ class ControlPanel {
             // Create panel content container
             const contentContainer = document.createElement('div');
             contentContainer.className = 'panel-content';
-
             // Create panel toggler (header)
             this.togglers.panel = new SectionToggler({
-                sectionClass: 'panel',
-                titleText: TranslationManager.getText('wallapopTools'),
+                customClassName: 'panel',
+                title: TranslationManager.getText('wallapopTools'),
                 isExpanded: isPanelExpanded,
                 onToggle: (state) => {
                     this.savePanelState('isPanelExpanded', state);
@@ -3199,13 +3173,6 @@ class ControlPanel {
                     }
                 }
             });
-
-            // Remove section class and add panel-title class
-            this.togglers.panel.section.className = '';
-            this.togglers.panel.section.querySelector('.section-title').className = 'panel-title';
-
-            // Add header to container
-            this.container.appendChild(this.togglers.panel.section.querySelector('.panel-title'));
 
             // Apply initial collapsed state if needed
             if (!isPanelExpanded) {
