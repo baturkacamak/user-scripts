@@ -106,8 +106,15 @@ StyleManager.addStyles(`
             transition: opacity var(--transition-speed) var(--transition-easing),
                         transform var(--transition-speed) var(--transition-easing);
         }
+        
+        .userscripts-section.userscripts-section--main-panel {
+            margin-bottom: 0;
+        }
 
-        .panel-title {
+        .userscripts-section--main-panel > .userscripts-section__header {
+            --userscripts-section-header-bg: var(--panel-accent-color);
+            --userscripts-section-header-color: white;
+            --userscripts-section-header-hover-bg: var(--panel-accent-color);
             font-weight: bold;
             font-size: 14px;
             padding: 10px 15px;
@@ -115,10 +122,15 @@ StyleManager.addStyles(`
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: var(--panel-accent-color);
             border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
-            cursor: pointer;
-            user-select: none;
+        }
+        
+        .userscripts-section--main-panel.userscripts-section > .userscripts-section__content {
+            padding: 0
+        }
+        
+        .userscripts-section .userscripts-section {
+            margin: 0;
         }
 
         .panel-toggle {
@@ -3159,19 +3171,16 @@ class ControlPanel {
             contentContainer.className = 'panel-content';
             // Create panel toggler (header)
             this.togglers.panel = new SectionToggler({
-                customClassName: 'panel',
+                className: 'main-panel',
                 title: TranslationManager.getText('wallapopTools'),
                 isExpanded: isPanelExpanded,
                 onToggle: (state) => {
                     this.savePanelState('isPanelExpanded', state);
-                    // Unlike other togglers, we need to manually toggle content visibility
-                    // since we're using header + separate content container
+                    contentContainer.classList.add('collapsed');
                     if (state) {
                         contentContainer.classList.remove('collapsed');
-                    } else {
-                        contentContainer.classList.add('collapsed');
                     }
-                }
+                },
             });
 
             this.container.appendChild(this.togglers.panel.sectionElement);
@@ -3182,11 +3191,11 @@ class ControlPanel {
             }
 
             // Add all sections to content container, including the new Expand All section
-            this.createExpandAllSection(contentContainer); // Add the new Expand All section first
-            this.createFilterSection(contentContainer);
-            this.createDeliveryMethodSection(contentContainer);
-            this.createCopySection(contentContainer);
-            this.createLanguageSection(contentContainer);
+            this.createExpandAllSection(this.togglers.panel.getContentElement());
+            this.createFilterSection(this.togglers.panel.getContentElement());
+            this.createDeliveryMethodSection(this.togglers.panel.getContentElement());
+            this.createCopySection(this.togglers.panel.getContentElement());
+            this.createLanguageSection(this.togglers.panel.getContentElement());
 
             // Add content container to main container
             this.container.appendChild(contentContainer);
@@ -3574,7 +3583,7 @@ class ControlPanel {
         };
 
         // Update panel title
-        updateText('.panel-title span:first-child', 'wallapopTools');
+        updateText('.userscripts-section--main-panel div:first-child', 'wallapopTools');
 
         // Update section titles
         updateText('.filter-section .section-title span:first-child', 'filterUnwantedWords');
