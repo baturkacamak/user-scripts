@@ -8,9 +8,9 @@ import {
     SelectBox,
     Slider,
     StyleManager,
-    TranslationManager
+    TranslationManager,
+    Checkbox,
 } from "../core";
-import Checkbox from "../core/ui/Checkbox";
 
 const GM = GMFunctions.initialize();
 

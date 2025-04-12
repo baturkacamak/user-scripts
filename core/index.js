@@ -19,6 +19,8 @@ import SelectBox from './ui/SelectBox.js';
 import Button from './ui/Button.js';
 import Slider from './ui/Slider.js';
 import ProgressBar from './ui/ProgressBar.js';
+import Checkbox from './ui/Checkbox';
+
 
 // Export all components
 export {
@@ -38,6 +40,7 @@ export {
   Button,
   Slider,
   ProgressBar,
+  Checkbox,
 };
 
 // Also export as default for convenience
@@ -50,4 +53,5 @@ export default {
   DOMObserver,
   SelectBox,
   Button,
+  Checkbox,
 };
