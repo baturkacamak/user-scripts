@@ -89,6 +89,10 @@ StyleManager.addStyles(`
             --userscripts-section-success-header-bg: #ecfdf5;
             --userscripts-section-success-title-color: #059669;
             --userscripts-section-success-icon-color: #10b981;
+            
+            ${DraggableContainer.CSS_VAR_PREFIX}bg: white;
+            ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-color: white;
+            ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-bg: var(--panel-accent-color);
         }
 
         /* Control Panel Styles */
@@ -108,14 +112,7 @@ StyleManager.addStyles(`
                         transform var(--transition-speed) var(--transition-easing);
         }
         
-        .userscripts-section.userscripts-section--main-panel {
-            margin-bottom: 0;
-        }
-
-        .userscripts-section--main-panel > .userscripts-section__header {
-            --userscripts-section-header-bg: var(--panel-accent-color);
-            --userscripts-section-header-color: white;
-            --userscripts-section-header-hover-bg: var(--panel-accent-color);
+        .userscripts-draggable-container__handle {
             font-weight: bold;
             font-size: 14px;
             padding: 10px 15px;
@@ -130,8 +127,13 @@ StyleManager.addStyles(`
             padding: 0
         }
         
-        .userscripts-section .userscripts-section {
+        .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section {
             margin: 0;
+        }
+        
+        .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section__header,
+        .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section {
+            border: 0 none;
         }
 
         .panel-toggle {
