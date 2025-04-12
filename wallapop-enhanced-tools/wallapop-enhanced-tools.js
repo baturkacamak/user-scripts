@@ -93,6 +93,7 @@ StyleManager.addStyles(`
             ${DraggableContainer.CSS_VAR_PREFIX}bg: white;
             ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-color: white;
             ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-bg: var(--panel-accent-color);
+            ${DraggableContainer.CSS_VAR_PREFIX}shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
 
         /* Control Panel Styles */
@@ -121,10 +122,6 @@ StyleManager.addStyles(`
             justify-content: space-between;
             align-items: center;
             border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
-        }
-        
-        .userscripts-section--main-panel.userscripts-section > .userscripts-section__content {
-            padding: 0
         }
         
         .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section {
