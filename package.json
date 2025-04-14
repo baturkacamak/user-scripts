@@ -22,6 +22,7 @@
     "build": "node build.js",
     "watch": "node build.js --watch",
     "watch:verbose": "node build.js --watch --verbose",
-    "build:wallapop": "node build.js --dir wallapop-enhanced-tools"
+    "build:wallapop": "node build.js --dir wallapop-enhanced-tools",
+    "build:loom": "node build.js --dir loom-captions-extractor"
   }
 }
