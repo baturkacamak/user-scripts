@@ -21,6 +21,7 @@ class CaptionsManager {
     static timestamps = [];
     static currentTimestamp = '00:00';
     static totalDuration = '00:00';
+    static lastCaptionText = null; // Track the last caption text for improved duplicate detection
 
     /**
      * Add a new caption with its timestamp
@@ -28,18 +29,31 @@ class CaptionsManager {
      * @param {string} timestamp - Current video timestamp (MM:SS format)
      */
     static addCaption(caption, timestamp) {
-        // Don't add empty captions or duplicates
-        if (!caption || (
-            this.captions.length > 0 &&
-            this.captions[this.captions.length - 1] === caption &&
-            this.timestamps[this.timestamps.length - 1] === timestamp
-        )) {
+        // Don't add empty captions
+        if (!caption) {
             return;
         }
 
-        Logger.log(`Adding caption at ${timestamp}: ${caption}`);
+        // Enhanced duplicate detection:
+        // 1. Check if this exact caption text already exists in our collection
+        const duplicateIndex = this.captions.findIndex(existingCaption =>
+            existingCaption === caption
+        );
+
+        // If exact text duplicate exists and the timestamp is close enough, don't add it
+        if (duplicateIndex >= 0) {
+            // Only log if this is a new timestamp for existing caption
+            if (this.timestamps[duplicateIndex] !== timestamp) {
+                Logger.log(`Skipping duplicate caption: "${caption.substring(0, 30)}..." at ${timestamp} (already exists at ${this.timestamps[duplicateIndex]})`);
+            }
+            return;
+        }
+
+        // If we're here, this is a new caption or a significant change
+        Logger.log(`Adding caption at ${timestamp}: ${caption.substring(0, 30)}...`);
         this.captions.push(caption);
         this.timestamps.push(timestamp);
+        this.lastCaptionText = caption;
 
         // Update UI if panel exists
         CaptionsPanel.updateCaptionCount();
@@ -68,9 +82,11 @@ class CaptionsManager {
                 result = this.captions.map((caption, index) => {
                     const number = index + 1;
                     const startTime = this.formatSrtTimestamp(this.timestamps[index]);
+
+                    // For end time, use next caption's timestamp or add 3 seconds to current if it's the last caption
                     const endTime = (index < this.timestamps.length - 1)
                         ? this.formatSrtTimestamp(this.timestamps[index + 1])
-                        : this.formatSrtTimestamp(this.totalDuration);
+                        : this.formatSrtTimestamp(this.addSecondsToTimestamp(this.timestamps[index], 3));
 
                     return `${number}\n${startTime} --> ${endTime}\n${caption}`;
                 }).join("\n\n");
@@ -90,6 +106,30 @@ class CaptionsManager {
         }
 
         return result;
+    }
+
+    /**
+     * Add seconds to a timestamp in MM:SS format
+     * @param {string} timestamp - Timestamp in MM:SS format
+     * @param {number} seconds - Seconds to add
+     * @returns {string} - New timestamp in MM:SS format
+     */
+    static addSecondsToTimestamp(timestamp, seconds) {
+        const parts = timestamp.split(':');
+        if (parts.length !== 2) {
+            return timestamp; // Return original if invalid format
+        }
+
+        let mins = parseInt(parts[0], 10);
+        let secs = parseInt(parts[1], 10) + seconds;
+
+        // Handle overflow
+        if (secs >= 60) {
+            mins += Math.floor(secs / 60);
+            secs = secs % 60;
+        }
+
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
     /**
@@ -114,6 +154,7 @@ class CaptionsManager {
     static clearCaptions() {
         this.captions = [];
         this.timestamps = [];
+        this.lastCaptionText = null;
         Logger.log("All captions cleared");
 
         // Update UI
@@ -133,6 +174,7 @@ class CaptionsManager {
 class CaptionsPanel {
     static container = null;
     static captionCountElement = null;
+    static statusElement = null;
 
     /**
      * Create the control panel
@@ -156,6 +198,11 @@ class CaptionsPanel {
         this.captionCountElement.className = 'loom-captions-count';
         this.updateCaptionCount();
         this.container.appendChild(this.captionCountElement);
+
+        // Add status element for feedback
+        this.statusElement = document.createElement('div');
+        this.statusElement.className = 'loom-captions-status';
+        this.container.appendChild(this.statusElement);
 
         // Create buttons container
         const buttonsContainer = document.createElement('div');
@@ -214,6 +261,14 @@ class CaptionsPanel {
             onClick: () => this.copyToClipboard()
         });
 
+        // Preview button
+        new Button({
+            text: 'Preview Captions',
+            className: 'loom-button loom-button-secondary',
+            container: buttonsContainer,
+            onClick: () => this.previewCaptions()
+        });
+
         // Clear button
         new Button({
             text: 'Clear Captions',
@@ -222,6 +277,7 @@ class CaptionsPanel {
             onClick: () => {
                 if (confirm('Are you sure you want to clear all captured captions?')) {
                     CaptionsManager.clearCaptions();
+                    this.updateStatus("Captions cleared");
                 }
             }
         });
@@ -234,7 +290,66 @@ class CaptionsPanel {
         // Make panel draggable
         this.makeDraggable();
 
+        // Add preview dialog elements (hidden initially)
+        this.createPreviewDialog();
+
         Logger.log("Caption panel created");
+    }
+
+    /**
+     * Create preview dialog (hidden initially)
+     */
+    static createPreviewDialog() {
+        const dialog = document.createElement('div');
+        dialog.id = 'loom-captions-preview';
+        dialog.className = 'loom-preview-dialog';
+
+        // Create dialog header
+        const dialogHeader = document.createElement('div');
+        dialogHeader.className = 'loom-preview-header';
+
+        const dialogTitle = document.createElement('div');
+        dialogTitle.className = 'loom-preview-title';
+        dialogTitle.textContent = 'Caption Preview';
+        dialogHeader.appendChild(dialogTitle);
+
+        const closeButton = document.createElement('button');
+        closeButton.className = 'loom-preview-close';
+        closeButton.textContent = '×';
+        closeButton.onclick = () => {
+            dialog.classList.remove('show');
+        };
+        dialogHeader.appendChild(closeButton);
+
+        dialog.appendChild(dialogHeader);
+
+        // Create content area
+        const content = document.createElement('div');
+        content.className = 'loom-preview-content';
+        content.innerHTML = '<p>No captions captured yet.</p>';
+        dialog.appendChild(content);
+
+        // Add to page (hidden)
+        document.body.appendChild(dialog);
+    }
+
+    /**
+     * Preview captured captions
+     */
+    static previewCaptions() {
+        const dialog = document.getElementById('loom-captions-preview');
+        const content = dialog.querySelector('.loom-preview-content');
+
+        const captionsText = CaptionsManager.getAllCaptionsText('timestamped');
+
+        if (captionsText === "No captions have been captured yet.") {
+            content.innerHTML = '<p>No captions have been captured yet.</p>';
+        } else {
+            // Format with line breaks
+            content.innerHTML = `<pre>${HTMLUtils.escapeHTML(captionsText)}</pre>`;
+        }
+
+        dialog.classList.add('show');
     }
 
     /**
@@ -244,6 +359,21 @@ class CaptionsPanel {
         if (this.captionCountElement) {
             const count = CaptionsManager.captions.length;
             this.captionCountElement.textContent = `${count} caption${count !== 1 ? 's' : ''} captured`;
+        }
+    }
+
+    /**
+     * Update status message
+     */
+    static updateStatus(message, duration = 3000) {
+        if (this.statusElement) {
+            this.statusElement.textContent = message;
+            this.statusElement.classList.add('active');
+
+            // Clear after duration
+            setTimeout(() => {
+                this.statusElement.classList.remove('active');
+            }, duration);
         }
     }
 
@@ -289,8 +419,26 @@ class CaptionsPanel {
             if (isDragging) {
                 isDragging = false;
                 title.style.cursor = 'grab';
+
+                // Save position
+                if (typeof GM_setValue === 'function') {
+                    const rect = this.container.getBoundingClientRect();
+                    GM_setValue('loom-extractor-position', {
+                        left: rect.left,
+                        top: rect.top
+                    });
+                }
             }
         });
+
+        // Restore position if saved
+        if (typeof GM_getValue === 'function') {
+            const savedPos = GM_getValue('loom-extractor-position', null);
+            if (savedPos) {
+                this.container.style.left = `${savedPos.left}px`;
+                this.container.style.top = `${savedPos.top}px`;
+            }
+        }
     }
 
     /**
@@ -300,7 +448,7 @@ class CaptionsPanel {
         const content = CaptionsManager.getAllCaptionsText(format);
 
         if (content === "No captions have been captured yet.") {
-            alert("No captions have been captured yet.");
+            this.updateStatus("No captions captured yet", 3000);
             return;
         }
 
@@ -318,15 +466,20 @@ class CaptionsPanel {
                 url: url,
                 name: filename,
                 saveAs: true,
-                onload: () => URL.revokeObjectURL(url),
+                onload: () => {
+                    URL.revokeObjectURL(url);
+                    this.updateStatus("Download complete!");
+                },
                 onerror: (error) => {
                     Logger.error(error, "GM_download");
+                    this.updateStatus("Download failed, trying fallback...");
                     // Fallback
                     this.fallbackDownload(content, filename);
                 }
             });
         } catch (error) {
             Logger.error(error, "Downloading captions");
+            this.updateStatus("Download failed, trying fallback...");
             this.fallbackDownload(content, filename);
         }
     }
@@ -351,10 +504,11 @@ class CaptionsPanel {
             setTimeout(() => {
                 document.body.removeChild(downloadLink);
                 URL.revokeObjectURL(url);
+                this.updateStatus("Download complete!");
             }, 100);
         } catch (error) {
             Logger.error(error, "Fallback download");
-            alert("Download failed. Please try copying to clipboard instead.");
+            this.updateStatus("Download failed. Try copying to clipboard instead.");
         }
     }
 
@@ -365,27 +519,27 @@ class CaptionsPanel {
         const content = CaptionsManager.getAllCaptionsText('timestamped');
 
         if (content === "No captions have been captured yet.") {
-            alert("No captions have been captured yet.");
+            this.updateStatus("No captions captured yet");
             return;
         }
 
         // Use GM_setClipboard if available
         try {
             GM_setClipboard(content);
-            this.showNotification("Captions copied to clipboard!");
+            this.updateStatus("Captions copied to clipboard!");
         } catch (error) {
             Logger.error(error, "Copying to clipboard");
             // Fallback
             try {
                 navigator.clipboard.writeText(content).then(() => {
-                    this.showNotification("Captions copied to clipboard!");
+                    this.updateStatus("Captions copied to clipboard!");
                 }).catch(err => {
                     Logger.error(err, "Clipboard API");
-                    alert("Failed to copy captions to clipboard.");
+                    this.updateStatus("Failed to copy captions to clipboard.");
                 });
             } catch (clipboardError) {
                 Logger.error(clipboardError, "Fallback clipboard");
-                alert("Failed to copy captions to clipboard.");
+                this.updateStatus("Failed to copy captions to clipboard.");
             }
         }
     }
@@ -420,7 +574,8 @@ class CaptionsPanel {
     static getVideoTitle() {
         // Try to find title in Loom's UI
         const titleElement = document.querySelector('h1.css-1n14mz9') ||
-            document.querySelector('h1[data-testid="video-title"]');
+            document.querySelector('h1[data-testid="video-title"]') ||
+            document.querySelector('h1.headline');
 
         if (titleElement) {
             return titleElement.textContent.trim().replace(/[\\/:*?"<>|]/g, '-');
@@ -434,10 +589,12 @@ class CaptionsPanel {
  * Handle the monitoring of captions and timestamps
  */
 class CaptionsMonitor {
-    static captionsSelector = 'div[data-name="ClosedCaptions"] .css-i5c781.active';
-    static timestampSelector = 'div.css-6kk1p4 span.css-1r8ulaz';
+    static captionsSelector = 'div[data-name="ClosedCaptions"] .css-i5c781.active, div[data-name="ClosedCaptions"] div[data-active="true"]';
+    static timestampSelector = 'div.css-6kk1p4 span.css-1r8ulaz, span.time-display';
     static isCapturing = false;
     static observer = null;
+    static lastCaptionText = null;
+    static captionContainer = null;
 
     /**
      * Start monitoring captions
@@ -459,6 +616,11 @@ class CaptionsMonitor {
         this.captionInterval = setInterval(() => {
             this.checkCurrentCaptionAndTimestamp();
         }, 1000); // Check every second
+
+        // Update panel status
+        if (CaptionsPanel.statusElement) {
+            CaptionsPanel.updateStatus("Monitoring captions...", 3000);
+        }
     }
 
     /**
@@ -471,18 +633,35 @@ class CaptionsMonitor {
         }
 
         // Find caption container
-        const captionContainer = document.querySelector('div[data-name="ClosedCaptions"]');
+        this.captionContainer = document.querySelector('div[data-name="ClosedCaptions"]');
 
-        if (captionContainer) {
+        // If not found, look for alternative containers
+        if (!this.captionContainer) {
+            this.captionContainer = document.querySelector('.captions-container');
+        }
+
+        if (this.captionContainer) {
             // Observe changes to the container
-            this.observer.observe(captionContainer, {
+            this.observer.observe(this.captionContainer, {
                 childList: true,
                 subtree: true,
                 characterData: true,
-                attributeFilter: ['class']
+                attributeFilter: ['class', 'data-active']
             });
 
             Logger.log("Caption observer set up");
+
+            // Also observe the DOM for potential container changes
+            const domObserver = new MutationObserver((mutations) => {
+                // If our caption container is no longer in the DOM, try to re-establish
+                if (!document.contains(this.captionContainer)) {
+                    Logger.log("Caption container removed from DOM, re-establishing...");
+                    this.setupObserver();
+                }
+            });
+
+            // Observe the document body for caption container changes
+            domObserver.observe(document.body, {childList: true, subtree: true});
         } else {
             Logger.log("Caption container not found, will try again");
             // Try again in a moment
@@ -497,7 +676,8 @@ class CaptionsMonitor {
         // Check for relevant mutations
         for (const mutation of mutations) {
             if (mutation.type === 'childList' ||
-                (mutation.type === 'attributes' && mutation.attributeName === 'class') ||
+                (mutation.type === 'attributes' &&
+                    (mutation.attributeName === 'class' || mutation.attributeName === 'data-active')) ||
                 mutation.type === 'characterData') {
                 // Check current caption and timestamp
                 this.checkCurrentCaptionAndTimestamp();
@@ -510,24 +690,72 @@ class CaptionsMonitor {
      * Check current caption and timestamp
      */
     static checkCurrentCaptionAndTimestamp() {
+        // Try multiple selectors to find the active caption
         const captionElement = document.querySelector(this.captionsSelector);
+
+        // Try multiple selectors to find timestamp
         const timestampElement = document.querySelector(this.timestampSelector);
 
         if (captionElement && timestampElement) {
             const captionText = captionElement.textContent.trim();
             const timestampText = timestampElement.textContent.trim();
 
-            // Parse timestamp (format: "2:03 / 10:42")
+            // Skip if the caption is empty
+            if (!captionText) return;
+
+            // Parse timestamp (format may vary: "2:03 / 10:42" or just "2:03")
+            let current, total;
+
             if (timestampText.includes('/')) {
-                const [current, total] = timestampText.split('/').map(t => t.trim());
+                // Format: "2:03 / 10:42"
+                [current, total] = timestampText.split('/').map(t => t.trim());
+            } else {
+                // Format: Just the current time "2:03"
+                current = timestampText.trim();
+                total = ""; // Unknown total duration
+            }
 
-                // Update caption manager
-                CaptionsManager.updateTimestamp(current, total);
+            // Ensure MM:SS format
+            current = this.normalizeTimestamp(current);
 
-                // Add caption
+            // Update caption manager
+            CaptionsManager.updateTimestamp(current, total);
+
+            // Only add if this is a new caption
+            if (captionText !== this.lastCaptionText) {
                 CaptionsManager.addCaption(captionText, current);
+                this.lastCaptionText = captionText;
             }
         }
+    }
+
+    /**
+     * Normalize timestamp to MM:SS format
+     * @param {string} timestamp - Input timestamp
+     * @returns {string} - Normalized timestamp in MM:SS format
+     */
+    static normalizeTimestamp(timestamp) {
+        // Remove any non-digit, non-colon characters
+        timestamp = timestamp.replace(/[^\d:]/g, '');
+
+        // Split by colon
+        const parts = timestamp.split(':');
+
+        if (parts.length === 1) {
+            // Just seconds - pad to MM:SS
+            return `0:${parts[0].padStart(2, '0')}`;
+        } else if (parts.length === 2) {
+            // MM:SS format - ensure seconds are padded
+            return `${parts[0]}:${parts[1].padStart(2, '0')}`;
+        } else if (parts.length === 3) {
+            // HH:MM:SS format - convert to MM:SS
+            const hours = parseInt(parts[0], 10);
+            const minutes = parseInt(parts[1], 10) + (hours * 60);
+            return `${minutes}:${parts[2].padStart(2, '0')}`;
+        }
+
+        // Default fallback
+        return timestamp;
     }
 
     /**
@@ -547,6 +775,11 @@ class CaptionsMonitor {
         // Clear interval
         if (this.captionInterval) {
             clearInterval(this.captionInterval);
+        }
+
+        // Update panel status
+        if (CaptionsPanel.statusElement) {
+            CaptionsPanel.updateStatus("Caption monitoring stopped");
         }
     }
 }
@@ -579,15 +812,100 @@ StyleManager.addStyles(`
     }
     
     .loom-captions-count {
-        margin-bottom: 12px;
+        margin-bottom: 4px;
         font-size: 14px;
         color: #666;
+    }
+    
+    .loom-captions-status {
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: #4a8;
+        min-height: 20px;
+        transition: opacity 0.5s ease;
+        opacity: 0;
+    }
+    
+    .loom-captions-status.active {
+        opacity: 1;
     }
     
     .loom-captions-buttons {
         display: flex;
         flex-direction: column;
         gap: 8px;
+    }
+    
+    /* Preview Dialog */
+    .loom-preview-dialog {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.95);
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+        width: 80%;
+        max-width: 800px;
+        max-height: 80vh;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s ease;
+        overflow: hidden;
+    }
+    
+    .loom-preview-dialog.show {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .loom-preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .loom-preview-title {
+        font-weight: bold;
+        font-size: 18px;
+    }
+    
+    .loom-preview-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+    }
+    
+    .loom-preview-close:hover {
+        background-color: #f0f0f0;
+        color: #333;
+    }
+    
+    .loom-preview-content {
+        padding: 16px;
+        overflow-y: auto;
+        max-height: calc(80vh - 60px);
+    }
+    
+    .loom-preview-content pre {
+        white-space: pre-wrap;
+        font-family: monospace;
+        margin: 0;
+        padding: 0;
     }
     
     /* Button Styles */
@@ -605,6 +923,14 @@ StyleManager.addStyles(`
     
     .loom-button:hover {
         background-color: #514dc6;
+    }
+    
+    .loom-button-secondary {
+        background-color: #6c757d;
+    }
+    
+    .loom-button-secondary:hover {
+        background-color: #5a6268;
     }
     
     .loom-button-danger {
