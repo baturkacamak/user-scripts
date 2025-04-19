@@ -10,9 +10,8 @@ import {
     StyleManager,
     TranslationManager,
     Checkbox,
-    SectionToggler,
+    SectionToggler, SidebarPanel,
 } from "../core";
-import DraggableContainer from "../core/ui/DraggableContainer";
 
 const GM = GMFunctions.initialize();
 
@@ -90,10 +89,11 @@ StyleManager.addStyles(`
             --userscripts-section-success-title-color: #059669;
             --userscripts-section-success-icon-color: #10b981;
             
-            ${DraggableContainer.CSS_VAR_PREFIX}bg: white;
-            ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-color: white;
-            ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-bg: var(--panel-accent-color);
-            ${DraggableContainer.CSS_VAR_PREFIX}shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            --wallapop-enhanced-sidebar-panel-button-bg: #008080;
+            --wallapop-enhanced-sidebar-panel-button-bg-hover: #006666;
+            --wallapop-enhanced-sidebar-panel-title-color: #008080;
+            --wallapop-enhanced-sidebar-panel-header-bg: #f0f8f8;
+            --wallapop-enhanced-sidebar-panel-border-color: #e5e7eb;
         }
 
         /* Control Panel Styles */
@@ -122,15 +122,6 @@ StyleManager.addStyles(`
             justify-content: space-between;
             align-items: center;
             border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
-        }
-        
-        .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section {
-            margin: 0;
-        }
-        
-        .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section__header,
-        .${DraggableContainer.BASE_CONTAINER_CLASS} .userscripts-section {
-            border: 0 none;
         }
 
         .panel-toggle {
@@ -1592,6 +1583,7 @@ class ControlPanel {
     static container = null;
     static filterInputElement = null;
     static blockedTermsListElement = null;
+    static sidebarPanel = null;
     static exportFormats = {
         // Text-based formats
         text: {
@@ -3158,48 +3150,48 @@ class ControlPanel {
      * Create the main control panel
      */
     static createControlPanel() {
-        // Create control panel if it doesn't exist
-        if (!this.container) {
-            // Initialize the draggable container
-            const dragContainer = new DraggableContainer({
-                title: TranslationManager.getText('wallapopTools'),
-                id: 'wallapop-tools-panel',
-                className: 'control-panel wallapop-enhanced-tools',
-                theme: 'primary',
-                size: 'medium',
-                minimizable: true,
-                closable: false,
-                resizable: true,
-                defaultX: window.innerWidth - 300 - 20, // 20px from right edge
-                defaultY: 120, // 120px from top
-                onMinimize: (isMinimized) => {
-                    this.savePanelState('isPanelExpanded', !isMinimized);
-                },
-                onMove: (position) => {
-                    // Optional: Add custom behavior on move
-                    Logger.log("Panel moved to:", position);
+        // Initialize the sidebar panel instead of draggable container
+        this.sidebarPanel = new SidebarPanel({
+            id: 'wallapop-tools-panel',
+            title: TranslationManager.getText('wallapopTools'),
+            position: 'right',
+            transition: 'slide',
+            buttonIcon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
+            namespace: 'wallapop-enhanced',
+            rememberState: true,
+            content: {
+                generator: () => {
+                    // Create content container
+                    const contentContainer = document.createElement('div');
+
+                    // Create sections - these replace the draggable panel sections
+                    this.createExpandAllSection(contentContainer);
+                    this.createFilterSection(contentContainer);
+                    this.createDeliveryMethodSection(contentContainer);
+                    this.createCopySection(contentContainer);
+                    this.createLanguageSection(contentContainer);
+
+                    return contentContainer;
                 }
-            });
+            },
+            style: {
+                width: '320px',
+                buttonBg: '#008080', // Wallapop teal
+                buttonBgHover: '#006666',
+                panelBg: '#ffffff',
+            },
+            onOpen: () => {
+                // Additional actions when panel opens
+                this.updateUILanguage();
+                this.loadBlockedTerms();
+            }
+        });
 
-            // Store container reference
-            this.container = dragContainer.containerElement;
+        // Load initial state
+        this.updateUILanguage();
+        this.loadBlockedTerms();
 
-            // Get content container
-            const contentContainer = dragContainer.contentElement;
-
-            // Create sections for panel content
-            this.createExpandAllSection(contentContainer);
-            this.createFilterSection(contentContainer);
-            this.createDeliveryMethodSection(contentContainer);
-            this.createCopySection(contentContainer);
-            this.createLanguageSection(contentContainer);
-
-            // Apply initial state
-            this.updateUILanguage();
-            this.loadBlockedTerms();
-
-            Logger.log("Draggable control panel created");
-        }
+        Logger.log("Sidebar panel created for Wallapop Tools");
     }
 
     /**
@@ -3362,7 +3354,6 @@ class ControlPanel {
      * Update panel visibility based on whether there are expanded descriptions
      */
     static updatePanelVisibility() {
-        // If using draggable container, we'll show/hide specific sections instead
         const copySection = document.querySelector('.userscripts-section.export');
         if (copySection) {
             copySection.style.display =
