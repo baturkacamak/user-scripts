@@ -20,7 +20,7 @@ import Button from './ui/Button.js';
 import Slider from './ui/Slider.js';
 import ProgressBar from './ui/ProgressBar.js';
 import Checkbox from './ui/Checkbox';
-
+import SidebarPanel from './ui/SidebarPanel';
 
 // Export all components
 export {
@@ -41,6 +41,7 @@ export {
   Slider,
   ProgressBar,
   Checkbox,
+  SidebarPanel,
 };
 
 // Also export as default for convenience
@@ -54,4 +55,5 @@ export default {
   SelectBox,
   Button,
   Checkbox,
+  SidebarPanel,
 };
