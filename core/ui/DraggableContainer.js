@@ -338,6 +338,7 @@ static useDefaultColors() {
 
     // Load saved position and state AFTER element creation
     this.loadPosition();
+    this._setupUnloadListener();
 
     // Call onInit callback if provided
     if (this.onInit) {
@@ -832,6 +833,7 @@ static useDefaultColors() {
         initialX = savedData.x;
         initialY = savedData.y;
 
+
         // Apply size first if resizable AND size data exists
         if (this.resizable && savedData.width !== undefined && savedData.height !== undefined) {
           // Apply size without triggering observer during load if possible
@@ -879,8 +881,6 @@ static useDefaultColors() {
       });
     }
   }
-
-
   /**
      * Set the container's size explicitly. Only works if `resizable` is true.
      * @param {Number} width - Width in pixels.
@@ -900,7 +900,6 @@ static useDefaultColors() {
     }
     // Note: Size changes might trigger the ResizeObserver, which handles callbacks and saving.
   }
-
   /**
      * Toggle the minimized state of the container. Updates appearance, calls callback, and saves state.
      */
@@ -932,7 +931,6 @@ static useDefaultColors() {
     // Save the new state
     this.savePosition();
   }
-
   /**
      * Close and remove the container from the DOM. Calls the onClose callback.
      * Cleans up event listeners and observers.
@@ -969,18 +967,52 @@ static useDefaultColors() {
     // NOTE: Drag listeners are on `document`, they are removed on drag end.
     // The mousedown listener on handleElement is removed when handleElement is GC'd.
   }
-
   /**
      * Set the container's theme class.
      * @param {String} theme - The theme name (e.g., 'default', 'primary').
      */
-  setTheme(theme) {
+setTheme(theme) {
     if ('string' === typeof theme && theme) {
       this.theme = theme;
       this.updateContainerClasses();
       this._log(`Theme set to: ${theme}`);
     }
   }
+_setupUnloadListener() {
+    // Save position on page unload to catch any unsaved resize operations
+    window.addEventListener('beforeunload', () => {
+      // Clear any pending timeout to ensure immediate save
+      clearTimeout(this._savePositionTimeout);
+
+      if (this.containerElement && this.id) {
+        try {
+          const rect = this.containerElement.getBoundingClientRect();
+          const positionData = {
+            x: rect.left,
+            y: rect.top,
+            minimized: this.isMinimized,
+            width: this.resizable ? rect.width : undefined,
+            height: this.resizable ? rect.height : undefined,
+          };
+
+          if (!this.resizable) {
+            delete positionData.width;
+            delete positionData.height;
+          }
+
+          const storageKey = `${DraggableContainer.STORAGE_KEY_PREFIX}${this.id}`;
+          GM_setValue(storageKey, positionData);
+          this._log('Position saved on page unload:', positionData);
+        } catch (e) {
+          this._logError(e, 'saving container position on unload');
+        }
+      }
+    });
+  }
+  
+
+  
+  
 
   /**
      * Set the container's size class. Affects width via CSS.
