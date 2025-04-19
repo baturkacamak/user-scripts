@@ -1,8 +1,5 @@
-/**
- * SectionToggler - A reusable UI component for expandable/collapsible sections
- * Creates customizable, accessible toggleable sections with various options and callbacks
- */
 import StyleManager from '../utils/StyleManager.js';
+import PubSub from '../utils/PubSub.js';
 
 class SectionToggler {
   /**
@@ -88,6 +85,8 @@ class SectionToggler {
       opacity: 0;
       padding: 0 1rem;
       background-color: var(${SectionToggler.CSS_VAR_PREFIX}content-bg, #ffffff);
+      position: relative; /* Add position relative to manage child absolute elements */
+      z-index: 1; /* Ensure content stays above other elements */
     }
     
     /* Direct child selector for nested section support */
@@ -183,6 +182,48 @@ class SectionToggler {
   `, 'userscripts-section-toggler-styles');
 
     SectionToggler.stylesInitialized = true;
+
+    // Set up a listener for SelectBox dropdown events to adjust content area accordingly
+    PubSub.subscribe('selectbox:dropdown:open', (data) => {
+      // Find all section togglers that contain this selectbox
+      const selectboxElement = document.getElementById(data.id);
+      if (!selectboxElement) return;
+
+      // Find parent section content element
+      const parentContent = selectboxElement.closest(`.${SectionToggler.BASE_SECTION_CLASS}__content`);
+      if (parentContent) {
+        parentContent.classList.add('has-selectbox');
+
+        // Adjust the padding-bottom based on dropdown height if needed
+        const dropdownHeight = data.height || 200;
+        parentContent.style.paddingBottom = `${dropdownHeight + 20}px`;
+      }
+    });
+
+    PubSub.subscribe('selectbox:dropdown:close', (data) => {
+      const selectboxElement = document.getElementById(data.id);
+      if (!selectboxElement) return;
+
+      // Find parent section content element
+      const parentContent = selectboxElement.closest(`.${SectionToggler.BASE_SECTION_CLASS}__content`);
+      if (parentContent) {
+        // Reset to original padding
+        parentContent.style.paddingBottom = '';
+      }
+    });
+
+    // Cleanup event when selectbox is destroyed
+    PubSub.subscribe('selectbox:destroy', (data) => {
+      const selectboxElement = document.getElementById(data.id);
+      if (!selectboxElement) return;
+
+      // Find parent section content element
+      const parentContent = selectboxElement.closest(`.${SectionToggler.BASE_SECTION_CLASS}__content`);
+      if (parentContent) {
+        parentContent.classList.remove('has-selectbox');
+        parentContent.style.paddingBottom = '';
+      }
+    });
   }
   /**
      * Inject default color variables for the SectionToggler component into the :root.
@@ -345,8 +386,18 @@ class SectionToggler {
     // Add content if provided or use content creator
     if (this.existingContent) {
       this.contentElement.appendChild(this.existingContent);
+
+      // Check if content contains a selectbox
+      if (this.existingContent.querySelector('.userscripts-select-container')) {
+        this.contentElement.classList.add('has-selectbox');
+      }
     } else if (this.contentCreator) {
       this.contentCreator(this.contentElement);
+
+      // Check if content contains a selectbox after creation
+      if (this.contentElement.querySelector('.userscripts-select-container')) {
+        this.contentElement.classList.add('has-selectbox');
+      }
     }
 
     // Add event listeners
@@ -384,6 +435,11 @@ class SectionToggler {
 
     if (this.isExpanded) {
       this.sectionElement.classList.add(`${SectionToggler.BASE_SECTION_CLASS}--expanded`);
+
+      // Check for selectbox presence when expanding
+      if (this.contentElement.querySelector('.userscripts-select-container')) {
+        this.contentElement.classList.add('has-selectbox');
+      }
     } else {
       this.sectionElement.classList.remove(`${SectionToggler.BASE_SECTION_CLASS}--expanded`);
     }
@@ -553,6 +609,13 @@ class SectionToggler {
         this.contentElement.innerHTML = content;
       } else if (content instanceof HTMLElement) {
         this.contentElement.appendChild(content);
+      }
+
+      // Check if new content contains selectbox
+      if (this.contentElement.querySelector('.userscripts-select-container')) {
+        this.contentElement.classList.add('has-selectbox');
+      } else {
+        this.contentElement.classList.remove('has-selectbox');
       }
     }
   }
