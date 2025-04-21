@@ -8,7 +8,7 @@ import {
     Checkbox,
     Slider,
     SidebarPanel,
-    Notification
+    Notification, DOMObserver
 } from "../core";
 import VideoDownloader from "../core/utils/VideoDownloader";
 import UrlChangeWatcher from "../core/utils/UrlChangeWatcher";
@@ -98,7 +98,7 @@ class InstagramVideoController {
      */
     constructor() {
         this.lastUrl = location.href;
-        this.observer = null;
+        this.domObserver = null;
         this.lastProcessTime = 0;
         this.activeVideo = null;
         this.settingsPanel = null;
@@ -123,6 +123,8 @@ class InstagramVideoController {
         if (this.settings.KEYBOARD_SHORTCUTS) {
             this.setupKeyboardShortcuts();
         }
+
+        this.setupDOMObserver();
     }
 
     /**
@@ -395,6 +397,60 @@ class InstagramVideoController {
             , 'instagram-video-controls-styles');
 
         Logger.debug("Custom styles applied");
+    }
+
+    // Add a new method for setting up the DOM observer
+    setupDOMObserver() {
+        // Create a throttled callback for handling mutations
+        const handleMutations = (mutations) => {
+            // Clear any existing timeout to prevent multiple rapid processing
+            if (this.processingThrottleTimeout) {
+                clearTimeout(this.processingThrottleTimeout);
+            }
+
+            // Check if any of the mutations might have added videos
+            const shouldProcess = mutations.some(mutation => {
+                // Check for added nodes
+                if (mutation.addedNodes.length > 0) {
+                    // Check if any added node is a video or could contain a video
+                    return Array.from(mutation.addedNodes).some(node => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Either it's a video element
+                            if (node.tagName === 'VIDEO') {
+                                return true;
+                            }
+                            // Or it contains video elements
+                            return node.querySelector('video') !== null;
+                        }
+                        return false;
+                    });
+                }
+                return false;
+            });
+
+            // Only schedule processing if necessary
+            if (shouldProcess) {
+                // Use setTimeout for throttling (process max once every 500ms)
+                this.processingThrottleTimeout = setTimeout(() => {
+                    Logger.debug("DOM changes detected that might have added videos, processing...");
+                    this.processVideos();
+                }, 500);
+            }
+        };
+
+        // Handle URL changes
+        const handleUrlChange = (newUrl, oldUrl) => {
+            Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+            this.processVideos();
+        };
+
+        // Initialize DOMObserver with our callbacks
+        this.domObserver = new DOMObserver(handleMutations, handleUrlChange);
+
+        // Start observing document.body for changes
+        this.domObserver.observe();
+
+        Logger.debug("DOM Observer started");
     }
 
     /**
@@ -683,10 +739,6 @@ class InstagramVideoController {
         }
         // --- END ADDED CHECK ---
 
-        // --- ADD OBSERVER DISCONNECT ---
-        const wasObserving = this.observer?.disconnect(); // Disconnect returns true if it was observing
-        // --- END OBSERVER DISCONNECT ---
-
         try {
             // Mark as processed
             video.classList.add(InstagramVideoController.CLASSES.PROCESSED);
@@ -778,17 +830,6 @@ class InstagramVideoController {
             Logger.error(error, "Enhancing video");
             // Ensure the class is removed if enhancement failed badly
             video.classList.remove(InstagramVideoController.CLASSES.PROCESSED);
-        } finally {
-            // Reconnect only if it was previously observing
-            if (wasObserving) {
-                // Use setTimeout to allow DOM changes to settle before reconnecting
-                setTimeout(() => {
-                    if (this.observer) { // Check if observer still exists
-                        this.observer.observe(); // Re-observe with previous target/options
-                        Logger.debug("Observer reconnected after enhancement.");
-                    }
-                }, 0);
-            }
         }
     }
 
@@ -1449,7 +1490,7 @@ function init() {
                     }
                 })
                 .catch(() => {
-                    Logger.warn(`No video found after waiting period (source: ${source})`);
+                    Logger.debug(`No video found after waiting period (source: ${source})`);
                     // Still initialize controller even if no videos found initially
                     if (!controller && source === "init") {
                         controller = new InstagramVideoController();
@@ -1460,20 +1501,12 @@ function init() {
         // Handle initial page load
         processVideosWhenReady("init");
 
-        // Set up URL change detection with the same handler
-        const watcher = new UrlChangeWatcher([
-            new PollingStrategy((url, oldUrl) => {
-                Logger.debug("PollingStrategy triggered:", oldUrl ? `${oldUrl} → ${url}` : url);
-                processVideosWhenReady("urlChange");
-            })
-        ], false);
-
-        watcher.start();
         Logger.debug("Instagram Video Controls initialized successfully");
     } catch (error) {
         Logger.error(error, "Script initialization");
     }
 }
+
 
 // Run the initialization
 init();
