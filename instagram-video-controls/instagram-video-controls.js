@@ -1446,7 +1446,7 @@ function init() {
 
         const handleUrlChange = (newUrl, oldUrl, strategyName = "") => {
             Logger.debug(`${strategyName} triggered:`, oldUrl ? `${oldUrl} → ${newUrl}` : newUrl);
-            HTMLUtils.waitForElement('video', 5000, document, 50)
+            HTMLUtils.waitForElement('video', 10000, document)
                 .then(() => {
                     Logger.debug("Video element detected after URL change");
                     controller?.processVideos();
