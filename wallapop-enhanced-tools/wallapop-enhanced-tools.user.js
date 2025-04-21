@@ -21,65 +21,192 @@
     'use strict';
 
     /**
-     * Logger - A utility for consistent logging
-     * Provides debug, log, error, and toggling capabilities
+     * Enhanced Logger - A feature-rich logging utility
+     * Supports log levels, styling, grouping, caller info, filtering, persistence, exporting, and more
      */
     class Logger {
         static DEBUG = true;
         static PREFIX = "Userscript";
+        static _customFormat = null;
+        static _logHistory = [];
+        static _filters = new Set();
+        static _lastTimestamp = null;
+        static _persist = false;
+        static _mock = false;
+        static _theme = {
+            debug: "color: #3498db; font-weight: bold;",
+            info: "color: #1abc9c; font-weight: bold;",
+            warn: "color: #f39c12; font-weight: bold;",
+            error: "color: #e74c3c; font-weight: bold;",
+            success: "color: #2ecc71; font-weight: bold;",
+            trace: "color: #8e44ad; font-weight: bold;",
+            htmlTitle: "color: #9b59b6; font-weight: bold;",
+            htmlContent: "color: #2c3e50;",
+            toggle: "color: #f39c12; font-weight: bold;"
+        };
+        static _emojis = {
+            debug: "\uD83D\uDC1B",
+            info: "\u2139\uFE0F",
+            warn: "\u26A0\uFE0F",
+            error: "\u274C",
+            success: "\u2705",
+            trace: "\uD83D\uDCCC",
+            html: "\uD83E\uDDE9",
+            toggle: "\uD83C\uDF9B\uFE0F"
+        };
 
-        /**
-         * Sets the prefix used in log messages
-         * @param {string} prefix - The prefix to use
-         */
-        static setPrefix(prefix) {
-            this.PREFIX = prefix;
+        static setTimeFormat(locale = "en-US", use12Hour = false) {
+            this._customFormat = {locale, hour12: use12Hour};
         }
 
-        /**
-         * Log a debug message (only when debug mode is enabled)
-         * @param {...any} args - Arguments to log
-         */
-        static log(...args) {
-            if (this.DEBUG) {
-                console.log(`${this.PREFIX} Debug:`, ...args);
+        static _detectTimeFormat() {
+            try {
+                const testDate = new Date(Date.UTC(2020, 0, 1, 13, 0, 0));
+                const locale = navigator.language || "tr-TR";
+                const timeString = testDate.toLocaleTimeString(locale);
+                const is12Hour = timeString.toLowerCase().includes("pm") || timeString.toLowerCase().includes("am");
+                return {locale, hour12: is12Hour};
+            } catch (e) {
+                return {locale: "tr-TR", hour12: false};
             }
         }
 
-        /**
-         * Log an error message with context
-         * @param {Error} error - The error object
-         * @param {string} context - Context description where the error occurred
-         */
-        static error(error, context) {
-            console.error(`${this.PREFIX} Error (${context}):`, error);
+        static _timestamp() {
+            const {locale, hour12} = this._customFormat || this._detectTimeFormat();
+            const now = new Date();
+            const time = now.toLocaleString(locale, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12
+            });
+            let diff = "";
+            if (this._lastTimestamp) {
+                const ms = now - this._lastTimestamp;
+                diff = ` [+${(ms / 1000).toFixed(1)}s]`;
+            }
+            this._lastTimestamp = now;
+            return `${time}${diff}`;
         }
 
-        /**
-         * Log HTML content with a title
-         * @param {string} title - Title describing the content
-         * @param {string} htmlContent - The HTML content to log
-         */
-        static logHtml(title, htmlContent) {
-            if (this.DEBUG) {
-                console.log(`${this.PREFIX} [${title}]:`);
-                console.log(htmlContent.substring(0, 1500) + "...");
+        static _getCaller() {
+            const err = new Error();
+            const stack = err.stack?.split("\n")[3];
+            return stack ? stack.trim() : "(unknown)";
+        }
 
-                // Show HTML in expandable format for easier inspection
-                console.groupCollapsed(`HTML Details (${title})`);
-                console.log("Complete HTML:", htmlContent);
+        static _log(level, ...args) {
+            if (!this.DEBUG && level === "debug") return;
+            if (this._filters.size && !args.some(arg => this._filters.has(arg))) return;
+            const emoji = this._emojis[level] || '';
+            const style = this._theme[level] || '';
+            const timestamp = this._timestamp();
+            const caller = this._getCaller();
+
+            const message = [
+                `%c${timestamp} %c${emoji} [${this.PREFIX} ${level.toUpperCase()}]%c:`,
+                "color: gray; font-style: italic;",
+                style,
+                "color: inherit;",
+                ...args,
+                `\nCaller: ${caller}`
+            ];
+
+            this._logHistory.push({timestamp, level, args});
+
+            if (this._persist) localStorage.setItem("LoggerHistory", JSON.stringify(this._logHistory));
+            if (!this._mock) console.log(...message);
+        }
+
+        static debug(...args) {
+            this._log("debug", ...args);
+        }
+
+        static info(...args) {
+            this._log("info", ...args);
+        }
+
+        static warn(...args) {
+            this._log("warn", ...args);
+        }
+
+        static error(...args) {
+            this._log("error", ...args);
+        }
+
+        static success(...args) {
+            this._log("success", ...args);
+        }
+
+        static trace(...args) {
+            this._log("trace", ...args);
+            console.trace();
+        }
+
+        static logHtml(title, htmlContent) {
+            const shortContent = htmlContent.substring(0, 1500) + "...";
+            this._log("html", `[${title}]`, shortContent);
+            if (!this._mock) {
+                console.groupCollapsed(`%c\uD83E\uDDE9 HTML Details (${title})`, this._theme.htmlTitle);
+                console.log("%cComplete HTML:", this._theme.htmlTitle);
+                console.log(`%c${htmlContent}`, this._theme.htmlContent);
                 console.groupEnd();
             }
         }
 
-        /**
-         * Toggle debug mode on/off
-         * @returns {boolean} The new debug state
-         */
-        static toggleDebug() {
-            this.DEBUG = !this.DEBUG;
-            console.log(`${this.PREFIX}: Debug mode ${this.DEBUG ? 'enabled' : 'disabled'}`);
-            return this.DEBUG;
+        static setPrefix(prefix) {
+            this.PREFIX = prefix;
+        }
+
+        static setTheme(theme) {
+            Object.assign(this._theme, theme);
+        }
+
+        static addFilter(tag) {
+            this._filters.add(tag);
+        }
+
+        static clearFilters() {
+            this._filters.clear();
+        }
+
+        static persistLogs(enable = true) {
+            this._persist = enable;
+        }
+
+        static mock(enable = true) {
+            this._mock = enable;
+        }
+
+        static group(label) {
+            if (!this._mock) console.group(label);
+        }
+
+        static groupEnd() {
+            if (!this._mock) console.groupEnd();
+        }
+
+        static step(msg) {
+            this.info(`\u2705 ${msg}`);
+        }
+
+        static hello() {
+            this.info("Hello, dev! \uD83D\uDC4B Ready to debug?");
+        }
+
+        static downloadLogs(filename = "logs.json") {
+            const blob = new Blob([JSON.stringify(this._logHistory, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        static autoClear(intervalMs) {
+            setInterval(() => {
+                this._logHistory = [];
+                if (this._persist) localStorage.removeItem("LoggerHistory");
+            }, intervalMs);
         }
     }
 
@@ -4560,7 +4687,7 @@
                 panel: this
             });
 
-            Logger.log(`SidebarPanel initialized: ${this.options.id}`);
+            Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
         }
 
         /**
@@ -4792,7 +4919,7 @@
                 panel: this
             });
 
-            Logger.log(`SidebarPanel opened: ${this.options.id}`);
+            Logger.debug(`SidebarPanel opened: ${this.options.id}`);
         }
 
         /**
@@ -4838,7 +4965,7 @@
                 panel: this
             });
 
-            Logger.log(`SidebarPanel closed: ${this.options.id}`);
+            Logger.debug(`SidebarPanel closed: ${this.options.id}`);
         }
 
         /**
@@ -4847,7 +4974,7 @@
         saveState() {
             try {
                 this.GM.GM_setValue(this.storageKey, this.state);
-                Logger.log(`SidebarPanel state saved: ${this.options.id} - ${this.state}`);
+                Logger.debug(`SidebarPanel state saved: ${this.options.id} - ${this.state}`);
             } catch (error) {
                 Logger.error(error, "Saving sidebar panel state");
             }
@@ -4935,7 +5062,7 @@
                 });
             }
 
-            Logger.log(`SidebarPanel destroyed: ${this.options.id}`);
+            Logger.debug(`SidebarPanel destroyed: ${this.options.id}`);
         }
     }
 
@@ -5876,7 +6003,7 @@
 
     class DescriptionFetcher {
         static async getDescription(url) {
-            Logger.log("Fetching description for URL:", url);
+            Logger.debug("Fetching description for URL:", url);
             return new Promise((resolve) => {
                 GM_xmlhttpRequest({
                     method: "GET",
@@ -5890,7 +6017,7 @@
         static handleResponse(response, resolve, originalUrl) {
             try {
                 // Parse the received response
-                Logger.log("Response received with status:", response.status);
+                Logger.debug("Response received with status:", response.status);
 
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(response.responseText, "text/html");
@@ -5899,12 +6026,12 @@
                 const nextDataScript = doc.querySelector('#__NEXT_DATA__');
 
                 if (nextDataScript) {
-                    Logger.log("Found __NEXT_DATA__ script tag");
+                    Logger.debug("Found __NEXT_DATA__ script tag");
 
                     try {
                         // Parse the JSON content
                         const jsonData = JSON.parse(nextDataScript.textContent);
-                        Logger.log("JSON data parsed successfully");
+                        Logger.debug("JSON data parsed successfully");
 
                         // Extract the item description and title
                         let itemData = {};
@@ -5917,7 +6044,7 @@
                             // Get description
                             if (item.description?.original) {
                                 const description = item.description.original;
-                                Logger.log("Description extracted from JSON:", description);
+                                Logger.debug("Description extracted from JSON:", description);
 
                                 // Get the part before tag indicators like "No leer"
                                 const cleanDescription = this.cleanDescription(description);
@@ -5931,11 +6058,11 @@
 
                                 resolve({success: true, data: itemData});
                             } else {
-                                Logger.log("Description not found in JSON structure:", jsonData);
+                                Logger.debug("Description not found in JSON structure:", jsonData);
                                 throw new Error("Description not found in JSON data");
                             }
                         } else {
-                            Logger.log("Item data not found in JSON structure:", jsonData);
+                            Logger.debug("Item data not found in JSON structure:", jsonData);
                             throw new Error("Item not found in JSON data");
                         }
                     } catch (jsonError) {
@@ -5943,14 +6070,14 @@
                         throw jsonError;
                     }
                 } else {
-                    Logger.log("__NEXT_DATA__ script tag not found, trying old method");
+                    Logger.debug("__NEXT_DATA__ script tag not found, trying old method");
 
                     // Fall back to old method (for compatibility)
                     const descriptionElement = doc.querySelector(SELECTORS.ITEM_DESCRIPTION);
                     if (descriptionElement) {
                         const description = descriptionElement.querySelector(".mt-2")?.innerHTML.trim();
                         if (description) {
-                            Logger.log("Description found using old method");
+                            Logger.debug("Description found using old method");
 
                             // In old method, we can't get the title easily, so we'll use the URL
                             const itemData = {
@@ -5992,7 +6119,7 @@
 
             for (const marker of tagMarkers) {
                 if (description.includes(marker)) {
-                    Logger.log(`Found tag marker: "${marker}"`);
+                    Logger.debug(`Found tag marker: "${marker}"`);
                     cleanDesc = description.split(marker)[0].trim();
                     break;
                 }
@@ -6024,8 +6151,8 @@
                 // Add new item
                 this.expandedItems.push(itemData);
             }
-            Logger.log("Item added to description manager:", itemData.title);
-            Logger.log("Total items:", this.expandedItems.length);
+            Logger.debug("Item added to description manager:", itemData.title);
+            Logger.debug("Total items:", this.expandedItems.length);
 
             // Update control panel visibility
             ControlPanel.updatePanelVisibility();
@@ -6035,8 +6162,8 @@
             const index = this.expandedItems.findIndex(item => item.url === url);
             if (index >= 0) {
                 this.expandedItems.splice(index, 1);
-                Logger.log("Item removed from description manager:", url);
-                Logger.log("Total items:", this.expandedItems.length);
+                Logger.debug("Item removed from description manager:", url);
+                Logger.debug("Total items:", this.expandedItems.length);
 
                 // Update control panel visibility
                 ControlPanel.updatePanelVisibility();
@@ -6045,7 +6172,7 @@
 
         static clearItems() {
             this.expandedItems = [];
-            Logger.log("All items cleared from description manager");
+            Logger.debug("All items cleared from description manager");
             ControlPanel.updatePanelVisibility();
         }
 
@@ -6103,7 +6230,7 @@
         }
 
         createButton() {
-            Logger.log("Creating expand button for URL:", this.url);
+            Logger.debug("Creating expand button for URL:", this.url);
             this.button = document.createElement('button');
             this.button.textContent = TranslationManager.getText('expandDescription');
             this.button.className = SELECTORS.EXPAND_BUTTON.slice(1); // Remove the leading dot
@@ -6118,13 +6245,13 @@
             container.appendChild(this.descriptionContent);
 
             this.anchorElement.appendChild(container);
-            Logger.log("Expand button added for URL:", this.url);
+            Logger.debug("Expand button added for URL:", this.url);
         }
 
         async handleClick(event) {
             event.preventDefault();
             event.stopPropagation();
-            Logger.log("Expand button clicked for URL:", this.url);
+            Logger.debug("Expand button clicked for URL:", this.url);
             try {
                 if (!this.expanded) {
                     await this.expandDescription();
@@ -6151,7 +6278,7 @@
                 // Add to global description manager
                 DescriptionManager.addItem(this.itemData);
 
-                Logger.log("Description expanded for URL:", this.url);
+                Logger.debug("Description expanded for URL:", this.url);
             } else {
                 this.showError(result.error);
             }
@@ -6176,7 +6303,7 @@
                 DescriptionManager.removeItem(this.url);
             }
 
-            Logger.log("Description hidden for URL:", this.url);
+            Logger.debug("Description hidden for URL:", this.url);
         }
 
         showError(message) {
@@ -6189,19 +6316,19 @@
             this.descriptionContent.classList.add('expanded');
             this.button.textContent = TranslationManager.getText('expandDescription');
             this.expanded = false;
-            Logger.log("Error displaying description for URL:", this.url, message);
+            Logger.debug("Error displaying description for URL:", this.url, message);
         }
     }
 
     class ListingManager {
         static addExpandButtonsToListings() {
-            Logger.log("Adding expand buttons to listings");
+            Logger.debug("Adding expand buttons to listings");
             let totalListings = 0;
 
             SELECTORS.ITEM_CARDS.forEach(selector => {
                 const listings = document.querySelectorAll(selector);
                 totalListings += listings.length;
-                Logger.log(`Found ${listings.length} items for selector: ${selector}`);
+                Logger.debug(`Found ${listings.length} items for selector: ${selector}`);
 
                 listings.forEach(listing => {
                     try {
@@ -6219,7 +6346,7 @@
                         if (href && !listing.querySelector(SELECTORS.EXPAND_BUTTON)) {
                             new ExpandButton(listing, href);
                         } else if (!href) {
-                            Logger.log("No valid href found for a listing");
+                            Logger.debug("No valid href found for a listing");
                         }
                     } catch (error) {
                         Logger.error(error, "Processing individual listing");
@@ -6227,7 +6354,7 @@
                 });
             });
 
-            Logger.log("Total listings processed:", totalListings);
+            Logger.debug("Total listings processed:", totalListings);
         }
     }
 
@@ -6240,7 +6367,7 @@
         observe() {
             this.observer.observe(document.body, {childList: true, subtree: true});
             window.addEventListener('popstate', this.handleUrlChange.bind(this));
-            Logger.log("MutationObserver and popstate listener set up");
+            Logger.debug("MutationObserver and popstate listener set up");
         }
 
         handleMutations(mutations) {
@@ -6254,7 +6381,7 @@
                         )
                     );
                     if (hasNewItemCards) {
-                        Logger.log("New ItemCards detected, adding expand buttons");
+                        Logger.debug("New ItemCards detected, adding expand buttons");
                         ListingManager.addExpandButtonsToListings();
 
                         // Apply filters to new listings
@@ -6267,14 +6394,14 @@
 
         checkUrlChange() {
             if (this.lastUrl !== location.href) {
-                Logger.log("URL changed:", location.href);
+                Logger.debug("URL changed:", location.href);
                 this.lastUrl = location.href;
                 this.handleUrlChange();
             }
         }
 
         handleUrlChange() {
-            Logger.log("Handling URL change");
+            Logger.debug("Handling URL change");
             setTimeout(() => {
                 ListingManager.addExpandButtonsToListings();
                 // Apply filters after URL change
@@ -6457,7 +6584,7 @@
 
     class WallapopExpandDescription {
         static async init() {
-            Logger.log("Initializing script");
+            Logger.debug("Initializing script");
 
             // Load language preference first
             TranslationManager.loadLanguagePreference();
@@ -6477,7 +6604,7 @@
         }
 
         static waitForElements(selectors, timeout = 10000) {
-            Logger.log("Waiting for elements:", selectors);
+            Logger.debug("Waiting for elements:", selectors);
             return new Promise((resolve, reject) => {
                 const startTime = Date.now();
 
@@ -6485,14 +6612,14 @@
                     for (const selector of selectors) {
                         const elements = document.querySelectorAll(selector);
                         if (elements.length > 0) {
-                            Logger.log("Elements found:", selector, elements.length);
+                            Logger.debug("Elements found:", selector, elements.length);
                             resolve(elements);
                             return;
                         }
                     }
 
                     if (Date.now() - startTime > timeout) {
-                        Logger.log("Timeout waiting for elements");
+                        Logger.debug("Timeout waiting for elements");
                         reject(new Error(`Timeout waiting for elements`));
                     } else {
                         requestAnimationFrame(checkElements);
@@ -7225,12 +7352,12 @@
                 return;
             }
 
-            Logger.log(`Copying data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
+            Logger.debug(`Copying data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
 
             // Get the formatter based on the selected format
             const formatter = this.getFormatter(selectedFormat);
             if (!formatter) {
-                Logger.log("No formatter available for", selectedFormat.id);
+                Logger.debug("No formatter available for", selectedFormat.id);
                 return;
             }
 
@@ -7260,12 +7387,12 @@
                 return;
             }
 
-            Logger.log(`Downloading data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
+            Logger.debug(`Downloading data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
 
             // Get the formatter based on the selected format
             const formatter = this.getFormatter(selectedFormat);
             if (!formatter) {
-                Logger.log("No formatter available for", selectedFormat.id);
+                Logger.debug("No formatter available for", selectedFormat.id);
                 return;
             }
 
@@ -7294,7 +7421,7 @@
         static saveExportFormat(formatId, categoryId) {
             try {
                 localStorage.setItem('wallapop-export-format', JSON.stringify({id: formatId, category: categoryId}));
-                Logger.log(`Export format saved: ${formatId} (${categoryId})`);
+                Logger.debug(`Export format saved: ${formatId} (${categoryId})`);
             } catch (error) {
                 Logger.error(error, "Saving export format");
             }
@@ -7305,7 +7432,7 @@
                 const savedFormat = localStorage.getItem('wallapop-export-format');
                 if (savedFormat) {
                     const format = JSON.parse(savedFormat);
-                    Logger.log(`Export format loaded: ${format.id} (${format.category})`);
+                    Logger.debug(`Export format loaded: ${format.id} (${format.category})`);
                     return format;
                 }
             } catch (error) {
@@ -7384,7 +7511,7 @@
          * Apply delivery method filter
          */
         static applyDeliveryMethodFilter() {
-            Logger.log("Applying delivery method filter");
+            Logger.debug("Applying delivery method filter");
 
             const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
             const allListings = document.querySelectorAll(allSelectors);
@@ -7426,7 +7553,7 @@
                 }
             });
 
-            Logger.log(`Delivery method filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+            Logger.debug(`Delivery method filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
         }
 
         /**
@@ -7484,7 +7611,7 @@
                     return 'inperson';
                 }
 
-                Logger.log("Unknown delivery method for listing:", listing);
+                Logger.debug("Unknown delivery method for listing:", listing);
                 return 'unknown';
             }
         }
@@ -8091,7 +8218,7 @@
             this.updateUILanguage();
             this.loadBlockedTerms();
 
-            Logger.log("Sidebar panel created for Wallapop Tools");
+            Logger.debug("Sidebar panel created for Wallapop Tools");
         }
 
         /**
@@ -8103,7 +8230,7 @@
                 if (savedTerms) {
                     this.blockedTerms = JSON.parse(savedTerms);
                     this.updateBlockedTermsList();
-                    Logger.log("Blocked terms loaded:", this.blockedTerms);
+                    Logger.debug("Blocked terms loaded:", this.blockedTerms);
                 }
             } catch (error) {
                 Logger.error(error, "Loading blocked terms");
@@ -8118,7 +8245,7 @@
         static saveBlockedTerms() {
             try {
                 localStorage.setItem('wallapop-blocked-terms', JSON.stringify(this.blockedTerms));
-                Logger.log("Blocked terms saved to localStorage");
+                Logger.debug("Blocked terms saved to localStorage");
             } catch (error) {
                 Logger.error(error, "Saving blocked terms");
             }
@@ -8133,7 +8260,7 @@
                 if (savedTerms) {
                     this.blockedTerms = JSON.parse(savedTerms);
                     this.updateBlockedTermsList();
-                    Logger.log("Blocked terms loaded:", this.blockedTerms);
+                    Logger.debug("Blocked terms loaded:", this.blockedTerms);
                 }
             } catch (error) {
                 Logger.error(error, "Loading blocked terms");
@@ -8148,7 +8275,7 @@
         static saveBlockedTerms() {
             try {
                 localStorage.setItem('wallapop-blocked-terms', JSON.stringify(this.blockedTerms));
-                Logger.log("Blocked terms saved to localStorage");
+                Logger.debug("Blocked terms saved to localStorage");
             } catch (error) {
                 Logger.error(error, "Saving blocked terms");
             }
@@ -8227,7 +8354,7 @@
          * Apply filters to all listings
          */
         static applyFilters() {
-            Logger.log("Applying all filters to listings");
+            Logger.debug("Applying all filters to listings");
 
             // Apply keyword filters
             const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
@@ -8244,7 +8371,7 @@
                 }
             });
 
-            Logger.log(`Keyword filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+            Logger.debug(`Keyword filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
 
             // Then apply delivery method filter
             this.applyDeliveryMethodFilter();
@@ -8340,7 +8467,7 @@
                 // Re-apply filters to all listings
                 this.applyFilters();
 
-                Logger.log("Blocked term added:", term);
+                Logger.debug("Blocked term added:", term);
             }
         }
 
@@ -8357,7 +8484,7 @@
                 // Re-apply filters to all listings
                 this.applyFilters();
 
-                Logger.log("Blocked term removed:", term);
+                Logger.debug("Blocked term removed:", term);
             }
         }
 
@@ -8382,7 +8509,7 @@
 
                 // Save back to localStorage
                 localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
-                Logger.log(`Panel state saved: ${key} = ${value}`);
+                Logger.debug(`Panel state saved: ${key} = ${value}`);
             } catch (error) {
                 Logger.error(error, "Saving panel state");
             }
@@ -8421,7 +8548,7 @@
 
             try {
                 localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
-                Logger.log("All panel states saved");
+                Logger.debug("All panel states saved");
             } catch (error) {
                 Logger.error(error, "Saving all panel states");
             }
@@ -8597,12 +8724,12 @@
     }
 
     // Script initialization
-    Logger.log("Script loaded, waiting for page to be ready");
+    Logger.debug("Script loaded, waiting for page to be ready");
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', WallapopExpandDescription.init.bind(WallapopExpandDescription));
-        Logger.log("Added DOMContentLoaded event listener");
+        Logger.debug("Added DOMContentLoaded event listener");
     } else {
-        Logger.log("Document already loaded, initializing script immediately");
+        Logger.debug("Document already loaded, initializing script immediately");
         WallapopExpandDescription.init();
     }
 
