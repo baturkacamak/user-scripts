@@ -12,8 +12,6 @@ import {
 } from "../core";
 import VideoDownloader from "../core/utils/VideoDownloader";
 import UrlChangeWatcher from "../core/utils/UrlChangeWatcher";
-import HistoryApiStrategy from "../core/utils/UrlChangeWatcher/strategies/HistoryApiStrategy";
-import HashChangeStrategy from "../core/utils/UrlChangeWatcher/strategies/HashChangeStrategy";
 import PollingStrategy from "../core/utils/UrlChangeWatcher/strategies/PollingStrategy";
 
 // Initialize GM functions fallbacks
@@ -714,21 +712,22 @@ class InstagramVideoController {
                 Logger.debug("Video initially unmuted, respecting global mute preference (or default).");
             }
 
+            let volumeEventTrusted = false;
+            const handler = (e) => volumeEventTrusted = e.isTrusted;
+            video.addEventListener('volumechange', handler, {once: true});
+
             // Listen for user unmuting the video
             video.addEventListener('volumechange', () => {
-                // Only update the global preference when the user UNMUTES
-                if (!video.muted && !this.audioUnmuted) {
+                const isNowAudible = !video.muted && video.volume > 0;
+
+                if (isNowAudible && volumeEventTrusted) {
                     this.audioUnmuted = true;
                     GM_setValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, true);
-                    Logger.debug("Audio unmuted globally BY USER ACTION and saved.");
+                    Logger.debug("User unmuted video (volume > 0), preference saved.");
+                } else if (video.muted || video.volume === 0) {
+                    this.audioUnmuted = false;
+                    Logger.debug("Video manually muted or volume set to 0. Global preference remains:", this.audioUnmuted);
                 }
-                    // --- ADDED ---
-                    // If the user manually MUTES, we DON'T change the global preference.
-                // The video will stay muted because the override interval is removed.
-                else if (video.muted) {
-                    Logger.debug("Video manually muted by user. Global preference remains:", this.audioUnmuted);
-                }
-                // --- END ADDED ---
             });
 
             // Set default volume if not already set
@@ -1447,12 +1446,17 @@ function init() {
 
         const handleUrlChange = (newUrl, oldUrl, strategyName = "") => {
             Logger.debug(`${strategyName} triggered:`, oldUrl ? `${oldUrl} → ${newUrl}` : newUrl);
-            controller?.processVideos();
+            HTMLUtils.waitForElement('video', 5000, document, 50)
+                .then(() => {
+                    Logger.debug("Video element detected after URL change");
+                    controller?.processVideos();
+                })
+                .catch(() => {
+                    Logger.warn("No video found after waiting period");
+                });
         };
 
         const watcher = new UrlChangeWatcher([
-            new HistoryApiStrategy(handleUrlChange.bind(null, undefined, undefined, "HistoryApiStrategy")),
-            new HashChangeStrategy(handleUrlChange.bind(null, undefined, undefined, "HashChangeStrategy")),
             new PollingStrategy((url, oldUrl) => handleUrlChange(url, oldUrl, "PollingStrategy"))
         ], true);
 
