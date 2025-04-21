@@ -24,65 +24,192 @@
     'use strict';
 
     /**
-     * Logger - A utility for consistent logging
-     * Provides debug, log, error, and toggling capabilities
+     * Enhanced Logger - A feature-rich logging utility
+     * Supports log levels, styling, grouping, caller info, filtering, persistence, exporting, and more
      */
     class Logger {
         static DEBUG = true;
         static PREFIX = "Userscript";
+        static _customFormat = null;
+        static _logHistory = [];
+        static _filters = new Set();
+        static _lastTimestamp = null;
+        static _persist = false;
+        static _mock = false;
+        static _theme = {
+            debug: "color: #3498db; font-weight: bold;",
+            info: "color: #1abc9c; font-weight: bold;",
+            warn: "color: #f39c12; font-weight: bold;",
+            error: "color: #e74c3c; font-weight: bold;",
+            success: "color: #2ecc71; font-weight: bold;",
+            trace: "color: #8e44ad; font-weight: bold;",
+            htmlTitle: "color: #9b59b6; font-weight: bold;",
+            htmlContent: "color: #2c3e50;",
+            toggle: "color: #f39c12; font-weight: bold;"
+        };
+        static _emojis = {
+            debug: "\uD83D\uDC1B",
+            info: "\u2139\uFE0F",
+            warn: "\u26A0\uFE0F",
+            error: "\u274C",
+            success: "\u2705",
+            trace: "\uD83D\uDCCC",
+            html: "\uD83E\uDDE9",
+            toggle: "\uD83C\uDF9B\uFE0F"
+        };
 
-        /**
-         * Sets the prefix used in log messages
-         * @param {string} prefix - The prefix to use
-         */
-        static setPrefix(prefix) {
-            this.PREFIX = prefix;
+        static setTimeFormat(locale = "en-US", use12Hour = false) {
+            this._customFormat = {locale, hour12: use12Hour};
         }
 
-        /**
-         * Log a debug message (only when debug mode is enabled)
-         * @param {...any} args - Arguments to log
-         */
-        static log(...args) {
-            if (this.DEBUG) {
-                console.log(`${this.PREFIX} Debug:`, ...args);
+        static _detectTimeFormat() {
+            try {
+                const testDate = new Date(Date.UTC(2020, 0, 1, 13, 0, 0));
+                const locale = navigator.language || "tr-TR";
+                const timeString = testDate.toLocaleTimeString(locale);
+                const is12Hour = timeString.toLowerCase().includes("pm") || timeString.toLowerCase().includes("am");
+                return {locale, hour12: is12Hour};
+            } catch (e) {
+                return {locale: "tr-TR", hour12: false};
             }
         }
 
-        /**
-         * Log an error message with context
-         * @param {Error} error - The error object
-         * @param {string} context - Context description where the error occurred
-         */
-        static error(error, context) {
-            console.error(`${this.PREFIX} Error (${context}):`, error);
+        static _timestamp() {
+            const {locale, hour12} = this._customFormat || this._detectTimeFormat();
+            const now = new Date();
+            const time = now.toLocaleString(locale, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12
+            });
+            let diff = "";
+            if (this._lastTimestamp) {
+                const ms = now - this._lastTimestamp;
+                diff = ` [+${(ms / 1000).toFixed(1)}s]`;
+            }
+            this._lastTimestamp = now;
+            return `${time}${diff}`;
         }
 
-        /**
-         * Log HTML content with a title
-         * @param {string} title - Title describing the content
-         * @param {string} htmlContent - The HTML content to log
-         */
-        static logHtml(title, htmlContent) {
-            if (this.DEBUG) {
-                console.log(`${this.PREFIX} [${title}]:`);
-                console.log(htmlContent.substring(0, 1500) + "...");
+        static _getCaller() {
+            const err = new Error();
+            const stack = err.stack?.split("\n")[3];
+            return stack ? stack.trim() : "(unknown)";
+        }
 
-                // Show HTML in expandable format for easier inspection
-                console.groupCollapsed(`HTML Details (${title})`);
-                console.log("Complete HTML:", htmlContent);
+        static _log(level, ...args) {
+            if (!this.DEBUG && level === "debug") return;
+            if (this._filters.size && !args.some(arg => this._filters.has(arg))) return;
+            const emoji = this._emojis[level] || '';
+            const style = this._theme[level] || '';
+            const timestamp = this._timestamp();
+            const caller = this._getCaller();
+
+            const message = [
+                `%c${timestamp} %c${emoji} [${this.PREFIX} ${level.toUpperCase()}]%c:`,
+                "color: gray; font-style: italic;",
+                style,
+                "color: inherit;",
+                ...args,
+                `\nCaller: ${caller}`
+            ];
+
+            this._logHistory.push({timestamp, level, args});
+
+            if (this._persist) localStorage.setItem("LoggerHistory", JSON.stringify(this._logHistory));
+            if (!this._mock) console.log(...message);
+        }
+
+        static debug(...args) {
+            this._log("debug", ...args);
+        }
+
+        static info(...args) {
+            this._log("info", ...args);
+        }
+
+        static warn(...args) {
+            this._log("warn", ...args);
+        }
+
+        static error(...args) {
+            this._log("error", ...args);
+        }
+
+        static success(...args) {
+            this._log("success", ...args);
+        }
+
+        static trace(...args) {
+            this._log("trace", ...args);
+            console.trace();
+        }
+
+        static logHtml(title, htmlContent) {
+            const shortContent = htmlContent.substring(0, 1500) + "...";
+            this._log("html", `[${title}]`, shortContent);
+            if (!this._mock) {
+                console.groupCollapsed(`%c\uD83E\uDDE9 HTML Details (${title})`, this._theme.htmlTitle);
+                console.log("%cComplete HTML:", this._theme.htmlTitle);
+                console.log(`%c${htmlContent}`, this._theme.htmlContent);
                 console.groupEnd();
             }
         }
 
-        /**
-         * Toggle debug mode on/off
-         * @returns {boolean} The new debug state
-         */
-        static toggleDebug() {
-            this.DEBUG = !this.DEBUG;
-            console.log(`${this.PREFIX}: Debug mode ${this.DEBUG ? 'enabled' : 'disabled'}`);
-            return this.DEBUG;
+        static setPrefix(prefix) {
+            this.PREFIX = prefix;
+        }
+
+        static setTheme(theme) {
+            Object.assign(this._theme, theme);
+        }
+
+        static addFilter(tag) {
+            this._filters.add(tag);
+        }
+
+        static clearFilters() {
+            this._filters.clear();
+        }
+
+        static persistLogs(enable = true) {
+            this._persist = enable;
+        }
+
+        static mock(enable = true) {
+            this._mock = enable;
+        }
+
+        static group(label) {
+            if (!this._mock) console.group(label);
+        }
+
+        static groupEnd() {
+            if (!this._mock) console.groupEnd();
+        }
+
+        static step(msg) {
+            this.info(`\u2705 ${msg}`);
+        }
+
+        static hello() {
+            this.info("Hello, dev! \uD83D\uDC4B Ready to debug?");
+        }
+
+        static downloadLogs(filename = "logs.json") {
+            const blob = new Blob([JSON.stringify(this._logHistory, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        static autoClear(intervalMs) {
+            setInterval(() => {
+                this._logHistory = [];
+                if (this._persist) localStorage.removeItem("LoggerHistory");
+            }, intervalMs);
         }
     }
 
@@ -1708,13 +1835,13 @@
             if (duplicateIndex >= 0) {
                 // Only log if this is a new timestamp for existing caption
                 if (this.timestamps[duplicateIndex] !== timestamp) {
-                    Logger.log(`Skipping duplicate caption: "${caption.substring(0, 30)}..." at ${timestamp} (already exists at ${this.timestamps[duplicateIndex]})`);
+                    Logger.debug(`Skipping duplicate caption: "${caption.substring(0, 30)}..." at ${timestamp} (already exists at ${this.timestamps[duplicateIndex]})`);
                 }
                 return;
             }
 
             // If we're here, this is a new caption or a significant change
-            Logger.log(`Adding caption at ${timestamp}: ${caption.substring(0, 30)}...`);
+            Logger.debug(`Adding caption at ${timestamp}: ${caption.substring(0, 30)}...`);
             this.captions.push(caption);
             this.timestamps.push(timestamp);
             this.lastCaptionText = caption;
@@ -1819,7 +1946,7 @@
             this.captions = [];
             this.timestamps = [];
             this.lastCaptionText = null;
-            Logger.log("All captions cleared");
+            Logger.debug("All captions cleared");
 
             // Update UI
             CaptionsPanel.updateCaptionCount();
@@ -1957,7 +2084,7 @@
             // Add preview dialog elements (hidden initially)
             this.createPreviewDialog();
 
-            Logger.log("Caption panel created");
+            Logger.debug("Caption panel created");
         }
 
         /**
@@ -2266,7 +2393,7 @@
         static startMonitoring() {
             if (this.isCapturing) return;
 
-            Logger.log("Starting captions monitoring");
+            Logger.debug("Starting captions monitoring");
             this.isCapturing = true;
 
             // Create observer for captions
@@ -2313,13 +2440,13 @@
                     attributeFilter: ['class', 'data-active']
                 });
 
-                Logger.log("Caption observer set up");
+                Logger.debug("Caption observer set up");
 
                 // Also observe the DOM for potential container changes
                 const domObserver = new MutationObserver((mutations) => {
                     // If our caption container is no longer in the DOM, try to re-establish
                     if (!document.contains(this.captionContainer)) {
-                        Logger.log("Caption container removed from DOM, re-establishing...");
+                        Logger.debug("Caption container removed from DOM, re-establishing...");
                         this.setupObserver();
                     }
                 });
@@ -2327,7 +2454,7 @@
                 // Observe the document body for caption container changes
                 domObserver.observe(document.body, {childList: true, subtree: true});
             } else {
-                Logger.log("Caption container not found, will try again");
+                Logger.debug("Caption container not found, will try again");
                 // Try again in a moment
                 setTimeout(() => this.setupObserver(), 1000);
             }
@@ -2428,7 +2555,7 @@
         static stopMonitoring() {
             if (!this.isCapturing) return;
 
-            Logger.log("Stopping captions monitoring");
+            Logger.debug("Stopping captions monitoring");
             this.isCapturing = false;
 
             // Disconnect observer
@@ -2662,11 +2789,11 @@
      */
     class LoomCaptionsExtractor {
         static async init() {
-            Logger.log("Initializing Loom Captions Extractor");
+            Logger.debug("Initializing Loom Captions Extractor");
 
             // Check if we're on a Loom video page
             if (!this.isLoomVideoPage()) {
-                Logger.log("Not a Loom video page, exiting");
+                Logger.debug("Not a Loom video page, exiting");
                 return;
             }
 
@@ -2680,7 +2807,7 @@
                 // Start monitoring captions
                 CaptionsMonitor.startMonitoring();
 
-                Logger.log("Loom Captions Extractor initialized");
+                Logger.debug("Loom Captions Extractor initialized");
             } catch (error) {
                 Logger.error(error, "Initialization");
             }
@@ -2708,7 +2835,7 @@
                         document.querySelector('div[data-name="VideoControls"]');
 
                     if (videoPlayer) {
-                        Logger.log("Video player found");
+                        Logger.debug("Video player found");
                         resolve(videoPlayer);
                         return;
                     }

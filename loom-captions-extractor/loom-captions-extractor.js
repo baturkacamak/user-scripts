@@ -44,13 +44,13 @@ class CaptionsManager {
         if (duplicateIndex >= 0) {
             // Only log if this is a new timestamp for existing caption
             if (this.timestamps[duplicateIndex] !== timestamp) {
-                Logger.log(`Skipping duplicate caption: "${caption.substring(0, 30)}..." at ${timestamp} (already exists at ${this.timestamps[duplicateIndex]})`);
+                Logger.debug(`Skipping duplicate caption: "${caption.substring(0, 30)}..." at ${timestamp} (already exists at ${this.timestamps[duplicateIndex]})`);
             }
             return;
         }
 
         // If we're here, this is a new caption or a significant change
-        Logger.log(`Adding caption at ${timestamp}: ${caption.substring(0, 30)}...`);
+        Logger.debug(`Adding caption at ${timestamp}: ${caption.substring(0, 30)}...`);
         this.captions.push(caption);
         this.timestamps.push(timestamp);
         this.lastCaptionText = caption;
@@ -155,7 +155,7 @@ class CaptionsManager {
         this.captions = [];
         this.timestamps = [];
         this.lastCaptionText = null;
-        Logger.log("All captions cleared");
+        Logger.debug("All captions cleared");
 
         // Update UI
         CaptionsPanel.updateCaptionCount();
@@ -293,7 +293,7 @@ class CaptionsPanel {
         // Add preview dialog elements (hidden initially)
         this.createPreviewDialog();
 
-        Logger.log("Caption panel created");
+        Logger.debug("Caption panel created");
     }
 
     /**
@@ -602,7 +602,7 @@ class CaptionsMonitor {
     static startMonitoring() {
         if (this.isCapturing) return;
 
-        Logger.log("Starting captions monitoring");
+        Logger.debug("Starting captions monitoring");
         this.isCapturing = true;
 
         // Create observer for captions
@@ -649,13 +649,13 @@ class CaptionsMonitor {
                 attributeFilter: ['class', 'data-active']
             });
 
-            Logger.log("Caption observer set up");
+            Logger.debug("Caption observer set up");
 
             // Also observe the DOM for potential container changes
             const domObserver = new MutationObserver((mutations) => {
                 // If our caption container is no longer in the DOM, try to re-establish
                 if (!document.contains(this.captionContainer)) {
-                    Logger.log("Caption container removed from DOM, re-establishing...");
+                    Logger.debug("Caption container removed from DOM, re-establishing...");
                     this.setupObserver();
                 }
             });
@@ -663,7 +663,7 @@ class CaptionsMonitor {
             // Observe the document body for caption container changes
             domObserver.observe(document.body, {childList: true, subtree: true});
         } else {
-            Logger.log("Caption container not found, will try again");
+            Logger.debug("Caption container not found, will try again");
             // Try again in a moment
             setTimeout(() => this.setupObserver(), 1000);
         }
@@ -764,7 +764,7 @@ class CaptionsMonitor {
     static stopMonitoring() {
         if (!this.isCapturing) return;
 
-        Logger.log("Stopping captions monitoring");
+        Logger.debug("Stopping captions monitoring");
         this.isCapturing = false;
 
         // Disconnect observer
@@ -998,11 +998,11 @@ StyleManager.addStyles(`
  */
 class LoomCaptionsExtractor {
     static async init() {
-        Logger.log("Initializing Loom Captions Extractor");
+        Logger.debug("Initializing Loom Captions Extractor");
 
         // Check if we're on a Loom video page
         if (!this.isLoomVideoPage()) {
-            Logger.log("Not a Loom video page, exiting");
+            Logger.debug("Not a Loom video page, exiting");
             return;
         }
 
@@ -1016,7 +1016,7 @@ class LoomCaptionsExtractor {
             // Start monitoring captions
             CaptionsMonitor.startMonitoring();
 
-            Logger.log("Loom Captions Extractor initialized");
+            Logger.debug("Loom Captions Extractor initialized");
         } catch (error) {
             Logger.error(error, "Initialization");
         }
@@ -1044,7 +1044,7 @@ class LoomCaptionsExtractor {
                     document.querySelector('div[data-name="VideoControls"]');
 
                 if (videoPlayer) {
-                    Logger.log("Video player found");
+                    Logger.debug("Video player found");
                     resolve(videoPlayer);
                     return;
                 }

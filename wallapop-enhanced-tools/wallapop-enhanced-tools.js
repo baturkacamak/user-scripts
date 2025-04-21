@@ -948,7 +948,7 @@ TranslationManager.init({
 
 class DescriptionFetcher {
     static async getDescription(url) {
-        Logger.log("Fetching description for URL:", url);
+        Logger.debug("Fetching description for URL:", url);
         return new Promise((resolve) => {
             GM_xmlhttpRequest({
                 method: "GET",
@@ -962,7 +962,7 @@ class DescriptionFetcher {
     static handleResponse(response, resolve, originalUrl) {
         try {
             // Parse the received response
-            Logger.log("Response received with status:", response.status);
+            Logger.debug("Response received with status:", response.status);
 
             const parser = new DOMParser();
             const doc = parser.parseFromString(response.responseText, "text/html");
@@ -971,12 +971,12 @@ class DescriptionFetcher {
             const nextDataScript = doc.querySelector('#__NEXT_DATA__');
 
             if (nextDataScript) {
-                Logger.log("Found __NEXT_DATA__ script tag");
+                Logger.debug("Found __NEXT_DATA__ script tag");
 
                 try {
                     // Parse the JSON content
                     const jsonData = JSON.parse(nextDataScript.textContent);
-                    Logger.log("JSON data parsed successfully");
+                    Logger.debug("JSON data parsed successfully");
 
                     // Extract the item description and title
                     let itemData = {};
@@ -989,7 +989,7 @@ class DescriptionFetcher {
                         // Get description
                         if (item.description?.original) {
                             const description = item.description.original;
-                            Logger.log("Description extracted from JSON:", description);
+                            Logger.debug("Description extracted from JSON:", description);
 
                             // Get the part before tag indicators like "No leer"
                             const cleanDescription = this.cleanDescription(description);
@@ -1003,11 +1003,11 @@ class DescriptionFetcher {
 
                             resolve({success: true, data: itemData});
                         } else {
-                            Logger.log("Description not found in JSON structure:", jsonData);
+                            Logger.debug("Description not found in JSON structure:", jsonData);
                             throw new Error("Description not found in JSON data");
                         }
                     } else {
-                        Logger.log("Item data not found in JSON structure:", jsonData);
+                        Logger.debug("Item data not found in JSON structure:", jsonData);
                         throw new Error("Item not found in JSON data");
                     }
                 } catch (jsonError) {
@@ -1015,14 +1015,14 @@ class DescriptionFetcher {
                     throw jsonError;
                 }
             } else {
-                Logger.log("__NEXT_DATA__ script tag not found, trying old method");
+                Logger.debug("__NEXT_DATA__ script tag not found, trying old method");
 
                 // Fall back to old method (for compatibility)
                 const descriptionElement = doc.querySelector(SELECTORS.ITEM_DESCRIPTION);
                 if (descriptionElement) {
                     const description = descriptionElement.querySelector(".mt-2")?.innerHTML.trim();
                     if (description) {
-                        Logger.log("Description found using old method");
+                        Logger.debug("Description found using old method");
 
                         // In old method, we can't get the title easily, so we'll use the URL
                         const itemData = {
@@ -1064,7 +1064,7 @@ class DescriptionFetcher {
 
         for (const marker of tagMarkers) {
             if (description.includes(marker)) {
-                Logger.log(`Found tag marker: "${marker}"`);
+                Logger.debug(`Found tag marker: "${marker}"`);
                 cleanDesc = description.split(marker)[0].trim();
                 break;
             }
@@ -1096,8 +1096,8 @@ class DescriptionManager {
             // Add new item
             this.expandedItems.push(itemData);
         }
-        Logger.log("Item added to description manager:", itemData.title);
-        Logger.log("Total items:", this.expandedItems.length);
+        Logger.debug("Item added to description manager:", itemData.title);
+        Logger.debug("Total items:", this.expandedItems.length);
 
         // Update control panel visibility
         ControlPanel.updatePanelVisibility();
@@ -1107,8 +1107,8 @@ class DescriptionManager {
         const index = this.expandedItems.findIndex(item => item.url === url);
         if (index >= 0) {
             this.expandedItems.splice(index, 1);
-            Logger.log("Item removed from description manager:", url);
-            Logger.log("Total items:", this.expandedItems.length);
+            Logger.debug("Item removed from description manager:", url);
+            Logger.debug("Total items:", this.expandedItems.length);
 
             // Update control panel visibility
             ControlPanel.updatePanelVisibility();
@@ -1117,7 +1117,7 @@ class DescriptionManager {
 
     static clearItems() {
         this.expandedItems = [];
-        Logger.log("All items cleared from description manager");
+        Logger.debug("All items cleared from description manager");
         ControlPanel.updatePanelVisibility();
     }
 
@@ -1175,7 +1175,7 @@ class ExpandButton {
     }
 
     createButton() {
-        Logger.log("Creating expand button for URL:", this.url);
+        Logger.debug("Creating expand button for URL:", this.url);
         this.button = document.createElement('button');
         this.button.textContent = TranslationManager.getText('expandDescription');
         this.button.className = SELECTORS.EXPAND_BUTTON.slice(1); // Remove the leading dot
@@ -1190,13 +1190,13 @@ class ExpandButton {
         container.appendChild(this.descriptionContent);
 
         this.anchorElement.appendChild(container);
-        Logger.log("Expand button added for URL:", this.url);
+        Logger.debug("Expand button added for URL:", this.url);
     }
 
     async handleClick(event) {
         event.preventDefault();
         event.stopPropagation();
-        Logger.log("Expand button clicked for URL:", this.url);
+        Logger.debug("Expand button clicked for URL:", this.url);
         try {
             if (!this.expanded) {
                 await this.expandDescription();
@@ -1223,7 +1223,7 @@ class ExpandButton {
             // Add to global description manager
             DescriptionManager.addItem(this.itemData);
 
-            Logger.log("Description expanded for URL:", this.url);
+            Logger.debug("Description expanded for URL:", this.url);
         } else {
             this.showError(result.error);
         }
@@ -1250,7 +1250,7 @@ class ExpandButton {
             DescriptionManager.removeItem(this.url);
         }
 
-        Logger.log("Description hidden for URL:", this.url);
+        Logger.debug("Description hidden for URL:", this.url);
     }
 
     showError(message) {
@@ -1263,19 +1263,19 @@ class ExpandButton {
         this.descriptionContent.classList.add('expanded');
         this.button.textContent = TranslationManager.getText('expandDescription');
         this.expanded = false;
-        Logger.log("Error displaying description for URL:", this.url, message);
+        Logger.debug("Error displaying description for URL:", this.url, message);
     }
 }
 
 class ListingManager {
     static addExpandButtonsToListings() {
-        Logger.log("Adding expand buttons to listings");
+        Logger.debug("Adding expand buttons to listings");
         let totalListings = 0;
 
         SELECTORS.ITEM_CARDS.forEach(selector => {
             const listings = document.querySelectorAll(selector);
             totalListings += listings.length;
-            Logger.log(`Found ${listings.length} items for selector: ${selector}`);
+            Logger.debug(`Found ${listings.length} items for selector: ${selector}`);
 
             listings.forEach(listing => {
                 try {
@@ -1293,7 +1293,7 @@ class ListingManager {
                     if (href && !listing.querySelector(SELECTORS.EXPAND_BUTTON)) {
                         new ExpandButton(listing, href);
                     } else if (!href) {
-                        Logger.log("No valid href found for a listing");
+                        Logger.debug("No valid href found for a listing");
                     }
                 } catch (error) {
                     Logger.error(error, "Processing individual listing");
@@ -1301,7 +1301,7 @@ class ListingManager {
             });
         });
 
-        Logger.log("Total listings processed:", totalListings);
+        Logger.debug("Total listings processed:", totalListings);
     }
 }
 
@@ -1314,7 +1314,7 @@ class DOMObserver {
     observe() {
         this.observer.observe(document.body, {childList: true, subtree: true});
         window.addEventListener('popstate', this.handleUrlChange.bind(this));
-        Logger.log("MutationObserver and popstate listener set up");
+        Logger.debug("MutationObserver and popstate listener set up");
     }
 
     handleMutations(mutations) {
@@ -1328,7 +1328,7 @@ class DOMObserver {
                     )
                 );
                 if (hasNewItemCards) {
-                    Logger.log("New ItemCards detected, adding expand buttons");
+                    Logger.debug("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
 
                     // Apply filters to new listings
@@ -1341,14 +1341,14 @@ class DOMObserver {
 
     checkUrlChange() {
         if (this.lastUrl !== location.href) {
-            Logger.log("URL changed:", location.href);
+            Logger.debug("URL changed:", location.href);
             this.lastUrl = location.href;
             this.handleUrlChange();
         }
     }
 
     handleUrlChange() {
-        Logger.log("Handling URL change");
+        Logger.debug("Handling URL change");
         setTimeout(() => {
             ListingManager.addExpandButtonsToListings();
             // Apply filters after URL change
@@ -1531,7 +1531,7 @@ class FormatOption {
 
 class WallapopExpandDescription {
     static async init() {
-        Logger.log("Initializing script");
+        Logger.debug("Initializing script");
 
         // Load language preference first
         TranslationManager.loadLanguagePreference();
@@ -1551,7 +1551,7 @@ class WallapopExpandDescription {
     }
 
     static waitForElements(selectors, timeout = 10000) {
-        Logger.log("Waiting for elements:", selectors);
+        Logger.debug("Waiting for elements:", selectors);
         return new Promise((resolve, reject) => {
             const startTime = Date.now();
 
@@ -1559,14 +1559,14 @@ class WallapopExpandDescription {
                 for (const selector of selectors) {
                     const elements = document.querySelectorAll(selector);
                     if (elements.length > 0) {
-                        Logger.log("Elements found:", selector, elements.length);
+                        Logger.debug("Elements found:", selector, elements.length);
                         resolve(elements);
                         return;
                     }
                 }
 
                 if (Date.now() - startTime > timeout) {
-                    Logger.log("Timeout waiting for elements");
+                    Logger.debug("Timeout waiting for elements");
                     reject(new Error(`Timeout waiting for elements`));
                 } else {
                     requestAnimationFrame(checkElements);
@@ -2299,12 +2299,12 @@ class ControlPanel {
             return;
         }
 
-        Logger.log(`Copying data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
+        Logger.debug(`Copying data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
 
         // Get the formatter based on the selected format
         const formatter = this.getFormatter(selectedFormat);
         if (!formatter) {
-            Logger.log("No formatter available for", selectedFormat.id);
+            Logger.debug("No formatter available for", selectedFormat.id);
             return;
         }
 
@@ -2334,12 +2334,12 @@ class ControlPanel {
             return;
         }
 
-        Logger.log(`Downloading data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
+        Logger.debug(`Downloading data in ${selectedFormat.id} format with options:`, selectedFormat.getOptions());
 
         // Get the formatter based on the selected format
         const formatter = this.getFormatter(selectedFormat);
         if (!formatter) {
-            Logger.log("No formatter available for", selectedFormat.id);
+            Logger.debug("No formatter available for", selectedFormat.id);
             return;
         }
 
@@ -2368,7 +2368,7 @@ class ControlPanel {
     static saveExportFormat(formatId, categoryId) {
         try {
             localStorage.setItem('wallapop-export-format', JSON.stringify({id: formatId, category: categoryId}));
-            Logger.log(`Export format saved: ${formatId} (${categoryId})`);
+            Logger.debug(`Export format saved: ${formatId} (${categoryId})`);
         } catch (error) {
             Logger.error(error, "Saving export format");
         }
@@ -2379,7 +2379,7 @@ class ControlPanel {
             const savedFormat = localStorage.getItem('wallapop-export-format');
             if (savedFormat) {
                 const format = JSON.parse(savedFormat);
-                Logger.log(`Export format loaded: ${format.id} (${format.category})`);
+                Logger.debug(`Export format loaded: ${format.id} (${format.category})`);
                 return format;
             }
         } catch (error) {
@@ -2458,7 +2458,7 @@ class ControlPanel {
      * Apply delivery method filter
      */
     static applyDeliveryMethodFilter() {
-        Logger.log("Applying delivery method filter");
+        Logger.debug("Applying delivery method filter");
 
         const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
         const allListings = document.querySelectorAll(allSelectors);
@@ -2500,7 +2500,7 @@ class ControlPanel {
             }
         });
 
-        Logger.log(`Delivery method filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+        Logger.debug(`Delivery method filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
     }
 
     /**
@@ -2584,7 +2584,7 @@ class ControlPanel {
                 return 'inperson';
             }
 
-            Logger.log("Unknown delivery method for listing:", listing);
+            Logger.debug("Unknown delivery method for listing:", listing);
             return 'unknown';
         }
     }
@@ -3191,7 +3191,7 @@ class ControlPanel {
         this.updateUILanguage();
         this.loadBlockedTerms();
 
-        Logger.log("Sidebar panel created for Wallapop Tools");
+        Logger.debug("Sidebar panel created for Wallapop Tools");
     }
 
     /**
@@ -3203,7 +3203,7 @@ class ControlPanel {
             if (savedTerms) {
                 this.blockedTerms = JSON.parse(savedTerms);
                 this.updateBlockedTermsList();
-                Logger.log("Blocked terms loaded:", this.blockedTerms);
+                Logger.debug("Blocked terms loaded:", this.blockedTerms);
             }
         } catch (error) {
             Logger.error(error, "Loading blocked terms");
@@ -3218,7 +3218,7 @@ class ControlPanel {
     static saveBlockedTerms() {
         try {
             localStorage.setItem('wallapop-blocked-terms', JSON.stringify(this.blockedTerms));
-            Logger.log("Blocked terms saved to localStorage");
+            Logger.debug("Blocked terms saved to localStorage");
         } catch (error) {
             Logger.error(error, "Saving blocked terms");
         }
@@ -3233,7 +3233,7 @@ class ControlPanel {
             if (savedTerms) {
                 this.blockedTerms = JSON.parse(savedTerms);
                 this.updateBlockedTermsList();
-                Logger.log("Blocked terms loaded:", this.blockedTerms);
+                Logger.debug("Blocked terms loaded:", this.blockedTerms);
             }
         } catch (error) {
             Logger.error(error, "Loading blocked terms");
@@ -3248,7 +3248,7 @@ class ControlPanel {
     static saveBlockedTerms() {
         try {
             localStorage.setItem('wallapop-blocked-terms', JSON.stringify(this.blockedTerms));
-            Logger.log("Blocked terms saved to localStorage");
+            Logger.debug("Blocked terms saved to localStorage");
         } catch (error) {
             Logger.error(error, "Saving blocked terms");
         }
@@ -3327,7 +3327,7 @@ class ControlPanel {
      * Apply filters to all listings
      */
     static applyFilters() {
-        Logger.log("Applying all filters to listings");
+        Logger.debug("Applying all filters to listings");
 
         // Apply keyword filters
         const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
@@ -3344,7 +3344,7 @@ class ControlPanel {
             }
         });
 
-        Logger.log(`Keyword filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+        Logger.debug(`Keyword filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
 
         // Then apply delivery method filter
         this.applyDeliveryMethodFilter();
@@ -3440,7 +3440,7 @@ class ControlPanel {
             // Re-apply filters to all listings
             this.applyFilters();
 
-            Logger.log("Blocked term added:", term);
+            Logger.debug("Blocked term added:", term);
         }
     }
 
@@ -3457,7 +3457,7 @@ class ControlPanel {
             // Re-apply filters to all listings
             this.applyFilters();
 
-            Logger.log("Blocked term removed:", term);
+            Logger.debug("Blocked term removed:", term);
         }
     }
 
@@ -3482,7 +3482,7 @@ class ControlPanel {
 
             // Save back to localStorage
             localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
-            Logger.log(`Panel state saved: ${key} = ${value}`);
+            Logger.debug(`Panel state saved: ${key} = ${value}`);
         } catch (error) {
             Logger.error(error, "Saving panel state");
         }
@@ -3521,7 +3521,7 @@ class ControlPanel {
 
         try {
             localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
-            Logger.log("All panel states saved");
+            Logger.debug("All panel states saved");
         } catch (error) {
             Logger.error(error, "Saving all panel states");
         }
@@ -3697,11 +3697,11 @@ class ControlPanel {
 }
 
 // Script initialization
-Logger.log("Script loaded, waiting for page to be ready");
+Logger.debug("Script loaded, waiting for page to be ready");
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', WallapopExpandDescription.init.bind(WallapopExpandDescription));
-    Logger.log("Added DOMContentLoaded event listener");
+    Logger.debug("Added DOMContentLoaded event listener");
 } else {
-    Logger.log("Document already loaded, initializing script immediately");
+    Logger.debug("Document already loaded, initializing script immediately");
     WallapopExpandDescription.init();
 }
