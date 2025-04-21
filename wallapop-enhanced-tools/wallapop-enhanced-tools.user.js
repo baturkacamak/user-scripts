@@ -267,15 +267,20 @@
       }
 
       /**
-         * Wait for an element to be present in the DOM
-         * @param {string} selector - CSS selector to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @param {Document|Element} root - Root element to search from
-         * @return {Promise<Element>} - The found element
+         * * Wait for a specific element to appear in the DOM.
+         *  * Continues checking using requestAnimationFrame until it appears,
+         *  * a timeout is reached, or the maximum number of attempts is exceeded.
+         *  *
+         *  * @param {string} selector - CSS selector of the target element.
+         *  * @param {number} [timeout=10000] - Maximum time in milliseconds to wait.
+         *  * @param {Document|Element} [root=document] - DOM root to query from.
+         *  * @param {number} [maxRetries=60] - Maximum number of requestAnimationFrame attempts.
+         *  * @returns {Promise<Element>} Resolves with the found element or rejects on timeout.
          */
-      static waitForElement(selector, timeout = 10000, root = document) {
+      static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
         return new Promise((resolve, reject) => {
           const startTime = Date.now();
+          let attempts = 0;
 
           function checkElement() {
             const element = root.querySelector(selector);
@@ -284,11 +289,12 @@
               return;
             }
 
-            if (Date.now() - startTime > timeout) {
+            if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
               reject(new Error(`Timeout waiting for element: ${selector}`));
               return;
             }
 
+            attempts++;
             requestAnimationFrame(checkElement);
           }
 
