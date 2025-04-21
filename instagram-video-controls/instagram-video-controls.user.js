@@ -554,106 +554,6 @@
     }
 
     /**
-     * DOMObserver - Observes DOM changes and triggers callbacks
-     * Useful for watching for dynamic content loading
-     */
-    class DOMObserver {
-      /**
-         * Wait for elements matching a selector
-         * @param {string} selector - CSS selector to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @return {Promise<NodeList>} - Promise resolving to found elements
-         */
-      static waitForElements(selector, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-
-          function checkElements() {
-            const elements = document.querySelectorAll(selector);
-            if (0 < elements.length) {
-              resolve(elements);
-              return;
-            }
-
-            if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selector}`));
-              return;
-            }
-
-            requestAnimationFrame(checkElements);
-          }
-
-          checkElements();
-        });
-      }
-      /**
-         * Create a new DOMObserver
-         * @param {Function} onMutation - Callback for handling mutations
-         * @param {Function} onUrlChange - Callback for handling URL changes
-         */
-      constructor(onMutation, onUrlChange) {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-        this.onMutation = onMutation;
-        this.onUrlChange = onUrlChange;
-      }
-
-
-      /**
-         * Start observing DOM changes
-         * @param {HTMLElement} target - Element to observe (defaults to document.body)
-         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
-         */
-      observe(target = document.body, config = {childList: true, subtree: true}) {
-        this.observer.observe(target, config);
-        window.addEventListener('popstate', this.handleUrlChange.bind(this));
-      }
-
-      /**
-         * Stop observing DOM changes
-         */
-      disconnect() {
-        this.observer.disconnect();
-        window.removeEventListener('popstate', this.handleUrlChange.bind(this));
-      }
-
-      /**
-         * Handle mutations
-         * @param {MutationRecord[]} mutations - Array of mutation records
-         * @private
-         */
-      handleMutations(mutations) {
-        if (this.onMutation) {
-          this.onMutation(mutations);
-        }
-        this.checkUrlChange();
-      }
-
-      /**
-         * Check if URL has changed
-         * @private
-         */
-      checkUrlChange() {
-        if (this.lastUrl !== location.href) {
-          const oldUrl = this.lastUrl;
-          this.lastUrl = location.href;
-          this.handleUrlChange(oldUrl);
-        }
-      }
-
-      /**
-         * Handle URL changes
-         * @param {string} oldUrl - Previous URL before change
-         * @private
-         */
-      handleUrlChange(oldUrl) {
-        if (this.onUrlChange) {
-          this.onUrlChange(location.href, oldUrl);
-        }
-      }
-    }
-
-    /**
      * Button - A reusable UI component for buttons.
      * Creates customizable, accessible buttons with various states and callbacks.
      */
@@ -4328,6 +4228,135 @@
       }
     }
 
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    class BaseStrategy {
+      constructor(callback) {
+        this.callback = callback;
+      }
+
+      start() {
+      }
+
+      stop() {
+      }
+    }
+
+    class HistoryApiStrategy extends BaseStrategy {
+      constructor(callback) {
+        super(callback);
+        this._onChange = this._onChange.bind(this);
+      }
+
+      start() {
+        ['pushState', 'replaceState'].forEach((method) => {
+          const original = history[method];
+          if (!original._patched) {
+            history[method] = function(...args) {
+              const result = original.apply(this, args);
+              window.dispatchEvent(new Event('urlchange'));
+              return result;
+            };
+            history[method]._patched = true;
+          }
+        });
+
+        window.addEventListener('popstate', this._onChange);
+        window.addEventListener('urlchange', this._onChange);
+      }
+
+      stop() {
+        window.removeEventListener('popstate', this._onChange);
+        window.removeEventListener('urlchange', this._onChange);
+      }
+
+      _onChange() {
+        this.callback(location.href);
+      }
+    }
+
+    class HashChangeStrategy extends BaseStrategy {
+      constructor(callback) {
+        super(callback);
+        this._onChange = this._onChange.bind(this);
+      }
+
+      start() {
+        window.addEventListener('hashchange', this._onChange);
+      }
+
+      stop() {
+        window.removeEventListener('hashchange', this._onChange);
+      }
+
+      _onChange() {
+        this.callback(location.href);
+      }
+    }
+
+    class PollingStrategy extends BaseStrategy {
+      constructor(callback, interval = 500) {
+        super(callback);
+        this.interval = interval;
+        this.lastUrl = location.href;
+      }
+
+      start() {
+        Logger.debug('PollingStrategy started');
+        this.timer = setInterval(() => {
+          const current = location.href;
+          if (current !== this.lastUrl) {
+            Logger.debug(`Polling detected change: ${this.lastUrl} → ${current}`);
+            this.callback(current, this.lastUrl);
+            this.lastUrl = current;
+          }
+        }, this.interval);
+      }
+
+      stop() {
+        clearInterval(this.timer);
+        Logger.debug('PollingStrategy stopped');
+      }
+    }
+
     // Import core components
 
     // Initialize GM functions fallbacks
@@ -4431,9 +4460,6 @@
 
             // Create settings panel
             this.createSettingsPanel();
-
-            // Setup observers
-            this.setupObservers();
 
             // Process existing videos
             this.processVideos();
@@ -4962,101 +4988,6 @@
             container.appendChild(settingItem);
 
             return checkbox;
-        }
-
-        /**
-         * Setup DOM and URL observers
-         */
-        setupObservers() {
-            try {
-                // --- TARGET SELECTION ---
-                // Try to find the mount point dynamically
-                let observerTarget = document.querySelector('div[id^="mount_"]'); // Find div whose ID starts with "mount_"
-
-                // Alternative if the ID pattern changes: Find the first significant div child of body
-                if (!observerTarget) {
-                    const bodyChildren = Array.from(document.body.children);
-                    observerTarget = bodyChildren.find(el => el.tagName === 'DIV' && el.id); // Find first DIV with an ID
-                }
-
-                if (!observerTarget) {
-                    // If even the mount point isn't found reliably, we have a major issue.
-                    Logger.error("Could not find the main application mount point ('div[id^=\"mount_\"]' or similar). Cannot set up reliable observer.");
-                    return; // Stop observer setup
-                }
-
-                Logger.debug("DOM observer target selected (Mount Point):", observerTarget);
-
-                // --- OBSERVER SETUP ---
-                this.observer = new DOMObserver(
-                    this.handleMutations.bind(this),
-                    this.handleUrlChange.bind(this)
-                );
-
-                this.observer.observe(observerTarget, {
-                    childList: true,
-                    subtree: true,
-                    attributes: true,
-                    attributeFilter: ['src'] // Crucial to filter
-                });
-
-                Logger.debug("DOM observer attached successfully.");
-            } catch (error) {
-                Logger.error(error, "Setting up observers");
-            }
-        }
-
-        /**
-         * Handle DOM mutations
-         * @param {MutationRecord[]} mutations - DOM mutations
-         */
-        handleMutations(mutations) {
-            // Throttle processing to prevent excessive calls
-            const now = Date.now();
-            if (now - this.lastProcessTime < InstagramVideoController.SETTINGS.OBSERVER_THROTTLE) {
-                return;
-            }
-
-            this.lastProcessTime = now;
-
-            // Check if any mutation involves a video
-            const shouldProcess = mutations.some(mutation => {
-                // Check for added nodes
-                if (mutation.type === 'childList' && mutation.addedNodes.length) {
-                    for (const node of mutation.addedNodes) {
-                        if (node.nodeName === 'VIDEO' ||
-                            (node.nodeType === Node.ELEMENT_NODE && node.querySelector('video'))) {
-                            return true;
-                        }
-                    }
-                }
-
-                // Check for attribute changes on videos
-                if (mutation.type === 'attributes' &&
-                    mutation.target.nodeName === 'VIDEO') {
-                    return true;
-                }
-
-                return false;
-            });
-
-            if (shouldProcess) {
-                this.processVideos();
-            }
-        }
-
-        /**
-         * Handle URL changes
-         * @param {string} newUrl - The new URL
-         * @param {string} oldUrl - The previous URL
-         */
-        handleUrlChange(newUrl, oldUrl) {
-            Logger.debug(`URL changed: ${oldUrl} -> ${newUrl}`);
-
-            // Process after a small delay to allow page content to load
-            setTimeout(() => {
-                this.processVideos();
-            }, 500);
         }
 
         /**
@@ -5713,8 +5644,7 @@
                 Array.from(container.children).forEach(child => {
                     if (child !== video && child.tagName === 'DIV') {
                         // Check if it's an overlay element
-                        const isOverlay = child.className.includes('vsc-controller') ||
-                            !child.querySelector('img, video');
+                        const isOverlay = !child.querySelector('img, video');
 
                         if (isOverlay) {
                             child.remove();
@@ -5722,10 +5652,6 @@
                         }
                     }
                 });
-
-                video.nextSibling[0].style.top = '-120px';
-                video.nextSibling[0].style.position = 'relative';
-
             } catch (error) {
                 Logger.error(error, "Removing overlays");
             }
@@ -5848,19 +5774,33 @@
      */
     function init() {
         try {
-            // Set up default colors for notifications
             Notification.useDefaultColors();
 
-            // Wait for document to be ready
+            let controller;
+
+            const startController = () => {
+                controller = new InstagramVideoController();
+            };
+
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
-                    new InstagramVideoController();
-                });
+                document.addEventListener('DOMContentLoaded', startController);
             } else {
-                new InstagramVideoController();
+                startController();
             }
 
-            // Log success
+            const handleUrlChange = (newUrl, oldUrl, strategyName = "") => {
+                Logger.debug(`${strategyName} triggered:`, oldUrl ? `${oldUrl} → ${newUrl}` : newUrl);
+                controller?.processVideos();
+            };
+
+            const watcher = new UrlChangeWatcher([
+                new HistoryApiStrategy(handleUrlChange.bind(null, undefined, undefined, "HistoryApiStrategy")),
+                new HashChangeStrategy(handleUrlChange.bind(null, undefined, undefined, "HashChangeStrategy")),
+                new PollingStrategy((url, oldUrl) => handleUrlChange(url, oldUrl, "PollingStrategy"))
+            ], true);
+
+            watcher.start();
+
             Logger.debug("Instagram Video Controls initialized successfully");
         } catch (error) {
             Logger.error(error, "Script initialization");

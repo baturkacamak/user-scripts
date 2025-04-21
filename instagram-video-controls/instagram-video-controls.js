@@ -1,6 +1,5 @@
 // Import core components
 import {
-    DOMObserver,
     Logger,
     StyleManager,
     GMFunctions,
@@ -12,6 +11,10 @@ import {
     Notification
 } from "../core";
 import VideoDownloader from "../core/utils/VideoDownloader";
+import UrlChangeWatcher from "../core/utils/UrlChangeWatcher";
+import HistoryApiStrategy from "../core/utils/UrlChangeWatcher/strategies/HistoryApiStrategy";
+import HashChangeStrategy from "../core/utils/UrlChangeWatcher/strategies/HashChangeStrategy";
+import PollingStrategy from "../core/utils/UrlChangeWatcher/strategies/PollingStrategy";
 
 // Initialize GM functions fallbacks
 const GM = GMFunctions.initialize();
@@ -114,9 +117,6 @@ class InstagramVideoController {
 
         // Create settings panel
         this.createSettingsPanel();
-
-        // Setup observers
-        this.setupObservers();
 
         // Process existing videos
         this.processVideos();
@@ -645,101 +645,6 @@ class InstagramVideoController {
         container.appendChild(settingItem);
 
         return checkbox;
-    }
-
-    /**
-     * Setup DOM and URL observers
-     */
-    setupObservers() {
-        try {
-            // --- TARGET SELECTION ---
-            // Try to find the mount point dynamically
-            let observerTarget = document.querySelector('div[id^="mount_"]'); // Find div whose ID starts with "mount_"
-
-            // Alternative if the ID pattern changes: Find the first significant div child of body
-            if (!observerTarget) {
-                const bodyChildren = Array.from(document.body.children);
-                observerTarget = bodyChildren.find(el => el.tagName === 'DIV' && el.id); // Find first DIV with an ID
-            }
-
-            if (!observerTarget) {
-                // If even the mount point isn't found reliably, we have a major issue.
-                Logger.error("Could not find the main application mount point ('div[id^=\"mount_\"]' or similar). Cannot set up reliable observer.");
-                return; // Stop observer setup
-            }
-
-            Logger.debug("DOM observer target selected (Mount Point):", observerTarget);
-
-            // --- OBSERVER SETUP ---
-            this.observer = new DOMObserver(
-                this.handleMutations.bind(this),
-                this.handleUrlChange.bind(this)
-            );
-
-            this.observer.observe(observerTarget, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['src'] // Crucial to filter
-            });
-
-            Logger.debug("DOM observer attached successfully.");
-        } catch (error) {
-            Logger.error(error, "Setting up observers");
-        }
-    }
-
-    /**
-     * Handle DOM mutations
-     * @param {MutationRecord[]} mutations - DOM mutations
-     */
-    handleMutations(mutations) {
-        // Throttle processing to prevent excessive calls
-        const now = Date.now();
-        if (now - this.lastProcessTime < InstagramVideoController.SETTINGS.OBSERVER_THROTTLE) {
-            return;
-        }
-
-        this.lastProcessTime = now;
-
-        // Check if any mutation involves a video
-        const shouldProcess = mutations.some(mutation => {
-            // Check for added nodes
-            if (mutation.type === 'childList' && mutation.addedNodes.length) {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeName === 'VIDEO' ||
-                        (node.nodeType === Node.ELEMENT_NODE && node.querySelector('video'))) {
-                        return true;
-                    }
-                }
-            }
-
-            // Check for attribute changes on videos
-            if (mutation.type === 'attributes' &&
-                mutation.target.nodeName === 'VIDEO') {
-                return true;
-            }
-
-            return false;
-        });
-
-        if (shouldProcess) {
-            this.processVideos();
-        }
-    }
-
-    /**
-     * Handle URL changes
-     * @param {string} newUrl - The new URL
-     * @param {string} oldUrl - The previous URL
-     */
-    handleUrlChange(newUrl, oldUrl) {
-        Logger.debug(`URL changed: ${oldUrl} -> ${newUrl}`);
-
-        // Process after a small delay to allow page content to load
-        setTimeout(() => {
-            this.processVideos();
-        }, 500);
     }
 
     /**
@@ -1396,8 +1301,7 @@ class InstagramVideoController {
             Array.from(container.children).forEach(child => {
                 if (child !== video && child.tagName === 'DIV') {
                     // Check if it's an overlay element
-                    const isOverlay = child.className.includes('vsc-controller') ||
-                        !child.querySelector('img, video');
+                    const isOverlay = !child.querySelector('img, video');
 
                     if (isOverlay) {
                         child.remove();
@@ -1405,10 +1309,6 @@ class InstagramVideoController {
                     }
                 }
             });
-
-            video.nextSibling[0].style.top = '-120px';
-            video.nextSibling[0].style.position = 'relative';
-
         } catch (error) {
             Logger.error(error, "Removing overlays");
         }
@@ -1531,19 +1431,33 @@ class InstagramVideoController {
  */
 function init() {
     try {
-        // Set up default colors for notifications
         Notification.useDefaultColors();
 
-        // Wait for document to be ready
+        let controller;
+
+        const startController = () => {
+            controller = new InstagramVideoController();
+        };
+
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                new InstagramVideoController();
-            });
+            document.addEventListener('DOMContentLoaded', startController);
         } else {
-            new InstagramVideoController();
+            startController();
         }
 
-        // Log success
+        const handleUrlChange = (newUrl, oldUrl, strategyName = "") => {
+            Logger.debug(`${strategyName} triggered:`, oldUrl ? `${oldUrl} → ${newUrl}` : newUrl);
+            controller?.processVideos();
+        };
+
+        const watcher = new UrlChangeWatcher([
+            new HistoryApiStrategy(handleUrlChange.bind(null, undefined, undefined, "HistoryApiStrategy")),
+            new HashChangeStrategy(handleUrlChange.bind(null, undefined, undefined, "HashChangeStrategy")),
+            new PollingStrategy((url, oldUrl) => handleUrlChange(url, oldUrl, "PollingStrategy"))
+        ], true);
+
+        watcher.start();
+
         Logger.debug("Instagram Video Controls initialized successfully");
     } catch (error) {
         Logger.error(error, "Script initialization");
