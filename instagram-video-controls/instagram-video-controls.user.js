@@ -5817,37 +5817,44 @@
     function init() {
         try {
             Notification.useDefaultColors();
-
             let controller;
 
-            const startController = () => {
-                controller = new InstagramVideoController();
-            };
+            // Single function to process videos when they're available
+            const processVideosWhenReady = (source = "init") => {
+                Logger.debug(`Waiting for videos (source: ${source})...`);
 
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', startController);
-            } else {
-                startController();
-            }
-
-            const handleUrlChange = (newUrl, oldUrl, strategyName = "") => {
-                Logger.debug(`${strategyName} triggered:`, oldUrl ? `${oldUrl} → ${newUrl}` : newUrl);
                 HTMLUtils.waitForElement('video', 10000, document)
                     .then(() => {
-                        Logger.debug("Video element detected after URL change");
-                        controller?.processVideos();
+                        Logger.debug(`Video element detected (source: ${source})`);
+
+                        // Create controller if it doesn't exist yet
+                        if (!controller) {
+                            controller = new InstagramVideoController();
+                        } else {
+                            controller.processVideos();
+                        }
                     })
                     .catch(() => {
-                        Logger.warn("No video found after waiting period");
+                        Logger.warn(`No video found after waiting period (source: ${source})`);
+                        // Still initialize controller even if no videos found initially
+                        if (!controller && source === "init") {
+                            controller = new InstagramVideoController();
+                        }
                     });
             };
 
+            // Handle initial page load
+            processVideosWhenReady("init");
+
+            // Set up URL change detection with the same handler
             const watcher = new UrlChangeWatcher([
-                new PollingStrategy((url, oldUrl) => handleUrlChange(url, oldUrl, "PollingStrategy"))
-            ], true);
+                new PollingStrategy((url, oldUrl) => {
+                    Logger.debug("PollingStrategy triggered:", oldUrl ? `${oldUrl} → ${url}` : url);
+                    processVideosWhenReady("urlChange");
+                })
+            ], false);
 
             watcher.start();
-
             Logger.debug("Instagram Video Controls initialized successfully");
         } catch (error) {
             Logger.error(error, "Script initialization");
