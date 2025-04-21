@@ -261,7 +261,7 @@ static useDefaultColors() {
         }
       `;
       document.head.appendChild(style);
-      Logger.log('Default DraggableContainer colors injected.');
+      Logger.debug('Default DraggableContainer colors injected.');
     }
   }
 /**
@@ -881,6 +881,7 @@ static useDefaultColors() {
       });
     }
   }
+
   /**
      * Set the container's size explicitly. Only works if `resizable` is true.
      * @param {Number} width - Width in pixels.
@@ -900,6 +901,7 @@ static useDefaultColors() {
     }
     // Note: Size changes might trigger the ResizeObserver, which handles callbacks and saving.
   }
+
   /**
      * Toggle the minimized state of the container. Updates appearance, calls callback, and saves state.
      */
@@ -931,6 +933,7 @@ static useDefaultColors() {
     // Save the new state
     this.savePosition();
   }
+
   /**
      * Close and remove the container from the DOM. Calls the onClose callback.
      * Cleans up event listeners and observers.
@@ -967,52 +970,18 @@ static useDefaultColors() {
     // NOTE: Drag listeners are on `document`, they are removed on drag end.
     // The mousedown listener on handleElement is removed when handleElement is GC'd.
   }
+
   /**
      * Set the container's theme class.
      * @param {String} theme - The theme name (e.g., 'default', 'primary').
      */
-setTheme(theme) {
+  setTheme(theme) {
     if ('string' === typeof theme && theme) {
       this.theme = theme;
       this.updateContainerClasses();
       this._log(`Theme set to: ${theme}`);
     }
   }
-_setupUnloadListener() {
-    // Save position on page unload to catch any unsaved resize operations
-    window.addEventListener('beforeunload', () => {
-      // Clear any pending timeout to ensure immediate save
-      clearTimeout(this._savePositionTimeout);
-
-      if (this.containerElement && this.id) {
-        try {
-          const rect = this.containerElement.getBoundingClientRect();
-          const positionData = {
-            x: rect.left,
-            y: rect.top,
-            minimized: this.isMinimized,
-            width: this.resizable ? rect.width : undefined,
-            height: this.resizable ? rect.height : undefined,
-          };
-
-          if (!this.resizable) {
-            delete positionData.width;
-            delete positionData.height;
-          }
-
-          const storageKey = `${DraggableContainer.STORAGE_KEY_PREFIX}${this.id}`;
-          GM_setValue(storageKey, positionData);
-          this._log('Position saved on page unload:', positionData);
-        } catch (e) {
-          this._logError(e, 'saving container position on unload');
-        }
-      }
-    });
-  }
-  
-
-  
-  
 
   /**
      * Set the container's size class. Affects width via CSS.
@@ -1084,7 +1053,6 @@ _setupUnloadListener() {
     }
   }
 
-
   /**
      * Append content to the container's content area.
      * @param {HTMLElement|DocumentFragment|String} content - Content to append (HTML element, DocumentFragment, or HTML string).
@@ -1119,7 +1087,6 @@ _setupUnloadListener() {
       this._log('Container shown');
     }
   }
-
   /**
      * Checks if the container is within the viewport boundaries.
      * If not, smoothly animates it back into view using CSS transitions.
@@ -1194,7 +1161,6 @@ _setupUnloadListener() {
       if (callback) callback({x: rect.left, y: rect.top});
     }
   }
-
   /**
      * Hide the container using `display: none;`.
      * Note: This might interfere with position/size calculations if called inappropriately.
@@ -1207,7 +1173,6 @@ _setupUnloadListener() {
       this._log('Container hidden');
     }
   }
-
   /**
      * Returns the main container DOM element.
      * @return {HTMLElement | null} The container element or null if not created.
@@ -1215,20 +1180,57 @@ _setupUnloadListener() {
   getElement() {
     return this.containerElement;
   }
-
   /**
      * Returns the content area DOM element.
      * @return {HTMLElement | null} The content element or null if not created.
      */
-  getContentElement() {
+getContentElement() {
     return this.contentElement;
   }
+_setupUnloadListener() {
+    // Save position on page unload to catch any unsaved resize operations
+    window.addEventListener('beforeunload', () => {
+      // Clear any pending timeout to ensure immediate save
+      clearTimeout(this._savePositionTimeout);
+
+      if (this.containerElement && this.id) {
+        try {
+          const rect = this.containerElement.getBoundingClientRect();
+          const positionData = {
+            x: rect.left,
+            y: rect.top,
+            minimized: this.isMinimized,
+            width: this.resizable ? rect.width : undefined,
+            height: this.resizable ? rect.height : undefined,
+          };
+
+          if (!this.resizable) {
+            delete positionData.width;
+            delete positionData.height;
+          }
+
+          const storageKey = `${DraggableContainer.STORAGE_KEY_PREFIX}${this.id}`;
+          GM_setValue(storageKey, positionData);
+          this._log('Position saved on page unload:', positionData);
+        } catch (e) {
+          this._logError(e, 'saving container position on unload');
+        }
+      }
+    });
+  }
+
+
+
+
+
+  
+  
 
   // --- Private logging helper ---
   _log(...args) {
     if (this._debug) {
       Logger.setPrefix(this._loggerPrefix); // Ensure correct prefix
-      Logger.log(...args);
+      Logger.debug(...args);
       Logger.setPrefix(''); // Reset prefix
     }
   }

@@ -322,7 +322,7 @@ class SidebarPanel {
             panel: this
         });
 
-        Logger.log(`SidebarPanel initialized: ${this.options.id}`);
+        Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
     }
 
     /**
@@ -554,7 +554,7 @@ class SidebarPanel {
             panel: this
         });
 
-        Logger.log(`SidebarPanel opened: ${this.options.id}`);
+        Logger.debug(`SidebarPanel opened: ${this.options.id}`);
     }
 
     /**
@@ -600,7 +600,7 @@ class SidebarPanel {
             panel: this
         });
 
-        Logger.log(`SidebarPanel closed: ${this.options.id}`);
+        Logger.debug(`SidebarPanel closed: ${this.options.id}`);
     }
 
     /**
@@ -609,7 +609,7 @@ class SidebarPanel {
     saveState() {
         try {
             this.GM.GM_setValue(this.storageKey, this.state);
-            Logger.log(`SidebarPanel state saved: ${this.options.id} - ${this.state}`);
+            Logger.debug(`SidebarPanel state saved: ${this.options.id} - ${this.state}`);
         } catch (error) {
             Logger.error(error, "Saving sidebar panel state");
         }
@@ -697,7 +697,7 @@ class SidebarPanel {
             });
         }
 
-        Logger.log(`SidebarPanel destroyed: ${this.options.id}`);
+        Logger.debug(`SidebarPanel destroyed: ${this.options.id}`);
     }
 }
 
