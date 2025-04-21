@@ -21,6 +21,7 @@ import Slider from './ui/Slider.js';
 import ProgressBar from './ui/ProgressBar.js';
 import Checkbox from './ui/Checkbox';
 import SidebarPanel from './ui/SidebarPanel';
+import Notification from './ui/Notification';
 
 // Export all components
 export {
@@ -42,6 +43,7 @@ export {
   ProgressBar,
   Checkbox,
   SidebarPanel,
+  Notification,
 };
 
 // Also export as default for convenience
@@ -56,4 +58,5 @@ export default {
   Button,
   Checkbox,
   SidebarPanel,
+  Notification,
 };
