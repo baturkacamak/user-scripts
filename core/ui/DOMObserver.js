@@ -1,6 +1,8 @@
+import UrlChangeWatcher from '../utils/UrlChangeWatcher';
+
 /**
- * DOMObserver - Observes DOM changes and triggers callbacks
- * Useful for watching for dynamic content loading
+ * DOMObserver - Observes DOM changes and URL changes
+ * Uses UrlChangeWatcher for URL change detection with configurable strategies
  */
 class DOMObserver {
   /**
@@ -34,32 +36,38 @@ class DOMObserver {
   /**
      * Create a new DOMObserver
      * @param {Function} onMutation - Callback for handling mutations
-     * @param {Function} onUrlChange - Callback for handling URL changes
+     * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
      */
-  constructor(onMutation, onUrlChange) {
+  constructor(onMutation, urlChangeStrategies = []) {
     this.observer = new MutationObserver(this.handleMutations.bind(this));
     this.lastUrl = location.href;
     this.onMutation = onMutation;
-    this.onUrlChange = onUrlChange;
+
+    // Initialize URL change watcher with provided strategies
+    this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
   }
 
 
   /**
-     * Start observing DOM changes
+     * Start observing DOM changes and URL changes
      * @param {HTMLElement} target - Element to observe (defaults to document.body)
      * @param {Object} config - MutationObserver configuration (defaults to sensible values)
      */
   observe(target = document.body, config = {childList: true, subtree: true}) {
     this.observer.observe(target, config);
-    window.addEventListener('popstate', this.handleUrlChange.bind(this));
+
+    // Start URL change watcher
+    this.urlChangeWatcher.start();
   }
 
   /**
-     * Stop observing DOM changes
+     * Stop observing DOM changes and URL changes
      */
   disconnect() {
     this.observer.disconnect();
-    window.removeEventListener('popstate', this.handleUrlChange.bind(this));
+
+    // Stop URL change watcher
+    this.urlChangeWatcher.stop();
   }
 
   /**
@@ -70,30 +78,6 @@ class DOMObserver {
   handleMutations(mutations) {
     if (this.onMutation) {
       this.onMutation(mutations);
-    }
-    this.checkUrlChange();
-  }
-
-  /**
-     * Check if URL has changed
-     * @private
-     */
-  checkUrlChange() {
-    if (this.lastUrl !== location.href) {
-      const oldUrl = this.lastUrl;
-      this.lastUrl = location.href;
-      this.handleUrlChange(oldUrl);
-    }
-  }
-
-  /**
-     * Handle URL changes
-     * @param {string} oldUrl - Previous URL before change
-     * @private
-     */
-  handleUrlChange(oldUrl) {
-    if (this.onUrlChange) {
-      this.onUrlChange(location.href, oldUrl);
     }
   }
 }

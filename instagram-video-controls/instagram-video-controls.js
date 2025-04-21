@@ -444,8 +444,13 @@ class InstagramVideoController {
             this.processVideos();
         };
 
-        // Initialize DOMObserver with our callbacks
-        this.domObserver = new DOMObserver(handleMutations, handleUrlChange);
+        // Define strategies for Instagram's URL change detection
+        const urlChangeStrategies = [
+            new PollingStrategy(handleUrlChange, 1000), // Fallback polling strategy
+        ];
+
+        // Initialize DOMObserver with our callbacks and strategies
+        this.domObserver = new DOMObserver(handleMutations, urlChangeStrategies);
 
         // Start observing document.body for changes
         this.domObserver.observe();

@@ -646,9 +646,49 @@
         }
     }
 
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
     /**
-     * DOMObserver - Observes DOM changes and triggers callbacks
-     * Useful for watching for dynamic content loading
+     * DOMObserver - Observes DOM changes and URL changes
+     * Uses UrlChangeWatcher for URL change detection with configurable strategies
      */
     class DOMObserver {
       /**
@@ -682,32 +722,38 @@
       /**
          * Create a new DOMObserver
          * @param {Function} onMutation - Callback for handling mutations
-         * @param {Function} onUrlChange - Callback for handling URL changes
+         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
          */
-      constructor(onMutation, onUrlChange) {
+      constructor(onMutation, urlChangeStrategies = []) {
         this.observer = new MutationObserver(this.handleMutations.bind(this));
         this.lastUrl = location.href;
         this.onMutation = onMutation;
-        this.onUrlChange = onUrlChange;
+
+        // Initialize URL change watcher with provided strategies
+        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
       }
 
 
       /**
-         * Start observing DOM changes
+         * Start observing DOM changes and URL changes
          * @param {HTMLElement} target - Element to observe (defaults to document.body)
          * @param {Object} config - MutationObserver configuration (defaults to sensible values)
          */
       observe(target = document.body, config = {childList: true, subtree: true}) {
         this.observer.observe(target, config);
-        window.addEventListener('popstate', this.handleUrlChange.bind(this));
+
+        // Start URL change watcher
+        this.urlChangeWatcher.start();
       }
 
       /**
-         * Stop observing DOM changes
+         * Stop observing DOM changes and URL changes
          */
       disconnect() {
         this.observer.disconnect();
-        window.removeEventListener('popstate', this.handleUrlChange.bind(this));
+
+        // Stop URL change watcher
+        this.urlChangeWatcher.stop();
       }
 
       /**
@@ -718,30 +764,6 @@
       handleMutations(mutations) {
         if (this.onMutation) {
           this.onMutation(mutations);
-        }
-        this.checkUrlChange();
-      }
-
-      /**
-         * Check if URL has changed
-         * @private
-         */
-      checkUrlChange() {
-        if (this.lastUrl !== location.href) {
-          const oldUrl = this.lastUrl;
-          this.lastUrl = location.href;
-          this.handleUrlChange(oldUrl);
-        }
-      }
-
-      /**
-         * Handle URL changes
-         * @param {string} oldUrl - Previous URL before change
-         * @private
-         */
-      handleUrlChange(oldUrl) {
-        if (this.onUrlChange) {
-          this.onUrlChange(location.href, oldUrl);
         }
       }
     }
@@ -4421,6 +4443,43 @@
       }
     }
 
+    class BaseStrategy {
+      constructor(callback) {
+        this.callback = callback;
+      }
+
+      start() {
+      }
+
+      stop() {
+      }
+    }
+
+    class PollingStrategy extends BaseStrategy {
+      constructor(callback, interval = 500) {
+        super(callback);
+        this.interval = interval;
+        this.lastUrl = location.href;
+      }
+
+      start() {
+        Logger.debug('PollingStrategy started');
+        this.timer = setInterval(() => {
+          const current = location.href;
+          if (current !== this.lastUrl) {
+            Logger.debug(`Polling detected change: ${this.lastUrl} → ${current}`);
+            this.callback(current, this.lastUrl);
+            this.lastUrl = current;
+          }
+        }, this.interval);
+      }
+
+      stop() {
+        clearInterval(this.timer);
+        Logger.debug('PollingStrategy stopped');
+      }
+    }
+
     // Import core components
 
     // Initialize GM functions fallbacks
@@ -4853,8 +4912,13 @@
                 this.processVideos();
             };
 
-            // Initialize DOMObserver with our callbacks
-            this.domObserver = new DOMObserver(handleMutations, handleUrlChange);
+            // Define strategies for Instagram's URL change detection
+            const urlChangeStrategies = [
+                new PollingStrategy(handleUrlChange, 1000), // Fallback polling strategy
+            ];
+
+            // Initialize DOMObserver with our callbacks and strategies
+            this.domObserver = new DOMObserver(handleMutations, urlChangeStrategies);
 
             // Start observing document.body for changes
             this.domObserver.observe();
