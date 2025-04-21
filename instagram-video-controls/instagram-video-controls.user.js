@@ -212,6 +212,99 @@
     }
 
     /**
+     * HTMLUtils - Utilities for HTML manipulation
+     * Provides functions for escaping HTML, encoding/decoding entities, etc.
+     */
+    class HTMLUtils {
+      /**
+         * Escape special HTML characters to prevent XSS
+         * @param {string} str - The string to escape
+         * @return {string} - The escaped string
+         */
+      static escapeHTML(str) {
+        const escapeMap = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '\'': '&#39;',
+          '"': '&quot;',
+        };
+        return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
+      }
+
+      /**
+         * Escape XML special characters
+         * @param {string} str - The string to escape
+         * @return {string} - The escaped string
+         */
+      static escapeXML(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+      }
+
+      /**
+         * Convert a plain text string to sanitized HTML
+         * @param {string} text - The text to convert
+         * @return {string} - HTML with line breaks and links
+         */
+      static textToHtml(text) {
+        if (!text) return '';
+
+        // First escape HTML
+        let html = this.escapeHTML(text);
+
+        // Convert line breaks to <br>
+        html = html.replace(/\n/g, '<br>');
+
+        // Convert URLs to links
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+
+        return html;
+      }
+
+      /**
+         * * Wait for a specific element to appear in the DOM.
+         *  * Continues checking using requestAnimationFrame until it appears,
+         *  * a timeout is reached, or the maximum number of attempts is exceeded.
+         *  *
+         *  * @param {string} selector - CSS selector of the target element.
+         *  * @param {number} [timeout=10000] - Maximum time in milliseconds to wait.
+         *  * @param {Document|Element} [root=document] - DOM root to query from.
+         *  * @param {number} [maxRetries=60] - Maximum number of requestAnimationFrame attempts.
+         *  * @returns {Promise<Element>} Resolves with the found element or rejects on timeout.
+         */
+      static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+          let attempts = 0;
+
+          function checkElement() {
+            const element = root.querySelector(selector);
+            if (element) {
+              resolve(element);
+              return;
+            }
+
+            if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
+              reject(new Error(`Timeout waiting for element: ${selector}`));
+              return;
+            }
+
+            attempts++;
+            requestAnimationFrame(checkElement);
+          }
+
+          checkElement();
+        });
+      }
+    }
+
+    /**
      * StyleManager - Utility for CSS style management
      * Handles adding and removing styles, theme variables, etc.
      */
@@ -4280,58 +4373,6 @@
       }
     }
 
-    class HistoryApiStrategy extends BaseStrategy {
-      constructor(callback) {
-        super(callback);
-        this._onChange = this._onChange.bind(this);
-      }
-
-      start() {
-        ['pushState', 'replaceState'].forEach((method) => {
-          const original = history[method];
-          if (!original._patched) {
-            history[method] = function(...args) {
-              const result = original.apply(this, args);
-              window.dispatchEvent(new Event('urlchange'));
-              return result;
-            };
-            history[method]._patched = true;
-          }
-        });
-
-        window.addEventListener('popstate', this._onChange);
-        window.addEventListener('urlchange', this._onChange);
-      }
-
-      stop() {
-        window.removeEventListener('popstate', this._onChange);
-        window.removeEventListener('urlchange', this._onChange);
-      }
-
-      _onChange() {
-        this.callback(location.href);
-      }
-    }
-
-    class HashChangeStrategy extends BaseStrategy {
-      constructor(callback) {
-        super(callback);
-        this._onChange = this._onChange.bind(this);
-      }
-
-      start() {
-        window.addEventListener('hashchange', this._onChange);
-      }
-
-      stop() {
-        window.removeEventListener('hashchange', this._onChange);
-      }
-
-      _onChange() {
-        this.callback(location.href);
-      }
-    }
-
     class PollingStrategy extends BaseStrategy {
       constructor(callback, interval = 500) {
         super(callback);
@@ -5057,21 +5098,22 @@
                     Logger.debug("Video initially unmuted, respecting global mute preference (or default).");
                 }
 
+                let volumeEventTrusted = false;
+                const handler = (e) => volumeEventTrusted = e.isTrusted;
+                video.addEventListener('volumechange', handler, {once: true});
+
                 // Listen for user unmuting the video
                 video.addEventListener('volumechange', () => {
-                    // Only update the global preference when the user UNMUTES
-                    if (!video.muted && !this.audioUnmuted) {
+                    const isNowAudible = !video.muted && video.volume > 0;
+
+                    if (isNowAudible && volumeEventTrusted) {
                         this.audioUnmuted = true;
                         GM_setValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, true);
-                        Logger.debug("Audio unmuted globally BY USER ACTION and saved.");
+                        Logger.debug("User unmuted video (volume > 0), preference saved.");
+                    } else if (video.muted || video.volume === 0) {
+                        this.audioUnmuted = false;
+                        Logger.debug("Video manually muted or volume set to 0. Global preference remains:", this.audioUnmuted);
                     }
-                        // --- ADDED ---
-                        // If the user manually MUTES, we DON'T change the global preference.
-                    // The video will stay muted because the override interval is removed.
-                    else if (video.muted) {
-                        Logger.debug("Video manually muted by user. Global preference remains:", this.audioUnmuted);
-                    }
-                    // --- END ADDED ---
                 });
 
                 // Set default volume if not already set
@@ -5790,12 +5832,17 @@
 
             const handleUrlChange = (newUrl, oldUrl, strategyName = "") => {
                 Logger.debug(`${strategyName} triggered:`, oldUrl ? `${oldUrl} → ${newUrl}` : newUrl);
-                controller?.processVideos();
+                HTMLUtils.waitForElement('video', 5000, document, 50)
+                    .then(() => {
+                        Logger.debug("Video element detected after URL change");
+                        controller?.processVideos();
+                    })
+                    .catch(() => {
+                        Logger.warn("No video found after waiting period");
+                    });
             };
 
             const watcher = new UrlChangeWatcher([
-                new HistoryApiStrategy(handleUrlChange.bind(null, undefined, undefined, "HistoryApiStrategy")),
-                new HashChangeStrategy(handleUrlChange.bind(null, undefined, undefined, "HashChangeStrategy")),
                 new PollingStrategy((url, oldUrl) => handleUrlChange(url, oldUrl, "PollingStrategy"))
             ], true);
 
