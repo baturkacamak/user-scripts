@@ -13,6 +13,7 @@ import {
 import VideoDownloader from "../core/utils/VideoDownloader";
 import UrlChangeWatcher from "../core/utils/UrlChangeWatcher";
 import PollingStrategy from "../core/utils/UrlChangeWatcher/strategies/PollingStrategy";
+import InstagramMediaFetcher from "./utils/InstagramMediaFetcher";
 
 // Initialize GM functions fallbacks
 const GM = GMFunctions.initialize();
@@ -103,12 +104,14 @@ class InstagramVideoController {
         this.activeVideo = null;
         this.settingsPanel = null;
         this.keyboardHandler = null;
-        this.currentVideoDownloadUrl = null;
 
         // Load saved settings
         this.loadSettings();
 
         Logger.debug("Initializing Instagram Video Controller");
+
+        this.mediaFetcher = new InstagramMediaFetcher();
+        Logger.debug("InstagramMediaFetcher instance created (API always enabled).");
 
         // Apply styles first
         this.applyStyles();
@@ -872,7 +875,8 @@ class InstagramVideoController {
                 downloadButton.className = InstagramVideoController.CLASSES.DOWNLOAD_BUTTON;
                 downloadButton.addEventListener('click', async (e) => {
                     e.preventDefault();
-                    await VideoDownloader.download(video);
+                    e.stopPropagation();
+                    await this.downloadVideo(video);
                 });
                 controlBar.appendChild(downloadButton);
                 activeControls.push('download');
@@ -1244,45 +1248,44 @@ class InstagramVideoController {
      * @param {HTMLVideoElement} video - The video element to download
      */
     async downloadVideo(video) {
+        // Check if download button should be shown/active based on settings
+        if (!this.settings.SHOW_DOWNLOAD) {
+            Logger.warn("Download action triggered, but download button is disabled in settings.");
+            return; // Don't proceed if the feature is turned off
+        }
+
+        const downloadButton = video.parentElement?.querySelector(`.${InstagramVideoController.CLASSES.DOWNLOAD_BUTTON}`);
+        if (downloadButton) downloadButton.disabled = true; // Disable button during fetch
+
+        Notification.info('Fetching download link...', {duration: 2000});
+        Logger.debug("Attempting download via InstagramMediaFetcher for video:", video);
+
         try {
-            // 1. Try direct src download if it's a normal URL (not blob)
-            if (video.src && !video.src.startsWith('blob:')) {
-                this.fallbackDownload(video.src);
-                return;
-            }
+            // Use the shared mediaFetcher instance (API is always enabled now)
+            const mediaInfo = await this.mediaFetcher.getMediaInfo(video);
 
-            // 2. Try to find <source> tag inside video
-            const source = video.querySelector('source');
-            if (source && source.src && !source.src.startsWith('blob:')) {
-                this.fallbackDownload(source.src);
-                return;
-            }
+            if (mediaInfo && mediaInfo.url) {
+                Logger.info(`Fetcher successful! URL: ${mediaInfo.url.substring(0, 100)}... (Type: ${mediaInfo.type}, Index: ${mediaInfo.mediaIndex})`);
+                Notification.success(`Found ${mediaInfo.type} URL. Starting download...`, {duration: 2500});
 
-            // 3. Try to read from MediaStream (experimental, not widely supported)
-            if (video.captureStream) {
-                Notification.info('Trying to record video stream...', {duration: 1500});
-                await this.recordAndDownload(video);
-                return;
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+                // Attempt a slightly better filename using media type and maybe index if available
+                const fileExtension = mediaInfo.type === 'video' ? 'mp4' : 'jpg'; // Basic guess
+                const filename = `instagram_${mediaInfo.type}_${mediaInfo.mediaIndex ?? 0}_${timestamp}.${fileExtension}`;
+                // Use VideoDownloader (or your preferred download method) with the fetched URL
+                await VideoDownloader.downloadFromUrl(mediaInfo.url, video); // Pass video for potential filename context
+            } else {
+                Logger.error('InstagramMediaFetcher failed to retrieve a media URL.');
+                Notification.error('Could not automatically find the download link. Try right-clicking the video.', {duration: 5000});
             }
-
-            // 4. Try to read from blob via fetch (may fail with opaque origin)
-            try {
-                const blobResponse = await fetch(video.src);
-                const blob = await blobResponse.blob();
-                const blobUrl = URL.createObjectURL(blob);
-                this.fallbackDownload(blobUrl);
-                return;
-            } catch (fetchError) {
-                Logger.warn(fetchError, "Fetch blob failed");
-            }
-
-            // 5. Ultimate fallback: notify user to right-click manually
-            Notification.error("Automatic download failed. Try right-clicking the video and selecting 'Save video as...'");
         } catch (error) {
-            Logger.error(error, "Downloading video");
-            Notification.error("Download failed: " + error.message);
+            Logger.error(error, "Error during InstagramMediaFetcher download process");
+            Notification.error(`Download failed: ${error.message}`, {duration: 5000});
+        } finally {
+            if (downloadButton) downloadButton.disabled = false; // Re-enable button
         }
     }
+
 
     async recordAndDownload(video) {
         try {
