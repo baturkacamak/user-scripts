@@ -24,11 +24,9 @@ const GM = GMFunctions.initialize();
  * until one successfully initiates the download.
  */
 class VideoDownloader {
-  // --- Core Download Triggering Methods (remain static or could be instance methods) ---
-
   /**
      * Downloads a video from a direct URL using GM_download or anchor fallback.
-     * @private
+     * @public
      */
   static async downloadFromUrl(url, filename) {
     PubSub.publish('download:url', {url, filename});
