@@ -2,6 +2,8 @@
  * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
  * Ensures compatibility across different userscript managers and direct browser execution
  */
+import Logger from './Logger.js';
+
 class GMFunctions {
     /**
      * Check if we're running in development mode (outside a userscript manager)
@@ -18,6 +20,9 @@ class GMFunctions {
      */
     static initialize() {
         const isDevMode = this.isDevelopmentMode();
+
+        Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');
+
         if (isDevMode) {
             // Create fallbacks for common GM functions
             this.setupAddStyle();
@@ -26,6 +31,10 @@ class GMFunctions {
             this.setupDownload();
             this.setupGetValue();
             this.setupSetValue();
+
+            Logger.info('GM function fallbacks have been created for development mode');
+        } else {
+            Logger.debug('Using native userscript manager GM functions');
         }
 
         // Return references to all functions (either native or polyfilled)
@@ -44,6 +53,7 @@ class GMFunctions {
      */
     static setupAddStyle() {
         window.GM_addStyle = function (css) {
+            Logger.debug('GM_addStyle fallback executing', css.substring(0, 50) + '...');
             const style = document.createElement('style');
             style.textContent = css;
             document.head.appendChild(style);
@@ -56,6 +66,11 @@ class GMFunctions {
      */
     static setupXmlHttpRequest() {
         window.GM_xmlhttpRequest = function (details) {
+            Logger.debug('GM_xmlhttpRequest fallback executing', {
+                method: details.method,
+                url: details.url
+            });
+
             const xhr = new XMLHttpRequest();
             xhr.open(details.method, details.url);
 
@@ -67,17 +82,29 @@ class GMFunctions {
 
             xhr.onload = function () {
                 if (details.onload) {
-                    details.onload({
+                    const response = {
                         responseText: xhr.responseText,
                         response: xhr.response,
                         status: xhr.status,
                         statusText: xhr.statusText,
                         readyState: xhr.readyState,
+                    };
+
+                    Logger.debug('GM_xmlhttpRequest completed', {
+                        status: xhr.status,
+                        url: details.url
                     });
+
+                    details.onload(response);
                 }
             };
 
             xhr.onerror = function () {
+                Logger.error('GM_xmlhttpRequest error', {
+                    url: details.url,
+                    status: xhr.status
+                });
+
                 if (details.onerror) {
                     details.onerror(xhr);
                 }
@@ -93,6 +120,10 @@ class GMFunctions {
      */
     static setupSetClipboard() {
         window.GM_setClipboard = function (text) {
+            Logger.debug('GM_setClipboard fallback executing', {
+                textLength: text.length
+            });
+
             // Create a temporary textarea element
             const textarea = document.createElement('textarea');
             textarea.value = text;
@@ -108,9 +139,9 @@ class GMFunctions {
             let success = false;
             try {
                 success = document.execCommand('copy');
-                console.log('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
+                Logger.info('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
             } catch (err) {
-                console.error('Error copying to clipboard:', err);
+                Logger.error(err, 'Error copying to clipboard');
             }
 
             // Clean up
@@ -127,6 +158,11 @@ class GMFunctions {
             try {
                 const {url, name, onload, onerror} = options;
 
+                Logger.debug('GM_download fallback executing', {
+                    url: url.substring(0, 100),
+                    filename: name
+                });
+
                 // Create download link
                 const downloadLink = document.createElement('a');
                 downloadLink.href = url;
@@ -140,12 +176,15 @@ class GMFunctions {
                 // Clean up
                 setTimeout(() => {
                     document.body.removeChild(downloadLink);
-                    if (onload) onload();
+                    if (onload) {
+                        Logger.debug('GM_download completed successfully');
+                        onload();
+                    }
                 }, 100);
 
                 return true;
             } catch (err) {
-                console.error('Error downloading file:', err);
+                Logger.error(err, 'Error downloading file');
                 if (options.onerror) options.onerror(err);
                 return false;
             }
@@ -158,17 +197,29 @@ class GMFunctions {
     static setupGetValue() {
         window.GM_getValue = function (key, defaultValue) {
             try {
-                const value = localStorage.getItem(`GM_${key}`);
-                if (null === value) return defaultValue;
+                const storageKey = `GM_${key}`;
+                Logger.debug('GM_getValue fallback executing', {key: storageKey});
+
+                const value = localStorage.getItem(storageKey);
+                if (null === value) {
+                    Logger.debug('GM_getValue: No value found, using default', {
+                        key,
+                        defaultValue
+                    });
+                    return defaultValue;
+                }
 
                 // Try to parse JSON
                 try {
-                    return JSON.parse(value);
+                    const parsedValue = JSON.parse(value);
+                    Logger.debug('GM_getValue: Retrieved and parsed JSON value', {key});
+                    return parsedValue;
                 } catch (e) {
+                    Logger.debug('GM_getValue: Retrieved non-JSON value', {key, value});
                     return value;
                 }
             } catch (e) {
-                console.error('Error in GM_getValue:', e);
+                Logger.error(e, 'Error in GM_getValue fallback');
                 return defaultValue;
             }
         };
@@ -180,12 +231,19 @@ class GMFunctions {
     static setupSetValue() {
         window.GM_setValue = function (key, value) {
             try {
+                const storageKey = `GM_${key}`;
+                Logger.debug('GM_setValue fallback executing', {
+                    key: storageKey,
+                    valueType: typeof value
+                });
+
                 // Convert non-string values to JSON
                 const valueToStore = 'string' === typeof value ? value : JSON.stringify(value);
-                localStorage.setItem(`GM_${key}`, valueToStore);
+                localStorage.setItem(storageKey, valueToStore);
+                Logger.debug('GM_setValue: Value stored successfully', {key: storageKey});
                 return true;
             } catch (e) {
-                console.error('Error in GM_setValue:', e);
+                Logger.error(e, 'Error in GM_setValue fallback');
                 return false;
             }
         };
