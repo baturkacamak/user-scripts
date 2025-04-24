@@ -4986,14 +4986,277 @@
             Logger.info(`Found container: ${containerNode.tagName}`);
 
             // Use the static config for selectors
-            if (containerNode.matches(InstagramMediaFetcher.CONFIG.SELECTORS.postArticle)) {
+            if (window.location.pathname.startsWith('/reels/')) {
+                Logger.info('Detected Reel context.');
+                // Pass the found container (might be ARTICLE or MAIN within the Reel view)
+                return this.getReelMediaInfo(containerNode);
+            } // === END REEL DETECTION ===
+            else if (containerNode.matches(InstagramMediaFetcher.CONFIG.SELECTORS.postArticle)) {
                 return this.getPostMediaInfo(containerNode);
             } else if (containerNode.matches(InstagramMediaFetcher.CONFIG.SELECTORS.storySection)) {
                 return this.getStoryMediaInfo(containerNode);
             } else {
                 Logger.warn(`Container ${containerNode.tagName} is not a recognized Post Article or Story Section.`);
+                // As a fallback, if it's MAIN, maybe try Reel logic?
+                if (containerNode.tagName === 'MAIN') {
+                    Logger.warn('Container is MAIN, attempting Reel logic as fallback.');
+                    return this.getReelMediaInfo(containerNode);
+                }
                 return null;
             }
+        }
+
+        /**
+         * Gets media info specifically for a Reel.
+         * @param {HTMLElement} containerNode - The container element (often MAIN or ARTICLE within Reel view).
+         * @returns {Promise<{ url: string, mediaIndex: number, type: 'video'|'image' }|null>} Media info object or null.
+         */
+        async getReelMediaInfo(containerNode) {
+            Logger.info('Attempting to get Reel media info...');
+            let url = null;
+            const mediaType = 'video'; // Reels are videos
+            const mediaIndex = 0;      // Reels are single media
+
+            try {
+                // --- Strategy 1: API Method (Preferred) ---
+                if (!this.disableApiMethod) {
+                    Logger.debug('Reel: Attempting API method...');
+                    try {
+                        // Get App ID (reusable)
+                        const appId = this.findAppId();
+                        if (!appId) throw new Error('Could not find App ID for Reel API call.');
+                        Logger.debug('Reel API: Found App ID:', appId);
+
+                        // Get Reel ID (shortcode) from URL
+                        const reelId = this.findReelId(); // Use dedicated helper
+                        if (!reelId) throw new Error('Could not find Reel ID (shortcode) from URL.');
+                        Logger.debug('Reel API: Found Reel ID (shortcode):', reelId);
+
+                        // Get Media ID (numeric) from Reel ID
+                        const mediaId = await this.findMediaIdForReel(reelId); // Use dedicated helper
+                        if (!mediaId) throw new Error('Could not find Media ID (numeric) for the Reel.');
+                        Logger.debug('Reel API: Found Media ID (numeric):', mediaId);
+
+                        // Check info cache using mediaId
+                        if (this.infoCache[mediaId]) {
+                            Logger.info('Reel API: Found media info in cache.');
+                            url = this.extractUrlFromInfoJson(this.infoCache[mediaId], 0); // Reels always use index 0
+                        } else {
+                            // Fetch from API using mediaId
+                            const apiUrl = `https://i.instagram.com/api/v1/media/${mediaId}/info/`;
+                            const headers = {'X-IG-App-ID': appId};
+                            Logger.info(`Reel API: Fetching ${apiUrl}`);
+
+                            const response = await fetch(apiUrl, {
+                                method: 'GET',
+                                headers: headers,
+                                mode: 'cors',
+                                credentials: 'include'
+                            });
+
+                            if (!response.ok) {
+                                const errorBody = await response.text().catch(() => '');
+                                throw new Error(`Reel API Fetch failed (${response.status}): ${errorBody.substring(0, 200)}`);
+                            }
+
+                            const respJson = await response.json();
+                            this.infoCache[mediaId] = respJson;
+                            Logger.debug('Reel API: Successfully fetched and cached API response.');
+                            url = this.extractUrlFromInfoJson(respJson, 0); // Reels always use index 0
+                        }
+
+                        if (url) Logger.info(`API Method Success (Reel): URL found.`);
+                        else Logger.debug('API Method did not return a URL for Reel.');
+
+                    } catch (apiError) {
+                        Logger.error(apiError, 'API Method failed during execution (Reel).');
+                        url = null; // Ensure url is null if API fails
+                    }
+                } else {
+                    Logger.info('API Method is disabled.');
+                }
+
+                // --- Strategy 2: Fallback (If API Fails) ---
+                if (!url) {
+                    Logger.info('Reel: Attempting DOM/Fallback method...');
+                    try {
+                        const videoElem = containerNode.querySelector(InstagramMediaFetcher.CONFIG.SELECTORS.videoTag);
+                        if (videoElem?.src && !videoElem.src.startsWith('blob:')) {
+                            url = videoElem.src;
+                            Logger.info(`Fallback Method Success (Reel - Direct Src): URL found.`);
+                        } else if (videoElem?.src && videoElem.src.startsWith('blob:')) {
+                            Logger.warn('Fallback Method (Reel): Found blob URL. Trying to fetch Reel page HTML.');
+                            // Try fetching HTML as a last resort for blob URLs
+                            url = await this.fetchReelVideoUrlFromHtml(containerNode, videoElem);
+                            if (url) {
+                                Logger.info(`Fallback Method Success (Reel - HTML Fetch): URL found.`);
+                            } else {
+                                Logger.warn('Fallback Method (Reel - HTML Fetch): Failed to find URL in HTML.');
+                            }
+                        } else {
+                            Logger.warn('Fallback method did not find a usable video element/URL for Reel.');
+                        }
+                    } catch (fallbackError) {
+                        Logger.error(fallbackError, 'Fallback Method failed during execution (Reel).');
+                    }
+                }
+
+                // --- Return Result ---
+                if (url) {
+                    Logger.success('Successfully retrieved Reel Media Info.');
+                    return {url, mediaIndex, type: mediaType};
+                } else {
+                    Logger.error('Failed to get media URL for Reel using API and Fallback methods.');
+                    return null;
+                }
+
+            } catch (error) {
+                Logger.error(error, 'Unhandled error in getReelMediaInfo.');
+                return null;
+            }
+        }
+
+        /**
+         * Fallback: Fetches the Reel's HTML source to find the video URL if the primary src is a blob.
+         * @param {HTMLElement} containerNode - The main container element for the Reel.
+         * @param {HTMLElement} videoElem - The VIDEO element with the blob src.
+         * @returns {Promise<string|null>} The actual video CDN URL or null.
+         */
+        async fetchReelVideoUrlFromHtml(containerNode, videoElem) {
+            Logger.info('Executing fetchReelVideoUrlFromHtml...');
+            const reelId = this.findReelId(); // Get the shortcode from URL
+            if (!reelId) {
+                Logger.error('fetchReelVideoUrlFromHtml: Could not find Reel ID from URL.');
+                return null;
+            }
+
+            const reelUrl = `https://www.instagram.com/reel/${reelId}/`;
+            Logger.info(`fetchReelVideoUrlFromHtml: Fetching Reel HTML from: ${reelUrl}`);
+
+            try {
+                const response = await fetch(reelUrl, {
+                    method: 'GET',
+                    headers: {'User-Agent': navigator.userAgent},
+                    credentials: 'include',
+                    mode: 'cors'
+                });
+
+                if (!response.ok) {
+                    Logger.error(`fetchReelVideoUrlFromHtml: Failed to fetch Reel HTML (${response.status}): ${reelUrl}`);
+                    return null;
+                }
+                const content = await response.text();
+                Logger.debug(`fetchReelVideoUrlFromHtml: Fetched HTML content (${content.length} bytes). Parsing...`);
+
+                // Reuse parsing logic - Try broad regex and og:video tag
+                let videoUrl = null;
+
+                // Attempt 1: Broad video_versions Regex
+                Logger.debug('fetchReelVideoUrlFromHtml: Attempting broad RegEx...');
+                const broadMatch = content.match(InstagramMediaFetcher.CONFIG.REGEX.videoUrlInHtmlBroad);
+                if (broadMatch && broadMatch[1]) {
+                    try {
+                        videoUrl = JSON.parse(`"${broadMatch[1]}"`);
+                        Logger.info('fetchReelVideoUrlFromHtml: Broad RegEx matched:', videoUrl);
+                    } catch (jsonParseError) { /* ... error handling ... */
+                    }
+                } else {
+                    Logger.debug('fetchReelVideoUrlFromHtml: Broad RegEx did not match.');
+                }
+
+                // Attempt 2: og:video Meta Tag
+                if (!videoUrl) {
+                    Logger.debug('fetchReelVideoUrlFromHtml: Checking og:video meta tag...');
+                    const ogVideoMatch = content.match(InstagramMediaFetcher.CONFIG.REGEX.ogVideoTag);
+                    if (ogVideoMatch && ogVideoMatch[1]) {
+                        videoUrl = InstagramMediaFetcher.decodeHtmlEntities(ogVideoMatch[1]);
+                        Logger.info('fetchReelVideoUrlFromHtml: Found URL in og:video meta tag:', videoUrl);
+                    } else {
+                        Logger.debug('fetchReelVideoUrlFromHtml: og:video meta tag not found.');
+                    }
+                }
+
+                if (!videoUrl) {
+                    Logger.error('fetchReelVideoUrlFromHtml: Failed to extract video URL from fetched Reel HTML.');
+                }
+                return videoUrl;
+
+            } catch (error) {
+                Logger.error(error, 'Error occurred within fetchReelVideoUrlFromHtml.');
+                return null;
+            }
+        }
+
+        /**
+         * Finds the numeric Media ID for a given Reel ID (shortcode) by fetching the Reel's HTML.
+         * @param {string} reelId - The Reel shortcode.
+         * @returns {Promise<string|null>} The numeric Media ID or null.
+         */
+        async findMediaIdForReel(reelId) {
+            if (!reelId) return null;
+            Logger.debug(`Attempting to find numeric Media ID for Reel shortcode: ${reelId}`);
+
+            // Option: Could add caching here based on reelId if desired
+            // if (this.mediaIdCache[reelId]) return this.mediaIdCache[reelId];
+
+            try {
+                const reelUrl = `https://www.instagram.com/reel/${reelId}/`; // Use /reel/ endpoint
+                Logger.info(`Fetching Reel HTML to find Media ID: ${reelUrl}`);
+                const response = await fetch(reelUrl, {
+                    method: 'GET',
+                    headers: {'User-Agent': navigator.userAgent},
+                    credentials: 'include', // Important if login state affects availability
+                    mode: 'cors'
+                });
+
+                if (!response.ok) {
+                    Logger.warn(`Fetching Reel HTML failed (${response.status}) for ${reelUrl}`);
+                    return null;
+                }
+
+                const text = await response.text();
+                // Look for common patterns where media_id might appear
+                const patterns = [
+                    /"media_id"\s*:\s*"(\d+)"/,
+                    /instagram:\/\/media\?id=(\d+)/,
+                    /"video_id"\s*:\s*"(\d+)"/ // Sometimes used for videos
+                ];
+
+                for (const pattern of patterns) {
+                    const idMatch = text.match(pattern);
+                    if (idMatch && idMatch[1]) {
+                        const mediaId = idMatch[1];
+                        Logger.info(`Found numeric Media ID (${mediaId}) for Reel (${reelId}) from fetched HTML.`);
+                        // Option: Cache it: this.mediaIdCache[reelId] = mediaId;
+                        return mediaId;
+                    }
+                }
+
+                Logger.warn(`Could not find numeric Media ID pattern in fetched Reel HTML for ${reelId}.`);
+                return null;
+
+            } catch (fetchError) {
+                Logger.error(fetchError, `Error fetching Reel HTML (${reelId}) for Media ID.`);
+                return null;
+            }
+        }
+
+        /**
+         * Finds the Reel ID (shortcode) from the current URL.
+         * @returns {string|null} The Reel ID string or null.
+         */
+        findReelId() {
+            try {
+                const match = window.location.pathname.match(/^\/reels?\/([^/]+)/); // Match /reels/ or /reel/
+                if (match && match[1]) {
+                    Logger.debug('Found Reel ID (shortcode) from URL:', match[1]);
+                    return match[1];
+                }
+            } catch (e) {
+                Logger.error(e, "Error parsing window location for Reel ID");
+            }
+            Logger.warn('Could not find Reel ID (shortcode) in URL path.');
+            return null;
         }
 
         // --- Post Specific Logic ---
