@@ -1,5 +1,6 @@
-import {Logger} from "../../../../core";
+import {HTMLUtils, Logger} from "../../../../core";
 import MediaFetcherStrategy from "./MediaFetcherStrategy";
+import SimpleCache from "../../../../core/utils/SimpleCache";
 
 /**
  * Strategy for fetching media information by parsing HTML content
@@ -31,7 +32,7 @@ export default class HtmlFetcherStrategy extends MediaFetcherStrategy {
 
     constructor() {
         super();
-        this.videoUrlCache = {};  // Cache fetched video URLs
+        this.videoUrlCache = new SimpleCache(50);
     }
 
     /**
@@ -214,10 +215,10 @@ export default class HtmlFetcherStrategy extends MediaFetcherStrategy {
         // If still no URL, try og:video meta tag
         if (!videoUrl) {
             Logger.debug('HTML Strategy: Checking og:video meta tag...');
-            const ogVideoMatch = content.match(this.CONFIG.REGEX.ogVideoTag);
+            const metaTags = HTMLUtils.extractMetaTags(content);
 
-            if (ogVideoMatch && ogVideoMatch[1]) {
-                videoUrl = this.decodeHtmlEntities(ogVideoMatch[1]);
+            if (metaTags["og:video"]) {
+                videoUrl = metaTags["og:video"];
                 Logger.info('HTML Strategy: Found URL in og:video meta tag:', videoUrl);
             }
         }
@@ -229,7 +230,7 @@ export default class HtmlFetcherStrategy extends MediaFetcherStrategy {
 
         // Cache the result using poster or blob URL as key
         if (cacheKey) {
-            this.videoUrlCache[cacheKey] = videoUrl;
+            this.videoUrlCache.set(cacheKey, videoUrl);
         }
 
         return {
@@ -291,10 +292,9 @@ export default class HtmlFetcherStrategy extends MediaFetcherStrategy {
             // Try og:video meta tag
             if (!videoUrl) {
                 Logger.debug('HTML Strategy: Checking og:video meta tag for Reel...');
-                const ogVideoMatch = content.match(this.CONFIG.REGEX.ogVideoTag);
-
-                if (ogVideoMatch && ogVideoMatch[1]) {
-                    videoUrl = this.decodeHtmlEntities(ogVideoMatch[1]);
+                const metaTags = HTMLUtils.extractMetaTags(content);
+                if (metaTags["og:video"]) {
+                    videoUrl = metaTags["og:video"];
                     Logger.info('HTML Strategy: Found URL in og:video meta tag for Reel:', videoUrl);
                 }
             }
@@ -360,9 +360,9 @@ export default class HtmlFetcherStrategy extends MediaFetcherStrategy {
             Logger.debug(`HTML Strategy: Fetched HTML content (${content.length} bytes). Parsing...`);
 
             // For stories, the og:video tag is often the most reliable source
-            const ogVideoMatch = content.match(this.CONFIG.REGEX.ogVideoTag);
-            if (ogVideoMatch && ogVideoMatch[1]) {
-                const videoUrl = this.decodeHtmlEntities(ogVideoMatch[1]);
+            const metaTags = HTMLUtils.extractMetaTags(content);
+            if (metaTags["og:video"]) {
+                let videoUrl = metaTags["og:video"];
                 Logger.info('HTML Strategy: Found URL in og:video meta tag for Story:', videoUrl);
 
                 return {
@@ -440,19 +440,5 @@ export default class HtmlFetcherStrategy extends MediaFetcherStrategy {
         }
 
         return null;
-    }
-
-    /**
-     * Basic HTML entity decoder
-     *
-     * @param {string} encodedString - String potentially containing HTML entities
-     * @returns {string} Decoded string
-     */
-    decodeHtmlEntities(encodedString) {
-        if (!encodedString || typeof encodedString !== 'string') return encodedString;
-
-        const textarea = document.createElement('textarea');
-        textarea.innerHTML = encodedString;
-        return textarea.value;
     }
 }

@@ -1,5 +1,6 @@
 import {Logger} from "../../../../core";
 import MediaFetcherStrategy from "./MediaFetcherStrategy";
+import MediaUtils from "../../../../core/utils/MediaUtils";
 
 /**
  * Strategy for fetching media information using Instagram's API
@@ -61,7 +62,7 @@ export default class ApiMediaFetcherStrategy extends MediaFetcherStrategy {
                 Logger.info('API Strategy: Found media info in cache.');
                 const url = this.extractUrlFromInfoJson(this.infoCache[mediaId], mediaIdx);
                 if (url) {
-                    const type = this.guessMediaTypeFromUrl(url);
+                    const type = MediaUtils.detectMediaTypeFromUrl(url);
                     return {url, mediaIndex: mediaIdx, type: type || 'unknown'};
                 }
                 return null;
@@ -90,7 +91,7 @@ export default class ApiMediaFetcherStrategy extends MediaFetcherStrategy {
 
             const url = this.extractUrlFromInfoJson(respJson, mediaIdx);
             if (url) {
-                const type = this.guessMediaTypeFromUrl(url);
+                const type = MediaUtils.detectMediaTypeFromUrl(url);
                 return {url, mediaIndex: mediaIdx, type: type || 'unknown'};
             }
             return null;
@@ -388,28 +389,5 @@ export default class ApiMediaFetcherStrategy extends MediaFetcherStrategy {
             Logger.error(error, 'API Strategy: Error extracting URL from API JSON.');
             return null;
         }
-    }
-
-    /**
-     * Guesses media type ('video' or 'image') based on URL extension.
-     * @param {string|null} url - The URL to check.
-     * @returns {'video'|'image'|null} The guessed type or null.
-     */
-    guessMediaTypeFromUrl(url) {
-        if (!url) return null;
-
-        try {
-            const path = new URL(url).pathname.toLowerCase();
-            if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm')) {
-                return 'video';
-            }
-            if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.webp') || path.endsWith('.gif')) {
-                return 'image';
-            }
-        } catch (e) {
-            Logger.warn('API Strategy: Could not parse URL to guess media type:', url);
-        }
-
-        return null;
     }
 }
