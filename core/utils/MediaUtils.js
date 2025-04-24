@@ -297,6 +297,105 @@ class MediaUtils {
             return result;
         }
     }
+
+    static detectMediaTypeFromUrl(url) {
+        if (!url) return null;
+        try {
+            const path = new URL(url).pathname.toLowerCase();
+            if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm')) {
+                return 'video';
+            }
+            if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') ||
+                path.endsWith('.webp') || path.endsWith('.gif')) {
+                return 'image';
+            }
+        } catch (e) {
+            Logger.warn('Could not parse URL to detect media type:', url);
+        }
+        return null;
+    }
+
+    static getHighestResSrcFromSrcset(srcset) {
+        if (!srcset) return null;
+
+        try {
+            const sources = srcset.split(',').map(s => s.trim().split(' '));
+            let bestUrl = null;
+            let maxWidth = 0;
+
+            sources.forEach(([sourceUrl, width]) => {
+                const w = parseInt(width?.replace('w', ''), 10);
+                if (w > maxWidth) {
+                    maxWidth = w;
+                    bestUrl = sourceUrl;
+                } else if (!width && !maxWidth) {
+                    bestUrl = sourceUrl;
+                }
+            });
+
+            return bestUrl;
+        } catch (error) {
+            Logger.warn('Error parsing srcset:', error);
+            return null;
+        }
+    }
+
+    static async probeMediaType(url) {
+        if (!url || url.startsWith('blob:') || url.startsWith('data:')) {
+            return 'unknown';
+        }
+
+        try {
+            const response = await fetch(url, {method: 'HEAD', mode: 'cors'});
+
+            if (response.ok) {
+                const contentType = response.headers.get('content-type');
+                if (contentType) {
+                    if (contentType.startsWith('video/')) return 'video';
+                    if (contentType.startsWith('image/')) return 'image';
+                    if (contentType.startsWith('audio/')) return 'audio';
+                    return contentType;
+                }
+            }
+        } catch (error) {
+            Logger.error(error, `Error probing media type for ${url}`);
+        }
+
+        return 'unknown';
+    }
+
+    static findMediaUrlsInText(text, options = {}) {
+        if (!text) return [];
+
+        const {videoOnly = false, imageOnly = false} = options;
+        const urls = new Set();
+
+        // Generic video URL pattern
+        if (!imageOnly) {
+            const videoPattern = /https?:(\\\/|\/)[^\s"'<>]+(\\\/|\/)[^\s"'<>]+\.(mp4|webm|mov)(\?[^\s"'<>]+)?/gi;
+            let match;
+            while (match = videoPattern.exec(text)) {
+                if (match[0]) {
+                    const cleanUrl = match[0].replace(/\\\//g, '/');
+                    urls.add(cleanUrl);
+                }
+            }
+        }
+
+        // Generic image URL pattern
+        if (!videoOnly) {
+            const imagePattern = /https?:(\\\/|\/)[^\s"'<>]+(\\\/|\/)[^\s"'<>]+\.(jpg|jpeg|png|gif|webp)(\?[^\s"'<>]+)?/gi;
+            let match;
+            while (match = imagePattern.exec(text)) {
+                if (match[0]) {
+                    const cleanUrl = match[0].replace(/\\\//g, '/');
+                    urls.add(cleanUrl);
+                }
+            }
+        }
+
+        return Array.from(urls);
+    }
 }
 
 export default MediaUtils;

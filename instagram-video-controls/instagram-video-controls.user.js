@@ -216,58 +216,58 @@
      * Provides functions for escaping HTML, encoding/decoding entities, etc.
      */
     class HTMLUtils {
-      /**
+        /**
          * Escape special HTML characters to prevent XSS
          * @param {string} str - The string to escape
          * @return {string} - The escaped string
          */
-      static escapeHTML(str) {
-        const escapeMap = {
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '\'': '&#39;',
-          '"': '&quot;',
-        };
-        return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
-      }
+        static escapeHTML(str) {
+            const escapeMap = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '\'': '&#39;',
+                '"': '&quot;',
+            };
+            return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
+        }
 
-      /**
+        /**
          * Escape XML special characters
          * @param {string} str - The string to escape
          * @return {string} - The escaped string
          */
-      static escapeXML(str) {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
-      }
+        static escapeXML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
 
-      /**
+        /**
          * Convert a plain text string to sanitized HTML
          * @param {string} text - The text to convert
          * @return {string} - HTML with line breaks and links
          */
-      static textToHtml(text) {
-        if (!text) return '';
+        static textToHtml(text) {
+            if (!text) return '';
 
-        // First escape HTML
-        let html = this.escapeHTML(text);
+            // First escape HTML
+            let html = this.escapeHTML(text);
 
-        // Convert line breaks to <br>
-        html = html.replace(/\n/g, '<br>');
+            // Convert line breaks to <br>
+            html = html.replace(/\n/g, '<br>');
 
-        // Convert URLs to links
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+            // Convert URLs to links
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
 
-        return html;
-      }
+            return html;
+        }
 
-      /**
+        /**
          * * Wait for a specific element to appear in the DOM.
          *  * Continues checking using requestAnimationFrame until it appears,
          *  * a timeout is reached, or the maximum number of attempts is exceeded.
@@ -278,30 +278,53 @@
          *  * @param {number} [maxRetries=60] - Maximum number of requestAnimationFrame attempts.
          *  * @returns {Promise<Element>} Resolves with the found element or rejects on timeout.
          */
-      static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-          let attempts = 0;
+        static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+                let attempts = 0;
 
-          function checkElement() {
-            const element = root.querySelector(selector);
-            if (element) {
-              resolve(element);
-              return;
+                function checkElement() {
+                    const element = root.querySelector(selector);
+                    if (element) {
+                        resolve(element);
+                        return;
+                    }
+
+                    if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
+                        reject(new Error(`Timeout waiting for element: ${selector}`));
+                        return;
+                    }
+
+                    attempts++;
+                    requestAnimationFrame(checkElement);
+                }
+
+                checkElement();
+            });
+        }
+
+        static decodeHtmlEntities(encodedString) {
+            if (!encodedString || typeof encodedString !== 'string') return encodedString;
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = encodedString;
+            return textarea.value;
+        }
+
+        static extractMetaTags(html) {
+            if (!html) return {};
+
+            const metaTags = {};
+            const regex = /<meta\s+(?:property|name)=["']([^"']+)["']\s+content=["']([^"']+)["']/gi;
+
+            let match;
+            while (match = regex.exec(html)) {
+                if (match[1] && match[2]) {
+                    metaTags[match[1]] = this.decodeHtmlEntities(match[2]);
+                }
             }
 
-            if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
-              reject(new Error(`Timeout waiting for element: ${selector}`));
-              return;
-            }
-
-            attempts++;
-            requestAnimationFrame(checkElement);
-          }
-
-          checkElement();
-        });
-      }
+            return metaTags;
+        }
     }
 
     /**
@@ -4628,6 +4651,105 @@
                 Logger.error(error, 'MediaUtils: Error getting media info');
                 return result;
             }
+        }
+
+        static detectMediaTypeFromUrl(url) {
+            if (!url) return null;
+            try {
+                const path = new URL(url).pathname.toLowerCase();
+                if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm')) {
+                    return 'video';
+                }
+                if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') ||
+                    path.endsWith('.webp') || path.endsWith('.gif')) {
+                    return 'image';
+                }
+            } catch (e) {
+                Logger.warn('Could not parse URL to detect media type:', url);
+            }
+            return null;
+        }
+
+        static getHighestResSrcFromSrcset(srcset) {
+            if (!srcset) return null;
+
+            try {
+                const sources = srcset.split(',').map(s => s.trim().split(' '));
+                let bestUrl = null;
+                let maxWidth = 0;
+
+                sources.forEach(([sourceUrl, width]) => {
+                    const w = parseInt(width?.replace('w', ''), 10);
+                    if (w > maxWidth) {
+                        maxWidth = w;
+                        bestUrl = sourceUrl;
+                    } else if (!width && !maxWidth) {
+                        bestUrl = sourceUrl;
+                    }
+                });
+
+                return bestUrl;
+            } catch (error) {
+                Logger.warn('Error parsing srcset:', error);
+                return null;
+            }
+        }
+
+        static async probeMediaType(url) {
+            if (!url || url.startsWith('blob:') || url.startsWith('data:')) {
+                return 'unknown';
+            }
+
+            try {
+                const response = await fetch(url, {method: 'HEAD', mode: 'cors'});
+
+                if (response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType) {
+                        if (contentType.startsWith('video/')) return 'video';
+                        if (contentType.startsWith('image/')) return 'image';
+                        if (contentType.startsWith('audio/')) return 'audio';
+                        return contentType;
+                    }
+                }
+            } catch (error) {
+                Logger.error(error, `Error probing media type for ${url}`);
+            }
+
+            return 'unknown';
+        }
+
+        static findMediaUrlsInText(text, options = {}) {
+            if (!text) return [];
+
+            const {videoOnly = false, imageOnly = false} = options;
+            const urls = new Set();
+
+            // Generic video URL pattern
+            if (!imageOnly) {
+                const videoPattern = /https?:(\\\/|\/)[^\s"'<>]+(\\\/|\/)[^\s"'<>]+\.(mp4|webm|mov)(\?[^\s"'<>]+)?/gi;
+                let match;
+                while (match = videoPattern.exec(text)) {
+                    if (match[0]) {
+                        const cleanUrl = match[0].replace(/\\\//g, '/');
+                        urls.add(cleanUrl);
+                    }
+                }
+            }
+
+            // Generic image URL pattern
+            if (!videoOnly) {
+                const imagePattern = /https?:(\\\/|\/)[^\s"'<>]+(\\\/|\/)[^\s"'<>]+\.(jpg|jpeg|png|gif|webp)(\?[^\s"'<>]+)?/gi;
+                let match;
+                while (match = imagePattern.exec(text)) {
+                    if (match[0]) {
+                        const cleanUrl = match[0].replace(/\\\//g, '/');
+                        urls.add(cleanUrl);
+                    }
+                }
+            }
+
+            return Array.from(urls);
         }
     }
 
