@@ -27,10 +27,9 @@ class InstagramMediaFetcher {
             /** Targets list items in a carousel/slideshow */
             postCarouselItem: 'ul li[style*="translateX"]',
             /** Targets the container for carousel navigation dots */
-            // NOTE: Instagram classes like _acnb are unstable. This needs verification.
-            postCarouselDotsContainer: 'div._acnb',
+            postCarouselDotsContainer: 'div._acng',
             /** Targets individual navigation dots within the container */
-            postCarouselDot: 'div[role="button"]', // Assuming dots are divs or buttons
+            postCarouselDot: 'div._acnb', // Assuming dots are divs or buttons
 
             // Story Specific Selectors
             /** Targets the image element primarily used in stories */
@@ -60,7 +59,7 @@ class InstagramMediaFetcher {
             /** Extracts Instagram App ID from scripts */
             appId: /"X-IG-App-ID":"(\d+)"|appId:"(\d+)"/i,
             /** Extracts Media ID (long number) from various script/HTML contexts */
-            mediaId: /instagram:\/\/media\?id=(\d+)|["']media_id["']\s*:\s*["'](\d+)["']|["']pk["']\s*:\s*["'](\d+)["']/gi,
+            mediaId: /"media_id"\s*:\s*"(\d+)"/g,
             /** Extracts Post ID (shortcode) from URL path */
             postIdPath: /^\/p\/([^/]+)\//,
             /** Extracts Story ID from URL path */
@@ -69,7 +68,7 @@ class InstagramMediaFetcher {
             // Looks for a poster filename (group 1), then video_versions, then the url (group 2)
             videoUrlInHtml: /"([^"]+\.(?:jpg|png|jpeg|webp))".*?"video_versions".*?"url":"([^"]+)"/si,
             /** Broader RegEx to find video URLs in HTML when the poster name isn't directly adjacent */
-            videoUrlInHtmlBroad: /"video_versions"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+\.(?:mp4|mov)[^"]*)"/si,
+            videoUrlInHtmlBroad: /"video_versions"\s*:\s*\[(.*?)\{[^}]*?"url"\s*:\s*"([^"]+\.(?:mp4|mov)[^"]*)"/i,
             /** Extracts og:video meta tag content */
             ogVideoTag: /<meta\s+property="og:video"\s+content="([^"]+)"/i,
             /** Extracts filename part from common image URLs (used for matching in HTML) */
@@ -397,20 +396,33 @@ class InstagramMediaFetcher {
     }
 
     /**
-     * Finds the active index (0-based) in a carousel post, typically using navigation dots.
+     * Finds the active index (0-based) in a carousel post.
+     * Prioritizes checking the URL's ?img_index= param, falls back to carousel dots.
      * @param {HTMLElement} articleNode - The ARTICLE element.
      * @returns {number|null} The index or null if detection fails.
      */
     findActiveMediaIndex(articleNode) {
         Logger.debug('Finding active media index in carousel...');
-        // Use the static config for selectors
-        const dotsContainer = articleNode.querySelector(InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDotsContainer);
 
+        // --- Step 1: Try to read from ?img_index=N in URL ---
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const imgIndex = parseInt(urlParams.get('img_index'), 10);
+            // Check if it's a valid number AND greater than 0 (URL params are usually 1-based)
+            if (!isNaN(imgIndex) && imgIndex >= 1) {
+                Logger.debug(`Detected img_index=${imgIndex} from URL. Adjusting to 0-based index.`);
+                return imgIndex - 1; // Convert to 0-based index
+            }
+        } catch (e) {
+            Logger.warn('Error parsing URL for img_index:', e);
+        }
+
+        // --- Step 2: Fallback to dot-based detection ---
+        const dotsContainer = articleNode.querySelector(InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDotsContainer);
         if (dotsContainer) {
             const dots = dotsContainer.querySelectorAll(InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDot);
             if (dots.length > 1) {
                 for (let i = 0; i < dots.length; i++) {
-                    // Checking classList length >= 2 (Fragile)
                     if (dots[i].classList.length >= 2 && dots[i].classList.length !== 1) {
                         Logger.debug(`Active dot found at index ${i} (using class count >= 2)`);
                         return i;
@@ -427,7 +439,7 @@ class InstagramMediaFetcher {
             Logger.debug('Carousel dots container not found with selector:', InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDotsContainer);
         }
 
-        Logger.warn('Could not determine active media index using dot indicators. Returning 0 as fallback.');
+        Logger.warn('Could not determine active media index using URL or dot indicators. Returning 0 as fallback.');
         return 0;
     }
 
@@ -483,7 +495,9 @@ class InstagramMediaFetcher {
             Logger.info(`fetchVideoUrlFromHtml: Fetching post HTML from: ${postUrl}`);
             const response = await fetch(postUrl, {
                 method: 'GET',
-                headers: {'User-Agent': navigator.userAgent} // Use standard browser UA
+                headers: {'User-Agent': navigator.userAgent}, // Use standard browser UA
+                credentials: 'include',
+                mode: 'cors'
             });
 
             if (!response.ok) {
@@ -813,7 +827,6 @@ class InstagramMediaFetcher {
      * @returns {string|null} The media URL or null if not found.
      */
     extractUrlFromInfoJson(infoJson, mediaIdx = 0) {
-        // ... (Implementation remains the same as previous version) ...
         Logger.debug('Extracting URL from API JSON...', {mediaIdx});
         try {
             if (!infoJson?.items?.[0]) {
