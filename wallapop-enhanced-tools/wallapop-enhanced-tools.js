@@ -1049,8 +1049,9 @@ class DescriptionFetcher {
     }
 
     // Method to clean tags from the description
+    // Improved version of cleanDescription in DescriptionFetcher class
     static cleanDescription(description) {
-        // Look for tag indicators like "No leer"
+        // Look for tag indicators with various formats
         const tagMarkers = [
             "\n\n\n\n\n\n\nNo leer\n",
             "\n\n\n\n\nNo leer\n",
@@ -1059,7 +1060,15 @@ class DescriptionFetcher {
             "No leer",
             "tags:",
             "etiquetas:",
-            "keywords:"
+            "keywords:",
+            "\ntags:",
+            "\nTags:",
+            "\nTAGS:",
+            "\nEtiquetas:",
+            "\nKeywords:",
+            " tags:",
+            " Tags:",
+            " TAGS:"
         ];
 
         // Check each marker and split at the first one found
@@ -1070,6 +1079,17 @@ class DescriptionFetcher {
                 Logger.debug(`Found tag marker: "${marker}"`);
                 cleanDesc = description.split(marker)[0].trim();
                 break;
+            }
+        }
+
+        // Use regex for more generic detection (case insensitive)
+        if (cleanDesc === description) {
+            // If no markers were found using the previous method
+            const tagRegex = /\n+\s*(?:tags?|etiquetas?|keywords?)[\s:]+/i;
+            const match = description.match(tagRegex);
+            if (match) {
+                Logger.debug(`Found tag section using regex at position: ${match.index}`);
+                cleanDesc = description.substring(0, match.index).trim();
             }
         }
 
