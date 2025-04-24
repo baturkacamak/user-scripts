@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        wallapop-enhanced-tools
+// @name        Wallapop Enhanced Tools
 // @description Comprehensive Wallapop enhancement suite: expand formatted descriptions, copy/export listings, filter unwanted items, and multi-language support
 // @namespace   https://github.com/baturkacamak/userscripts
 // @version     1.5.0
@@ -215,58 +215,58 @@
      * Provides functions for escaping HTML, encoding/decoding entities, etc.
      */
     class HTMLUtils {
-      /**
+        /**
          * Escape special HTML characters to prevent XSS
          * @param {string} str - The string to escape
          * @return {string} - The escaped string
          */
-      static escapeHTML(str) {
-        const escapeMap = {
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '\'': '&#39;',
-          '"': '&quot;',
-        };
-        return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
-      }
+        static escapeHTML(str) {
+            const escapeMap = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '\'': '&#39;',
+                '"': '&quot;',
+            };
+            return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
+        }
 
-      /**
+        /**
          * Escape XML special characters
          * @param {string} str - The string to escape
          * @return {string} - The escaped string
          */
-      static escapeXML(str) {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
-      }
+        static escapeXML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
 
-      /**
+        /**
          * Convert a plain text string to sanitized HTML
          * @param {string} text - The text to convert
          * @return {string} - HTML with line breaks and links
          */
-      static textToHtml(text) {
-        if (!text) return '';
+        static textToHtml(text) {
+            if (!text) return '';
 
-        // First escape HTML
-        let html = this.escapeHTML(text);
+            // First escape HTML
+            let html = this.escapeHTML(text);
 
-        // Convert line breaks to <br>
-        html = html.replace(/\n/g, '<br>');
+            // Convert line breaks to <br>
+            html = html.replace(/\n/g, '<br>');
 
-        // Convert URLs to links
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+            // Convert URLs to links
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
 
-        return html;
-      }
+            return html;
+        }
 
-      /**
+        /**
          * * Wait for a specific element to appear in the DOM.
          *  * Continues checking using requestAnimationFrame until it appears,
          *  * a timeout is reached, or the maximum number of attempts is exceeded.
@@ -277,30 +277,53 @@
          *  * @param {number} [maxRetries=60] - Maximum number of requestAnimationFrame attempts.
          *  * @returns {Promise<Element>} Resolves with the found element or rejects on timeout.
          */
-      static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-          let attempts = 0;
+        static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+                let attempts = 0;
 
-          function checkElement() {
-            const element = root.querySelector(selector);
-            if (element) {
-              resolve(element);
-              return;
+                function checkElement() {
+                    const element = root.querySelector(selector);
+                    if (element) {
+                        resolve(element);
+                        return;
+                    }
+
+                    if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
+                        reject(new Error(`Timeout waiting for element: ${selector}`));
+                        return;
+                    }
+
+                    attempts++;
+                    requestAnimationFrame(checkElement);
+                }
+
+                checkElement();
+            });
+        }
+
+        static decodeHtmlEntities(encodedString) {
+            if (!encodedString || typeof encodedString !== 'string') return encodedString;
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = encodedString;
+            return textarea.value;
+        }
+
+        static extractMetaTags(html) {
+            if (!html) return {};
+
+            const metaTags = {};
+            const regex = /<meta\s+(?:property|name)=["']([^"']+)["']\s+content=["']([^"']+)["']/gi;
+
+            let match;
+            while (match = regex.exec(html)) {
+                if (match[1] && match[2]) {
+                    metaTags[match[1]] = this.decodeHtmlEntities(match[2]);
+                }
             }
 
-            if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
-              reject(new Error(`Timeout waiting for element: ${selector}`));
-              return;
-            }
-
-            attempts++;
-            requestAnimationFrame(checkElement);
-          }
-
-          checkElement();
-        });
-      }
+            return metaTags;
+        }
     }
 
     /**
@@ -388,194 +411,251 @@
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
+
     class GMFunctions {
-      /**
+        /**
+         * Check if we're running in development mode (outside a userscript manager)
+         * @return {boolean} True if in development environment
+         */
+        static isDevelopmentMode() {
+            // In production, GM_info should be defined by the userscript manager
+            return 'undefined' === typeof GM_info;
+        }
+
+        /**
          * Initialize fallbacks for missing GM functions
          * @return {Object} Object containing references to all GM functions (either native or polyfilled)
          */
-      static initialize() {
-        // Create fallbacks for common GM functions
-        this.setupAddStyle();
-        this.setupXmlHttpRequest();
-        this.setupSetClipboard();
-        this.setupDownload();
-        this.setupGetValue();
-        this.setupSetValue();
+        static initialize() {
+            const isDevMode = this.isDevelopmentMode();
 
-        // Return references to all functions (either native or polyfilled)
-        return {
-          GM_addStyle: window.GM_addStyle,
-          GM_xmlhttpRequest: window.GM_xmlhttpRequest,
-          GM_setClipboard: window.GM_setClipboard,
-          GM_download: window.GM_download,
-          GM_getValue: window.GM_getValue,
-          GM_setValue: window.GM_setValue,
-        };
-      }
+            Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');
 
-      /**
+            if (isDevMode) {
+                // Create fallbacks for common GM functions
+                this.setupAddStyle();
+                this.setupXmlHttpRequest();
+                this.setupSetClipboard();
+                this.setupDownload();
+                this.setupGetValue();
+                this.setupSetValue();
+
+                Logger.info('GM function fallbacks have been created for development mode');
+            } else {
+                Logger.debug('Using native userscript manager GM functions');
+            }
+
+            // Return references to all functions (either native or polyfilled)
+            return {
+                GM_addStyle: window.GM_addStyle,
+                GM_xmlhttpRequest: window.GM_xmlhttpRequest,
+                GM_setClipboard: window.GM_setClipboard,
+                GM_download: window.GM_download,
+                GM_getValue: window.GM_getValue,
+                GM_setValue: window.GM_setValue,
+            };
+        }
+
+        /**
          * Set up GM_addStyle fallback
          */
-      static setupAddStyle() {
-        if ('undefined' === typeof GM_addStyle) {
-          window.GM_addStyle = function(css) {
-            const style = document.createElement('style');
-            style.textContent = css;
-            document.head.appendChild(style);
-            return style;
-          };
+        static setupAddStyle() {
+            window.GM_addStyle = function (css) {
+                Logger.debug('GM_addStyle fallback executing', css.substring(0, 50) + '...');
+                const style = document.createElement('style');
+                style.textContent = css;
+                document.head.appendChild(style);
+                return style;
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_xmlhttpRequest fallback
          */
-      static setupXmlHttpRequest() {
-        if ('undefined' === typeof GM_xmlhttpRequest) {
-          window.GM_xmlhttpRequest = function(details) {
-            const xhr = new XMLHttpRequest();
-            xhr.open(details.method, details.url);
-
-            if (details.headers) {
-              Object.keys(details.headers).forEach((key) => {
-                xhr.setRequestHeader(key, details.headers[key]);
-              });
-            }
-
-            xhr.onload = function() {
-              if (details.onload) {
-                details.onload({
-                  responseText: xhr.responseText,
-                  response: xhr.response,
-                  status: xhr.status,
-                  statusText: xhr.statusText,
-                  readyState: xhr.readyState,
+        static setupXmlHttpRequest() {
+            window.GM_xmlhttpRequest = function (details) {
+                Logger.debug('GM_xmlhttpRequest fallback executing', {
+                    method: details.method,
+                    url: details.url
                 });
-              }
-            };
 
-            xhr.onerror = function() {
-              if (details.onerror) {
-                details.onerror(xhr);
-              }
-            };
+                const xhr = new XMLHttpRequest();
+                xhr.open(details.method, details.url);
 
-            xhr.send(details.data);
-            return xhr;
-          };
+                if (details.headers) {
+                    Object.keys(details.headers).forEach((key) => {
+                        xhr.setRequestHeader(key, details.headers[key]);
+                    });
+                }
+
+                xhr.onload = function () {
+                    if (details.onload) {
+                        const response = {
+                            responseText: xhr.responseText,
+                            response: xhr.response,
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            readyState: xhr.readyState,
+                        };
+
+                        Logger.debug('GM_xmlhttpRequest completed', {
+                            status: xhr.status,
+                            url: details.url
+                        });
+
+                        details.onload(response);
+                    }
+                };
+
+                xhr.onerror = function () {
+                    Logger.error('GM_xmlhttpRequest error', {
+                        url: details.url,
+                        status: xhr.status
+                    });
+
+                    if (details.onerror) {
+                        details.onerror(xhr);
+                    }
+                };
+
+                xhr.send(details.data);
+                return xhr;
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_setClipboard fallback
          */
-      static setupSetClipboard() {
-        if ('undefined' === typeof GM_setClipboard) {
-          window.GM_setClipboard = function(text) {
-            // Create a temporary textarea element
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
+        static setupSetClipboard() {
+            window.GM_setClipboard = function (text) {
+                Logger.debug('GM_setClipboard fallback executing', {
+                    textLength: text.length
+                });
 
-            // Make the textarea not visible
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
+                // Create a temporary textarea element
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
 
-            document.body.appendChild(textarea);
-            textarea.select();
+                // Make the textarea not visible
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
 
-            // Try to copy the text
-            let success = false;
-            try {
-              success = document.execCommand('copy');
-              console.log('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
-            } catch (err) {
-              console.error('Error copying to clipboard:', err);
-            }
+                document.body.appendChild(textarea);
+                textarea.select();
 
-            // Clean up
-            document.body.removeChild(textarea);
-            return success;
-          };
+                // Try to copy the text
+                let success = false;
+                try {
+                    success = document.execCommand('copy');
+                    Logger.info('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
+                } catch (err) {
+                    Logger.error(err, 'Error copying to clipboard');
+                }
+
+                // Clean up
+                document.body.removeChild(textarea);
+                return success;
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_download fallback
          */
-      static setupDownload() {
-        if ('undefined' === typeof GM_download) {
-          window.GM_download = function(options) {
-            try {
-              const {url, name, onload, onerror} = options;
+        static setupDownload() {
+            window.GM_download = function (options) {
+                try {
+                    const {url, name, onload, onerror} = options;
 
-              // Create download link
-              const downloadLink = document.createElement('a');
-              downloadLink.href = url;
-              downloadLink.download = name || 'download';
-              downloadLink.style.display = 'none';
+                    Logger.debug('GM_download fallback executing', {
+                        url: url.substring(0, 100),
+                        filename: name
+                    });
 
-              // Add to document, click, and remove
-              document.body.appendChild(downloadLink);
-              downloadLink.click();
+                    // Create download link
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = name || 'download';
+                    downloadLink.style.display = 'none';
 
-              // Clean up
-              setTimeout(() => {
-                document.body.removeChild(downloadLink);
-                if (onload) onload();
-              }, 100);
+                    // Add to document, click, and remove
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
 
-              return true;
-            } catch (err) {
-              console.error('Error downloading file:', err);
-              if (options.onerror) options.onerror(err);
-              return false;
-            }
-          };
+                    // Clean up
+                    setTimeout(() => {
+                        document.body.removeChild(downloadLink);
+                        if (onload) {
+                            Logger.debug('GM_download completed successfully');
+                            onload();
+                        }
+                    }, 100);
+
+                    return true;
+                } catch (err) {
+                    Logger.error(err, 'Error downloading file');
+                    if (options.onerror) options.onerror(err);
+                    return false;
+                }
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_getValue fallback using localStorage
          */
-      static setupGetValue() {
-        if ('undefined' === typeof GM_getValue) {
-          window.GM_getValue = function(key, defaultValue) {
-            try {
-              const value = localStorage.getItem(`GM_${key}`);
-              if (null === value) return defaultValue;
+        static setupGetValue() {
+            window.GM_getValue = function (key, defaultValue) {
+                try {
+                    const storageKey = `GM_${key}`;
+                    Logger.debug('GM_getValue fallback executing', {key: storageKey});
 
-              // Try to parse JSON
-              try {
-                return JSON.parse(value);
-              } catch (e) {
-                return value;
-              }
-            } catch (e) {
-              console.error('Error in GM_getValue:', e);
-              return defaultValue;
-            }
-          };
+                    const value = localStorage.getItem(storageKey);
+                    if (null === value) {
+                        Logger.debug('GM_getValue: No value found, using default', {
+                            key,
+                            defaultValue
+                        });
+                        return defaultValue;
+                    }
+
+                    // Try to parse JSON
+                    try {
+                        const parsedValue = JSON.parse(value);
+                        Logger.debug('GM_getValue: Retrieved and parsed JSON value', {key});
+                        return parsedValue;
+                    } catch (e) {
+                        Logger.debug('GM_getValue: Retrieved non-JSON value', {key, value});
+                        return value;
+                    }
+                } catch (e) {
+                    Logger.error(e, 'Error in GM_getValue fallback');
+                    return defaultValue;
+                }
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_setValue fallback using localStorage
          */
-      static setupSetValue() {
-        if ('undefined' === typeof GM_setValue) {
-          window.GM_setValue = function(key, value) {
-            try {
-              // Convert non-string values to JSON
-              const valueToStore = 'string' === typeof value ? value : JSON.stringify(value);
-              localStorage.setItem(`GM_${key}`, valueToStore);
-              return true;
-            } catch (e) {
-              console.error('Error in GM_setValue:', e);
-              return false;
-            }
-          };
+        static setupSetValue() {
+            window.GM_setValue = function (key, value) {
+                try {
+                    const storageKey = `GM_${key}`;
+                    Logger.debug('GM_setValue fallback executing', {
+                        key: storageKey,
+                        valueType: typeof value
+                    });
+
+                    // Convert non-string values to JSON
+                    const valueToStore = 'string' === typeof value ? value : JSON.stringify(value);
+                    localStorage.setItem(storageKey, valueToStore);
+                    Logger.debug('GM_setValue: Value stored successfully', {key: storageKey});
+                    return true;
+                } catch (e) {
+                    Logger.error(e, 'Error in GM_setValue fallback');
+                    return false;
+                }
+            };
         }
-      }
     }
 
     /**
