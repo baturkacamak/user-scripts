@@ -1,19 +1,20 @@
 // Import core components
 import {
-    Logger,
-    StyleManager,
-    GMFunctions,
-    HTMLUtils,
     Button,
     Checkbox,
-    Slider,
+    DOMObserver,
+    GMFunctions,
+    HTMLUtils,
+    Logger,
+    Notification,
     SidebarPanel,
-    Notification, DOMObserver
+    Slider,
+    StyleManager
 } from "../core";
 import VideoDownloader from "../core/utils/VideoDownloader";
-import UrlChangeWatcher from "../core/utils/UrlChangeWatcher";
 import PollingStrategy from "../core/utils/UrlChangeWatcher/strategies/PollingStrategy";
 import InstagramMediaFetcher from "./utils/InstagramMediaFetcher";
+import HoverAction from "../core/utils/HoverAction";
 
 // Initialize GM functions fallbacks
 const GM = GMFunctions.initialize();
@@ -47,7 +48,8 @@ class InstagramVideoController {
         LOOP_BUTTON: 'igvc-loop-btn',
         STATS_BUTTON: 'igvc-stats-btn',
         SPEED_ACTIVE: 'igvc-speed-active',
-        LOOP_ACTIVE: 'igvc-loop-active'
+        LOOP_ACTIVE: 'igvc-loop-active',
+        DOWNLOAD_BUTTON_LOADING: 'igvc-download-btn--loading',
     };
 
     static SETTINGS_KEYS = {
@@ -396,7 +398,18 @@ class InstagramVideoController {
             display: none;
             bottom: 50px;
             transform: translateX(-50%);
-        }`
+        }
+        
+        .${InstagramVideoController.CLASSES.DOWNLOAD_BUTTON}--loading {
+            animation: igvc-pulse 1.5s infinite;
+        }
+        
+        @keyframes igvc-pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        `
             , 'instagram-video-controls-styles');
 
         Logger.debug("Custom styles applied");
@@ -873,14 +886,41 @@ class InstagramVideoController {
                 downloadButton.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
                 downloadButton.title = 'Download Video';
                 downloadButton.className = InstagramVideoController.CLASSES.DOWNLOAD_BUTTON;
-                downloadButton.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    await this.downloadVideo(video);
+                new HoverAction({
+                    element: downloadButton,
+                    action: async (options, reportProgress) => {
+                        // The action to perform on hover (preload download info)
+                        try {
+                            const mediaInfo = await this.mediaFetcher.getMediaInfo(video, options);
+                            return mediaInfo;
+                        } catch (error) {
+                            Logger.error("Error preloading media info on hover:", error);
+                            throw error;
+                        }
+                    },
+                    onClick: async (mediaInfo, e) => {
+                        // Handle the click with the preloaded mediaInfo if available
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        await this.downloadVideo(video, mediaInfo);
+                    },
+                    onResult: (mediaInfo) => {
+                        // Callback when the action completes successfully
+                        if (mediaInfo && mediaInfo.url) {
+                            Logger.debug(`Media info preloaded successfully. URL length: ${mediaInfo.url.length}`);
+                        }
+                    },
+                    loadingClass: InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING,
+                    hoverDelay: 200,          // Start preloading after 200ms hover
+                    abortOnLeave: true,       // Abort preloading if mouse leaves
+                    cacheTTL: 60000,          // Cache result for 1 minute (Instagram might update stories frequently)
+                    eventNamePrefix: 'igvc-download'
                 });
                 controlBar.appendChild(downloadButton);
                 activeControls.push('download');
             }
+
 
             // Speed control button
             if (this.settings.SHOW_SPEED) {
@@ -1106,7 +1146,7 @@ class InstagramVideoController {
         this.removeKeyboardShortcuts();
 
         // Create keyboard handler
-        this.keyboardHandler = (e) => {
+        this.keyboardHandler = async (e) => {
             // Don't process shortcuts when typing in an input
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
                 return;
@@ -1194,7 +1234,7 @@ class InstagramVideoController {
                 case 'd': // D - download
                 case 'D':
                     e.preventDefault();
-                    this.downloadVideo(targetVideo);
+                    await this.downloadVideo(targetVideo);
                     break;
 
                 case 's': // S - speed toggle
@@ -1246,34 +1286,46 @@ class InstagramVideoController {
     /**
      * Download the video
      * @param {HTMLVideoElement} video - The video element to download
+     * @param preloadedMediaInfo
      */
-    async downloadVideo(video) {
+    async downloadVideo(video, preloadedMediaInfo = null) {
         // Check if download button should be shown/active based on settings
         if (!this.settings.SHOW_DOWNLOAD) {
             Logger.warn("Download action triggered, but download button is disabled in settings.");
             return; // Don't proceed if the feature is turned off
         }
 
+        // Find the download button if it exists d
         const downloadButton = video.parentElement?.querySelector(`.${InstagramVideoController.CLASSES.DOWNLOAD_BUTTON}`);
-        if (downloadButton) downloadButton.disabled = true; // Disable button during fetch
 
-        Notification.info('Fetching download link...', {duration: 2000});
-        Logger.debug("Attempting download via InstagramMediaFetcher for video:", video);
+        // Apply loading state if button exists and doesn't already have the loading class
+        if (downloadButton && !downloadButton.classList.contains(InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING)) {
+            downloadButton.classList.add(InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING);
+        }
 
         try {
-            // Use the shared mediaFetcher instance (API is always enabled now)
-            const mediaInfo = await this.mediaFetcher.getMediaInfo(video);
+            // If we have preloaded media info, use it; otherwise fetch it
+            let mediaInfo = preloadedMediaInfo;
+
+            if (!mediaInfo) {
+                // Only show notification if we need to fetch the media info
+                Notification.info('Fetching download link...', {duration: 2000});
+                Logger.debug("Attempting download via InstagramMediaFetcher for video:", video);
+
+                // Use the shared mediaFetcher instance (API is always enabled now)
+                mediaInfo = await this.mediaFetcher.getMediaInfo(video);
+            }
 
             if (mediaInfo && mediaInfo.url) {
-                Logger.info(`Fetcher successful! URL: ${mediaInfo.url.substring(0, 100)}... (Type: ${mediaInfo.type}, Index: ${mediaInfo.mediaIndex})`);
+                Logger.info(`Using ${preloadedMediaInfo ? 'preloaded' : 'fetched'} URL: ${mediaInfo.url.substring(0, 100)}... (Type: ${mediaInfo.type}, Index: ${mediaInfo.mediaIndex})`);
                 Notification.success(`Found ${mediaInfo.type} URL. Starting download...`, {duration: 2500});
 
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-                // Attempt a slightly better filename using media type and maybe index if available
-                const fileExtension = mediaInfo.type === 'video' ? 'mp4' : 'jpg'; // Basic guess
+                const fileExtension = mediaInfo.type === 'video' ? 'mp4' : 'jpg';
                 const filename = `instagram_${mediaInfo.type}_${mediaInfo.mediaIndex ?? 0}_${timestamp}.${fileExtension}`;
-                // Use VideoDownloader (or your preferred download method) with the fetched URL
-                await VideoDownloader.downloadFromUrl(mediaInfo.url, video); // Pass video for potential filename context
+
+                // Use VideoDownloader with the fetched URL
+                await VideoDownloader.downloadFromUrl(mediaInfo.url, video);
             } else {
                 Logger.error('InstagramMediaFetcher failed to retrieve a media URL.');
                 Notification.error('Could not automatically find the download link. Try right-clicking the video.', {duration: 5000});
@@ -1282,10 +1334,12 @@ class InstagramVideoController {
             Logger.error(error, "Error during InstagramMediaFetcher download process");
             Notification.error(`Download failed: ${error.message}`, {duration: 5000});
         } finally {
-            if (downloadButton) downloadButton.disabled = false; // Re-enable button
+            // Remove loading state from button
+            if (downloadButton) {
+                downloadButton.classList.remove(InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING);
+            }
         }
     }
-
 
     async recordAndDownload(video) {
         try {
