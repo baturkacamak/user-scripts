@@ -389,194 +389,251 @@
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
+
     class GMFunctions {
-      /**
+        /**
+         * Check if we're running in development mode (outside a userscript manager)
+         * @return {boolean} True if in development environment
+         */
+        static isDevelopmentMode() {
+            // In production, GM_info should be defined by the userscript manager
+            return 'undefined' === typeof GM_info;
+        }
+
+        /**
          * Initialize fallbacks for missing GM functions
          * @return {Object} Object containing references to all GM functions (either native or polyfilled)
          */
-      static initialize() {
-        // Create fallbacks for common GM functions
-        this.setupAddStyle();
-        this.setupXmlHttpRequest();
-        this.setupSetClipboard();
-        this.setupDownload();
-        this.setupGetValue();
-        this.setupSetValue();
+        static initialize() {
+            const isDevMode = this.isDevelopmentMode();
 
-        // Return references to all functions (either native or polyfilled)
-        return {
-          GM_addStyle: window.GM_addStyle,
-          GM_xmlhttpRequest: window.GM_xmlhttpRequest,
-          GM_setClipboard: window.GM_setClipboard,
-          GM_download: window.GM_download,
-          GM_getValue: window.GM_getValue,
-          GM_setValue: window.GM_setValue,
-        };
-      }
+            Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');
 
-      /**
+            if (isDevMode) {
+                // Create fallbacks for common GM functions
+                this.setupAddStyle();
+                this.setupXmlHttpRequest();
+                this.setupSetClipboard();
+                this.setupDownload();
+                this.setupGetValue();
+                this.setupSetValue();
+
+                Logger.info('GM function fallbacks have been created for development mode');
+            } else {
+                Logger.debug('Using native userscript manager GM functions');
+            }
+
+            // Return references to all functions (either native or polyfilled)
+            return {
+                GM_addStyle: window.GM_addStyle,
+                GM_xmlhttpRequest: window.GM_xmlhttpRequest,
+                GM_setClipboard: window.GM_setClipboard,
+                GM_download: window.GM_download,
+                GM_getValue: window.GM_getValue,
+                GM_setValue: window.GM_setValue,
+            };
+        }
+
+        /**
          * Set up GM_addStyle fallback
          */
-      static setupAddStyle() {
-        if ('undefined' === typeof GM_addStyle) {
-          window.GM_addStyle = function(css) {
-            const style = document.createElement('style');
-            style.textContent = css;
-            document.head.appendChild(style);
-            return style;
-          };
+        static setupAddStyle() {
+            window.GM_addStyle = function (css) {
+                Logger.debug('GM_addStyle fallback executing', css.substring(0, 50) + '...');
+                const style = document.createElement('style');
+                style.textContent = css;
+                document.head.appendChild(style);
+                return style;
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_xmlhttpRequest fallback
          */
-      static setupXmlHttpRequest() {
-        if ('undefined' === typeof GM_xmlhttpRequest) {
-          window.GM_xmlhttpRequest = function(details) {
-            const xhr = new XMLHttpRequest();
-            xhr.open(details.method, details.url);
-
-            if (details.headers) {
-              Object.keys(details.headers).forEach((key) => {
-                xhr.setRequestHeader(key, details.headers[key]);
-              });
-            }
-
-            xhr.onload = function() {
-              if (details.onload) {
-                details.onload({
-                  responseText: xhr.responseText,
-                  response: xhr.response,
-                  status: xhr.status,
-                  statusText: xhr.statusText,
-                  readyState: xhr.readyState,
+        static setupXmlHttpRequest() {
+            window.GM_xmlhttpRequest = function (details) {
+                Logger.debug('GM_xmlhttpRequest fallback executing', {
+                    method: details.method,
+                    url: details.url
                 });
-              }
-            };
 
-            xhr.onerror = function() {
-              if (details.onerror) {
-                details.onerror(xhr);
-              }
-            };
+                const xhr = new XMLHttpRequest();
+                xhr.open(details.method, details.url);
 
-            xhr.send(details.data);
-            return xhr;
-          };
+                if (details.headers) {
+                    Object.keys(details.headers).forEach((key) => {
+                        xhr.setRequestHeader(key, details.headers[key]);
+                    });
+                }
+
+                xhr.onload = function () {
+                    if (details.onload) {
+                        const response = {
+                            responseText: xhr.responseText,
+                            response: xhr.response,
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            readyState: xhr.readyState,
+                        };
+
+                        Logger.debug('GM_xmlhttpRequest completed', {
+                            status: xhr.status,
+                            url: details.url
+                        });
+
+                        details.onload(response);
+                    }
+                };
+
+                xhr.onerror = function () {
+                    Logger.error('GM_xmlhttpRequest error', {
+                        url: details.url,
+                        status: xhr.status
+                    });
+
+                    if (details.onerror) {
+                        details.onerror(xhr);
+                    }
+                };
+
+                xhr.send(details.data);
+                return xhr;
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_setClipboard fallback
          */
-      static setupSetClipboard() {
-        if ('undefined' === typeof GM_setClipboard) {
-          window.GM_setClipboard = function(text) {
-            // Create a temporary textarea element
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
+        static setupSetClipboard() {
+            window.GM_setClipboard = function (text) {
+                Logger.debug('GM_setClipboard fallback executing', {
+                    textLength: text.length
+                });
 
-            // Make the textarea not visible
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
+                // Create a temporary textarea element
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
 
-            document.body.appendChild(textarea);
-            textarea.select();
+                // Make the textarea not visible
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
 
-            // Try to copy the text
-            let success = false;
-            try {
-              success = document.execCommand('copy');
-              console.log('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
-            } catch (err) {
-              console.error('Error copying to clipboard:', err);
-            }
+                document.body.appendChild(textarea);
+                textarea.select();
 
-            // Clean up
-            document.body.removeChild(textarea);
-            return success;
-          };
+                // Try to copy the text
+                let success = false;
+                try {
+                    success = document.execCommand('copy');
+                    Logger.info('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
+                } catch (err) {
+                    Logger.error(err, 'Error copying to clipboard');
+                }
+
+                // Clean up
+                document.body.removeChild(textarea);
+                return success;
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_download fallback
          */
-      static setupDownload() {
-        if ('undefined' === typeof GM_download) {
-          window.GM_download = function(options) {
-            try {
-              const {url, name, onload, onerror} = options;
+        static setupDownload() {
+            window.GM_download = function (options) {
+                try {
+                    const {url, name, onload, onerror} = options;
 
-              // Create download link
-              const downloadLink = document.createElement('a');
-              downloadLink.href = url;
-              downloadLink.download = name || 'download';
-              downloadLink.style.display = 'none';
+                    Logger.debug('GM_download fallback executing', {
+                        url: url.substring(0, 100),
+                        filename: name
+                    });
 
-              // Add to document, click, and remove
-              document.body.appendChild(downloadLink);
-              downloadLink.click();
+                    // Create download link
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = name || 'download';
+                    downloadLink.style.display = 'none';
 
-              // Clean up
-              setTimeout(() => {
-                document.body.removeChild(downloadLink);
-                if (onload) onload();
-              }, 100);
+                    // Add to document, click, and remove
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
 
-              return true;
-            } catch (err) {
-              console.error('Error downloading file:', err);
-              if (options.onerror) options.onerror(err);
-              return false;
-            }
-          };
+                    // Clean up
+                    setTimeout(() => {
+                        document.body.removeChild(downloadLink);
+                        if (onload) {
+                            Logger.debug('GM_download completed successfully');
+                            onload();
+                        }
+                    }, 100);
+
+                    return true;
+                } catch (err) {
+                    Logger.error(err, 'Error downloading file');
+                    if (options.onerror) options.onerror(err);
+                    return false;
+                }
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_getValue fallback using localStorage
          */
-      static setupGetValue() {
-        if ('undefined' === typeof GM_getValue) {
-          window.GM_getValue = function(key, defaultValue) {
-            try {
-              const value = localStorage.getItem(`GM_${key}`);
-              if (null === value) return defaultValue;
+        static setupGetValue() {
+            window.GM_getValue = function (key, defaultValue) {
+                try {
+                    const storageKey = `GM_${key}`;
+                    Logger.debug('GM_getValue fallback executing', {key: storageKey});
 
-              // Try to parse JSON
-              try {
-                return JSON.parse(value);
-              } catch (e) {
-                return value;
-              }
-            } catch (e) {
-              console.error('Error in GM_getValue:', e);
-              return defaultValue;
-            }
-          };
+                    const value = localStorage.getItem(storageKey);
+                    if (null === value) {
+                        Logger.debug('GM_getValue: No value found, using default', {
+                            key,
+                            defaultValue
+                        });
+                        return defaultValue;
+                    }
+
+                    // Try to parse JSON
+                    try {
+                        const parsedValue = JSON.parse(value);
+                        Logger.debug('GM_getValue: Retrieved and parsed JSON value', {key});
+                        return parsedValue;
+                    } catch (e) {
+                        Logger.debug('GM_getValue: Retrieved non-JSON value', {key, value});
+                        return value;
+                    }
+                } catch (e) {
+                    Logger.error(e, 'Error in GM_getValue fallback');
+                    return defaultValue;
+                }
+            };
         }
-      }
 
-      /**
+        /**
          * Set up GM_setValue fallback using localStorage
          */
-      static setupSetValue() {
-        if ('undefined' === typeof GM_setValue) {
-          window.GM_setValue = function(key, value) {
-            try {
-              // Convert non-string values to JSON
-              const valueToStore = 'string' === typeof value ? value : JSON.stringify(value);
-              localStorage.setItem(`GM_${key}`, valueToStore);
-              return true;
-            } catch (e) {
-              console.error('Error in GM_setValue:', e);
-              return false;
-            }
-          };
+        static setupSetValue() {
+            window.GM_setValue = function (key, value) {
+                try {
+                    const storageKey = `GM_${key}`;
+                    Logger.debug('GM_setValue fallback executing', {
+                        key: storageKey,
+                        valueType: typeof value
+                    });
+
+                    // Convert non-string values to JSON
+                    const valueToStore = 'string' === typeof value ? value : JSON.stringify(value);
+                    localStorage.setItem(storageKey, valueToStore);
+                    Logger.debug('GM_setValue: Value stored successfully', {key: storageKey});
+                    return true;
+                } catch (e) {
+                    Logger.error(e, 'Error in GM_setValue fallback');
+                    return false;
+                }
+            };
         }
-      }
     }
 
     /**
@@ -4274,6 +4331,306 @@
       }
     }
 
+    /**
+     * MediaUtils - Utility functions for handling media operations
+     * Provides reusable functions for filename generation, media type detection, etc.
+     */
+
+    class MediaUtils {
+        /**
+         * Generate a filename for a media element
+         * @param {Object} options - Configuration options
+         * @param {HTMLMediaElement} [options.element] - Media element to generate filename from
+         * @param {string} [options.url] - URL to derive filename from
+         * @param {string} [options.prefix='media'] - Filename prefix
+         * @param {string} [options.extension] - Force specific extension
+         * @param {string} [options.timestamp=true] - Include timestamp
+         * @param {string} [options.format] - Custom format string
+         * @return {string} The generated filename
+         */
+        static generateFilename(options = {}) {
+            Logger.debug('MediaUtils: Generating filename', options);
+
+            const {
+                element,
+                url = element?.src || '',
+                prefix = this.detectMediaType(element, url),
+                extension,
+                timestamp = true,
+                format
+            } = options;
+
+            // Generate timestamp component if needed
+            const timestampStr = timestamp
+                ? `_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}`
+                : '';
+
+            // Detect extension from element or URL if not specified
+            const fileExtension = extension || this.detectExtension(element, url);
+
+            Logger.debug('MediaUtils: Filename components', {
+                prefix,
+                timestampStr,
+                fileExtension,
+                format: format || 'default'
+            });
+
+            // Format can be a custom string with placeholders: {prefix}, {timestamp}, {extension}
+            if (format) {
+                const filename = format
+                    .replace('{prefix}', prefix)
+                    .replace('{timestamp}', timestampStr)
+                    .replace('{extension}', fileExtension);
+
+                Logger.debug('MediaUtils: Generated filename with custom format', {format, filename});
+                return filename;
+            }
+
+            // Default format
+            const filename = `${prefix}${timestampStr}.${fileExtension}`;
+            Logger.debug('MediaUtils: Generated filename with default format', {filename});
+            return filename;
+        }
+
+        /**
+         * Detect media type (video, audio, image)
+         * @param {HTMLMediaElement} [element] - Media element
+         * @param {string} [url] - URL to analyze
+         * @return {string} Media type prefix
+         */
+        static detectMediaType(element, url = '') {
+            Logger.debug('MediaUtils: Detecting media type', {
+                elementType: element ? element.constructor.name : 'none',
+                url: url.substring(0, 50) + (url.length > 50 ? '...' : '')
+            });
+
+            // Check element type first
+            if (element instanceof HTMLVideoElement) {
+                Logger.debug('MediaUtils: Detected video element');
+                return 'video';
+            }
+            if (element instanceof HTMLAudioElement) {
+                Logger.debug('MediaUtils: Detected audio element');
+                return 'audio';
+            }
+            if (element instanceof HTMLImageElement) {
+                Logger.debug('MediaUtils: Detected image element');
+                return 'image';
+            }
+
+            // Try to detect from URL
+            if (url.match(/\.(mp4|webm|mov|avi|mkv)/i)) {
+                Logger.debug('MediaUtils: Detected video URL pattern');
+                return 'video';
+            }
+            if (url.match(/\.(mp3|wav|ogg|m4a|aac)/i)) {
+                Logger.debug('MediaUtils: Detected audio URL pattern');
+                return 'audio';
+            }
+            if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)/i)) {
+                Logger.debug('MediaUtils: Detected image URL pattern');
+                return 'image';
+            }
+
+            Logger.debug('MediaUtils: Could not determine specific media type, using default');
+            return 'media';
+        }
+
+        /**
+         * Detect appropriate file extension
+         * @param {HTMLMediaElement} [element] - Media element
+         * @param {string} [url] - URL to analyze
+         * @return {string} File extension
+         */
+        static detectExtension(element, url = '') {
+            Logger.debug('MediaUtils: Detecting file extension', {
+                hasElement: !!element,
+                url: url.substring(0, 50) + (url.length > 50 ? '...' : '')
+            });
+
+            // Try to get from MIME type first (more reliable)
+            if (element) {
+                const mimeType = element.getAttribute('type') || '';
+                Logger.debug('MediaUtils: Element MIME type', {mimeType});
+
+                if (mimeType.includes('mp4') || mimeType.includes('mpeg')) {
+                    Logger.debug('MediaUtils: Detected MP4 from MIME type');
+                    return 'mp4';
+                }
+                if (mimeType.includes('webm')) {
+                    Logger.debug('MediaUtils: Detected WebM from MIME type');
+                    return 'webm';
+                }
+                if (mimeType.includes('ogg')) {
+                    Logger.debug('MediaUtils: Detected Ogg from MIME type');
+                    return 'ogg';
+                }
+                // ...add other mime type mappings as needed
+            }
+
+            // Try to extract from URL
+            const extMatch = url.match(/\.([a-z0-9]{2,5})($|\?)/i);
+            if (extMatch && extMatch[1]) {
+                const extension = extMatch[1].toLowerCase();
+                Logger.debug('MediaUtils: Extracted extension from URL', {extension});
+                return extension;
+            }
+
+            // Fallbacks based on element type
+            if (element instanceof HTMLVideoElement) {
+                Logger.debug('MediaUtils: Using default video extension');
+                return 'mp4';
+            }
+            if (element instanceof HTMLAudioElement) {
+                Logger.debug('MediaUtils: Using default audio extension');
+                return 'mp3';
+            }
+            if (element instanceof HTMLImageElement) {
+                Logger.debug('MediaUtils: Using default image extension');
+                return 'jpg';
+            }
+
+            Logger.debug('MediaUtils: Could not determine extension, using default mp4');
+            return 'mp4'; // Default fallback
+        }
+
+        /**
+         * Get a readable file size string
+         * @param {number} bytes - Size in bytes
+         * @param {number} [decimals=2] - Decimal places
+         * @return {string} Formatted size string
+         */
+        static formatFileSize(bytes, decimals = 2) {
+            Logger.debug('MediaUtils: Formatting file size', {bytes, decimals});
+
+            if (0 === bytes) {
+                Logger.debug('MediaUtils: Zero bytes');
+                return '0 Bytes';
+            }
+
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+            const formattedSize = parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+            Logger.debug('MediaUtils: Formatted file size', {formattedSize});
+            return formattedSize;
+        }
+
+        /**
+         * Check if a URL is a valid media URL
+         * @param {string} url - URL to check
+         * @return {boolean} True if URL appears to be valid media
+         */
+        static isValidMediaUrl(url) {
+            if (!url || typeof url !== 'string') {
+                Logger.debug('MediaUtils: Invalid URL (empty or not string)');
+                return false;
+            }
+
+            try {
+                // First check if it's a valid URL
+                new URL(url);
+
+                // Check if it's a blob URL (which is valid for media)
+                if (url.startsWith('blob:')) {
+                    Logger.debug('MediaUtils: Valid blob URL');
+                    return true;
+                }
+
+                // Check if it has a valid media extension
+                const hasMediaExtension = /\.(mp4|webm|mov|avi|mkv|mp3|wav|ogg|m4a|aac|jpg|jpeg|png|gif|webp|svg)($|\?)/i.test(url);
+
+                if (hasMediaExtension) {
+                    Logger.debug('MediaUtils: URL has valid media extension');
+                    return true;
+                }
+
+                // If no extension, check if from a known media domain
+                const mediaHostPatterns = [
+                    /\.cdninstagram\.com$/i,
+                    /\.fbcdn\.net$/i,
+                    /\.ytimg\.com$/i,
+                    /\.twimg\.com$/i,
+                    /\.vimeocdn\.com$/i,
+                    /cloudfront\.net$/i,
+                    /\.githubusercontent\.com$/i
+                ];
+
+                const urlObj = new URL(url);
+                const isKnownMediaDomain = mediaHostPatterns.some(pattern => pattern.test(urlObj.hostname));
+
+                Logger.debug('MediaUtils: URL domain check', {
+                    domain: urlObj.hostname,
+                    isKnownMediaDomain
+                });
+
+                return isKnownMediaDomain;
+            } catch (error) {
+                Logger.error(error, 'MediaUtils: Error validating media URL');
+                return false;
+            }
+        }
+
+        /**
+         * Extract media info from a source
+         * @param {HTMLMediaElement|string} source - Media element or URL
+         * @return {Object} Media information object
+         */
+        static getMediaInfo(source) {
+            Logger.debug('MediaUtils: Getting media info', {
+                sourceType: typeof source,
+                isElement: source instanceof HTMLElement
+            });
+
+            const result = {
+                type: null,
+                extension: null,
+                url: null,
+                width: null,
+                height: null,
+                duration: null,
+                isBlob: false,
+                mimeType: null
+            };
+
+            try {
+                // Handle media element
+                if (source instanceof HTMLMediaElement) {
+                    result.type = this.detectMediaType(source);
+                    result.extension = this.detectExtension(source);
+                    result.url = source.src || null;
+                    result.isBlob = result.url?.startsWith('blob:') || false;
+
+                    if (source instanceof HTMLVideoElement) {
+                        result.width = source.videoWidth || null;
+                        result.height = source.videoHeight || null;
+                        result.duration = isNaN(source.duration) ? null : source.duration;
+                    } else if (source instanceof HTMLImageElement) {
+                        result.width = source.naturalWidth || null;
+                        result.height = source.naturalHeight || null;
+                    }
+
+                    // Try to get MIME type
+                    result.mimeType = source.getAttribute('type') || null;
+                }
+                // Handle URL string
+                else if (typeof source === 'string') {
+                    result.url = source;
+                    result.type = this.detectMediaType(null, source);
+                    result.extension = this.detectExtension(null, source);
+                    result.isBlob = source.startsWith('blob:');
+                }
+
+                Logger.debug('MediaUtils: Media info results', result);
+                return result;
+            } catch (error) {
+                Logger.error(error, 'MediaUtils: Error getting media info');
+                return result;
+            }
+        }
+    }
+
     // Initialize Greasemonkey/Tampermonkey functions safely
 
     const GM = GMFunctions.initialize();
@@ -4290,155 +4647,171 @@
      * until one successfully initiates the download.
      */
     class VideoDownloader {
-      /**
+        /**
          * Downloads a video from a direct URL using GM_download or anchor fallback.
          * @public
+         * @param {string} url - URL to download from
+         * @param {string|HTMLVideoElement} filenameOrVideo - Either a filename string or a video element reference
          */
-      static async downloadFromUrl(url, filename) {
-        PubSub.publish('download:url', {url, filename});
-        Logger.debug('Attempting download via URL', {url: url.substring(0, 100) + '...', filename});
-        try {
-          if (GM?.GM_download && 'function' === typeof GM.GM_download) {
-            Logger.debug('Using GM_download for URL.', {filename});
-            // GM_download is often synchronous or doesn't return a useful promise
-            GM.GM_download({url: url, name: filename, saveAs: true});
-          } else {
-            Logger.debug('Using fallback anchor download for URL.', {filename});
-            this.triggerDownload(url, filename);
-          }
-          PubSub.publish('download:success', {filename, method: GM?.GM_download ? 'GM_download' : 'anchor'});
-          Logger.debug('Download successfully initiated via URL method.', filename);
-        } catch (err) {
-          Logger.error(err, 'downloadFromUrl failed');
-          PubSub.publish('download:error', {filename, url, error: err});
-          throw err; // Propagate error to the calling strategy
-        }
-      }
+        static async downloadFromUrl(url, filenameOrVideo) {
+            // Fix: Ensure filename is a string, not a video element
+            const filename = typeof filenameOrVideo === 'string'
+                ? filenameOrVideo
+                : MediaUtils.generateFilename(filenameOrVideo);
 
-      /**
+            PubSub.publish('download:url', {url, filename});
+            Logger.debug('Attempting download via URL', {url: url.substring(0, 100) + '...', filename});
+
+            try {
+                if (GM?.GM_download && 'function' === typeof GM.GM_download) {
+                    Logger.debug('Using GM_download for URL.', {filename});
+                    // GM_download is often synchronous or doesn't return a useful promise
+                    GM.GM_download({url: url, name: filename, saveAs: true});
+                } else {
+                    Logger.debug('Using fallback anchor download for URL.', {filename});
+                    this.triggerDownload(url, filename);
+                }
+                PubSub.publish('download:success', {filename, method: GM?.GM_download ? 'GM_download' : 'anchor'});
+                Logger.debug('Download successfully initiated via URL method.', filename);
+            } catch (err) {
+                Logger.error(err, 'downloadFromUrl failed');
+                PubSub.publish('download:error', {filename, url, error: err});
+                throw err; // Propagate error to the calling strategy
+            }
+        }
+
+        /**
          * Downloads a video from a Blob object.
          * @private
+         * @param {Blob} blob - The blob to download
+         * @param {string|HTMLVideoElement} filenameOrVideo - Either a filename string or a video element reference
          */
-      static async downloadFromBlob(blob, filename) {
-        PubSub.publish('download:blob', {filename, size: blob.size, type: blob.type});
-        Logger.debug('Attempting download via Blob', {filename, size: blob.size, type: blob.type});
-        let blobUrl = null;
-        try {
-          blobUrl = URL.createObjectURL(blob);
-          Logger.debug('Blob Object URL created.', blobUrl.substring(0, 100) + '...');
-          this.triggerDownload(blobUrl, filename);
-          PubSub.publish('download:success', {filename, method: 'blob'});
-          Logger.debug('Blob download successfully triggered.', filename);
-        } catch (err) {
-          Logger.error(err, 'downloadFromBlob failed');
-          PubSub.publish('download:error', {filename, blobInfo: {size: blob.size, type: blob.type}, error: err});
-          throw err; // Propagate error
-        } finally {
-          if (blobUrl) {
-            setTimeout(() => {
-              URL.revokeObjectURL(blobUrl);
-              Logger.debug('Blob Object URL revoked.');
-            }, 1500);
-          }
-        }
-      }
+        static async downloadFromBlob(blob, filenameOrVideo) {
+            // Fix: Ensure filename is a string, not a video element
+            const filename = typeof filenameOrVideo === 'string'
+                ? filenameOrVideo
+                : MediaUtils.generateFilename(filenameOrVideo);
 
-      /**
+            PubSub.publish('download:blob', {filename, size: blob.size, type: blob.type});
+            Logger.debug('Attempting download via Blob', {filename, size: blob.size, type: blob.type});
+            let blobUrl = null;
+            try {
+                blobUrl = URL.createObjectURL(blob);
+                Logger.debug('Blob Object URL created.', blobUrl.substring(0, 100) + '...');
+                this.triggerDownload(blobUrl, filename);
+                PubSub.publish('download:success', {filename, method: 'blob'});
+                Logger.debug('Blob download successfully triggered.', filename);
+            } catch (err) {
+                Logger.error(err, 'downloadFromBlob failed');
+                PubSub.publish('download:error', {filename, blobInfo: {size: blob.size, type: blob.type}, error: err});
+                throw err; // Propagate error
+            } finally {
+                if (blobUrl) {
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                        Logger.debug('Blob Object URL revoked.');
+                    }, 1500);
+                }
+            }
+        }
+
+        /**
          * Triggers a file download using a temporary anchor element.
          * @private
          */
-      static triggerDownload(url, filename) {
-        Logger.debug('Triggering anchor download.', {url: url.substring(0, 100) + '...', filename});
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        try {
-          a.click();
-          Logger.debug('Anchor element clicked.', filename);
-        } catch (err) {
-          Logger.error(err, 'Failed to click anchor element.');
-          throw err; // Propagate error
-        } finally {
-          document.body.removeChild(a);
+        static triggerDownload(url, filename) {
+            Logger.debug('Triggering anchor download.', {url: url.substring(0, 100) + '...', filename});
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            try {
+                a.click();
+                Logger.debug('Anchor element clicked.', filename);
+            } catch (err) {
+                Logger.error(err, 'Failed to click anchor element.');
+                throw err; // Propagate error
+            } finally {
+                document.body.removeChild(a);
+            }
         }
-      }
 
-      // --- Strategy Execution Logic ---
+        // --- Strategy Execution Logic ---
 
-      /**
+        /**
          * Initiates the video download process by iterating through strategies.
          *
          * @param {HTMLVideoElement} video - The target HTML video element.
          * @param {DownloadOptions} [options={}] - Optional configuration.
          * @return {Promise<void>} Resolves when download is initiated or all strategies fail.
          */
-      static async download(video, options = {}) {
-        if (!(video instanceof HTMLVideoElement)) {
-          Logger.error(new Error('Invalid input: Not an HTMLVideoElement.'), 'VideoDownloader.download');
-          PubSub.publish('download:error', {video, error: 'Invalid input element'});
-          alert('Download failed: Invalid video element provided.');
-          return;
-        }
-
-        PubSub.publish('download:start', {video, options});
-        Logger.debug('Attempting to download video using strategies', {video, options});
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-        const filename = options.filename || `video_${timestamp}.mp4`;
-
-        // Define the order of strategies to try
-        const strategies = [
-          new DirectSrcStrategy(),
-          new SourceTagStrategy(),
-          new DataAttributeStrategy(),
-          new JsonSearchStrategy(),
-          new BlobFetchStrategy(),
-          new MediaRecorderStrategy(), // Last resort
-        ];
-
-        // Prepare helpers object to pass to strategies (could also use dependency injection)
-        const helpers = {
-          downloadFromUrl: this.downloadFromUrl.bind(this),
-          downloadFromBlob: this.downloadFromBlob.bind(this),
-          triggerDownload: this.triggerDownload.bind(this),
-          // Note: MediaRecorderStrategy embeds its own logic but uses downloadFromBlob helper
-        };
-
-        let downloadInitiated = false;
-        for (const strategy of strategies) {
-          // Optional: Quick check if strategy might be applicable
-          if (!strategy.isApplicable(video)) {
-            Logger.debug(`Strategy ${strategy.strategyName} skipped (not applicable).`);
-            continue;
-          }
-
-          try {
-            Logger.debug(`Attempting strategy: ${strategy.strategyName}`);
-            const success = await strategy.attempt(video, filename, helpers);
-
-            if (success) {
-              Logger.debug(`Strategy ${strategy.strategyName} successfully initiated download.`);
-              downloadInitiated = true;
-              break; // Exit loop on first success
-            } else {
-              // Strategy determined it wasn't applicable or couldn't find a source, but didn't error.
-              Logger.debug(`Strategy ${strategy.strategyName} did not initiate download (not applicable or no source found).`);
+        static async download(video, options = {}) {
+            if (!(video instanceof HTMLVideoElement)) {
+                Logger.error(new Error('Invalid input: Not an HTMLVideoElement.'), 'VideoDownloader.download');
+                PubSub.publish('download:error', {video, error: 'Invalid input element'});
+                alert('Download failed: Invalid video element provided.');
+                return;
             }
-          } catch (error) {
-            // Strategy encountered an error during its execution (e.g., fetch failed)
-            Logger.error(error, `Strategy ${strategy.strategyName} failed with error`);
-            // Continue to the next strategy
-          }
-        }
 
-        if (!downloadInitiated) {
-          PubSub.publish('download:failed', {video, filename});
-          Logger.error(new Error('All download strategies failed for this video.'), 'VideoDownloader');
-          alert('Failed to download video using all available methods. You might need to use browser developer tools or specific extensions.');
+            PubSub.publish('download:start', {video, options});
+            Logger.debug('Attempting to download video using strategies', {video, options});
+
+            // Generate a default filename but use custom one if provided
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+            const filename = options.filename || `instagram_video_${timestamp}.mp4`;
+
+            // Define the order of strategies to try
+            const strategies = [
+                new DirectSrcStrategy(),
+                new SourceTagStrategy(),
+                new DataAttributeStrategy(),
+                new JsonSearchStrategy(),
+                new BlobFetchStrategy(),
+                new MediaRecorderStrategy(), // Last resort
+            ];
+
+            // Prepare helpers object to pass to strategies (could also use dependency injection)
+            const helpers = {
+                downloadFromUrl: this.downloadFromUrl.bind(this),
+                downloadFromBlob: this.downloadFromBlob.bind(this),
+                triggerDownload: this.triggerDownload.bind(this),
+                // Note: MediaRecorderStrategy embeds its own logic but uses downloadFromBlob helper
+            };
+
+            let downloadInitiated = false;
+            for (const strategy of strategies) {
+                // Optional: Quick check if strategy might be applicable
+                if (!strategy.isApplicable(video)) {
+                    Logger.debug(`Strategy ${strategy.strategyName} skipped (not applicable).`);
+                    continue;
+                }
+
+                try {
+                    Logger.debug(`Attempting strategy: ${strategy.strategyName}`);
+                    const success = await strategy.attempt(video, filename, helpers);
+
+                    if (success) {
+                        Logger.debug(`Strategy ${strategy.strategyName} successfully initiated download.`);
+                        downloadInitiated = true;
+                        break; // Exit loop on first success
+                    } else {
+                        // Strategy determined it wasn't applicable or couldn't find a source, but didn't error.
+                        Logger.debug(`Strategy ${strategy.strategyName} did not initiate download (not applicable or no source found).`);
+                    }
+                } catch (error) {
+                    // Strategy encountered an error during its execution (e.g., fetch failed)
+                    Logger.error(error, `Strategy ${strategy.strategyName} failed with error`);
+                    // Continue to the next strategy
+                }
+            }
+
+            if (!downloadInitiated) {
+                PubSub.publish('download:failed', {video, filename});
+                Logger.error(new Error('All download strategies failed for this video.'), 'VideoDownloader');
+                alert('Failed to download video using all available methods. You might need to use browser developer tools or specific extensions.');
+            }
         }
-      }
     }
 
     class BaseStrategy {
@@ -4505,10 +4878,9 @@
                 /** Targets list items in a carousel/slideshow */
                 postCarouselItem: 'ul li[style*="translateX"]',
                 /** Targets the container for carousel navigation dots */
-                // NOTE: Instagram classes like _acnb are unstable. This needs verification.
-                postCarouselDotsContainer: 'div._acnb',
+                postCarouselDotsContainer: 'div._acng',
                 /** Targets individual navigation dots within the container */
-                postCarouselDot: 'div[role="button"]', // Assuming dots are divs or buttons
+                postCarouselDot: 'div._acnb', // Assuming dots are divs or buttons
 
                 // Story Specific Selectors
                 /** Targets the image element primarily used in stories */
@@ -4538,7 +4910,7 @@
                 /** Extracts Instagram App ID from scripts */
                 appId: /"X-IG-App-ID":"(\d+)"|appId:"(\d+)"/i,
                 /** Extracts Media ID (long number) from various script/HTML contexts */
-                mediaId: /instagram:\/\/media\?id=(\d+)|["']media_id["']\s*:\s*["'](\d+)["']|["']pk["']\s*:\s*["'](\d+)["']/gi,
+                mediaId: /"media_id"\s*:\s*"(\d+)"/g,
                 /** Extracts Post ID (shortcode) from URL path */
                 postIdPath: /^\/p\/([^/]+)\//,
                 /** Extracts Story ID from URL path */
@@ -4547,7 +4919,7 @@
                 // Looks for a poster filename (group 1), then video_versions, then the url (group 2)
                 videoUrlInHtml: /"([^"]+\.(?:jpg|png|jpeg|webp))".*?"video_versions".*?"url":"([^"]+)"/si,
                 /** Broader RegEx to find video URLs in HTML when the poster name isn't directly adjacent */
-                videoUrlInHtmlBroad: /"video_versions"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+\.(?:mp4|mov)[^"]*)"/si,
+                videoUrlInHtmlBroad: /"video_versions"\s*:\s*\[(.*?)\{[^}]*?"url"\s*:\s*"([^"]+\.(?:mp4|mov)[^"]*)"/i,
                 /** Extracts og:video meta tag content */
                 ogVideoTag: /<meta\s+property="og:video"\s+content="([^"]+)"/i,
                 /** Extracts filename part from common image URLs (used for matching in HTML) */
@@ -4875,20 +5247,33 @@
         }
 
         /**
-         * Finds the active index (0-based) in a carousel post, typically using navigation dots.
+         * Finds the active index (0-based) in a carousel post.
+         * Prioritizes checking the URL's ?img_index= param, falls back to carousel dots.
          * @param {HTMLElement} articleNode - The ARTICLE element.
          * @returns {number|null} The index or null if detection fails.
          */
         findActiveMediaIndex(articleNode) {
             Logger.debug('Finding active media index in carousel...');
-            // Use the static config for selectors
-            const dotsContainer = articleNode.querySelector(InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDotsContainer);
 
+            // --- Step 1: Try to read from ?img_index=N in URL ---
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const imgIndex = parseInt(urlParams.get('img_index'), 10);
+                // Check if it's a valid number AND greater than 0 (URL params are usually 1-based)
+                if (!isNaN(imgIndex) && imgIndex >= 1) {
+                    Logger.debug(`Detected img_index=${imgIndex} from URL. Adjusting to 0-based index.`);
+                    return imgIndex - 1; // Convert to 0-based index
+                }
+            } catch (e) {
+                Logger.warn('Error parsing URL for img_index:', e);
+            }
+
+            // --- Step 2: Fallback to dot-based detection ---
+            const dotsContainer = articleNode.querySelector(InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDotsContainer);
             if (dotsContainer) {
                 const dots = dotsContainer.querySelectorAll(InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDot);
                 if (dots.length > 1) {
                     for (let i = 0; i < dots.length; i++) {
-                        // Checking classList length >= 2 (Fragile)
                         if (dots[i].classList.length >= 2 && dots[i].classList.length !== 1) {
                             Logger.debug(`Active dot found at index ${i} (using class count >= 2)`);
                             return i;
@@ -4905,7 +5290,7 @@
                 Logger.debug('Carousel dots container not found with selector:', InstagramMediaFetcher.CONFIG.SELECTORS.postCarouselDotsContainer);
             }
 
-            Logger.warn('Could not determine active media index using dot indicators. Returning 0 as fallback.');
+            Logger.warn('Could not determine active media index using URL or dot indicators. Returning 0 as fallback.');
             return 0;
         }
 
@@ -4961,7 +5346,9 @@
                 Logger.info(`fetchVideoUrlFromHtml: Fetching post HTML from: ${postUrl}`);
                 const response = await fetch(postUrl, {
                     method: 'GET',
-                    headers: {'User-Agent': navigator.userAgent} // Use standard browser UA
+                    headers: {'User-Agent': navigator.userAgent}, // Use standard browser UA
+                    credentials: 'include',
+                    mode: 'cors'
                 });
 
                 if (!response.ok) {
@@ -5291,7 +5678,6 @@
          * @returns {string|null} The media URL or null if not found.
          */
         extractUrlFromInfoJson(infoJson, mediaIdx = 0) {
-            // ... (Implementation remains the same as previous version) ...
             Logger.debug('Extracting URL from API JSON...', {mediaIdx});
             try {
                 if (!infoJson?.items?.[0]) {
@@ -5551,6 +5937,732 @@
         }
     }
 
+    /**
+     * Debouncer - A utility class for creating debounced and throttled functions
+     *
+     * Provides sophisticated debouncing and throttling with options for immediate/delayed
+     * execution, cancellation, and flushing of pending operations.
+     */
+    class Debouncer {
+      /**
+         * Creates a debounced version of a function that delays invocation until after
+         * a specified wait time has elapsed since the last time the debounced function was called.
+         *
+         * @param {Function} func - The function to debounce.
+         * @param {number} wait - The number of milliseconds to delay.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=false] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new debounced function.
+         */
+      static debounce(func, wait, options = {}) {
+        const {leading = false, trailing = true} = options;
+        let timeout;
+        let lastArgs;
+        let lastThis;
+        let lastCallTime;
+        let result;
+
+        function invokeFunc() {
+          const args = lastArgs;
+          const thisArg = lastThis;
+
+          lastArgs = lastThis = undefined;
+          result = func.apply(thisArg, args);
+          return result;
+        }
+
+        function startTimer(pendingFunc, wait) {
+          return setTimeout(pendingFunc, wait);
+        }
+
+        function cancelTimer(id) {
+          clearTimeout(id);
+        }
+
+        function trailingEdge() {
+          timeout = undefined;
+
+          // Only invoke if we have `lastArgs` which means `func` has been debounced at least once
+          if (trailing && lastArgs) {
+            return invokeFunc();
+          }
+
+          lastArgs = lastThis = undefined;
+          return result;
+        }
+
+        function leadingEdge() {
+          // Reset any `maxWait` timer
+          timeout = startTimer(trailingEdge, wait);
+
+          // Invoke the leading edge
+          return leading ? invokeFunc() : result;
+        }
+
+        function cancel() {
+          if (timeout !== undefined) {
+            cancelTimer(timeout);
+          }
+          lastArgs = lastThis = lastCallTime = undefined;
+          timeout = undefined;
+        }
+
+        function flush() {
+          return timeout === undefined ? result : trailingEdge();
+        }
+
+        function debounced(...args) {
+          const time = Date.now();
+          const isInvoking = shouldInvoke(time);
+
+          lastArgs = args;
+          lastThis = this;
+          lastCallTime = time;
+
+          if (isInvoking) {
+            if (timeout === undefined) {
+              return leadingEdge();
+            }
+            if (isInvoking) {
+              // Handle invocations in a tight loop
+              timeout = startTimer(trailingEdge, wait);
+              return invokeFunc();
+            }
+          }
+          if (timeout === undefined) {
+            timeout = startTimer(trailingEdge, wait);
+          }
+          return result;
+        }
+
+        function shouldInvoke(time) {
+          const timeSinceLastCall = time - (lastCallTime || 0);
+
+          // Either this is the first call, activity has stopped and we're at the
+          // trailing edge, the system time has gone backwards and we're treating
+          // it as the trailing edge, or we've hit the `maxWait` limit
+          return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
+                    (0 > timeSinceLastCall));
+        }
+
+        debounced.cancel = cancel;
+        debounced.flush = flush;
+        return debounced;
+      }
+
+      /**
+         * Creates a throttled function that only invokes func at most once per
+         * every wait milliseconds.
+         *
+         * @param {Function} func - The function to throttle.
+         * @param {number} wait - The number of milliseconds to throttle invocations to.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=true] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new throttled function.
+         */
+      static throttle(func, wait, options = {}) {
+        return this.debounce(func, wait, {
+          leading: false !== options.leading,
+          trailing: false !== options.trailing,
+        });
+      }
+    }
+
+    /**
+     * HoverAction - A utility class for triggering actions on hover, focus, or touch
+     *
+     * Implements the "preloading" pattern where operations start before the final click,
+     * improving perceived performance. Includes debouncing, cancellation, caching, and more.
+     * Prevents multiple initializations on the same element.
+     */
+
+    // Helper class for Cache Entries (implementation assumed)
+    class CacheEntry {
+        constructor(data, ttl) {
+            this.data = data;
+            this.expires = Date.now() + ttl;
+            this.ttl = ttl;
+        }
+
+        isExpired() {
+            return Date.now() > this.expires;
+        }
+    }
+
+
+    class HoverAction {
+        // --- Static property for the initialization marker ---
+        static HOVER_ACTION_INITIALIZED_ATTR = 'data-hoveraction-initialized';
+
+        /**
+         * Create a new HoverAction instance
+         * @param {Object} options - Configuration options
+         * @param {HTMLElement} options.element - Target element to watch for hover/click/focus
+         * @param {Function} options.action - Action to perform (should return a Promise)
+         * @param {Function} [options.onResult] - Callback when action completes (receives action result)
+         * @param {Function} [options.onClick] - Optional callback for click event (receives action result if available)
+         * @param {Function} [options.onProgress] - Optional callback for progress updates (receives progress data)
+         * @param {string} [options.loadingClass] - Class to add during loading
+         * @param {boolean} [options.executeOnlyOnce=false] - Whether the action should execute only once per instance lifetime (unless reset)
+         * @param {'delay'|'debounce'} [options.triggerMode='delay'] - How hover/focus triggers the action ('delay' = setTimeout, 'debounce' = use Debouncer)
+         * @param {number} [options.hoverDelay=150] - Delay before triggering action on hover (ms) - used for both modes
+         * @param {number} [options.hoverCancelDelay=100] - (Currently less relevant with Debouncer/Abort) How quickly to cancel pending hover action if mouse leaves (ms)
+         * @param {boolean} [options.supportFocus=true] - Enable triggering action on keyboard focus
+         * @param {number} [options.focusDelay=150] - Delay before triggering action on focus (ms) - used for both modes
+         * @param {boolean} [options.supportTouch=true] - Enable triggering action on touch devices
+         * @param {number} [options.touchDelay=300] - Delay before triggering action on touch (ms)
+         * @param {number} [options.touchMoveThreshold=10] - Pixels finger can move before cancelling touch action
+         * @param {boolean} [options.abortOnLeave=true] - Whether to abort in-flight requests when mouse leaves
+         * @param {boolean} [options.abortOnBlur=true] - Whether to abort in-flight requests when element loses focus
+         * @param {number|null} [options.cacheTTL=null] - Time-to-live for cached results (ms, null = no expiration)
+         * @param {string} [options.eventNamePrefix='hoveraction'] - Prefix for dispatched CustomEvents
+         */
+        constructor(options) {
+            // --- Assign properties early for use in _init ---
+            this.element = options.element;
+            this.eventNamePrefix = options.eventNamePrefix || 'hoveraction';
+
+            // --- Prevent multiple initializations ---
+            if (!this.element || this.element.hasAttribute(HoverAction.HOVER_ACTION_INITIALIZED_ATTR)) {
+                if (this.element) {
+                    Logger.warn(`[${this.eventNamePrefix}]`, 'HoverAction already initialized on this element. Skipping initialization.', this.element);
+                } else {
+                    Logger.error(`[${this.eventNamePrefix}]`, 'No target element provided during construction.');
+                }
+                // Set a flag or return early to prevent further setup on this invalid instance
+                this.isInitialized = false;
+                return; // Prevent rest of constructor if already initialized or no element
+            }
+            this.isInitialized = true; // Flag to indicate successful initialization start
+
+
+            // Required options
+            this.action = options.action;
+
+            // Optional settings with defaults
+            this.onResult = options.onResult || null;
+            this.onClick = options.onClick || null;
+            this.onProgress = options.onProgress || null;
+            this.loadingClass = options.loadingClass || null;
+            this.executeOnlyOnce = options.executeOnlyOnce || false;
+            this.triggerMode = options.triggerMode || 'delay';
+            this.hoverDelay = options.hoverDelay !== undefined ? options.hoverDelay : 150;
+            this.hoverCancelDelay = options.hoverCancelDelay !== undefined ? options.hoverCancelDelay : 100;
+            this.supportFocus = options.supportFocus !== undefined ? options.supportFocus : true;
+            this.focusDelay = options.focusDelay !== undefined ? options.focusDelay : this.hoverDelay;
+            this.supportTouch = options.supportTouch !== undefined ? options.supportTouch : true;
+            this.touchDelay = options.touchDelay !== undefined ? options.touchDelay : 300;
+            this.touchMoveThreshold = options.touchMoveThreshold !== undefined ? options.touchMoveThreshold : 10;
+            this.abortOnLeave = options.abortOnLeave !== undefined ? options.abortOnLeave : true;
+            this.abortOnBlur = options.abortOnBlur !== undefined ? options.abortOnBlur : this.abortOnLeave;
+            this.cacheTTL = options.cacheTTL !== undefined ? options.cacheTTL : null;
+
+            // State tracking
+            this.hoverTimer = null;
+            this.focusTimer = null;
+            this.touchTimer = null;
+            this.touchStartX = null;
+            this.touchStartY = null;
+
+            this.actionPromise = null;
+            this.actionResult = null;
+            this.actionExecuted = false;
+            this.isLoading = false;
+            this.abortController = null;
+            this.cacheEntry = null;
+            this.isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+            // Debounced function instance (if needed)
+            this.debouncedExecuteAction = null;
+
+            // Bind handlers to preserve "this" context
+            this._handleMouseEnter = this._handleMouseEnter.bind(this);
+            this._handleMouseLeave = this._handleMouseLeave.bind(this);
+            this._handleFocus = this._handleFocus.bind(this);
+            this._handleBlur = this._handleBlur.bind(this);
+            this._handleClick = this._handleClick.bind(this);
+            this._handleTouchStart = this._handleTouchStart.bind(this);
+            this._handleTouchEnd = this._handleTouchEnd.bind(this);
+            this._handleTouchMove = this._handleTouchMove.bind(this);
+
+            // Initialize
+            this._init();
+        }
+
+        // --- Public Methods ---
+
+        execute() {
+            if (!this.isInitialized) return Promise.reject(new Error('HoverAction not initialized on this element.'));
+            return this._executeAction();
+        }
+
+        reset(clearCache = true) {
+            if (!this.isInitialized) return; // Don't operate on uninitialized instance
+
+            this.actionExecuted = false;
+            if (clearCache) {
+                this.actionResult = null;
+                this.cacheEntry = null;
+                Logger.debug(`[${this.eventNamePrefix}]`, 'Cache cleared on reset');
+            }
+            this.actionPromise = null;
+
+            // --- Abort existing action on reset ---
+            this._abortAction('reset'); // Call the abort helper
+
+            this._setLoading(false);
+            this._clearTimers();
+
+            Logger.debug(`[${this.eventNamePrefix}]`, 'State reset', clearCache ? 'with cache cleared' : ', cache preserved');
+        }
+
+        destroy() {
+            if (!this.isInitialized) return; // Don't operate on uninitialized instance
+
+            // --- Abort any in-flight action before removing listeners ---
+            this._abortAction('destroy');
+
+            // --- Remove Listeners ---
+            if (this.element) {
+                this.element.removeEventListener('mouseenter', this._handleMouseEnter);
+                this.element.removeEventListener('mouseleave', this._handleMouseLeave);
+                this.element.removeEventListener('click', this._handleClick);
+                if (this.supportFocus) {
+                    this.element.removeEventListener('focus', this._handleFocus);
+                    this.element.removeEventListener('blur', this._handleBlur);
+                }
+                if (this.supportTouch && this.isTouchDevice) {
+                    this.element.removeEventListener('touchstart', this._handleTouchStart);
+                    this.element.removeEventListener('touchend', this._handleTouchEnd);
+                    this.element.removeEventListener('touchcancel', this._handleTouchEnd);
+                    this.element.removeEventListener('touchmove', this._handleTouchMove);
+                }
+                // --- Remove initialization marker ---
+                this.element.removeAttribute(HoverAction.HOVER_ACTION_INITIALIZED_ATTR);
+            }
+
+            // --- Cleanup ---
+            this._clearTimers();
+            if (this.debouncedExecuteAction?.cancel) {
+                this.debouncedExecuteAction.cancel();
+            }
+            if (this.loadingClass && this.element) {
+                this.element.classList.remove(this.loadingClass);
+            }
+            this.actionPromise = null;
+            this.actionResult = null;
+            this.cacheEntry = null;
+            this.isInitialized = false; // Mark as destroyed/uninitialized
+
+            Logger.debug(`[${this.eventNamePrefix}]`, 'Destroyed');
+        }
+
+        // --- Initialization ---
+
+        _init() {
+            // Double check initialization status (already checked in constructor)
+            if (!this.isInitialized) return;
+
+            // Check for valid action function
+            if (!this.action || typeof this.action !== 'function') {
+                Logger.error(`[${this.eventNamePrefix}]`, 'No valid action function provided');
+                this.isInitialized = false; // Mark as failed initialization
+                return;
+            }
+
+            // --- Mark element as initialized ---
+            this.element.setAttribute(HoverAction.HOVER_ACTION_INITIALIZED_ATTR, 'true');
+
+            // Set up debouncer if needed
+            if (this.triggerMode === 'debounce') {
+                const delay = this.supportFocus ? Math.max(this.hoverDelay, this.focusDelay) : this.hoverDelay;
+                this.debouncedExecuteAction = Debouncer.debounce(
+                    this._executeAction.bind(this),
+                    delay,
+                    {trailing: true, leading: false}
+                );
+                Logger.debug(`[${this.eventNamePrefix}]`, `Debounce mode enabled with delay ${delay}ms`);
+            }
+
+            // Add event listeners
+            this.element.addEventListener('mouseenter', this._handleMouseEnter);
+            this.element.addEventListener('mouseleave', this._handleMouseLeave);
+            this.element.addEventListener('click', this._handleClick);
+
+            if (this.supportFocus) {
+                this.element.addEventListener('focus', this._handleFocus);
+                this.element.addEventListener('blur', this._handleBlur);
+                Logger.debug(`[${this.eventNamePrefix}]`, 'Focus support enabled');
+            }
+
+            if (this.supportTouch && this.isTouchDevice) {
+                this.element.addEventListener('touchstart', this._handleTouchStart, {passive: true});
+                this.element.addEventListener('touchend', this._handleTouchEnd);
+                this.element.removeEventListener('touchcancel', this._handleTouchEnd); // Typo fixed: removeEventListener -> addEventListener
+                this.element.addEventListener('touchcancel', this._handleTouchEnd);
+                this.element.addEventListener('touchmove', this._handleTouchMove, {passive: true});
+                Logger.debug(`[${this.eventNamePrefix}]`, 'Touch support enabled');
+            }
+
+            Logger.debug(`[${this.eventNamePrefix}]`, 'Initialized for element', this.element);
+        }
+
+        _handleMouseEnter(e) {
+            if (!this.isInitialized) return;
+            this._initiateActionTrigger('hover');
+        }
+
+        _handleMouseLeave(e) {
+            if (!this.isInitialized) return;
+            this._cancelActionTrigger('hover');
+            if (this.abortOnLeave) {
+                this._abortAction('mouseleave');
+            }
+        }
+
+        _handleFocus(e) {
+            if (!this.isInitialized) return;
+            this._initiateActionTrigger('focus');
+        }
+
+        _handleBlur(e) {
+            if (!this.isInitialized) return;
+            this._cancelActionTrigger('focus');
+            if (this.abortOnBlur) {
+                this._abortAction('blur');
+            }
+        }
+
+        _handleClick(e) {
+            if (!this.isInitialized) return;
+            Logger.debug(`[${this.eventNamePrefix}]`, 'Click detected');
+            this._clearTimers(); // Clear any pending timed triggers
+
+            // If debouncing, flush any pending call immediately
+            if (this.triggerMode === 'debounce' && this.debouncedExecuteAction?.flush) {
+                Logger.debug(`[${this.eventNamePrefix}]`, 'Flushing debounced action for click');
+                this.debouncedExecuteAction.flush();
+            }
+
+            if (this.actionPromise && !this.actionExecuted) {
+                Logger.debug(`[${this.eventNamePrefix}]`, 'Action in progress, waiting for completion before handling click');
+                this.actionPromise
+                    .then((result) => this._handleClickWithResult(result, e))
+                    .catch((error) => {
+                        if (error && error.name !== 'AbortError') {
+                            Logger.error(`[${this.eventNamePrefix}]`, 'Error in pending action during click:', error);
+                        }
+                        this._handleClickWithResult(null, e);
+                    });
+            } else if (this.actionExecuted) { // Check cache validity inside this block
+                let useCached = false;
+                let cachedResult = null;
+                if (this.cacheEntry && !this.cacheEntry.isExpired()) {
+                    useCached = true;
+                    cachedResult = this.cacheEntry.data;
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'Using TTL-valid cached result for click');
+                } else if (!this.cacheEntry && this.actionResult !== undefined) { // No TTL, but result exists
+                    useCached = true;
+                    cachedResult = this.actionResult;
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'Using non-TTL cached result for click');
+                }
+
+                if (useCached) {
+                    this._handleClickWithResult(cachedResult, e);
+                } else {
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'No valid cached result, executing action now for click');
+                    this._executeAction()
+                        .then((result) => this._handleClickWithResult(result, e))
+                        .catch((error) => {
+                            Logger.error(`[${this.eventNamePrefix}]`, 'Error executing action on click:', error);
+                            this._handleClickWithResult(null, e);
+                        });
+                }
+            } else {
+                // No action started or cached, start it now
+                Logger.debug(`[${this.eventNamePrefix}]`, 'No action started, executing now for click');
+                this._executeAction()
+                    .then((result) => this._handleClickWithResult(result, e))
+                    .catch((error) => {
+                        Logger.error(`[${this.eventNamePrefix}]`, 'Error executing action on click:', error);
+                        this._handleClickWithResult(null, e);
+                    });
+            }
+        }
+
+        _handleTouchStart(e) {
+            if (!this.isInitialized) return;
+            this._clearTimers('touch');
+            if (e.touches.length > 0) {
+                this.touchStartX = e.touches[0].clientX;
+                this.touchStartY = e.touches[0].clientY;
+            } else {
+                this.touchStartX = null;
+                this.touchStartY = null;
+            }
+            if (this._shouldExecute()) {
+                this.touchTimer = setTimeout(() => {
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'Touch delay finished, executing action');
+                    this._executeAction();
+                }, this.touchDelay);
+                Logger.debug(`[${this.eventNamePrefix}]`, 'Touch started, scheduled action in', this.touchDelay, 'ms');
+            }
+        }
+
+        _handleTouchEnd(e) {
+            if (!this.isInitialized) return;
+            this._clearTimers('touch');
+            this.touchStartX = null;
+            this.touchStartY = null;
+            Logger.debug(`[${this.eventNamePrefix}]`, 'Touch ended/cancelled');
+        }
+
+        _handleTouchMove(e) {
+            if (!this.isInitialized) return;
+            if (this.touchTimer && this.touchStartX !== null && this.touchStartY !== null && e.touches.length > 0) {
+                const currentX = e.touches[0].clientX;
+                const currentY = e.touches[0].clientY;
+                const deltaX = currentX - this.touchStartX;
+                const deltaY = currentY - this.touchStartY;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > this.touchMoveThreshold) {
+                    this._clearTimers('touch');
+                    this.touchStartX = null;
+                    this.touchStartY = null;
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'Touch moved beyond threshold, cancelled pending action');
+                }
+            }
+        }
+
+
+        _initiateActionTrigger(type = 'hover') { // type: 'hover' | 'focus'
+            const delay = type === 'focus' ? this.focusDelay : this.hoverDelay;
+            const timerProp = type === 'focus' ? 'focusTimer' : 'hoverTimer';
+
+            this._clearTimers(timerProp); // Clear specific timer
+
+            if (!this._shouldExecute()) return;
+
+            if (this.triggerMode === 'debounce') {
+                Logger.debug(`[${this.eventNamePrefix}]`, `${type} detected, triggering debounced action (delay: ${delay}ms)`);
+                this.debouncedExecuteAction();
+            } else { // 'delay' mode
+                this[timerProp] = setTimeout(() => {
+                    Logger.debug(`[${this.eventNamePrefix}]`, `${type} delay finished, executing action`);
+                    // Ensure we clear the timer ref *before* executing
+                    this[timerProp] = null;
+                    this._executeAction();
+                }, delay);
+                Logger.debug(`[${this.eventNamePrefix}]`, `${type} detected, scheduled action in ${delay}ms`);
+            }
+        }
+
+        _cancelActionTrigger(type = 'hover') { // type: 'hover' | 'focus'
+            const timerProp = type === 'focus' ? 'focusTimer' : 'hoverTimer';
+
+            if (this.triggerMode === 'debounce') {
+                if (this.debouncedExecuteAction?.cancel) {
+                    this.debouncedExecuteAction.cancel();
+                    Logger.debug(`[${this.eventNamePrefix}]`, `${type} ended, cancelled pending debounced action`);
+                }
+            } else { // 'delay' mode
+                this._clearTimers(timerProp); // Clear specific timer
+            }
+        }
+
+        _clearTimers(timerType = null) {
+            let cleared = false;
+            if ((timerType === 'hover' || timerType === null) && this.hoverTimer) {
+                clearTimeout(this.hoverTimer);
+                this.hoverTimer = null;
+                cleared = true;
+            }
+            if ((timerType === 'focus' || timerType === null) && this.focusTimer) {
+                clearTimeout(this.focusTimer);
+                this.focusTimer = null;
+                cleared = true;
+            }
+            if ((timerType === 'touch' || timerType === null) && this.touchTimer) {
+                clearTimeout(this.touchTimer);
+                this.touchTimer = null;
+                cleared = true;
+            }
+            if (cleared) Logger.debug(`[${this.eventNamePrefix}]`, `Cleared timers for type: ${timerType || 'all'}`);
+        }
+
+        _shouldExecute() {
+            // Added check for initialization status
+            if (!this.isInitialized) return false;
+
+            if (this.executeOnlyOnce && this.actionExecuted) {
+                if (this.cacheEntry && !this.cacheEntry.isExpired()) {
+                    Logger.debug(`[${this.eventNamePrefix}]`, '_shouldExecute: false (executed once, cache valid)');
+                    return false;
+                } else if (this.cacheEntry && this.cacheEntry.isExpired()) {
+                    Logger.debug(`[${this.eventNamePrefix}]`, '_shouldExecute: true (executed once, cache expired)');
+                    return true;
+                } else if (!this.cacheEntry && this.actionResult !== undefined) {
+                    Logger.debug(`[${this.eventNamePrefix}]`, '_shouldExecute: false (executed once, no TTL cache)');
+                    return false;
+                }
+            }
+            if (this.isLoading) Logger.debug(`[${this.eventNamePrefix}]`, '_shouldExecute: called while loading=true');
+            return true;
+        }
+
+        /** Aborts the current action if conditions met */
+        _abortAction(reason = 'unknown') {
+            if (this.abortController && !this.actionExecuted && this.isLoading) {
+                Logger.debug(`[${this.eventNamePrefix}]`, `Aborting action due to ${reason}`);
+                this.abortController.abort(reason);
+                this._setLoading(false); // Ensure loading state is reset
+            }
+        }
+
+        _executeAction() {
+            // Added check for initialization status
+            if (!this.isInitialized) return Promise.reject(new Error('HoverAction not initialized'));
+
+            if (this.isLoading) {
+                Logger.debug(`[${this.eventNamePrefix}]`, 'ExecuteAction: Action execution attempt while already loading, ignoring.');
+                return this.actionPromise || Promise.reject(new Error('Action already in progress'));
+            }
+
+            if (this.executeOnlyOnce && this.actionExecuted) {
+                if (this.cacheEntry && !this.cacheEntry.isExpired()) {
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'ExecuteAction: Using cached result (TTL valid)');
+                    return Promise.resolve(this.cacheEntry.data);
+                } else if (!this.cacheEntry && this.actionResult !== undefined) { // Check for undefined specifically
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'ExecuteAction: Using cached result (no TTL)');
+                    return Promise.resolve(this.actionResult);
+                }
+                if (this.cacheEntry && this.cacheEntry.isExpired()) {
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'ExecuteAction: Cache expired, proceeding.');
+                }
+            }
+
+            this._setLoading(true);
+            this.abortController = new AbortController(); // Always create a fresh one
+
+            this._dispatchEvent('start');
+            Logger.debug(`[${this.eventNamePrefix}]`, 'Executing action...');
+
+            try {
+                const actionOptions = {signal: this.abortController.signal};
+                const reportProgress = (progress) => {
+                    // Check if this action is still current (not aborted) before reporting
+                    if (!this.abortController?.signal.aborted) {
+                        if (this.onProgress && typeof this.onProgress === 'function') {
+                            try {
+                                this.onProgress(progress);
+                            } catch (e) {
+                                Logger.error(`[${this.eventNamePrefix}]`, 'Error in onProgress callback:', e);
+                            }
+                        }
+                        this._dispatchEvent('progress', {progress});
+                    }
+                };
+
+                const actionResultPromise = Promise.resolve(this.action(actionOptions, reportProgress));
+                this.actionPromise = actionResultPromise;
+
+                return actionResultPromise.then((result) => {
+                    // Explicitly check the signal *associated with this promise* upon resolution
+                    if (actionOptions.signal.aborted) {
+                        Logger.debug(`[${this.eventNamePrefix}]`, 'Action completed but was aborted, ignoring result.');
+                        // AbortError will be caught by the .catch block below
+                        throw new DOMException(actionOptions.signal.reason || 'Aborted', 'AbortError');
+                    }
+
+                    Logger.debug(`[${this.eventNamePrefix}]`, 'Action completed successfully.');
+                    this.actionResult = result;
+                    this.actionExecuted = true;
+                    if (this.cacheTTL !== null) {
+                        this.cacheEntry = new CacheEntry(result, this.cacheTTL);
+                        Logger.debug(`[${this.eventNamePrefix}]`, 'Result cached with TTL:', this.cacheTTL);
+                    }
+                    // Clear the controller *only* on successful, non-aborted completion
+                    this.abortController = null;
+                    this._setLoading(false);
+
+                    if (this.onResult && typeof this.onResult === 'function') {
+                        try {
+                            this.onResult(result);
+                        } catch (e) {
+                            Logger.error(`[${this.eventNamePrefix}]`, 'Error in onResult callback:', e);
+                        }
+                    }
+                    this._dispatchEvent('complete', {result});
+                    return result;
+                })
+                    .catch((error) => {
+                        if (error && error.name === 'AbortError') {
+                            Logger.debug(`[${this.eventNamePrefix}]`, 'Action aborted cleanly.');
+                            this._setLoading(false); // Ensure loading is off
+                            this.abortController = null; // Clean controller ref
+                            this._dispatchEvent('abort', {reason: error.message || 'aborted'});
+                        } else {
+                            Logger.error(`[${this.eventNamePrefix}]`, 'Action failed:', error);
+                            this._setLoading(false); // Ensure loading is off
+                            this.abortController = null; // Clean controller ref
+                            this._dispatchEvent('error', {error});
+                        }
+                        this.actionPromise = null;
+                        throw error;
+                    });
+            } catch (error) {
+                Logger.error(`[${this.eventNamePrefix}]`, 'Error initiating action:', error);
+                this._setLoading(false); // Ensure loading is off
+                this.abortController = null; // Clean controller ref
+                this._dispatchEvent('error', {error});
+                this.actionPromise = null;
+                return Promise.reject(error);
+            }
+        }
+
+        // --- UI & State Helpers (No changes needed below for these specific requests) ---
+        _setLoading(isLoading) {
+            if (this.isLoading === isLoading) return;
+            this.isLoading = isLoading;
+            if (this.loadingClass) {
+                this.element.classList.toggle(this.loadingClass, isLoading);
+            }
+            this.element.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+            Logger.debug(`[${this.eventNamePrefix}]`, 'Loading state set to:', isLoading);
+        }
+
+        _handleClickWithResult(result, originalEvent) {
+            if (this.onClick && typeof this.onClick === 'function') {
+                try {
+                    this.onClick(result, originalEvent);
+                } catch (error) {
+                    Logger.error(`[${this.eventNamePrefix}]`, 'Error in onClick callback:', error);
+                }
+            }
+            this._dispatchEvent('click', {result, event: originalEvent});
+        }
+
+        _dispatchEvent(eventName, detail = {}) {
+            if (!this.element) return; // Don't dispatch if element is gone
+            const event = new CustomEvent(`${this.eventNamePrefix}:${eventName}`, {
+                detail: {
+                    ...detail,
+                    sourceElement: this.element,
+                },
+                bubbles: true,
+                cancelable: true
+            });
+            try { // Add try-catch around dispatchEvent for robustness
+                this.element.dispatchEvent(event);
+            } catch (dispatchError) {
+                Logger.error(`[${this.eventNamePrefix}]`, `Error dispatching event ${eventName}:`, dispatchError);
+            }
+        }
+
+    } // End of HoverAction class
+
     // Import core components
 
     // Initialize GM functions fallbacks
@@ -5585,7 +6697,8 @@
             LOOP_BUTTON: 'igvc-loop-btn',
             STATS_BUTTON: 'igvc-stats-btn',
             SPEED_ACTIVE: 'igvc-speed-active',
-            LOOP_ACTIVE: 'igvc-loop-active'
+            LOOP_ACTIVE: 'igvc-loop-active',
+            DOWNLOAD_BUTTON_LOADING: 'igvc-download-btn--loading',
         };
 
         static SETTINGS_KEYS = {
@@ -5934,7 +7047,18 @@
             display: none;
             bottom: 50px;
             transform: translateX(-50%);
-        }`
+        }
+        
+        .${InstagramVideoController.CLASSES.DOWNLOAD_BUTTON}--loading {
+            animation: igvc-pulse 1.5s infinite;
+        }
+        
+        @keyframes igvc-pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+        `
                 , 'instagram-video-controls-styles');
 
             Logger.debug("Custom styles applied");
@@ -6411,14 +7535,41 @@
                     downloadButton.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
                     downloadButton.title = 'Download Video';
                     downloadButton.className = InstagramVideoController.CLASSES.DOWNLOAD_BUTTON;
-                    downloadButton.addEventListener('click', async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        await this.downloadVideo(video);
+                    new HoverAction({
+                        element: downloadButton,
+                        action: async (options, reportProgress) => {
+                            // The action to perform on hover (preload download info)
+                            try {
+                                const mediaInfo = await this.mediaFetcher.getMediaInfo(video, options);
+                                return mediaInfo;
+                            } catch (error) {
+                                Logger.error("Error preloading media info on hover:", error);
+                                throw error;
+                            }
+                        },
+                        onClick: async (mediaInfo, e) => {
+                            // Handle the click with the preloaded mediaInfo if available
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            await this.downloadVideo(video, mediaInfo);
+                        },
+                        onResult: (mediaInfo) => {
+                            // Callback when the action completes successfully
+                            if (mediaInfo && mediaInfo.url) {
+                                Logger.debug(`Media info preloaded successfully. URL length: ${mediaInfo.url.length}`);
+                            }
+                        },
+                        loadingClass: InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING,
+                        hoverDelay: 200,          // Start preloading after 200ms hover
+                        abortOnLeave: true,       // Abort preloading if mouse leaves
+                        cacheTTL: 60000,          // Cache result for 1 minute (Instagram might update stories frequently)
+                        eventNamePrefix: 'igvc-download'
                     });
                     controlBar.appendChild(downloadButton);
                     activeControls.push('download');
                 }
+
 
                 // Speed control button
                 if (this.settings.SHOW_SPEED) {
@@ -6644,7 +7795,7 @@
             this.removeKeyboardShortcuts();
 
             // Create keyboard handler
-            this.keyboardHandler = (e) => {
+            this.keyboardHandler = async (e) => {
                 // Don't process shortcuts when typing in an input
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
                     return;
@@ -6732,7 +7883,7 @@
                     case 'd': // D - download
                     case 'D':
                         e.preventDefault();
-                        this.downloadVideo(targetVideo);
+                        await this.downloadVideo(targetVideo);
                         break;
 
                     case 's': // S - speed toggle
@@ -6784,34 +7935,46 @@
         /**
          * Download the video
          * @param {HTMLVideoElement} video - The video element to download
+         * @param preloadedMediaInfo
          */
-        async downloadVideo(video) {
+        async downloadVideo(video, preloadedMediaInfo = null) {
             // Check if download button should be shown/active based on settings
             if (!this.settings.SHOW_DOWNLOAD) {
                 Logger.warn("Download action triggered, but download button is disabled in settings.");
                 return; // Don't proceed if the feature is turned off
             }
 
+            // Find the download button if it exists d
             const downloadButton = video.parentElement?.querySelector(`.${InstagramVideoController.CLASSES.DOWNLOAD_BUTTON}`);
-            if (downloadButton) downloadButton.disabled = true; // Disable button during fetch
 
-            Notification.info('Fetching download link...', {duration: 2000});
-            Logger.debug("Attempting download via InstagramMediaFetcher for video:", video);
+            // Apply loading state if button exists and doesn't already have the loading class
+            if (downloadButton && !downloadButton.classList.contains(InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING)) {
+                downloadButton.classList.add(InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING);
+            }
 
             try {
-                // Use the shared mediaFetcher instance (API is always enabled now)
-                const mediaInfo = await this.mediaFetcher.getMediaInfo(video);
+                // If we have preloaded media info, use it; otherwise fetch it
+                let mediaInfo = preloadedMediaInfo;
+
+                if (!mediaInfo) {
+                    // Only show notification if we need to fetch the media info
+                    Notification.info('Fetching download link...', {duration: 2000});
+                    Logger.debug("Attempting download via InstagramMediaFetcher for video:", video);
+
+                    // Use the shared mediaFetcher instance (API is always enabled now)
+                    mediaInfo = await this.mediaFetcher.getMediaInfo(video);
+                }
 
                 if (mediaInfo && mediaInfo.url) {
-                    Logger.info(`Fetcher successful! URL: ${mediaInfo.url.substring(0, 100)}... (Type: ${mediaInfo.type}, Index: ${mediaInfo.mediaIndex})`);
+                    Logger.info(`Using ${preloadedMediaInfo ? 'preloaded' : 'fetched'} URL: ${mediaInfo.url.substring(0, 100)}... (Type: ${mediaInfo.type}, Index: ${mediaInfo.mediaIndex})`);
                     Notification.success(`Found ${mediaInfo.type} URL. Starting download...`, {duration: 2500});
 
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-                    // Attempt a slightly better filename using media type and maybe index if available
-                    const fileExtension = mediaInfo.type === 'video' ? 'mp4' : 'jpg'; // Basic guess
+                    const fileExtension = mediaInfo.type === 'video' ? 'mp4' : 'jpg';
                     const filename = `instagram_${mediaInfo.type}_${mediaInfo.mediaIndex ?? 0}_${timestamp}.${fileExtension}`;
-                    // Use VideoDownloader (or your preferred download method) with the fetched URL
-                    await VideoDownloader.downloadFromUrl(mediaInfo.url, video); // Pass video for potential filename context
+
+                    // Use VideoDownloader with the fetched URL
+                    await VideoDownloader.downloadFromUrl(mediaInfo.url, video);
                 } else {
                     Logger.error('InstagramMediaFetcher failed to retrieve a media URL.');
                     Notification.error('Could not automatically find the download link. Try right-clicking the video.', {duration: 5000});
@@ -6820,10 +7983,12 @@
                 Logger.error(error, "Error during InstagramMediaFetcher download process");
                 Notification.error(`Download failed: ${error.message}`, {duration: 5000});
             } finally {
-                if (downloadButton) downloadButton.disabled = false; // Re-enable button
+                // Remove loading state from button
+                if (downloadButton) {
+                    downloadButton.classList.remove(InstagramVideoController.CLASSES.DOWNLOAD_BUTTON_LOADING);
+                }
             }
         }
-
 
         async recordAndDownload(video) {
             try {
