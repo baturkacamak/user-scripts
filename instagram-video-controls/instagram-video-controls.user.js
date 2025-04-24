@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        instagram-video-controls
+// @name        Instagram Native Video Controls
 // @description Adds native HTML5 video controls to Instagram videos with enhanced features like download, speed control, and more
 // @namespace   https://github.com/baturkacamak/userscripts
 // @version     1.0.0
@@ -5504,7 +5504,7 @@
                     Logger.info('API Strategy: Found media info in cache.');
                     const url = this.extractUrlFromInfoJson(this.infoCache[mediaId], mediaIdx);
                     if (url) {
-                        const type = this.guessMediaTypeFromUrl(url);
+                        const type = MediaUtils.detectMediaTypeFromUrl(url);
                         return {url, mediaIndex: mediaIdx, type: type || 'unknown'};
                     }
                     return null;
@@ -5533,7 +5533,7 @@
 
                 const url = this.extractUrlFromInfoJson(respJson, mediaIdx);
                 if (url) {
-                    const type = this.guessMediaTypeFromUrl(url);
+                    const type = MediaUtils.detectMediaTypeFromUrl(url);
                     return {url, mediaIndex: mediaIdx, type: type || 'unknown'};
                 }
                 return null;
@@ -5832,28 +5832,39 @@
                 return null;
             }
         }
+    }
 
-        /**
-         * Guesses media type ('video' or 'image') based on URL extension.
-         * @param {string|null} url - The URL to check.
-         * @returns {'video'|'image'|null} The guessed type or null.
-         */
-        guessMediaTypeFromUrl(url) {
-            if (!url) return null;
+    class SimpleCache {
+        constructor(maxSize = 100) {
+            this.cache = {};
+            this.maxSize = maxSize;
+            this.keys = [];
+        }
 
-            try {
-                const path = new URL(url).pathname.toLowerCase();
-                if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm')) {
-                    return 'video';
+        get(key) {
+            return this.cache[key];
+        }
+
+        set(key, value) {
+            if (!this.cache[key]) {
+                // Manage cache size
+                if (this.keys.length >= this.maxSize) {
+                    const oldestKey = this.keys.shift();
+                    delete this.cache[oldestKey];
                 }
-                if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.webp') || path.endsWith('.gif')) {
-                    return 'image';
-                }
-            } catch (e) {
-                Logger.warn('API Strategy: Could not parse URL to guess media type:', url);
+                this.keys.push(key);
             }
+            this.cache[key] = value;
+            return value;
+        }
 
-            return null;
+        has(key) {
+            return key in this.cache;
+        }
+
+        clear() {
+            this.cache = {};
+            this.keys = [];
         }
     }
 
@@ -5892,7 +5903,7 @@
 
         constructor() {
             super();
-            this.videoUrlCache = {};  // key: unique identifier, value: fetched CDN URL
+            this.videoUrlCache = new SimpleCache(50);
         }
 
         /**
@@ -5998,10 +6009,10 @@
                 const poster = videoElem.getAttribute('poster');
                 const cacheKey = url && url.startsWith('blob:') ? url : poster;
 
-                if (cacheKey && this.videoUrlCache[cacheKey]) {
-                    Logger.info('DOM Strategy: Video URL found in cache.');
+                if (cacheKey && this.videoUrlCache.has(cacheKey)) {
+                    Logger.info('Strategy: Found cached URL.');
                     return {
-                        url: this.videoUrlCache[cacheKey],
+                        url: this.videoUrlCache.get(cacheKey),
                         mediaIndex: mediaIdx,
                         type: 'video'
                     };
@@ -6011,7 +6022,7 @@
                 const dataAttrUrl = videoElem.dataset[this.CONFIG.DATA_ATTRS.videoSrc];
                 if (dataAttrUrl && !dataAttrUrl.startsWith('blob:')) {
                     Logger.info('DOM Strategy: Found video URL in data-video-src attribute.');
-                    if (cacheKey) this.videoUrlCache[cacheKey] = dataAttrUrl;
+                    if (cacheKey) this.videoUrlCache.set(cacheKey, dataAttrUrl);
 
                     return {
                         url: dataAttrUrl,
@@ -6024,7 +6035,7 @@
                 if (videoElem.hasAttribute(this.CONFIG.DATA_ATTRS.legacyVideoUrl)) {
                     const legacyUrl = videoElem.getAttribute(this.CONFIG.DATA_ATTRS.legacyVideoUrl);
                     Logger.info('DOM Strategy: Found video URL in legacy videoURL attribute.');
-                    if (cacheKey) this.videoUrlCache[cacheKey] = legacyUrl;
+                    if (cacheKey) this.videoUrlCache.set(cacheKey, legacyUrl);
 
                     return {
                         url: legacyUrl,
@@ -6055,26 +6066,12 @@
 
                 if (imgElem.srcset) {
                     Logger.debug('DOM Strategy: Image has srcset, attempting to parse.');
-                    const sources = imgElem.srcset.split(',').map(s => s.trim().split(' '));
-                    let bestUrl = imgElem.src;
-                    let maxWidth = 0;
-
-                    try {
-                        sources.forEach(([sourceUrl, width]) => {
-                            const w = parseInt(width?.replace('w', ''), 10);
-                            if (w > maxWidth) {
-                                maxWidth = w;
-                                bestUrl = sourceUrl;
-                            } else if (!width && !maxWidth) {
-                                bestUrl = sourceUrl;
-                            }
-                        });
-
+                    const bestUrl = MediaUtils.getHighestResSrcFromSrcset(imgElem.srcset);
+                    if (bestUrl) {
                         url = bestUrl;
-                        Logger.debug(`DOM Strategy: Selected image URL from srcset (w=${maxWidth || 'N/A'})`);
-                    } catch (parseError) {
-                        Logger.warn(parseError, 'DOM Strategy: Error parsing srcset, falling back to first entry or src.');
-                        url = sources.length > 0 ? sources[0][0] : imgElem.src;
+                        Logger.debug('DOM Strategy: Selected image URL from srcset');
+                    } else {
+                        url = imgElem.src; // Fallback
                     }
                 }
 
@@ -6098,7 +6095,7 @@
 
             if (dataAttrUrlOnContainer) {
                 Logger.debug('DOM Strategy: Found URL in data-* attribute on the container node.');
-                const type = this.guessMediaTypeFromUrl(dataAttrUrlOnContainer) || 'unknown';
+                const type = MediaUtils.detectMediaTypeFromUrl(dataAttrUrlOnContainer) || 'unknown';
 
                 return {
                     url: dataAttrUrlOnContainer,
@@ -6155,10 +6152,14 @@
                 let url = null;
 
                 if (imgElem.srcset) {
-                    Logger.debug('DOM Strategy: Story image has srcset.');
-                    const sources = imgElem.srcset.split(',').map(s => s.trim().split(' ')[0]);
-                    url = sources[sources.length - 1] || sources[0];
-                    Logger.debug('DOM Strategy: Extracted URL from story image srcset');
+                    Logger.debug('DOM Strategy: Image has srcset, attempting to parse.');
+                    const bestUrl = MediaUtils.getHighestResSrcFromSrcset(imgElem.srcset);
+                    if (bestUrl) {
+                        url = bestUrl;
+                        Logger.debug('DOM Strategy: Selected image URL from srcset');
+                    } else {
+                        url = imgElem.src; // Fallback
+                    }
                 }
 
                 if (!url) {
@@ -6222,85 +6223,6 @@
                 return null;
             }
         }
-
-        /**
-         * Guesses media type based on URL extension
-         *
-         * @param {string|null} url - The URL to check
-         * @returns {'video'|'image'|null} The guessed type or null
-         */
-        guessMediaTypeFromUrl(url) {
-            if (!url) return null;
-
-            try {
-                const path = new URL(url).pathname.toLowerCase();
-                if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm')) {
-                    return 'video';
-                }
-                if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.webp') || path.endsWith('.gif')) {
-                    return 'image';
-                }
-            } catch (e) {
-                Logger.warn('DOM Strategy: Could not parse URL to guess media type:', url);
-            }
-
-            return null;
-        }
-
-        /**
-         * Attempts to determine media type by making a HEAD request to check the Content-Type header.
-         * Used when extension-based detection fails.
-         *
-         * @param {string} url - The media URL
-         * @returns {Promise<'video'|'image'|'unknown'>} The determined type
-         */
-        async probeMediaType(url) {
-            if (!url || url.startsWith('blob:') || url.startsWith('data:')) {
-                Logger.debug('DOM Strategy: Cannot probe media type for blob/data URL');
-                return 'unknown';
-            }
-
-            Logger.debug('DOM Strategy: Probing media type via HEAD request for:', url);
-
-            try {
-                const response = await fetch(url, {method: 'HEAD', mode: 'cors'});
-
-                if (response.ok) {
-                    const contentType = response.headers.get('content-type');
-
-                    if (contentType) {
-                        Logger.debug(`DOM Strategy: HEAD request got Content-Type: ${contentType}`);
-
-                        if (contentType.startsWith('video/')) return 'video';
-                        if (contentType.startsWith('image/')) return 'image';
-
-                        Logger.warn(`DOM Strategy: Unknown Content-Type encountered: ${contentType}`);
-                    } else {
-                        Logger.warn('DOM Strategy: HEAD request successful but Content-Type header missing.');
-                    }
-                } else {
-                    Logger.warn(`DOM Strategy: HEAD request failed (${response.status}) for probing type.`);
-                }
-            } catch (error) {
-                Logger.error(error, `DOM Strategy: Error probing media type for ${url}.`);
-            }
-
-            return 'unknown';
-        }
-
-        /**
-         * Decodes HTML entities in a string (helper method)
-         *
-         * @param {string} encodedString - String potentially containing HTML entities
-         * @returns {string} Decoded string
-         */
-        decodeHtmlEntities(encodedString) {
-            if (!encodedString || typeof encodedString !== 'string') return encodedString;
-
-            const textarea = document.createElement('textarea');
-            textarea.innerHTML = encodedString;
-            return textarea.value;
-        }
     }
 
     /**
@@ -6333,7 +6255,7 @@
 
         constructor() {
             super();
-            this.videoUrlCache = {};  // Cache fetched video URLs
+            this.videoUrlCache = new SimpleCache(50);
         }
 
         /**
@@ -6516,10 +6438,10 @@
             // If still no URL, try og:video meta tag
             if (!videoUrl) {
                 Logger.debug('HTML Strategy: Checking og:video meta tag...');
-                const ogVideoMatch = content.match(this.CONFIG.REGEX.ogVideoTag);
+                const metaTags = HTMLUtils.extractMetaTags(content);
 
-                if (ogVideoMatch && ogVideoMatch[1]) {
-                    videoUrl = this.decodeHtmlEntities(ogVideoMatch[1]);
+                if (metaTags["og:video"]) {
+                    videoUrl = metaTags["og:video"];
                     Logger.info('HTML Strategy: Found URL in og:video meta tag:', videoUrl);
                 }
             }
@@ -6531,7 +6453,7 @@
 
             // Cache the result using poster or blob URL as key
             if (cacheKey) {
-                this.videoUrlCache[cacheKey] = videoUrl;
+                this.videoUrlCache.set(cacheKey, videoUrl);
             }
 
             return {
@@ -6593,10 +6515,9 @@
                 // Try og:video meta tag
                 if (!videoUrl) {
                     Logger.debug('HTML Strategy: Checking og:video meta tag for Reel...');
-                    const ogVideoMatch = content.match(this.CONFIG.REGEX.ogVideoTag);
-
-                    if (ogVideoMatch && ogVideoMatch[1]) {
-                        videoUrl = this.decodeHtmlEntities(ogVideoMatch[1]);
+                    const metaTags = HTMLUtils.extractMetaTags(content);
+                    if (metaTags["og:video"]) {
+                        videoUrl = metaTags["og:video"];
                         Logger.info('HTML Strategy: Found URL in og:video meta tag for Reel:', videoUrl);
                     }
                 }
@@ -6662,9 +6583,9 @@
                 Logger.debug(`HTML Strategy: Fetched HTML content (${content.length} bytes). Parsing...`);
 
                 // For stories, the og:video tag is often the most reliable source
-                const ogVideoMatch = content.match(this.CONFIG.REGEX.ogVideoTag);
-                if (ogVideoMatch && ogVideoMatch[1]) {
-                    const videoUrl = this.decodeHtmlEntities(ogVideoMatch[1]);
+                const metaTags = HTMLUtils.extractMetaTags(content);
+                if (metaTags["og:video"]) {
+                    let videoUrl = metaTags["og:video"];
                     Logger.info('HTML Strategy: Found URL in og:video meta tag for Story:', videoUrl);
 
                     return {
@@ -6742,20 +6663,6 @@
             }
 
             return null;
-        }
-
-        /**
-         * Basic HTML entity decoder
-         *
-         * @param {string} encodedString - String potentially containing HTML entities
-         * @returns {string} Decoded string
-         */
-        decodeHtmlEntities(encodedString) {
-            if (!encodedString || typeof encodedString !== 'string') return encodedString;
-
-            const textarea = document.createElement('textarea');
-            textarea.innerHTML = encodedString;
-            return textarea.value;
         }
     }
 
