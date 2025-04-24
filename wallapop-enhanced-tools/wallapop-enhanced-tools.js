@@ -682,6 +682,9 @@ TranslationManager.init({
             expandAllVisible: 'Expand All Visible',
             expandAllDescriptions: 'Expand All Descriptions',
             delayBetweenRequests: 'Delay between requests:',
+            reservedListingsFilter: 'Reserved Listings Filter',
+            hideReservedListings: 'Hide Reserved Listings',
+            reservedListingsFound: '{count} reserved listings hidden',
         },
         es: {
             expandDescription: 'Ampliar Descripción',
@@ -1331,12 +1334,21 @@ class DOMObserver {
                     Logger.debug("New ItemCards detected, adding expand buttons");
                     ListingManager.addExpandButtonsToListings();
 
-                    // Apply filters to new listings
+                    // Apply all filters to new listings
                     ControlPanel.applyFilters();
                 }
             }
         }
         this.checkUrlChange();
+    }
+
+    handleUrlChange() {
+        Logger.debug("Handling URL change");
+        setTimeout(() => {
+            ListingManager.addExpandButtonsToListings();
+            // Apply all filters after URL change, including reserved filter
+            ControlPanel.applyFilters();
+        }, 1000); // Delay to allow for dynamic content to load
     }
 
     checkUrlChange() {
@@ -1345,15 +1357,6 @@ class DOMObserver {
             this.lastUrl = location.href;
             this.handleUrlChange();
         }
-    }
-
-    handleUrlChange() {
-        Logger.debug("Handling URL change");
-        setTimeout(() => {
-            ListingManager.addExpandButtonsToListings();
-            // Apply filters after URL change
-            ControlPanel.applyFilters();
-        }, 1000); // Delay to allow for dynamic content to load
     }
 }
 
@@ -2032,6 +2035,162 @@ class ControlPanel {
                 expandAllButton.textContent = originalText;
             }, 2000);
         }
+    }
+
+    /**
+     * Create the reserved listings section
+     */
+    static createReservedListingsSection(container) {
+        // Load saved state
+        const isExpanded = this.loadPanelState('isReservedListingsSectionExpanded', true);
+        const hideReserved = this.loadPanelState('hideReservedListings', true); // Default to true - hide reserved listings
+
+        this.togglers.reservedListings = new SectionToggler({
+            container,
+            sectionClass: 'reserved-listings',
+            title: TranslationManager.getText('reservedListingsFilter'),
+            isExpanded,
+            onToggle: (state) => {
+                this.savePanelState('isReservedListingsSectionExpanded', state);
+            },
+            contentCreator: (content) => {
+                // Create a checkbox control using the Checkbox component
+                const hideReservedContainer = document.createElement('div');
+                hideReservedContainer.style.padding = '10px 0';
+
+                // Create checkbox using the Checkbox component
+                this.hideReservedCheckbox = new Checkbox({
+                    label: TranslationManager.getText('hideReservedListings'),
+                    checked: hideReserved,
+                    container: hideReservedContainer,
+                    onChange: (e) => {
+                        const isChecked = e.target.checked;
+                        this.savePanelState('hideReservedListings', isChecked);
+                        this.applyReservedFilter();
+                    }
+                });
+
+                content.appendChild(hideReservedContainer);
+
+                // Add status text element to show count of hidden listings
+                const statusElement = document.createElement('div');
+                statusElement.className = 'reserved-status';
+                statusElement.style.fontSize = '12px';
+                statusElement.style.color = '#666';
+                statusElement.style.fontStyle = 'italic';
+                statusElement.style.padding = '5px 0';
+                content.appendChild(statusElement);
+
+                // Store reference for later updates
+                this.reservedStatusElement = statusElement;
+            }
+        });
+
+        return this.togglers.reservedListings.section;
+    }
+
+    /**
+     * Apply filter to hide reserved listings
+     */
+    static applyReservedFilter() {
+        Logger.debug("Applying reserved listings filter");
+
+        const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
+        const allListings = document.querySelectorAll(allSelectors);
+
+        // Get filter setting
+        const hideReserved = this.loadPanelState('hideReservedListings', true);
+
+        if (!hideReserved) {
+            // If filter is disabled, show any listings that were hidden by this filter
+            // but respect other filters
+            allListings.forEach(listing => {
+                if (listing.dataset.reservedHidden === 'true') {
+                    delete listing.dataset.reservedHidden;
+
+                    // Only show if not hidden by other filters
+                    if (!this.shouldHideListing(listing) &&
+                        !this.shouldHideByDeliveryMethod(listing)) {
+                        this.showListing(listing);
+                    }
+                }
+            });
+
+            // Update status text
+            if (this.reservedStatusElement) {
+                this.reservedStatusElement.textContent = '';
+            }
+
+            return;
+        }
+
+        // Apply the filter to hide reserved listings
+        let hiddenCount = 0;
+
+        allListings.forEach(listing => {
+            if (this.isReservedListing(listing)) {
+                // Mark as hidden specifically by this filter
+                listing.dataset.reservedHidden = 'true';
+                this.hideListing(listing);
+                hiddenCount++;
+            }
+        });
+
+        // Update status text
+        if (this.reservedStatusElement) {
+            this.reservedStatusElement.textContent = TranslationManager.getText(
+                'reservedListingsFound', {count: hiddenCount}
+            );
+        }
+
+        Logger.debug(`Reserved listings filter applied: ${hiddenCount} listings hidden`);
+    }
+
+    /**
+     * Check if a listing is reserved
+     * @param {HTMLElement} listing - The listing element to check
+     * @returns {boolean} true if the listing is reserved
+     */
+    static isReservedListing(listing) {
+        // Check for various indicators that a listing is reserved
+
+        // Method 1: Check for the badge with text "Reservado"
+        const hasReservedText = listing.textContent.includes('Reservado');
+
+        // Method 2: Check for the wallapop-badge--reserved class
+        const hasReservedBadge = !!listing.querySelector('.wallapop-badge--reserved, [class*="wallapop-badge"][class*="reserved"]');
+
+        // Method 3: Check in shadow DOM
+        const shadowRoots = [];
+        const findShadowRoots = (element) => {
+            if (element.shadowRoot) {
+                shadowRoots.push(element.shadowRoot);
+            }
+            Array.from(element.children).forEach(findShadowRoots);
+        };
+        findShadowRoots(listing);
+
+        // Check for reserved badge in shadow DOM
+        const hasReservedBadgeInShadow = shadowRoots.some(root =>
+            root.querySelector('.wallapop-badge--reserved') !== null ||
+            root.querySelector('wallapop-badge.wallapop-badge--reserved') !== null ||
+            root.querySelector('[class*="wallapop-badge"][class*="reserved"]') !== null
+        );
+
+        return hasReservedText || hasReservedBadge || hasReservedBadgeInShadow;
+    }
+
+    /**
+     * Modified method to check if a listing should be hidden by delivery method
+     * Separated from the main filter to make it easier to combine filters
+     */
+    static shouldHideByDeliveryMethod(listing) {
+        const filterValue = this.loadPanelState('deliveryMethodFilter', 'all');
+        if (filterValue === 'all') return false;
+
+        const deliveryMethod = this.getDeliveryMethod(listing);
+        return (filterValue === 'shipping' && deliveryMethod !== 'shipping') ||
+            (filterValue === 'inperson' && deliveryMethod !== 'inperson');
     }
 
     /**
@@ -3164,10 +3323,11 @@ class ControlPanel {
                     // Create content container
                     const contentContainer = document.createElement('div');
 
-                    // Create sections - these replace the draggable panel sections
+                    // Create sections
                     this.createExpandAllSection(contentContainer);
                     this.createFilterSection(contentContainer);
                     this.createDeliveryMethodSection(contentContainer);
+                    this.createReservedListingsSection(contentContainer);
                     this.createCopySection(contentContainer);
                     this.createLanguageSection(contentContainer);
 
@@ -3184,6 +3344,7 @@ class ControlPanel {
                 // Additional actions when panel opens
                 this.updateUILanguage();
                 this.loadBlockedTerms();
+                this.updateReservedStatusCount();
             }
         });
 
@@ -3324,30 +3485,60 @@ class ControlPanel {
     }
 
     /**
-     * Apply filters to all listings
+     * Apply all filters including keywords, delivery method, and reserved status
+     * Modified to include the reserved filter
      */
     static applyFilters() {
         Logger.debug("Applying all filters to listings");
 
-        // Apply keyword filters
         const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
         const allListings = document.querySelectorAll(allSelectors);
 
         let hiddenCount = 0;
 
         allListings.forEach(listing => {
-            if (this.shouldHideListing(listing)) {
+            const hideByKeyword = this.shouldHideListing(listing);
+            const hideByDelivery = this.shouldHideByDeliveryMethod(listing);
+            const hideByReserved = this.loadPanelState('hideReservedListings', true) &&
+                this.isReservedListing(listing);
+
+            if (hideByKeyword || hideByDelivery || hideByReserved) {
                 this.hideListing(listing);
                 hiddenCount++;
+
+                // Mark appropriately for later filter toggling
+                if (hideByReserved) {
+                    listing.dataset.reservedHidden = 'true';
+                }
             } else {
                 this.showListing(listing);
             }
         });
 
-        Logger.debug(`Keyword filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+        Logger.debug(`All filters applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
 
-        // Then apply delivery method filter
-        this.applyDeliveryMethodFilter();
+        // Update reserved status count
+        this.updateReservedStatusCount();
+    }
+
+    /**
+     * Update the count of hidden reserved listings
+     */
+    static updateReservedStatusCount() {
+        if (!this.reservedStatusElement) return;
+
+        // Only count if the filter is active
+        if (!this.loadPanelState('hideReservedListings', true)) {
+            this.reservedStatusElement.textContent = '';
+            return;
+        }
+
+        // Count listings with the reserved-hidden dataset flag
+        const count = document.querySelectorAll('[data-reserved-hidden="true"]').length;
+
+        this.reservedStatusElement.textContent = TranslationManager.getText(
+            'reservedListingsFound', {count: count}
+        );
     }
 
     /**
@@ -3599,6 +3790,21 @@ class ControlPanel {
         updateText('.dropdown-content button:first-child', 'withHeaders');
         updateText('.dropdown-content button:last-child', 'withoutHeaders');
         updateText('.copy-clear', 'clearAll');
+
+        if (this.togglers.reservedListings) {
+            const titleElement = this.togglers.reservedListings.sectionElement.querySelector('.userscripts-section__title');
+            if (titleElement) {
+                titleElement.textContent = TranslationManager.getText('reservedListingsFilter');
+            }
+
+            // Update checkbox label
+            if (this.hideReservedCheckbox) {
+                this.hideReservedCheckbox.setLabel(TranslationManager.getText('hideReservedListings'));
+            }
+
+            // Update status element
+            this.updateReservedStatusCount();
+        }
 
         // Update all expand buttons on the page
         document.querySelectorAll(SELECTORS.EXPAND_BUTTON).forEach(button => {
