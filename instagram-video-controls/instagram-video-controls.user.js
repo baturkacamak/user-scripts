@@ -5755,106 +5755,125 @@
          * @returns {Promise<string|null>} The Media ID string or null.
          */
         async findMediaId(containerNode, mediaIdx = 0) {
-            // ... (Implementation uses CONFIG.REGEX.* and CONFIG.SELECTORS.*, otherwise same logic) ...
             Logger.debug(`Finding Media ID for ${containerNode.tagName} at index ${mediaIdx}`);
             let mediaId = null;
 
-            // Strategy 1: Story URL
-            if (containerNode.tagName === 'SECTION' && window.location.pathname.includes('/stories/')) {
-                // Use the static config for regex
-                const match = window.location.pathname.match(InstagramMediaFetcher.CONFIG.REGEX.storyIdPath);
-                if (match && match[1]) {
-                    Logger.debug('Media ID Strategy 1 (Story URL): Found:', match[1]);
-                    return match[1];
-                }
-            }
-
-            // Strategy 2: Inline JSON
-            Logger.debug('Media ID Strategy 2: Searching inline JSON scripts...');
-            try {
-                // Use the static config for selectors and regex
-                const scriptTags = document.querySelectorAll(InstagramMediaFetcher.CONFIG.SELECTORS.jsonScript);
-                const pkPattern = InstagramMediaFetcher.CONFIG.REGEX.mediaId;
-
-                for (const script of scriptTags) {
-                    if (!script.textContent) continue;
-                    const textContent = script.textContent;
-                    const matches = Array.from(textContent.matchAll(pkPattern));
-
-                    if (matches.length > 0) {
-                        // ... (selection logic based on tagName and mediaIdx remains the same) ...
-                        if (containerNode.tagName === 'SECTION') {
-                            if (matches.length > mediaIdx) {
-                                const id = matches[mediaIdx][1] || matches[mediaIdx][2] || matches[mediaIdx][3];
-                                if (id) {
-                                    Logger.debug(`Media ID Strategy 2 (Story/Highlight JSON): Selected ID ${id} at index ${mediaIdx}.`);
-                                    return id;
-                                }
-                            }
-                        } else {
-                            for (const match of matches) {
-                                const id = match[1] || match[2] || match[3];
-                                if (id) {
-                                    Logger.debug('Media ID Strategy 2 (Post JSON): Selected first found ID:', id);
-                                    return id;
-                                }
-                            }
-                        }
+            // --- Handle STORIES First (SECTION) ---
+            if (containerNode.tagName === 'SECTION') {
+                // Strategy 1: Story URL
+                if (window.location.pathname.includes('/stories/')) {
+                    const match = window.location.pathname.match(InstagramMediaFetcher.CONFIG.REGEX.storyIdPath);
+                    if (match && match[1]) {
+                        Logger.debug('Media ID Strategy 1 (Story URL): Found:', match[1]);
+                        return match[1];
                     }
                 }
-                Logger.debug('Media ID Strategy 2: No relevant ID patterns found in inline JSON.');
-            } catch (error) {
-                Logger.error(error, 'Error occurred during Media ID Strategy 2 (Inline JSON).');
+                // Strategy 2: Inline JSON (for Stories/Highlights using index)
+                Logger.debug('Media ID Strategy 2 (Story JSON): Searching inline JSON scripts...');
+                try {
+                    const scriptTags = document.querySelectorAll(InstagramMediaFetcher.CONFIG.SELECTORS.jsonScript);
+                    // Use the specific "media_id" pattern
+                    const mediaIdPattern = /"media_id"\s*:\s*"(\d+)"/g;
+
+                    // Collect all media_ids found in JSON scripts
+                    const allMediaIds = [];
+                    for (const script of scriptTags) {
+                        if (script.textContent) {
+                            const matches = Array.from(script.textContent.matchAll(mediaIdPattern));
+                            matches.forEach(match => {
+                                if (match[1]) allMediaIds.push(match[1]);
+                            });
+                        }
+                    }
+
+                    // For stories/highlights, try to pick based on mediaIdx
+                    if (allMediaIds.length > mediaIdx) {
+                        mediaId = allMediaIds[mediaIdx];
+                        if (mediaId) {
+                            Logger.debug(`Media ID Strategy 2 (Story/Highlight JSON): Selected ID ${mediaId} at index ${mediaIdx}.`);
+                            return mediaId;
+                        }
+                    }
+                    Logger.debug(`Media ID Strategy 2 (Story JSON): Could not find ID at index ${mediaIdx} (found ${allMediaIds.length} total).`);
+                } catch (error) {
+                    Logger.error(error, 'Error occurred during Media ID Strategy 2 (Story Inline JSON).');
+                }
+                // If story strategies fail, return null early for stories
+                Logger.error('Failed to find Media ID for Story using URL or specific index JSON.');
+                return null; // Explicitly return null if no story ID found
             }
 
-            // Strategy 3: Fetch Post HTML
+            // --- Handle POSTS (ARTICLE) ---
             if (containerNode.tagName === 'ARTICLE') {
-                Logger.debug('Media ID Strategy 3: Attempting to fetch Post HTML...');
-                const postId = this.findPostId(containerNode); // Uses internal method
+                // Strategy 3 (Preferred for Posts): Fetch Post HTML using postId
+                Logger.debug('Media ID Strategy 3 (Post - Preferred): Attempting via Post ID and HTML fetch...');
+                const postId = this.findPostId(containerNode); // Get postId specific to this article
                 if (postId) {
+                    // Check cache first
                     if (this.mediaIdCache[postId]) {
                         Logger.info('Media ID Strategy 3 (Post): Found Media ID in cache for postId:', postId);
                         return this.mediaIdCache[postId];
                     }
+
                     Logger.info('Media ID Strategy 3 (Post): Fetching post page for Media ID, postId:', postId);
                     try {
                         const postUrl = `https://www.instagram.com/p/${postId}/`;
-                        if (window.location.href === postUrl || window.location.href === new URL(postUrl).href) {
-                            Logger.warn('Media ID Strategy 3: Attempting to fetch current page. Skipping fetch.');
-                        } else {
-                            const response = await fetch(postUrl);
-                            if (response.ok) {
-                                const text = await response.text();
-                                // Use the static config for regex
-                                const idMatch = text.match(InstagramMediaFetcher.CONFIG.REGEX.mediaId);
-                                if (idMatch) {
-                                    mediaId = idMatch[1] || idMatch[2] || idMatch[3];
-                                    if (mediaId) {
-                                        Logger.info('Media ID Strategy 3 (Post): Found Media ID from fetched HTML:', mediaId);
-                                        this.mediaIdCache[postId] = mediaId;
-                                        return mediaId;
-                                    }
-                                } else {
-                                    Logger.warn('Media ID Strategy 3 (Post): Media ID pattern not found in fetched HTML.');
-                                }
+                        const response = await fetch(postUrl);
+                        if (response.ok) {
+                            const text = await response.text();
+                            // Find the first "media_id" within the fetched HTML of the specific post
+                            const mediaIdPattern = /"media_id"\s*:\s*"(\d+)"/; // Find first occurrence
+                            const idMatch = text.match(mediaIdPattern);
+                            if (idMatch && idMatch[1]) {
+                                mediaId = idMatch[1];
+                                Logger.info('Media ID Strategy 3 (Post): Found Media ID from fetched HTML:', mediaId);
+                                this.mediaIdCache[postId] = mediaId; // Cache it
+                                return mediaId; // Return the correct ID
                             } else {
-                                Logger.warn(`Media ID Strategy 3 (Post): Fetch failed (${response.status}) for ${postUrl}`);
+                                Logger.warn('Media ID Strategy 3 (Post): "media_id" pattern not found in fetched HTML.');
                             }
+                        } else {
+                            Logger.warn(`Media ID Strategy 3 (Post): Fetch failed (${response.status}) for ${postUrl}`);
                         }
                     } catch (fetchError) {
                         Logger.error(fetchError, 'Media ID Strategy 3 (Post): Error fetching post HTML.');
                     }
                 } else {
-                    Logger.warn('Media ID Strategy 3 (Post): Could not find Post ID to fetch HTML.');
+                    Logger.warn('Media ID Strategy 3 (Post): Could not find Post ID within the article to fetch HTML.');
+                }
+
+                // Strategy 2 (Fallback for Posts): Inline JSON (Less Reliable - Use with Caution)
+                if (!mediaId) { // Only run if Strategy 3 failed
+                    Logger.warn('Media ID Strategy 2 (Post - Fallback): Trying global inline JSON search as last resort...');
+                    try {
+                        const scriptTags = document.querySelectorAll(InstagramMediaFetcher.CONFIG.SELECTORS.jsonScript);
+                        const mediaIdPattern = /"media_id"\s*:\s*"(\d+)"/g; // Global search
+
+                        for (const script of scriptTags) {
+                            if (!script.textContent) continue;
+                            const matches = Array.from(script.textContent.matchAll(mediaIdPattern));
+                            if (matches.length > 0 && matches[0][1]) {
+                                mediaId = matches[0][1]; // Take the very first "media_id" found globally
+                                Logger.warn(`Media ID Strategy 2 (Post - Fallback): Selected first globally found ID: ${mediaId}. THIS MIGHT BE INCORRECT ON FEEDS!`);
+                                return mediaId; // Return the potentially incorrect ID
+                            }
+                        }
+                        Logger.debug('Media ID Strategy 2 (Post - Fallback): No "media_id" patterns found in any inline JSON.');
+                    } catch (error) {
+                        Logger.error(error, 'Error occurred during Media ID Strategy 2 (Post Inline JSON Fallback).');
+                    }
                 }
             }
 
-            Logger.error('Failed to find Media ID using all available strategies.');
-            return null;
+            // Final check if any strategy succeeded for the post
+            if (!mediaId && containerNode.tagName === 'ARTICLE') {
+                Logger.error('Failed to find Media ID for Post using all strategies.');
+            }
+
+            return mediaId; // Return whatever was found (could be null)
         }
 
         // --- Utility Methods ---
-
         /**
          * Finds the Post ID (shortcode, e.g., Cxyz...) from links within an article node.
          * @param {HTMLElement} articleNode - The ARTICLE element.
