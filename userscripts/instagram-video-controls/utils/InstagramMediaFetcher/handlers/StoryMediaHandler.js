@@ -1,4 +1,4 @@
-import {Logger} from "../../../../core";
+import {Logger} from "../../../../common/core";
 
 /**
  * Handler for extracting media information from Instagram stories.

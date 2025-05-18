@@ -8823,9 +8823,9 @@
         static async savePanelState(key, value) { // Made async
             try {
                 await setValue(key, value); // Use await and GMFunctions.setValue
-                Logger.debug('Panel state saved', { key, value });
+                Logger.debug('Panel state saved', {key, value});
             } catch (error) {
-                Logger.error('Error saving panel state:', error, { key });
+                Logger.error('Error saving panel state:', error, {key});
             }
         }
 
@@ -8835,10 +8835,10 @@
         static async loadPanelState(key, defaultValue) { // Made async
             try {
                 const value = await getValue(key, defaultValue); // Use await and GMFunctions.getValue
-                Logger.debug('Panel state loaded', { key, value });
+                Logger.debug('Panel state loaded', {key, value});
                 return value;
             } catch (error) {
-                Logger.error('Error loading panel state:', error, { key });
+                Logger.error('Error loading panel state:', error, {key});
                 return defaultValue;
             }
         }

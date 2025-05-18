@@ -1,8 +1,8 @@
-import SidebarPanel from '../../../core/ui/SidebarPanel.js';
-import Button from '../../../core/ui/Button.js';
-import Checkbox from '../../../core/ui/Checkbox.js';
-import PubSub from '../../../core/utils/PubSub.js';
-import { UpworkCountryFilter } from '../components/CountryFilter.js';
+import SidebarPanel from '../../../common/core/ui/SidebarPanel.js';
+import Button from '../../../common/core/ui/Button.js';
+import Checkbox from '../../../common/core/ui/Checkbox.js';
+import PubSub from '../../../common/core/utils/PubSub.js';
+import {UpworkCountryFilter} from '../components/CountryFilter.js';
 // import StyleManager from '../../../core/utils/StyleManager.js'; // If custom styles are needed
 
 const SETTINGS_PANEL_ID = 'upwork-country-filter-settings-panel';
@@ -24,7 +24,7 @@ export class SettingsPanel {
         this.currentBannedCountries = [...initialSettings.countries];
 
         this.sidebarPanel = new SidebarPanel(SETTINGS_PANEL_ID, 'Upwork Country Filter Settings');
-        
+
         this.buildPanelContent();
 
         PubSub.subscribe('filterSettingsRefreshed', (settings) => {
@@ -122,10 +122,10 @@ export class SettingsPanel {
             li.style.justifyContent = 'space-between';
             li.style.alignItems = 'center';
             li.style.padding = '3px 0';
-            
+
             const countryText = document.createElement('span');
             countryText.textContent = country;
-            
+
             const removeButton = new Button('Remove', () => {
                 this.currentBannedCountries = this.currentBannedCountries.filter(c => c !== country);
                 PubSub.publish('bannedCountriesChanged', [...this.currentBannedCountries]);

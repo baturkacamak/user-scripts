@@ -1,4 +1,4 @@
-import {Logger} from "../../../core";
+import {Logger} from "../../../common/core";
 import MediaFetcherFactory from "./MediaFetcherFactory";
 
 /**

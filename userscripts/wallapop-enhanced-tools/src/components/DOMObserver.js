@@ -1,6 +1,6 @@
 // Observer to detect and handle DOM changes
 
-import {Logger} from '../../../core';
+import {Logger} from '../../../common/core';
 import {ListingManager} from '../managers/ListingManager';
 import {FilterManager} from '../managers/FilterManager';
 import {SELECTORS} from '../utils/constants';

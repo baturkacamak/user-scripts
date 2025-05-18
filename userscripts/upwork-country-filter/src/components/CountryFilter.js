@@ -1,7 +1,7 @@
-import DOMObserver from '../../../core/ui/DOMObserver.js';
-import Logger from '../../../core/utils/Logger.js';
-import { getValue, setValue } from '../../../core/utils/GMFunctions.js';
-import PubSub from '../../../core/utils/PubSub.js';
+import DOMObserver from '../../../common/core/ui/DOMObserver.js';
+import Logger from '../../../common/core/utils/Logger.js';
+import {getValue, setValue} from '../../../common/core/utils/GMFunctions.js';
+import PubSub from '../../../common/core/utils/PubSub.js';
 
 const logger = new Logger('UpworkCountryFilter');
 
@@ -29,7 +29,7 @@ export class UpworkCountryFilter {
         };
 
         this.observerInstance = new DOMObserver(mutationCallback);
-        this.observerInstance.observe(document.documentElement, { childList: true, subtree: true });
+        this.observerInstance.observe(document.documentElement, {childList: true, subtree: true});
 
         if (this.isFilterEnabled) {
             this.removeCountryListings(); // Initial scan
@@ -67,7 +67,10 @@ export class UpworkCountryFilter {
             } else {
                 this.removeCountryListings(); // Re-apply filter if enabled
             }
-            PubSub.publish('filterSettingsRefreshed', { isEnabled: this.isFilterEnabled, countries: this.bannedCountriesList });
+            PubSub.publish('filterSettingsRefreshed', {
+                isEnabled: this.isFilterEnabled,
+                countries: this.bannedCountriesList
+            });
         }
     }
 
@@ -79,12 +82,15 @@ export class UpworkCountryFilter {
             if (this.isFilterEnabled) {
                 this.removeCountryListings(); // Re-apply filter with new countries
             }
-            PubSub.publish('filterSettingsRefreshed', { isEnabled: this.isFilterEnabled, countries: this.bannedCountriesList });
+            PubSub.publish('filterSettingsRefreshed', {
+                isEnabled: this.isFilterEnabled,
+                countries: this.bannedCountriesList
+            });
         }
     }
-    
+
     static getSettings() {
-        return { isEnabled: this.isFilterEnabled, countries: [...this.bannedCountriesList] };
+        return {isEnabled: this.isFilterEnabled, countries: [...this.bannedCountriesList]};
     }
 
     /**
