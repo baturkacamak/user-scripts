@@ -8,6 +8,7 @@
 // @match        https://*.wallapop.com/*
 // @match        https://*.loom.com/*
 // @match        https://*.instagram.com/*
+// @match        https://*.whatsapp.com/*
 // @icon         https://github.com/baturkacamak.png
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
@@ -56,6 +57,13 @@
       path: 'userscripts/instagram-video-controls/instagram-video-controls.user.js',
       isModule: true, // Vite module
       fallbacks: ['moduleBlob', 'moduleProxy', 'moduleIframe', 'vanilla'],
+    },
+    {
+      name: 'Whatsapp Send New',
+      matches: ['whatsapp.com'],
+      path: 'userscripts/whatsapp-send-new/whatsapp-send-new.user.js',
+      isModule: false, // Standard userscript
+      fallbacks: ['blob', 'iframe', 'worker'], // Standard fallbacks for non-modules
     },
   ];
 
