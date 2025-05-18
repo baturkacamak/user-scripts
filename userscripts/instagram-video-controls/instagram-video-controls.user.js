@@ -4,10 +4,10 @@
 // @namespace   https://github.com/baturkacamak/userscripts
 // @version     1.0.0
 // @author      Batur Kacamak
-// @homepage    https://github.com/baturkacamak/userscripts/tree/master/instagram-video-controls/instagram-video-controls#readme
-// @homepageURL https://github.com/baturkacamak/userscripts/tree/master/instagram-video-controls/instagram-video-controls#readme
-// @downloadURL https://github.com/baturkacamak/userscripts/raw/master/instagram-video-controls/instagram-video-controls.user.js
-// @updateURL   https://github.com/baturkacamak/userscripts/raw/master/instagram-video-controls/instagram-video-controls.user.js
+// @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/instagram-video-controls/instagram-video-controls#readme
+// @homepageURL https://github.com/baturkacamak/userscripts/tree/master/userscripts/instagram-video-controls/instagram-video-controls#readme
+// @downloadURL https://github.com/baturkacamak/userscripts/raw/master/userscripts/instagram-video-controls/instagram-video-controls.user.js
+// @updateURL   https://github.com/baturkacamak/userscripts/raw/master/userscripts/instagram-video-controls/instagram-video-controls.user.js
 // @match       https://*.instagram.com/*
 // @icon        https://www.instagram.com/favicon.ico
 // @run-at      document-start

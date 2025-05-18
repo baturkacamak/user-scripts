@@ -5,11 +5,11 @@
 // @version     1.5.0
 // @author      Batur Kacamak
 // @license     MIT
-// @homepage    https://github.com/baturkacamak/user-scripts/tree/master/wallapop-enhanced-tools#readme
-// @homepageURL https://github.com/baturkacamak/user-scripts/tree/master/wallapop-enhanced-tools#readme
+// @homepage    https://github.com/baturkacamak/user-scripts/tree/master/userscripts/wallapop-enhanced-tools#readme
+// @homepageURL https://github.com/baturkacamak/user-scripts/tree/master/userscripts/wallapop-enhanced-tools#readme
 // @supportURL  https://github.com/baturkacamak/user-scripts/issues
-// @downloadURL https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
-// @updateURL   https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
+// @downloadURL https://github.com/baturkacamak/user-scripts/raw/master/userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
+// @updateURL   https://github.com/baturkacamak/user-scripts/raw/master/userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
 // @match       https://*.wallapop.com/*
 // @icon        https://es.wallapop.com/favicon.ico
 // @run-at      document-idle

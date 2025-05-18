@@ -4,10 +4,10 @@
 // @namespace   https://github.com/baturkacamak/userscripts
 // @version     1.0.0
 // @author      Batur Kacamak
-// @homepage    https://github.com/baturkacamak/userscripts/tree/master/loom-captions-extractor#readme
-// @homepageURL https://github.com/baturkacamak/userscripts/tree/master/loom-captions-extractor#readme
-// @downloadURL https://github.com/baturkacamak/userscripts/raw/master/loom-captions-extractor/loom-captions-extractor.user.js
-// @updateURL   https://github.com/baturkacamak/userscripts/raw/master/loom-captions-extractor/loom-captions-extractor.user.js
+// @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/loom-captions-extractor#readme
+// @homepageURL https://github.com/baturkacamak/userscripts/tree/master/userscripts/loom-captions-extractor#readme
+// @downloadURL https://github.com/baturkacamak/userscripts/raw/master/userscripts/loom-captions-extractor/loom-captions-extractor.user.js
+// @updateURL   https://github.com/baturkacamak/userscripts/raw/master/userscripts/loom-captions-extractor/loom-captions-extractor.user.js
 // @match       https://*.loom.com/share/*
 // @match       https://*.loom.com/*
 // @icon        https://cdn.loom.com/assets/favicons-loom/favicon-32x32.png
