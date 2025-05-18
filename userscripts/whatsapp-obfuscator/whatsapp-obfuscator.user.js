@@ -11,10 +11,10 @@
 // @run-at       document-idle
 // @grant        none
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/whatsapp-obfuscator#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/whatsapp-obfuscator#readme
-// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
-// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/whatsapp-obfuscator/whatsapp-obfuscator.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/userscripts/whatsapp-obfuscator#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/userscripts/whatsapp-obfuscator#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/userscripts/whatsapp-obfuscator/whatsapp-obfuscator.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/userscripts/whatsapp-obfuscator/whatsapp-obfuscator.user.js
 // @icon         https://whatsapp.com/favicon.ico
 // ==/UserScript==
 

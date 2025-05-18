@@ -7,10 +7,10 @@
 // @match        https://eksisozluk.com/cop
 // @grant        none
 // @run-at       document-idle
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash#readme
-// @updateURL    https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
-// @downloadURL  https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-post-loader-apprender-trash#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-post-loader-apprender-trash#readme
+// @updateURL    https://raw.githubusercontent.com/baturkacamak/user-scripts/master/userscripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
+// @downloadURL  https://raw.githubusercontent.com/baturkacamak/user-scripts/master/userscripts/eksi-post-loader-apprender-trash/eksi-post-loader-apprender-trash.user.js
 // @icon         https://eksisozluk.com/favicon.ico
 // ==/UserScript==
 

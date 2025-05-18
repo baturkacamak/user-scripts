@@ -6,10 +6,10 @@
 // @description  Adds a copy-to-clipboard button with a selectable prompt to each entry on Eksisozluk, enhancing user interaction by encouraging critical thinking or verification of information.
 // @author       Batur Kacamak
 // @copyright    2021+, Batur Kacamak (https://batur.info/)
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-copy-entry-with-prompt#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-copy-entry-with-prompt#readme
-// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-copy-entry-with-prompt/eksi-copy-entry-with-prompt.user.js
-// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-copy-entry-with-prompt/eksi-copy-entry-with-prompt.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-copy-entry-with-prompt#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-copy-entry-with-prompt#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-copy-entry-with-prompt/eksi-copy-entry-with-prompt.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-copy-entry-with-prompt/eksi-copy-entry-with-prompt.user.js
 // @match        https://eksisozluk.com/*
 // @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle

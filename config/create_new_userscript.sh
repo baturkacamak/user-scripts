@@ -214,8 +214,8 @@ print_success "Renamed/created script files."
 # For meta.json URLs
 NAMESPACE_URL="https://github.com/baturkacamak/userscripts" # Assuming this is constant
 SUPPORT_URL_BASE="https://github.com/baturkacamak/userscripts/issues" # Standard issues page
-HOMEPAGE_URL_BASE="https://github.com/baturkacamak/userscripts/tree/master"
-DOWNLOAD_URL_BASE="https://github.com/baturkacamak/userscripts/raw/master"
+HOMEPAGE_URL_BASE="https://github.com/baturkacamak/userscripts/tree/master/userscripts"
+DOWNLOAD_URL_BASE="https://github.com/baturkacamak/userscripts/raw/master/userscripts"
 
 # For README.md dates
 CURRENT_YEAR=$(date +%Y)

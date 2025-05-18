@@ -8,10 +8,10 @@
 // @copyright    2023, Batur Kacamak (https://batur.info/)
 // @match        https://eksisozluk.com/*
 // @grant        none
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-aria-enhancer#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-aria-enhancer#readme
-// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-aria-enhancer/eksi-aria-enhancer.user.js
-// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-aria-enhancer/eksi-aria-enhancer.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-aria-enhancer#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-aria-enhancer#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-aria-enhancer/eksi-aria-enhancer.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-aria-enhancer/eksi-aria-enhancer.user.js
 // @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==

@@ -7,8 +7,8 @@
 // @run-at      document-idle
 // @grant       none
 // @author      Batur Kacamak
-// @updateURL   https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-automation/eksi-post-automation.user.js
-// @downloadURL https://raw.githubusercontent.com/baturkacamak/user-scripts/eksi-post-automation/eksi-post-automation.user.js
+// @updateURL   https://raw.githubusercontent.com/baturkacamak/user-scripts/master/userscripts/eksi-post-automation/eksi-post-automation.user.js
+// @downloadURL https://raw.githubusercontent.com/baturkacamak/user-scripts/master/userscripts/eksi-post-automation/eksi-post-automation.user.js
 // ==/UserScript==
 
 /**

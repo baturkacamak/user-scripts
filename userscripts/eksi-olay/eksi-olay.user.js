@@ -9,10 +9,10 @@
 // @match        https://eksisozluk.com/*
 // @grant        none
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-olay#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-olay#readme
-// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-olay/eksi-olay.user.js
-// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-olay/eksi-olay.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-olay#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-olay#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-olay/eksi-olay.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-olay/eksi-olay.user.js
 // @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
