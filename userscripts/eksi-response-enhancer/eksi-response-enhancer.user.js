@@ -6,10 +6,10 @@
 // @description  Enhances Eksisozluk entry interaction by adding response features with ChatGPT integration, display for ChatGPT responses, and a copy to clipboard button for the responses.
 // @author       Batur Kacamak
 // @copyright    2021+, Batur Kacamak (https://batur.info/)
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/eksi-response-enhancer-with-chatgpt#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/eksi-response-enhancer-with-chatgpt#readme
-// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/eksi-response-enhancer-with-chatgpt/eksi-response-enhancer-with-chatgpt.user.js
-// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/eksi-response-enhancer-with-chatgpt/eksi-response-enhancer-with-chatgpt.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-response-enhancer-with-chatgpt#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/userscripts/eksi-response-enhancer-with-chatgpt#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-response-enhancer-with-chatgpt/eksi-response-enhancer-with-chatgpt.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/userscripts/eksi-response-enhancer-with-chatgpt/eksi-response-enhancer-with-chatgpt.user.js
 // @match        https://eksisozluk.com/*
 // @icon         https://eksisozluk.com/favicon.ico
 // @run-at       document-idle

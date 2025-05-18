@@ -5,10 +5,10 @@
   "description": "Adds native HTML5 video controls to Instagram videos with enhanced features like download, speed control, and more",
   "author": "Batur Kacamak",
   "copyright": "2025+, Batur Kacamak (https://batur.info/)",
-  "homepage": "https://github.com/baturkacamak/userscripts/tree/master/instagram-video-controls/instagram-video-controls#readme",
-  "homepageURL": "https://github.com/baturkacamak/userscripts/tree/master/instagram-video-controls/instagram-video-controls#readme",
-  "downloadURL": "https://github.com/baturkacamak/userscripts/raw/master/instagram-video-controls/instagram-video-controls.user.js",
-  "updateURL": "https://github.com/baturkacamak/userscripts/raw/master/instagram-video-controls/instagram-video-controls.user.js",
+  "homepage": "https://github.com/baturkacamak/userscripts/tree/master/userscripts/instagram-video-controls/instagram-video-controls#readme",
+  "homepageURL": "https://github.com/baturkacamak/userscripts/tree/master/userscripts/instagram-video-controls/instagram-video-controls#readme",
+  "downloadURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/instagram-video-controls/instagram-video-controls.user.js",
+  "updateURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/instagram-video-controls/instagram-video-controls.user.js",
   "match": [
     "https://*.instagram.com/*"
   ],

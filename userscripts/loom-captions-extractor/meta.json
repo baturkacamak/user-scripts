@@ -5,10 +5,10 @@
   "description": "Extract and download closed captions from Loom videos",
   "author": "Batur Kacamak",
   "copyright": "2024+, Batur Kacamak (https://batur.info/)",
-  "homepage": "https://github.com/baturkacamak/userscripts/tree/master/loom-captions-extractor#readme",
-  "homepageURL": "https://github.com/baturkacamak/userscripts/tree/master/loom-captions-extractor#readme",
-  "downloadURL": "https://github.com/baturkacamak/userscripts/raw/master/loom-captions-extractor/loom-captions-extractor.user.js",
-  "updateURL": "https://github.com/baturkacamak/userscripts/raw/master/loom-captions-extractor/loom-captions-extractor.user.js",
+  "homepage": "https://github.com/baturkacamak/userscripts/tree/master/userscripts/loom-captions-extractor#readme",
+  "homepageURL": "https://github.com/baturkacamak/userscripts/tree/master/userscripts/loom-captions-extractor#readme",
+  "downloadURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/loom-captions-extractor/loom-captions-extractor.user.js",
+  "updateURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/loom-captions-extractor/loom-captions-extractor.user.js",
   "match": [
     "https://*.loom.com/share/*",
     "https://*.loom.com/*"

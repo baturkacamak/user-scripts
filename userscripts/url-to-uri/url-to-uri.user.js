@@ -9,10 +9,10 @@
 // @match        *://*.whatsapp.com/*
 // @grant        none
 // @icon         https://github.githubassets.com/pinned-octocat.svg
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/url-to-uri#readme
-// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/url-to-uri#readme
-// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/url-to-uri/url-to-uri.user.js
-// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/url-to-uri/url-to-uri.user.js
+// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/userscripts/url-to-uri#readme
+// @homepageURL  https://github.com/baturkacamak/user-scripts/tree/master/userscripts/url-to-uri#readme
+// @downloadURL  https://github.com/baturkacamak/user-scripts/raw/master/userscripts/url-to-uri/url-to-uri.user.js
+// @updateURL    https://github.com/baturkacamak/user-scripts/raw/master/userscripts/url-to-uri/url-to-uri.user.js
 // @icon         https://tidal.com/favicon.ico
 // @run-at       document-idle
 // ==/UserScript==
