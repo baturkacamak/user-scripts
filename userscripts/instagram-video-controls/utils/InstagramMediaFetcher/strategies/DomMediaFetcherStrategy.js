@@ -1,7 +1,7 @@
-import {Logger} from "../../../../core";
+import {Logger} from "../../../../common/core";
 import MediaFetcherStrategy from "./MediaFetcherStrategy";
-import MediaUtils from "../../../../core/utils/MediaUtils";
-import SimpleCache from "../../../../core/utils/SimpleCache";
+import MediaUtils from "../../../../common/core/utils/MediaUtils";
+import SimpleCache from "../../../../common/core/utils/SimpleCache";
 
 /**
  * Strategy for fetching media information from DOM elements
