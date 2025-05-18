@@ -123,8 +123,10 @@ for easier management and clearer descriptions here.*
   metadata.*
 - **[Dev Tools](userscripts/common/dev-tools/)** - *Info: This directory may contain development utilities rather than a
   distributable userscript. Details to be added if applicable.*
-- **[Google Maps Image Downloader](./userscripts/googlemaps-image-downloader/)** - *Info: Further details needed. (
-  Currently: Google Maps Places image downloader). Please document or add metadata.*
+- **[Google Maps Image Downloader](./userscripts/googlemaps-image-downloader#readme)**
+    - *Description*: Adds a button to download the currently highlighted image from Google Maps Places, attempting to fetch a higher resolution version.
+    - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js)
+    - *Source*: [📄 View Source Code](./userscripts/googlemaps-image-downloader/)
 - **[Idealista House Listing Analyzer](./userscripts/idealista-house-listing-analyzer/)** - *Info: Further details
   needed. Please document or add metadata.*
 - **[Lingualeo Speaker](./userscripts/lingualeo-speak#readme)**
