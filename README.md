@@ -48,10 +48,7 @@ purpose.
     -
     *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js)
     - *Source*: [📄 View Source Code](./userscripts/wallapop-enhanced-tools/)
-- **[Wallapop Remove Featured Cards](./userscripts/wallapop-remove-featured-cards/)**
-    - *Info*: Further details (description, install link) to be added. Please [create a
-      `meta.json`](./userscripts/wallapop-remove-featured-cards/HOW_TO_CREATE_META.md) or add standard metadata comments
-      to the `.user.js` file for this script.
+- **[Wallapop Remove Featured Cards](./userscripts/wallapop-remove-featured-cards/)** - *Info: Further details needed.*
 
 ### <img src="https://www.instagram.com/favicon.ico" width="16" height="16"> Instagram
 
@@ -61,10 +58,10 @@ purpose.
     -
     *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/instagram-video-controls/instagram-video-controls.user.js)
     - *Source*: [📄 View Source Code](./userscripts/instagram-video-controls/)
-- **[Instagram Story Anonymity Guard](./userscripts/instagram-story-anonymity-guard/)**
-    - *Info*: Further details (description, install link) to be added. (Currently: Instagram Story Anonymity Guard).
-      Please [create a `meta.json`](./userscripts/instagram-story-anonymity-guard/HOW_TO_CREATE_META.md) or add standard
-      metadata comments to the `.user.js` file for this script.
+- **[Instagram Story Anonymity Guard](./userscripts/instagram-story-anonymity-guard#readme)**
+    - *Description*: Blocks specific network requests to help maintain anonymity while viewing Instagram stories.
+    - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js)
+    - *Source*: [📄 View Source Code](./userscripts/instagram-story-anonymity-guard/)
 
 ### 🧅 Ekşi Sözlük
 

@@ -80,6 +80,13 @@
       isModule: false, // Standard userscript
       fallbacks: ['blob', 'iframe', 'worker'],
     },
+    {
+      name: 'Instagram Story Anonymity Guard',
+      matches: ['instagram.com'],
+      path: 'userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js',
+      isModule: false, // Standard userscript, XHR override needs to happen early
+      fallbacks: ['blob', 'iframe', 'worker'], // Basic fallbacks
+    },
   ];
 
   const devServers = [

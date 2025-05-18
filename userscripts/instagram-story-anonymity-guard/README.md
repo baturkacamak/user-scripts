@@ -1,35 +1,62 @@
 # Instagram Story Anonymity Guard
 
-This userscript blocks a specific request to maintain anonymity while viewing Instagram stories.
+[![version](https://img.shields.io/badge/version-1.1.0-blue.svg)](meta.json)
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![install](https://img.shields.io/badge/install%20directly-userscript-brightgreen.svg)](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js)
+
+This userscript blocks a specific network request to maintain anonymity while viewing Instagram stories.
+
+> View Instagram stories more privately by preventing read receipts from being sent.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Installation Guide](#installation-guide)
+- [How to Use](#how-to-use)
+- [Contributing](#contributing)
+- [License](#license)
+- [Author](#author)
+
+## Overview
+
+The Instagram Story Anonymity Guard userscript ensures users can view Instagram stories without triggering the "seen" status. It achieves this by intercepting and blocking the specific network request (`viewSeenAt`) that Instagram uses to mark stories as viewed by your account.
+
+## Key Features
+
+-   🕵️ **Anonymous Story Viewing**: Prevents your account from appearing in the viewers list of stories.
+-   🚫 **Request Blocking**: Specifically targets and blocks the `viewSeenAt` request.
+-   🚀 **Automatic Operation**: Works in the background as soon as it's installed and you're on Instagram.
+-   🧘 **Peace of Mind**: Browse stories without worrying about immediate read receipts.
 
 ## Installation Guide
 
-To install the Instagram Story Anonymity Guard userscript, follow these steps:
+1.  **Install a Userscript Manager**:
+    If you don't have one, install a userscript manager for your browser (e.g., [Tampermonkey](https://tampermonkey.net/), [Greasemonkey](https://www.greasespot.net/), [Violentmonkey](https://violentmonkey.github.io/)).
 
-1. Install a userscript manager like [Tampermonkey](https://tampermonkey.net/)
-   or [Greasemonkey](https://www.greasespot.net/). These programs allow you to manage userscripts and run them on
-   websites.
+2.  **Install the Script**:
+    Click the link below:
+    ➡️ **[Install Instagram Story Anonymity Guard](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js)**
 
-2. Click on the following link to install the
-   script: [instagram-story-anonymity-guard.user.js](https://github.com/baturkacamak/user-scripts/raw/master/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js)
+3.  **Confirm Installation**:
+    Your userscript manager will prompt for confirmation. Review and click "Install".
 
-3. Your userscript manager should open and display information about the script. Click on the "Install" button to
-   install the script.
+## How to Use
 
-4. After the script is installed, visit any page on the [Instagram](https://www.instagram.com/) website. The script will
-   automatically block the specific request related to "viewSeenAt" field while viewing Instagram stories, maintaining
-   your anonymity.
+Once installed, the script runs automatically when you are on `www.instagram.com`. When you view stories, the script will intercept and block the specific request that marks them as seen by your account.
 
-That's it! The Instagram Story Anonymity Guard script will block the specific request and help maintain your anonymity
-while viewing Instagram stories.
+No further configuration is needed. You can verify its operation by checking the console logs for messages from `[InstagramStoryAnonymityGuard]` if you have your browser's developer tools open (though it's designed to work silently).
 
-## Usage
+## Contributing
 
-Once the Instagram Story Anonymity Guard script is installed, it will automatically work in the background whenever you
-view Instagram stories. It will block the request related to the "viewSeenAt" field, ensuring your anonymity.
+Contributions are welcome! Please [open an issue](https://github.com/baturkacamak/user-scripts/issues) or submit a pull request.
 
 ## License
 
-This script is licensed under the MIT License.
-See [LICENSE](https://github.com/baturkacamak/user-scripts/blob/master/instagram-story-anonymity-guard/LICENSE) for more
-information.
+This project is licensed under the MIT License.
+
+## Author
+
+**Batur Kacamak**
+-   GitHub: [@baturkacamak](https://github.com/baturkacamak)
+-   Website: [batur.info](https://batur.info/)
