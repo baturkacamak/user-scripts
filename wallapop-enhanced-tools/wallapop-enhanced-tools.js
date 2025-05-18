@@ -2611,10 +2611,18 @@ class ControlPanel {
                         {
                             value: 'all',
                             label: TranslationManager.getText('showAll'),
-                            selected: this.loadPanelState('deliveryMethodFilter', 'all') === 'all'
+                            selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'all'
                         },
-                        {value: 'shipping', label: TranslationManager.getText('showOnlyShipping')},
-                        {value: 'inperson', label: TranslationManager.getText('showOnlyInPerson')}
+                        {
+                            value: 'shipping',
+                            label: TranslationManager.getText('showOnlyShipping'),
+                            selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'shipping'
+                        },
+                        {
+                            value: 'inperson',
+                            label: TranslationManager.getText('showOnlyInPerson'),
+                            selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'inperson'
+                        }
                     ],
                     name: 'delivery-method',
                     id: 'delivery-method-select',
@@ -2643,7 +2651,7 @@ class ControlPanel {
         const allListings = document.querySelectorAll(allSelectors);
 
         // Get current filter value
-        const filterValue = this.loadPanelState('deliveryMethodFilter', 'all');
+        const filterValue = this.loadPanelState('deliveryMethodFilter', 'shipping');
 
         if (filterValue === 'all') {
             // Show all listings (that aren't hidden by other filters)
