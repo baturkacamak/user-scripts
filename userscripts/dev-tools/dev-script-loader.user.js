@@ -39,21 +39,21 @@
     {
       name: 'Wallapop Enhanced Tools',
       matches: ['wallapop.com'],
-      path: 'wallapop-enhanced-tools/wallapop-enhanced-tools.user.js',
+      path: 'userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js',
       isModule: false,
       fallbacks: ['blob', 'iframe', 'worker', 'moduleFallback'],
     },
     {
       name: 'Loom Captions Extractor',
       matches: ['loom.com'],
-      path: 'loom-captions-extractor/loom-captions-extractor.user.js',
+      path: 'userscripts/loom-captions-extractor/loom-captions-extractor.user.js',
       isModule: true, // Vite module
       fallbacks: ['moduleBlob', 'moduleProxy', 'moduleIframe', 'moduleEval'],
     },
     {
       name: 'Instagram Video Controls',
       matches: ['instagram.com'],
-      path: 'instagram-video-controls/instagram-video-controls.user.js',
+      path: 'userscripts/instagram-video-controls/instagram-video-controls.user.js',
       isModule: true, // Vite module
       fallbacks: ['moduleBlob', 'moduleProxy', 'moduleIframe', 'vanilla'],
     },
