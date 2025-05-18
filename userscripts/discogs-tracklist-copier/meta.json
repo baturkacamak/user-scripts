@@ -1,0 +1,23 @@
+{
+  "name": "Discogs Tracklist Copier",
+  "namespace": "https://github.com/baturkacamak/userscripts",
+  "version": "1.1.0",
+  "description": "Adds a button to copy tracklist data (Artist - Track) from Discogs.com release pages.",
+  "author": "Batur Kacamak",
+  "copyright": "2023+, Batur Kacamak (https://batur.info/)",
+  "license": "MIT",
+  "homepage": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/discogs-tracklist-copier#readme",
+  "homepageURL": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/discogs-tracklist-copier#readme",
+  "supportURL": "https://github.com/baturkacamak/user-scripts/issues",
+  "downloadURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js",
+  "updateURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js",
+  "match": [
+    "*://www.discogs.com/*release/*",
+    "*://www.discogs.com/*master/*"
+  ],
+  "icon": "https://www.discogs.com/favicon.ico",
+  "run-at": "document-idle",
+  "grant": [
+    "GM_setClipboard"
+  ]
+} 

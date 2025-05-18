@@ -94,6 +94,13 @@
       isModule: false, // Will become true if we use the .js file directly and it has imports
       fallbacks: ['blob', 'iframe', 'worker'],
     },
+    {
+      name: 'Discogs Tracklist Copier',
+      matches: ['discogs.com/release', 'discogs.com/master'], // Matches release and master pages
+      path: 'userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js',
+      isModule: false, // Standard userscript for now
+      fallbacks: ['blob', 'iframe', 'worker'],
+    },
   ];
 
   const devServers = [
