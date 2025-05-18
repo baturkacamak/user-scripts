@@ -9,6 +9,7 @@
 // @match        https://*.loom.com/*
 // @match        https://*.instagram.com/*
 // @match        https://*.whatsapp.com/*
+// @match        https://lingualeo.com/tr/training/leoSprint
 // @icon         https://github.com/baturkacamak.png
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
@@ -69,6 +70,13 @@
       name: 'Tidal URI Scheme Converter',
       matches: ['whatsapp.com'], // Matches the current setting in meta.json
       path: 'userscripts/tidal-uri-scheme-converter/tidal-uri-scheme-converter.user.js',
+      isModule: false, // Standard userscript
+      fallbacks: ['blob', 'iframe', 'worker'],
+    },
+    {
+      name: 'Lingualeo Speaker',
+      matches: ['lingualeo.com/tr/training/leoSprint'],
+      path: 'userscripts/lingualeo-speak/lingualeo-speak.user.js',
       isModule: false, // Standard userscript
       fallbacks: ['blob', 'iframe', 'worker'],
     },

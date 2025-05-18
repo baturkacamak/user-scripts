@@ -130,8 +130,10 @@ for easier management and clearer descriptions here.*
   Currently: Google Maps Places image downloader). Please document or add metadata.*
 - **[Idealista House Listing Analyzer](./userscripts/idealista-house-listing-analyzer/)** - *Info: Further details
   needed. Please document or add metadata.*
-- **[Lingualeo Speak](./userscripts/lingualeo-speak/)** - *Info: Further details needed. (Currently: Lingualeo Speaker).
-  Please document or add metadata.*
+- **[Lingualeo Speaker](./userscripts/lingualeo-speak#readme)**
+    - *Description*: Automatically clicks the speaker button in Lingualeo's Leo Sprint training to play word pronunciations.
+    - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/lingualeo-speak/lingualeo-speak.user.js)
+    - *Source*: [📄 View Source Code](./userscripts/lingualeo-speak/)
 - **[Twitter Thread](./userscripts/twitter-thread/)** - *Info: Further details needed. Please document or add metadata.*
 - **[Twitter View Blocker](./userscripts/twitter-view-blocker/)** - *Info: Further details needed. Please document or
   add metadata.*
