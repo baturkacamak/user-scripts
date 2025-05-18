@@ -119,8 +119,6 @@ for easier management and clearer descriptions here.*
 
 - **[Appointment Availability Notifier](./userscripts/appointment-availability-notifier/)** - *Info: Further details
   needed. Please document or add metadata.*
-- **[Copy Tracklist Data](./userscripts/copy-tracklist-data/)** - *Info: Further details needed. Please document or add
-  metadata.*
 - **[Dev Tools](userscripts/common/dev-tools/)** - *Info: This directory may contain development utilities rather than a
   distributable userscript. Details to be added if applicable.*
 - **[Google Maps Image Downloader](./userscripts/googlemaps-image-downloader#readme)**
@@ -136,6 +134,10 @@ for easier management and clearer descriptions here.*
 - **[Twitter Thread](./userscripts/twitter-thread/)** - *Info: Further details needed. Please document or add metadata.*
 - **[Twitter View Blocker](./userscripts/twitter-view-blocker/)** - *Info: Further details needed. Please document or
   add metadata.*
+- **[Discogs Tracklist Copier](./userscripts/discogs-tracklist-copier#readme)**
+    - *Description*: Adds a button to Discogs.com release and master pages to easily copy the tracklist data (Artist - Track Title).
+    - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js)
+    - *Source*: [📄 View Source Code](./userscripts/discogs-tracklist-copier/)
 - **[Upwork Country Filter](./userscripts/upwork-country-filter/)** - *Info: Further details needed. (Currently: Filter
   jobs by country). Please document or add metadata.*
 - **[URL to URI](./userscripts/url-to-uri/)** - *Info: Further details needed. (Currently: URL converter). Please
