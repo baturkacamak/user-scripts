@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name        Wallapop Enhanced Tools
-// @description Comprehensive Wallapop enhancement suite: expand formatted descriptions, copy/export listings, filter unwanted items, and multi-language support
+// @description Comprehensive Wallapop enhancement suite: advanced description tools (incl. bulk view), versatile data export/download, powerful item filtering (keywords, delivery, reserved), multi-language UI.
 // @namespace   https://github.com/baturkacamak/userscripts
 // @version     1.5.0
 // @author      Batur Kacamak
+// @license     MIT
 // @homepage    https://github.com/baturkacamak/user-scripts/tree/master/wallapop-enhanced-tools#readme
 // @homepageURL https://github.com/baturkacamak/user-scripts/tree/master/wallapop-enhanced-tools#readme
+// @supportURL  https://github.com/baturkacamak/user-scripts/issues
 // @downloadURL https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
 // @updateURL   https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js
 // @match       https://*.wallapop.com/*
