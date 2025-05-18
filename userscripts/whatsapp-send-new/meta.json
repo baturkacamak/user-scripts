@@ -1,0 +1,22 @@
+{
+  "name": "Whatsapp Send New",
+  "namespace": "https://github.com/baturkacamak/userscripts",
+  "version": "0.2.0",
+  "description": "Send whatsapp messages without needing to add them to your contact list.",
+  "author": "Batur Kacamak",
+  "copyright": "2020+, Batur Kacamak (https://batur.info/)",
+  "license": "MIT",
+  "homepage": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/whatsapp-send-new#readme",
+  "homepageURL": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/whatsapp-send-new#readme",
+  "supportURL": "https://github.com/baturkacamak/user-scripts/issues",
+  "downloadURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/whatsapp-send-new/whatsapp-send-new.user.js",
+  "updateURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/whatsapp-send-new/whatsapp-send-new.user.js",
+  "match": [
+    "https://*.whatsapp.com/*"
+  ],
+  "icon": "https://whatsapp.com/favicon.ico",
+  "run-at": "document-idle",
+  "grant": [
+    "unsafeWindow"
+  ]
+} 
