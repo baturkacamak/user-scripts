@@ -29,19 +29,31 @@ build process.
 ## Directory Structure
 
 ```
-userscripts/
-├── core/                      # Shared core components
-│   ├── i18n/                  # Internationalization utilities
-│   ├── ui/                    # UI components
-│   └── utils/                 # Utility functions
-├── wallapop-enhanced-tools/   # Wallapop Enhanced Tools userscript
-│   ├── meta.json              # Userscript metadata
-│   ├── wallapop-enhanced-tools.js    # Source code
-│   └── wallapop-enhanced-tools.user.js  # Compiled output (generated)
-├── build.js                   # Build script
-├── server.js                  # Local development server
-├── rollup.config.js           # Rollup configuration
-└── package.json               # NPM dependencies and scripts
+ProjectRoot/
+├── userscripts/                  # All individual userscript projects
+│   ├── core/                     # Shared core components (utils, UI, i18n)
+│   │   ├── i18n/
+│   │   ├── ui/
+│   │   └── utils/
+│   └── wallapop-enhanced-tools/  # Example userscript directory
+│       ├── meta.json             # Userscript metadata
+│       ├── wallapop-enhanced-tools.js # Source code
+│       └── wallapop-enhanced-tools.user.js # Compiled output (generated)
+│   # ... other userscript directories ...
+├── config/                     # Build and configuration files
+│   ├── build.js                # Main build script
+│   ├── rollup.config.js        # Rollup configuration factory
+│   ├── create_new_userscript.sh # Script to generate new userscripts
+│   └── _userscript-template/   # Template for new userscripts
+├── docs/                       # Documentation files
+│   └── BUILD-SYSTEM.md
+├── .git/                       # Git repository files
+├── node_modules/               # NPM dependencies
+├── .gitignore
+├── package.json                # NPM dependencies and scripts
+├── package-lock.json
+├── README.md                   # Main project README
+└── server.js                   # Local development server (serves from root)
 ```
 
 ## Core Components
@@ -126,10 +138,10 @@ yarn
 # Build all userscripts
 npm run build
 
-# Build a specific userscript
+# Build a specific userscript (e.g., wallapop-enhanced-tools)
 npm run build:wallapop
 
-# Start watch mode
+# Start watch mode for all userscripts
 npm run watch
 
 # Watch with verbose logging
@@ -141,15 +153,16 @@ npm start
 
 ### NPM Scripts
 
-The following scripts are defined in `package.json`:
+The following scripts are defined in `package.json` (refer to actual `package.json` for the most current list):
 
 ```json
 "scripts": {
-"start": "node server.js",
-"build": "node build.js",
-"watch": "node build.js --watch",
-"watch:verbose": "node build.js --watch --verbose",
-"build:wallapop": "node build.js --dir wallapop-enhanced-tools"
+  "start": "node server.js",
+  "build": "node config/build.js",
+  "watch": "node config/build.js --watch",
+  "watch:verbose": "node config/build.js --watch --verbose",
+  "build:wallapop": "node config/build.js --dir userscripts/wallapop-enhanced-tools" 
+  // ... other specific build scripts ...
 }
 ```
 
@@ -171,7 +184,7 @@ Watch mode automatically rebuilds userscripts when source files change. It:
 Example:
 
 ```bash
-node build.js --watch --verbose --dir wallapop-enhanced-tools
+node config/build.js --watch --verbose --dir userscripts/wallapop-enhanced-tools
 ```
 
 ## Configuration
@@ -210,6 +223,20 @@ const CONFIG = {
     colors: { /* console colors */},
     excludedDirs: ['node_modules', '.git', 'dist', '.github', '.idea']
 };
+```
+
+### Command Line Arguments for `build.js` (Direct Usage)
+
+If running `build.js` directly (not via npm scripts):
+
+-   `--watch`: Enable watch mode.
+-   `--verbose`: Enable verbose logging.
+-   `--dir [directory_path]`: Build or watch a specific userscript directory. The path should be relative to the project root (e.g., `userscripts/my-cool-script`).
+
+Example of direct execution:
+
+```bash
+node config/build.js --dir userscripts/your-userscript-name
 ```
 
 ## Troubleshooting
@@ -260,7 +287,7 @@ import {Button, Logger, StyleManager, TranslationManager} from "../core";
 5. Build your userscript with:
 
 ```bash
-node build.js --dir your-userscript-name
+node config/build.js --dir your-userscript-name
 ```
 
 ---

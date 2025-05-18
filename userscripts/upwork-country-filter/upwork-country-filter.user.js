@@ -1,0 +1,2606 @@
+// ==UserScript==
+// @name        Upwork Country Filter
+// @description This script filters Upwork job listings by country, removing jobs from specified countries.
+// @namespace   https://github.com/baturkacamak/userscripts
+// @version     1.0.1
+// @author      Batur Kacamak
+// @license     MIT
+// @match       https://www.upwork.com/ab/jobs/search/*
+// @match       https://www.upwork.com/o/jobs/browse/*
+// @match       https://www.upwork.com/ab/find-work/
+// @match       https://www.upwork.com/nx/find-work/
+// @icon        https://upwork.com/favicon.ico
+// @grant       GM_setValue
+// @grant       GM_getValue
+// @grant       GM_addStyle
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    /**
+     * Enhanced Logger - A feature-rich logging utility
+     * Supports log levels, styling, grouping, caller info, filtering, persistence, exporting, and more
+     */
+    class Logger {
+        static DEBUG = true;
+        static PREFIX = "Userscript";
+        static _customFormat = null;
+        static _logHistory = [];
+        static _filters = new Set();
+        static _lastTimestamp = null;
+        static _persist = false;
+        static _mock = false;
+        static _theme = {
+            debug: "color: #3498db; font-weight: bold;",
+            info: "color: #1abc9c; font-weight: bold;",
+            warn: "color: #f39c12; font-weight: bold;",
+            error: "color: #e74c3c; font-weight: bold;",
+            success: "color: #2ecc71; font-weight: bold;",
+            trace: "color: #8e44ad; font-weight: bold;",
+            htmlTitle: "color: #9b59b6; font-weight: bold;",
+            htmlContent: "color: #2c3e50;",
+            toggle: "color: #f39c12; font-weight: bold;"
+        };
+        static _emojis = {
+            debug: "\uD83D\uDC1B",
+            info: "\u2139\uFE0F",
+            warn: "\u26A0\uFE0F",
+            error: "\u274C",
+            success: "\u2705",
+            trace: "\uD83D\uDCCC",
+            html: "\uD83E\uDDE9",
+            toggle: "\uD83C\uDF9B\uFE0F"
+        };
+
+        static setTimeFormat(locale = "en-US", use12Hour = false) {
+            this._customFormat = {locale, hour12: use12Hour};
+        }
+
+        static _detectTimeFormat() {
+            try {
+                const testDate = new Date(Date.UTC(2020, 0, 1, 13, 0, 0));
+                const locale = navigator.language || "tr-TR";
+                const timeString = testDate.toLocaleTimeString(locale);
+                const is12Hour = timeString.toLowerCase().includes("pm") || timeString.toLowerCase().includes("am");
+                return {locale, hour12: is12Hour};
+            } catch (e) {
+                return {locale: "tr-TR", hour12: false};
+            }
+        }
+
+        static _timestamp() {
+            const {locale, hour12} = this._customFormat || this._detectTimeFormat();
+            const now = new Date();
+            const time = now.toLocaleString(locale, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12
+            });
+            let diff = "";
+            if (this._lastTimestamp) {
+                const ms = now - this._lastTimestamp;
+                diff = ` [+${(ms / 1000).toFixed(1)}s]`;
+            }
+            this._lastTimestamp = now;
+            return `${time}${diff}`;
+        }
+
+        static _getCaller() {
+            const err = new Error();
+            const stack = err.stack?.split("\n")[3];
+            return stack ? stack.trim() : "(unknown)";
+        }
+
+        static _log(level, ...args) {
+            if (!this.DEBUG && level === "debug") return;
+            if (this._filters.size && !args.some(arg => this._filters.has(arg))) return;
+            const emoji = this._emojis[level] || '';
+            const style = this._theme[level] || '';
+            const timestamp = this._timestamp();
+            const caller = this._getCaller();
+
+            const message = [
+                `%c${timestamp} %c${emoji} [${this.PREFIX} ${level.toUpperCase()}]%c:`,
+                "color: gray; font-style: italic;",
+                style,
+                "color: inherit;",
+                ...args,
+                `\nCaller: ${caller}`
+            ];
+
+            this._logHistory.push({timestamp, level, args});
+
+            if (this._persist) localStorage.setItem("LoggerHistory", JSON.stringify(this._logHistory));
+            if (!this._mock) console.log(...message);
+        }
+
+        static debug(...args) {
+            this._log("debug", ...args);
+        }
+
+        static info(...args) {
+            this._log("info", ...args);
+        }
+
+        static warn(...args) {
+            this._log("warn", ...args);
+        }
+
+        static error(...args) {
+            this._log("error", ...args);
+        }
+
+        static success(...args) {
+            this._log("success", ...args);
+        }
+
+        static trace(...args) {
+            this._log("trace", ...args);
+            console.trace();
+        }
+
+        static logHtml(title, htmlContent) {
+            const shortContent = htmlContent.substring(0, 1500) + "...";
+            this._log("html", `[${title}]`, shortContent);
+            if (!this._mock) {
+                console.groupCollapsed(`%c\uD83E\uDDE9 HTML Details (${title})`, this._theme.htmlTitle);
+                console.log("%cComplete HTML:", this._theme.htmlTitle);
+                console.log(`%c${htmlContent}`, this._theme.htmlContent);
+                console.groupEnd();
+            }
+        }
+
+        static setPrefix(prefix) {
+            this.PREFIX = prefix;
+        }
+
+        static setTheme(theme) {
+            Object.assign(this._theme, theme);
+        }
+
+        static addFilter(tag) {
+            this._filters.add(tag);
+        }
+
+        static clearFilters() {
+            this._filters.clear();
+        }
+
+        static persistLogs(enable = true) {
+            this._persist = enable;
+        }
+
+        static mock(enable = true) {
+            this._mock = enable;
+        }
+
+        static group(label) {
+            if (!this._mock) console.group(label);
+        }
+
+        static groupEnd() {
+            if (!this._mock) console.groupEnd();
+        }
+
+        static step(msg) {
+            this.info(`\u2705 ${msg}`);
+        }
+
+        static hello() {
+            this.info("Hello, dev! \uD83D\uDC4B Ready to debug?");
+        }
+
+        static downloadLogs(filename = "logs.json") {
+            const blob = new Blob([JSON.stringify(this._logHistory, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        static autoClear(intervalMs) {
+            setInterval(() => {
+                this._logHistory = [];
+                if (this._persist) localStorage.removeItem("LoggerHistory");
+            }, intervalMs);
+        }
+    }
+
+    /**
+     * PubSub - A simple publish/subscribe pattern implementation
+     * Enables components to communicate without direct references
+     */
+    class PubSub {
+        static #events = {};
+
+        /**
+         * Subscribe to an event
+         * @param {string} event - Event name
+         * @param {Function} callback - Callback function
+         * @return {string} Subscription ID
+         */
+        static subscribe(event, callback) {
+            if (!this.#events[event]) {
+                this.#events[event] = [];
+            }
+
+            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            this.#events[event].push({callback, subscriptionId});
+            return subscriptionId;
+        }
+
+        /**
+         * Unsubscribe from an event
+         * @param {string} subscriptionId - Subscription ID
+         * @return {boolean} Success state
+         */
+        static unsubscribe(subscriptionId) {
+            for (const event in this.#events) {
+                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
+                if (index !== -1) {
+                    this.#events[event].splice(index, 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Publish an event
+         * @param {string} event - Event name
+         * @param {any} data - Data to pass to subscribers
+         */
+        static publish(event, data) {
+            if (!this.#events[event]) {
+                return;
+            }
+
+            this.#events[event].forEach(sub => {
+                sub.callback(data);
+            });
+        }
+
+        /**
+         * Clear all subscriptions
+         * @param {string} [event] - Optional event name to clear only specific event
+         */
+        static clear(event) {
+            if (event) {
+                delete this.#events[event];
+            } else {
+                this.#events = {};
+            }
+        }
+    }
+
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    /**
+     * DOMObserver - Observes DOM changes and URL changes
+     * Uses UrlChangeWatcher for URL change detection with configurable strategies
+     */
+    class DOMObserver {
+      /**
+         * Wait for elements matching a selector
+         * @param {string} selector - CSS selector to wait for
+         * @param {number} timeout - Timeout in milliseconds
+         * @return {Promise<NodeList>} - Promise resolving to found elements
+         */
+      static waitForElements(selector, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+
+          function checkElements() {
+            const elements = document.querySelectorAll(selector);
+            if (0 < elements.length) {
+              resolve(elements);
+              return;
+            }
+
+            if (Date.now() - startTime > timeout) {
+              reject(new Error(`Timeout waiting for elements: ${selector}`));
+              return;
+            }
+
+            requestAnimationFrame(checkElements);
+          }
+
+          checkElements();
+        });
+      }
+      /**
+         * Create a new DOMObserver
+         * @param {Function} onMutation - Callback for handling mutations
+         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
+         */
+      constructor(onMutation, urlChangeStrategies = []) {
+        this.observer = new MutationObserver(this.handleMutations.bind(this));
+        this.lastUrl = location.href;
+        this.onMutation = onMutation;
+
+        // Initialize URL change watcher with provided strategies
+        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
+      }
+
+
+      /**
+         * Start observing DOM changes and URL changes
+         * @param {HTMLElement} target - Element to observe (defaults to document.body)
+         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
+         */
+      observe(target = document.body, config = {childList: true, subtree: true}) {
+        this.observer.observe(target, config);
+
+        // Start URL change watcher
+        this.urlChangeWatcher.start();
+      }
+
+      /**
+         * Stop observing DOM changes and URL changes
+         */
+      disconnect() {
+        this.observer.disconnect();
+
+        // Stop URL change watcher
+        this.urlChangeWatcher.stop();
+      }
+
+      /**
+         * Handle mutations
+         * @param {MutationRecord[]} mutations - Array of mutation records
+         * @private
+         */
+      handleMutations(mutations) {
+        if (this.onMutation) {
+          this.onMutation(mutations);
+        }
+      }
+    }
+
+    /**
+     * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
+     * Ensures compatibility across different userscript managers and direct browser execution
+     */
+
+    class GMFunctions {
+        /**
+         * Check if we're running in development mode (outside a userscript manager)
+         * @return {boolean} True if in development environment
+         */
+        static isDevelopmentMode() {
+            // In production, GM_info should be defined by the userscript manager
+            return 'undefined' === typeof GM_info;
+        }
+
+        /**
+         * Initialize fallbacks for missing GM functions
+         * @return {Object} Object containing references to all GM functions (either native or polyfilled)
+         */
+        static initialize() {
+            const isDevMode = this.isDevelopmentMode();
+
+            Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');
+
+            if (isDevMode) {
+                // Create fallbacks for common GM functions
+                this.setupAddStyle();
+                this.setupXmlHttpRequest();
+                this.setupSetClipboard();
+                this.setupDownload();
+                this.setupGetValue();
+                this.setupSetValue();
+
+                Logger.info('GM function fallbacks have been created for development mode');
+            } else {
+                Logger.debug('Using native userscript manager GM functions');
+            }
+
+            // Return references to all functions (either native or polyfilled)
+            return {
+                GM_addStyle: window.GM_addStyle,
+                GM_xmlhttpRequest: window.GM_xmlhttpRequest,
+                GM_setClipboard: window.GM_setClipboard,
+                GM_download: window.GM_download,
+                GM_getValue: window.GM_getValue,
+                GM_setValue: window.GM_setValue,
+            };
+        }
+
+        /**
+         * Set up GM_addStyle fallback
+         */
+        static setupAddStyle() {
+            window.GM_addStyle = function (css) {
+                Logger.debug('GM_addStyle fallback executing', css.substring(0, 50) + '...');
+                const style = document.createElement('style');
+                style.textContent = css;
+                document.head.appendChild(style);
+                return style;
+            };
+        }
+
+        /**
+         * Set up GM_xmlhttpRequest fallback
+         */
+        static setupXmlHttpRequest() {
+            window.GM_xmlhttpRequest = function (details) {
+                Logger.debug('GM_xmlhttpRequest fallback executing', {
+                    method: details.method,
+                    url: details.url
+                });
+
+                const xhr = new XMLHttpRequest();
+                xhr.open(details.method, details.url);
+
+                if (details.headers) {
+                    Object.keys(details.headers).forEach((key) => {
+                        xhr.setRequestHeader(key, details.headers[key]);
+                    });
+                }
+
+                xhr.onload = function () {
+                    if (details.onload) {
+                        const response = {
+                            responseText: xhr.responseText,
+                            response: xhr.response,
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            readyState: xhr.readyState,
+                        };
+
+                        Logger.debug('GM_xmlhttpRequest completed', {
+                            status: xhr.status,
+                            url: details.url
+                        });
+
+                        details.onload(response);
+                    }
+                };
+
+                xhr.onerror = function () {
+                    Logger.error('GM_xmlhttpRequest error', {
+                        url: details.url,
+                        status: xhr.status
+                    });
+
+                    if (details.onerror) {
+                        details.onerror(xhr);
+                    }
+                };
+
+                xhr.send(details.data);
+                return xhr;
+            };
+        }
+
+        /**
+         * Set up GM_setClipboard fallback
+         */
+        static setupSetClipboard() {
+            window.GM_setClipboard = function (text) {
+                Logger.debug('GM_setClipboard fallback executing', {
+                    textLength: text.length
+                });
+
+                // Create a temporary textarea element
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+
+                // Make the textarea not visible
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+
+                document.body.appendChild(textarea);
+                textarea.select();
+
+                // Try to copy the text
+                let success = false;
+                try {
+                    success = document.execCommand('copy');
+                    Logger.info('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
+                } catch (err) {
+                    Logger.error(err, 'Error copying to clipboard');
+                }
+
+                // Clean up
+                document.body.removeChild(textarea);
+                return success;
+            };
+        }
+
+        /**
+         * Set up GM_download fallback
+         */
+        static setupDownload() {
+            window.GM_download = function (options) {
+                // Wrapping in a Promise to allow for async-like behavior if needed by caller,
+                // though current implementation is synchronous.
+                return new Promise((resolve, reject) => {
+                    try {
+                        const {url, name, onload, onerror} = options;
+
+                        Logger.debug('GM_download fallback executing', {
+                            url: url.substring(0, 100),
+                            filename: name
+                        });
+
+                        // Create download link
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = url;
+                        downloadLink.download = name || 'download';
+                        downloadLink.style.display = 'none';
+
+                        // Add to document, click, and remove
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+
+                        // Clean up
+                        setTimeout(() => {
+                            document.body.removeChild(downloadLink);
+                            if (onload) {
+                                Logger.debug('GM_download completed successfully');
+                                onload();
+                            }
+                            resolve(true); // Resolve promise on success
+                        }, 100);
+
+                    } catch (err) {
+                        Logger.error(err, 'Error downloading file');
+                        if (options.onerror) options.onerror(err);
+                        reject(err); // Reject promise on error
+                    }
+                });
+            };
+        }
+
+        /**
+         * Set up GM_getValue fallback using localStorage, returning a Promise.
+         */
+        static setupGetValue() {
+            window.GM_getValue = function (key, defaultValue) {
+                return new Promise((resolve) => {
+                    try {
+                        const storageKey = `GM_${key}`;
+                        Logger.debug('GM_getValue fallback: Attempting to get \'' + storageKey + '\'');
+                        const value = localStorage.getItem(storageKey);
+                        if (value !== null) {
+                            try {
+                                const parsedValue = JSON.parse(value);
+                                Logger.debug('GM_getValue fallback: Found and parsed \'' + storageKey + '\', value:', parsedValue);
+                                resolve(parsedValue);
+                            } catch (e) {
+                                Logger.debug('GM_getValue fallback: Found non-JSON \'' + storageKey + '\', value:', value);
+                                resolve(value); // Return as string if not JSON
+                            }
+                        } else {
+                            Logger.debug('GM_getValue fallback: Key \'' + storageKey + '\' not found, returning default:', defaultValue);
+                            resolve(defaultValue);
+                        }
+                    } catch (error) {
+                        Logger.error(error, 'Error getting value for key (GM_getValue fallback): ' + key);
+                        resolve(defaultValue);
+                    }
+                });
+            };
+        }
+
+        /**
+         * Set up GM_setValue fallback using localStorage, returning a Promise.
+         */
+        static setupSetValue() {
+            window.GM_setValue = function (key, value) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const storageKey = `GM_${key}`;
+                        Logger.debug('GM_setValue fallback: Attempting to set \'' + storageKey + '\' to:', value);
+                        localStorage.setItem(storageKey, JSON.stringify(value));
+                        resolve();
+                    } catch (error) {
+                        Logger.error(error, 'Error setting value for key (GM_setValue fallback): ' + key);
+                        reject(error);
+                    }
+                });
+            };
+        }
+    }
+
+    // Initialize the fallbacks (this will populate window.GM_getValue etc.)
+    // The initialize method also returns the map of functions.
+    const gmFunctions = GMFunctions.initialize();
+
+    // Export the functions for direct import, matching the names used in CountryFilter.js
+    gmFunctions.GM_addStyle;
+    gmFunctions.GM_xmlhttpRequest;
+    gmFunctions.GM_setClipboard;
+    gmFunctions.GM_download;
+    const getValue = gmFunctions.GM_getValue; // Maps to getValue for import { getValue }
+    const setValue = gmFunctions.GM_setValue; // Maps to setValue for import { setValue }
+
+    // For potential direct class usage if ever needed, though current pattern is to use the initialized functions.
+    // export default GMFunctions; // Not currently used this way
+
+    const logger = new Logger('UpworkCountryFilter');
+
+    const FILTER_ENABLED_KEY = 'upworkFilterEnabled';
+    const BANNED_COUNTRIES_KEY = 'upworkBannedCountries';
+
+    /**
+     * Class for filtering Upwork job listings by country.
+     */
+    class UpworkCountryFilter {
+        static observerInstance = null;
+        static isFilterEnabled = true;
+        static bannedCountriesList = [];
+
+        /**
+         * Initializes the filter by starting a DOMObserver and removing countries.
+         */
+        static async init() {
+            await this.loadSettings();
+
+            const mutationCallback = () => {
+                if (this.isFilterEnabled) {
+                    this.removeCountryListings();
+                }
+            };
+
+            this.observerInstance = new DOMObserver(mutationCallback);
+            this.observerInstance.observe(document.documentElement, { childList: true, subtree: true });
+
+            if (this.isFilterEnabled) {
+                this.removeCountryListings(); // Initial scan
+            }
+            logger.log('Initialized with filter enabled:', this.isFilterEnabled, 'Banned countries:', this.bannedCountriesList);
+
+            // Subscribe to settings changes from UI
+            PubSub.subscribe('filterEnabledChanged', (isEnabled) => this.setFilterEnabled(isEnabled));
+            PubSub.subscribe('bannedCountriesChanged', (countries) => this.setBannedCountries(countries));
+        }
+
+        static async loadSettings() {
+            const storedEnabled = await getValue(FILTER_ENABLED_KEY, true);
+            this.isFilterEnabled = storedEnabled;
+
+            const storedCountries = await getValue(BANNED_COUNTRIES_KEY, []);
+            // Ensure it's always an array, even if null/undefined is somehow stored
+            this.bannedCountriesList = Array.isArray(storedCountries) ? storedCountries : [];
+            logger.log('Settings loaded - Enabled:', this.isFilterEnabled, 'Countries:', this.bannedCountriesList);
+        }
+
+        static async saveSettings() {
+            await setValue(FILTER_ENABLED_KEY, this.isFilterEnabled);
+            await setValue(BANNED_COUNTRIES_KEY, this.bannedCountriesList);
+            logger.log('Settings saved - Enabled:', this.isFilterEnabled, 'Countries:', this.bannedCountriesList);
+        }
+
+        static setFilterEnabled(isEnabled) {
+            if (typeof isEnabled === 'boolean' && this.isFilterEnabled !== isEnabled) {
+                this.isFilterEnabled = isEnabled;
+                logger.log('Filter enabled state changed to:', this.isFilterEnabled);
+                this.saveSettings();
+                if (!this.isFilterEnabled) {
+                    logger.log('Filter disabled. Job listings will not be actively removed. Previously removed items will remain removed until page refresh.');
+                } else {
+                    this.removeCountryListings(); // Re-apply filter if enabled
+                }
+                PubSub.publish('filterSettingsRefreshed', { isEnabled: this.isFilterEnabled, countries: this.bannedCountriesList });
+            }
+        }
+
+        static setBannedCountries(countries) {
+            if (Array.isArray(countries)) {
+                this.bannedCountriesList = [...new Set(countries.map(c => c.trim()).filter(c => c))]; // Unique, trimmed, non-empty
+                logger.log('Banned countries list updated to:', this.bannedCountriesList);
+                this.saveSettings();
+                if (this.isFilterEnabled) {
+                    this.removeCountryListings(); // Re-apply filter with new countries
+                }
+                PubSub.publish('filterSettingsRefreshed', { isEnabled: this.isFilterEnabled, countries: this.bannedCountriesList });
+            }
+        }
+        
+        static getSettings() {
+            return { isEnabled: this.isFilterEnabled, countries: [...this.bannedCountriesList] };
+        }
+
+        /**
+         * Stops the DOM observer.
+         */
+        static stop() {
+            if (this.observerInstance) {
+                this.observerInstance.disconnect();
+                this.observerInstance = null;
+                logger.log('DOM Observer stopped.');
+            }
+        }
+
+        /**
+         * Removes job listings for the countries in the 'COUNTRIES' list.
+         */
+        static removeCountryListings() {
+            if (!this.isFilterEnabled) return;
+
+            document.querySelectorAll('*[data-test="client-country"], .job-tile .client-location').forEach((el) => {
+                const countryText = el.textContent?.trim();
+                if (this.shouldRemoveCountry(countryText)) {
+                    this.removeListing(el);
+                }
+            });
+        }
+
+        /**
+         * Checks if a country should be removed based on the 'COUNTRIES' list.
+         * @param {string} country - The country name to check.
+         * @returns {boolean} Whether the country should be removed.
+         */
+        static shouldRemoveCountry(country) {
+            if (!this.isFilterEnabled || !country || country === '') {
+                return false;
+            }
+            return this.bannedCountriesList.some((bannedCountry) =>
+                country.toLowerCase().includes(bannedCountry.toLowerCase())
+            );
+        }
+
+        /**
+         * Removes a job listing element from the DOM.
+         * @param {HTMLElement} listingElement - The job listing element to remove.
+         */
+        static removeListing(listingElement) {
+            // Try to find the closest common ancestor that represents a job card
+            const parentSelectors = [
+                '.up-card-section', // General card section
+                '.job-tile',        // Older job tile class
+                '[data-test="job-tile-list-visitor"]' // A common selector for job tiles
+                // Add more selectors here if Upwork changes its structure
+            ];
+
+            let parentElement = null;
+            for (const selector of parentSelectors) {
+                parentElement = listingElement.closest(selector);
+                if (parentElement) break;
+            }
+
+            if (parentElement && parentElement.parentNode) {
+                parentElement.parentNode.removeChild(parentElement);
+                // logger.debug('Removed listing for country:', listingElement.textContent?.trim());
+            }
+        }
+    }
+
+    /**
+     * StyleManager - Utility for CSS style management
+     * Handles adding and removing styles, theme variables, etc.
+     */
+    class StyleManager {
+        static styleElements = new Map();
+
+        /**
+         * Add CSS styles to the document
+         * @param {string} css - CSS string to add
+         * @param {string} id - Optional ID for the style element
+         * @returns {HTMLStyleElement} - The created style element
+         */
+        static addStyles(css, id = null) {
+            const style = document.createElement('style');
+            style.textContent = css;
+
+            if (id) {
+                style.id = id;
+                // Remove any existing style with the same ID
+                if (this.styleElements.has(id)) {
+                    this.removeStyles(id);
+                }
+                this.styleElements.set(id, style);
+            }
+
+            document.head.appendChild(style);
+            return style;
+        }
+
+        /**
+         * Remove styles by ID
+         * @param {string} id - ID of the style element to remove
+         * @returns {boolean} - True if styles were removed, false otherwise
+         */
+        static removeStyles(id) {
+            if (!this.styleElements.has(id)) return false;
+
+            const styleElement = this.styleElements.get(id);
+            if (styleElement && styleElement.parentNode) {
+                styleElement.parentNode.removeChild(styleElement);
+            }
+
+            this.styleElements.delete(id);
+            return true;
+        }
+
+        /**
+         * Apply CSS variables for theming
+         * @param {Object} variables - Object with variable names and values
+         * @param {string} selector - CSS selector to apply variables to (default: :root)
+         */
+        static applyThemeVariables(variables, selector = ':root') {
+            let css = `${selector} {\n`;
+
+            Object.entries(variables).forEach(([name, value]) => {
+                // Ensure variable names start with --
+                const varName = name.startsWith('--') ? name : `--${name}`;
+                css += `  ${varName}: ${value};\n`;
+            });
+
+            css += `}\n`;
+
+            this.addStyles(css, 'theme-variables');
+        }
+
+        /**
+         * Add styles to handle animations
+         * @param {Object} animations - Key-value pairs of animation name and keyframes
+         */
+        static addAnimations(animations) {
+            let css = '';
+
+            Object.entries(animations).forEach(([name, keyframes]) => {
+                css += `@keyframes ${name} {\n${keyframes}\n}\n\n`;
+            });
+
+            this.addStyles(css, 'animations');
+        }
+    }
+
+    /**
+     * SidebarPanel - A reusable UI component for creating a sidebar panel with a trigger button
+     * Similar to Wallapop's help button that shifts the site content
+     */
+
+    /**
+     * A reusable component that creates a toggle button and sidebar panel
+     */
+    class SidebarPanel {
+        // Panel states
+        static PANEL_STATES = {
+            OPENED: 'opened',
+            CLOSED: 'closed'
+        };
+
+        // Panel positions
+        static PANEL_POSITIONS = {
+            RIGHT: 'right',
+            LEFT: 'left'
+        };
+
+        // Panel transitions
+        static PANEL_TRANSITIONS = {
+            SLIDE: 'slide',
+            PUSH: 'push'
+        };
+
+        // GM storage keys
+        static STORAGE_KEYS = {
+            PANEL_STATE: 'sidebar-panel-state',
+            PANEL_SETTINGS: 'sidebar-panel-settings'
+        };
+
+        // PubSub events
+        static EVENTS = {
+            PANEL_OPEN: 'sidebar-panel-open',
+            PANEL_CLOSE: 'sidebar-panel-close',
+            PANEL_TOGGLE: 'sidebar-panel-toggle',
+            PANEL_INITIALIZED: 'sidebar-panel-initialized'
+        };
+
+        /**
+         * Create a new SidebarPanel.
+         * @param {Object} options - Configuration options.
+         * @param {String} options.title - Panel title.
+         * @param {String} [options.id="sidebar-panel"] - Unique ID for the panel.
+         * @param {String} [options.position="right"] - Position of the panel ("right" or "left").
+         * @param {String} [options.transition="slide"] - Transition effect ("slide" or "push").
+         * @param {String} [options.buttonIcon="?"] - HTML content for the toggle button.
+         * @param {Boolean} [options.showButton=true] - Whether to show the toggle button.
+         * @param {String} [options.namespace="userscripts"] - Namespace for CSS classes.
+         * @param {Function} [options.onOpen=null] - Callback when panel opens.
+         * @param {Function} [options.onClose=null] - Callback when panel closes.
+         * @param {Boolean} [options.overlay=true] - Whether to show an overlay behind the panel.
+         * @param {Object} [options.content={}] - Content configuration.
+         * @param {String|HTMLElement} [options.content.html=null] - HTML content for the panel.
+         * @param {Function} [options.content.generator=null] - Function that returns content.
+         * @param {Boolean} [options.rememberState=true] - Whether to remember the panel state.
+         * @param {Object} [options.style={}] - Custom style options.
+         * @param {String} [options.style.width="320px"] - Panel width.
+         * @param {String} [options.style.buttonSize="48px"] - Button size.
+         * @param {String} [options.style.buttonColor="#fff"] - Button text color.
+         * @param {String} [options.style.buttonBg="#625df5"] - Button background color.
+         * @param {String} [options.style.panelBg="#fff"] - Panel background color.
+         */
+        constructor(options = {}) {
+            // Process and store options with defaults
+            this.options = {
+                title: options.title || 'Panel',
+                id: options.id || 'sidebar-panel',
+                position: options.position || SidebarPanel.PANEL_POSITIONS.RIGHT,
+                transition: options.transition || SidebarPanel.PANEL_TRANSITIONS.SLIDE,
+                buttonIcon: options.buttonIcon || '?',
+                showButton: options.showButton !== false,
+                namespace: options.namespace || 'userscripts',
+                onOpen: options.onOpen || null,
+                onClose: options.onClose || null,
+                overlay: options.overlay !== false,
+                content: options.content || {},
+                rememberState: options.rememberState !== false,
+                style: options.style || {}
+            };
+
+            // Setup base class names based on namespace
+            this.baseClass = `${this.options.namespace}-sidebar-panel`;
+            this.cssVarPrefix = `--${this.options.namespace}-sidebar-panel-`;
+
+            // Elements references
+            this.container = null;
+            this.panel = null;
+            this.button = null;
+            this.closeButton = null;
+            this.content = null;
+            this.header = null;
+            this.footer = null;
+            this.overlay = null;
+
+            // Panel state
+            this.state = this.getSavedState() || SidebarPanel.PANEL_STATES.CLOSED;
+
+            // Storage key for this specific panel instance
+            this.storageKey = `${SidebarPanel.STORAGE_KEYS.PANEL_STATE}-${this.options.id}`;
+
+            // Initialize the component
+            this.init();
+        }
+
+        /**
+         * Initialize the styles for the SidebarPanel
+         * @param {String} namespace - Optional namespace to prevent CSS collisions
+         */
+        static initStyles(namespace = 'userscripts') {
+            const baseClass = `${namespace}-sidebar-panel`;
+            const cssVarPrefix = `--${namespace}-sidebar-panel-`;
+
+            StyleManager.addStyles(`
+            /* Base styles for the sidebar panel */
+            .${baseClass}-container {
+                position: fixed;
+                top: 0;
+                height: 100%;
+                z-index: 9998;
+                transition: transform 0.3s ease-in-out;
+            }
+            
+            .${baseClass}-container--right {
+                right: 0;
+                transform: translateX(100%);
+            }
+            
+            .${baseClass}-container--left {
+                left: 0;
+                transform: translateX(-100%);
+            }
+            
+            .${baseClass}-container--opened {
+                transform: translateX(0);
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            }
+            
+            .${baseClass} {
+                width: var(${cssVarPrefix}width, 320px);
+                height: 100%;
+                background-color: var(${cssVarPrefix}bg, #fff);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                position: relative;
+            }
+            
+            .${baseClass}-header {
+                padding: 16px;
+                background-color: var(${cssVarPrefix}header-bg, #f5f5f5);
+                border-bottom: 1px solid var(${cssVarPrefix}border-color, #eee);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .${baseClass}-title {
+                font-weight: bold;
+                font-size: 18px;
+                color: var(${cssVarPrefix}title-color, #333);
+                margin: 0;
+            }
+            
+            .${baseClass}-close {
+                background: none;
+                border: none;
+                cursor: pointer;
+                font-size: 24px;
+                line-height: 24px;
+                padding: 0;
+                width: 24px;
+                height: 24px;
+                color: var(${cssVarPrefix}close-color, #777);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .${baseClass}-close:hover {
+                color: var(${cssVarPrefix}close-color-hover, #333);
+            }
+            
+            .${baseClass}-content {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px;
+            }
+            
+            .${baseClass}-footer {
+                padding: 16px;
+                background-color: var(${cssVarPrefix}footer-bg, #f5f5f5);
+                border-top: 1px solid var(${cssVarPrefix}border-color, #eee);
+            }
+            
+            /* Toggle button styles */
+            .${baseClass}-toggle {
+                position: fixed;
+                width: var(${cssVarPrefix}button-size, 48px);
+                height: var(${cssVarPrefix}button-size, 48px);
+                border-radius: 50%;
+                background-color: var(${cssVarPrefix}button-bg, #625df5);
+                color: var(${cssVarPrefix}button-color, #fff);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                z-index: 9999;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+                border: none;
+                outline: none;
+                transition: background-color 0.2s ease, transform 0.2s ease;
+            }
+            
+            .${baseClass}-toggle:hover {
+                background-color: var(${cssVarPrefix}button-bg-hover, #514dc6);
+                transform: scale(1.05);
+            }
+            
+            .${baseClass}-toggle--right {
+                right: 20px;
+                bottom: 20px;
+            }
+            
+            .${baseClass}-toggle--left {
+                left: 20px;
+                bottom: 20px;
+            }
+            
+            /* For push transition effect */
+            body.${baseClass}-push-active--right {
+                transition: margin-left 0.3s ease-in-out;
+            }
+            
+            body.${baseClass}-push-active--right.${baseClass}-push--opened {
+                margin-left: calc(-1 * var(${cssVarPrefix}width, 320px));
+            }
+            
+            body.${baseClass}-push-active--left {
+                transition: margin-right 0.3s ease-in-out;
+            }
+            
+            body.${baseClass}-push-active--left.${baseClass}-push--opened {
+                margin-right: calc(-1 * var(${cssVarPrefix}width, 320px));
+            }
+            
+            /* Overlay for mobile views */
+            .${baseClass}-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 9997;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+            
+            .${baseClass}-overlay--visible {
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+            }
+            
+            /* Responsive styles */
+            @media (max-width: 768px) {
+                .${baseClass} {
+                    width: 85vw;
+                }
+            }
+        `, `${namespace}-sidebar-panel-styles`);
+        }
+
+        /**
+         * Initialize the panel and button
+         */
+        init() {
+            // Initialize styles if not already done
+            SidebarPanel.initStyles(this.options.namespace);
+
+            // Create custom CSS variables for this instance
+            this.applyCustomStyles();
+
+            // Create the panel elements
+            this.createPanel();
+
+            // Create toggle button if needed
+            if (this.options.showButton) {
+                this.createToggleButton();
+            }
+
+            // Create overlay if needed
+            if (this.options.overlay) {
+                this.createOverlay();
+            }
+
+            // Set up events
+            this.setupEvents();
+
+            // Apply saved state if we're remembering state
+            if (this.options.rememberState) {
+                if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                    this.open(false); // Open without animation for initial state
+                }
+            }
+
+            // Publish initialization event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, {
+                id: this.options.id,
+                panel: this
+            });
+
+            Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
+        }
+
+        /**
+         * Apply custom styles from options
+         */
+        applyCustomStyles() {
+            const customStyles = {};
+
+            // Process style options
+            if (this.options.style.width) {
+                customStyles[`${this.cssVarPrefix}width`] = this.options.style.width;
+            }
+            if (this.options.style.buttonSize) {
+                customStyles[`${this.cssVarPrefix}button-size`] = this.options.style.buttonSize;
+            }
+            if (this.options.style.buttonColor) {
+                customStyles[`${this.cssVarPrefix}button-color`] = this.options.style.buttonColor;
+            }
+            if (this.options.style.buttonBg) {
+                customStyles[`${this.cssVarPrefix}button-bg`] = this.options.style.buttonBg;
+            }
+            if (this.options.style.buttonBgHover) {
+                customStyles[`${this.cssVarPrefix}button-bg-hover`] = this.options.style.buttonBgHover;
+            }
+            if (this.options.style.panelBg) {
+                customStyles[`${this.cssVarPrefix}bg`] = this.options.style.panelBg;
+            }
+
+            // Apply the CSS variables using StyleManager
+            if (Object.keys(customStyles).length > 0) {
+                const styleId = `${this.baseClass}-custom-${this.options.id}`;
+                let cssText = `:root {\n`;
+
+                for (const [key, value] of Object.entries(customStyles)) {
+                    cssText += `  ${key}: ${value};\n`;
+                }
+
+                cssText += `}\n`;
+                StyleManager.addStyles(cssText, styleId);
+            }
+        }
+
+        /**
+         * Create the panel element
+         */
+        createPanel() {
+            // Create panel container
+            this.container = document.createElement('div');
+            this.container.id = `${this.baseClass}-${this.options.id}`;
+            this.container.className = `${this.baseClass}-container ${this.baseClass}-container--${this.options.position}`;
+
+            // Create panel
+            this.panel = document.createElement('div');
+            this.panel.className = this.baseClass;
+
+            // Create panel header
+            this.header = document.createElement('div');
+            this.header.className = `${this.baseClass}-header`;
+
+            // Create title
+            const title = document.createElement('h2');
+            title.className = `${this.baseClass}-title`;
+            title.textContent = this.options.title;
+            this.header.appendChild(title);
+
+            // Create close button
+            this.closeButton = document.createElement('button');
+            this.closeButton.type = 'button';
+            this.closeButton.className = `${this.baseClass}-close`;
+            this.closeButton.innerHTML = '×';
+            this.closeButton.setAttribute('aria-label', 'Close');
+            this.header.appendChild(this.closeButton);
+
+            // Create content container
+            this.content = document.createElement('div');
+            this.content.className = `${this.baseClass}-content`;
+
+            // Add initial content if provided
+            if (this.options.content.html) {
+                if (typeof this.options.content.html === 'string') {
+                    this.content.innerHTML = this.options.content.html;
+                } else if (this.options.content.html instanceof HTMLElement) {
+                    this.content.appendChild(this.options.content.html);
+                }
+            } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
+                const generatedContent = this.options.content.generator();
+                if (typeof generatedContent === 'string') {
+                    this.content.innerHTML = generatedContent;
+                } else if (generatedContent instanceof HTMLElement) {
+                    this.content.appendChild(generatedContent);
+                }
+            }
+
+            // Create footer (optional)
+            if (this.options.footer) {
+                this.footer = document.createElement('div');
+                this.footer.className = `${this.baseClass}-footer`;
+
+                if (typeof this.options.footer === 'string') {
+                    this.footer.innerHTML = this.options.footer;
+                } else if (this.options.footer instanceof HTMLElement) {
+                    this.footer.appendChild(this.options.footer);
+                }
+            }
+
+            // Assemble the panel
+            this.panel.appendChild(this.header);
+            this.panel.appendChild(this.content);
+            if (this.footer) {
+                this.panel.appendChild(this.footer);
+            }
+            this.container.appendChild(this.panel);
+
+            // Add to document
+            document.body.appendChild(this.container);
+        }
+
+        /**
+         * Create toggle button
+         */
+        createToggleButton() {
+            this.button = document.createElement('button');
+            this.button.type = 'button';
+            this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
+            this.button.innerHTML = this.options.buttonIcon;
+            this.button.setAttribute('aria-label', `Open ${this.options.title}`);
+
+            // Add to document
+            document.body.appendChild(this.button);
+        }
+
+        /**
+         * Create overlay element
+         */
+        createOverlay() {
+            this.overlay = document.createElement('div');
+            this.overlay.className = `${this.baseClass}-overlay`;
+            document.body.appendChild(this.overlay);
+        }
+
+        /**
+         * Set up event listeners
+         */
+        setupEvents() {
+            // Toggle button click
+            if (this.button) {
+                this.button.addEventListener('click', () => this.toggle());
+            }
+
+            // Close button click
+            if (this.closeButton) {
+                this.closeButton.addEventListener('click', () => this.close());
+            }
+
+            // Overlay click
+            if (this.overlay) {
+                this.overlay.addEventListener('click', () => this.close());
+            }
+
+            // Listen for PubSub events
+            this.subscriptions = [
+                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_OPEN}-${this.options.id}`, () => this.open()),
+                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_CLOSE}-${this.options.id}`, () => this.close()),
+                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_TOGGLE}-${this.options.id}`, () => this.toggle())
+            ];
+
+            // ESC key to close
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                    this.close();
+                }
+            });
+        }
+
+        /**
+         * Toggle panel state
+         */
+        toggle() {
+            if (this.state === SidebarPanel.PANEL_STATES.CLOSED) {
+                this.open();
+            } else {
+                this.close();
+            }
+        }
+
+        /**
+         * Open the panel
+         * @param {Boolean} animate - Whether to animate the opening
+         */
+        open(animate = true) {
+            if (this.state === SidebarPanel.PANEL_STATES.OPENED) return;
+
+            this.state = SidebarPanel.PANEL_STATES.OPENED;
+
+            // Update panel class
+            if (!animate) {
+                this.container.style.transition = 'none';
+                requestAnimationFrame(() => {
+                    this.container.style.transition = '';
+                });
+            }
+
+            this.container.classList.add(`${this.baseClass}-container--opened`);
+
+            // Handle push transition
+            if (this.options.transition === SidebarPanel.PANEL_TRANSITIONS.PUSH) {
+                document.body.classList.add(`${this.baseClass}-push-active--${this.options.position}`);
+                document.body.classList.add(`${this.baseClass}-push--opened`);
+            }
+
+            // Show overlay
+            if (this.overlay) {
+                this.overlay.classList.add(`${this.baseClass}-overlay--visible`);
+            }
+
+            // Save state
+            if (this.options.rememberState) {
+                this.saveState();
+            }
+
+            // Call onOpen callback if provided
+            if (typeof this.options.onOpen === 'function') {
+                this.options.onOpen();
+            }
+
+            // Publish event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_OPEN, {
+                id: this.options.id,
+                panel: this
+            });
+
+            Logger.debug(`SidebarPanel opened: ${this.options.id}`);
+        }
+
+        /**
+         * Close the panel
+         */
+        close() {
+            if (this.state === SidebarPanel.PANEL_STATES.CLOSED) return;
+
+            this.state = SidebarPanel.PANEL_STATES.CLOSED;
+
+            // Update panel class
+            this.container.classList.remove(`${this.baseClass}-container--opened`);
+
+            // Handle push transition
+            if (this.options.transition === SidebarPanel.PANEL_TRANSITIONS.PUSH) {
+                document.body.classList.remove(`${this.baseClass}-push--opened`);
+                // We keep the active class for transition
+                setTimeout(() => {
+                    if (this.state === SidebarPanel.PANEL_STATES.CLOSED) {
+                        document.body.classList.remove(`${this.baseClass}-push-active--${this.options.position}`);
+                    }
+                }, 300); // Match transition duration
+            }
+
+            // Hide overlay
+            if (this.overlay) {
+                this.overlay.classList.remove(`${this.baseClass}-overlay--visible`);
+            }
+
+            // Save state
+            if (this.options.rememberState) {
+                this.saveState();
+            }
+
+            // Call onClose callback if provided
+            if (typeof this.options.onClose === 'function') {
+                this.options.onClose();
+            }
+
+            // Publish event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_CLOSE, {
+                id: this.options.id,
+                panel: this
+            });
+
+            Logger.debug(`SidebarPanel closed: ${this.options.id}`);
+        }
+
+        /**
+         * Get saved panel state from GM storage
+         * @return {String|null} Panel state or null if not found
+         */
+        async getSavedState() {
+            if (!this.options.rememberState) return null;
+
+            try {
+                // Use directly imported getValue
+                const savedState = await getValue(this.storageKey, SidebarPanel.PANEL_STATES.CLOSED);
+                // Validate state
+                if (Object.values(SidebarPanel.PANEL_STATES).includes(savedState)) {
+                    this.logger.debug('Retrieved saved panel state:', savedState, 'for key:', this.storageKey);
+                    return savedState;
+                }
+                this.logger.warn('Invalid saved panel state retrieved:', savedState, 'for key:', this.storageKey);
+            } catch (error) {
+                this.logger.error('Error retrieving saved panel state:', error, 'for key:', this.storageKey);
+            }
+            return SidebarPanel.PANEL_STATES.CLOSED; // Default to closed on error or invalid
+        }
+
+        /**
+         * Save the current panel state (opened/closed) if rememberState is enabled.
+         */
+        async saveState() {
+            if (!this.options.rememberState) return;
+
+            try {
+                // Use directly imported setValue
+                await setValue(this.storageKey, this.state);
+                this.logger.debug('Saved panel state:', this.state, 'for key:', this.storageKey);
+            } catch (error) {
+                this.logger.error('Error saving panel state:', error, 'for key:', this.storageKey);
+            }
+        }
+
+        /**
+         * Set panel content
+         * @param {String|HTMLElement} content - HTML string or element to set as content
+         */
+        setContent(content) {
+            if (!this.content) return;
+
+            // Clear existing content
+            this.content.innerHTML = '';
+
+            // Add new content
+            if (typeof content === 'string') {
+                this.content.innerHTML = content;
+            } else if (content instanceof HTMLElement) {
+                this.content.appendChild(content);
+            }
+        }
+
+        /**
+         * Set panel title
+         * @param {String} title - New title text
+         */
+        setTitle(title) {
+            const titleElement = this.header ? this.header.querySelector(`.${this.baseClass}-title`) : null;
+            if (titleElement) {
+                titleElement.textContent = title;
+                this.options.title = title;
+            }
+        }
+
+        /**
+         * Set button icon
+         * @param {String} iconHtml - HTML string for icon content
+         */
+        setButtonIcon(iconHtml) {
+            if (this.button) {
+                this.button.innerHTML = iconHtml;
+                this.options.buttonIcon = iconHtml;
+            }
+        }
+
+        /**
+         * Destroy the panel and clean up
+         */
+        destroy() {
+            // Remove DOM elements
+            if (this.container && this.container.parentNode) {
+                this.container.parentNode.removeChild(this.container);
+            }
+
+            if (this.button && this.button.parentNode) {
+                this.button.parentNode.removeChild(this.button);
+            }
+
+            if (this.overlay && this.overlay.parentNode) {
+                this.overlay.parentNode.removeChild(this.overlay);
+            }
+
+            // Remove body classes
+            document.body.classList.remove(`${this.baseClass}-push-active--${this.options.position}`);
+            document.body.classList.remove(`${this.baseClass}-push--opened`);
+
+            // Unsubscribe from PubSub events
+            if (this.subscriptions) {
+                this.subscriptions.forEach(subscriptionId => {
+                    PubSub.unsubscribe(subscriptionId);
+                });
+            }
+
+            Logger.debug(`SidebarPanel destroyed: ${this.options.id}`);
+        }
+    }
+
+    /**
+     * Button - A reusable UI component for buttons.
+     * Creates customizable, accessible buttons with various states and callbacks.
+     */
+
+    /**
+     * A reusable UI component for creating accessible, customizable buttons.
+     */
+    class Button {
+      /**
+         * Returns the unique base CSS class for the Button component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for buttons.
+         */
+      static get BASE_BUTTON_CLASS() {
+        return 'userscripts-button';
+      }
+      /**
+         * Returns the CSS variable prefix used for theming and styling the Button component.
+         * This prefix scopes all custom CSS variables (e.g., colors, borders) related to the button.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+      static get CSS_VAR_PREFIX() {
+        return '--userscripts-button-';
+      }
+      /**
+         * Initialize styles for all buttons.
+         * These styles reference the CSS variables with our defined prefix.
+         */
+      static initStyles() {
+        if (Button.stylesInitialized) return;
+        StyleManager.addStyles(`
+      /* Scoped styles for Userscripts Button Component */
+      .${Button.BASE_BUTTON_CLASS} {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-family: inherit;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        text-align: center;
+        background-color: var(${Button.CSS_VAR_PREFIX}bg);
+        color: var(${Button.CSS_VAR_PREFIX}color);
+        border-color: var(${Button.CSS_VAR_PREFIX}border);
+      }
+      
+      /* Button sizes */
+      .${Button.BASE_BUTTON_CLASS}--small {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        min-height: 1.75rem;
+      }
+      .${Button.BASE_BUTTON_CLASS}--medium {
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+        min-height: 2.25rem;
+      }
+      .${Button.BASE_BUTTON_CLASS}--large {
+        font-size: 1rem;
+        padding: 0.75rem 1.5rem;
+        min-height: 2.75rem;
+      }
+      
+      /* Button themes using CSS variables */
+      .${Button.BASE_BUTTON_CLASS}--default {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-default);
+        color: var(${Button.CSS_VAR_PREFIX}color-default);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-default);
+      }
+      .${Button.BASE_BUTTON_CLASS}--default:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-default-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--primary {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-primary);
+        color: var(${Button.CSS_VAR_PREFIX}color-primary);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-primary);
+      }
+      .${Button.BASE_BUTTON_CLASS}--primary:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-primary-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-primary-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--secondary {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-secondary);
+        color: var(${Button.CSS_VAR_PREFIX}color-secondary);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-secondary);
+      }
+      .${Button.BASE_BUTTON_CLASS}--secondary:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-secondary-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-secondary-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--success {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-success);
+        color: var(${Button.CSS_VAR_PREFIX}color-success);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-success);
+      }
+      .${Button.BASE_BUTTON_CLASS}--success:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-success-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-success-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--danger {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-danger);
+        color: var(${Button.CSS_VAR_PREFIX}color-danger);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-danger);
+      }
+      .${Button.BASE_BUTTON_CLASS}--danger:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-danger-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-danger-hover);
+      }
+      
+      /* Generic state styles */
+      .${Button.BASE_BUTTON_CLASS}:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      .${Button.BASE_BUTTON_CLASS}:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px var(${Button.CSS_VAR_PREFIX}focus-shadow);
+      }
+      
+      /* Generic pseudo-class rules */
+      .${Button.BASE_BUTTON_CLASS}:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-hover);
+      }
+      .${Button.BASE_BUTTON_CLASS}:active:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-active);
+      }
+      
+      /* Button content */
+      .${Button.BASE_BUTTON_CLASS}__icon {
+        display: inline-flex;
+        margin-right: 0.5rem;
+      }
+      .${Button.BASE_BUTTON_CLASS}__text {
+        display: inline-block;
+      }
+    `, 'userscripts-button-styles');
+
+        Button.stylesInitialized = true;
+      }
+      /**
+         * Inject default color variables for the button component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+      static useDefaultColors() {
+        const styleId = 'userscripts-button-default-colors';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.innerHTML = `
+        :root {
+          ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
+          ${Button.CSS_VAR_PREFIX}color-default: #374151;
+          ${Button.CSS_VAR_PREFIX}border-default: #d1d5db;
+          ${Button.CSS_VAR_PREFIX}bg-default-hover: #e5e7eb;
+          
+          ${Button.CSS_VAR_PREFIX}bg-primary: #3b82f6;
+          ${Button.CSS_VAR_PREFIX}color-primary: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-primary: #3b82f6;
+          ${Button.CSS_VAR_PREFIX}bg-primary-hover: #2563eb;
+          ${Button.CSS_VAR_PREFIX}border-primary-hover: #2563eb;
+          
+          ${Button.CSS_VAR_PREFIX}bg-secondary: #6b7280;
+          ${Button.CSS_VAR_PREFIX}color-secondary: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-secondary: #6b7280;
+          ${Button.CSS_VAR_PREFIX}bg-secondary-hover: #4b5563;
+          ${Button.CSS_VAR_PREFIX}border-secondary-hover: #4b5563;
+          
+          ${Button.CSS_VAR_PREFIX}bg-success: #10b981;
+          ${Button.CSS_VAR_PREFIX}color-success: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-success: #10b981;
+          ${Button.CSS_VAR_PREFIX}bg-success-hover: #059669;
+          ${Button.CSS_VAR_PREFIX}border-success-hover: #059669;
+          
+          ${Button.CSS_VAR_PREFIX}bg-danger: #ef4444;
+          ${Button.CSS_VAR_PREFIX}color-danger: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-danger: #ef4444;
+          ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
+          ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
+          
+          ${Button.CSS_VAR_PREFIX}bg-hover: #e0e0e0;
+          ${Button.CSS_VAR_PREFIX}bg-active: #d0d0d0;
+          
+          ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+      `;
+          document.head.appendChild(style);
+        }
+      }
+      /**
+         * Create a new Button.
+         * @param {Object} options - Configuration options.
+         * @param {String} options.text - Button text.
+         * @param {String} [options.type="button"] - Button type.
+         * @param {String} [options.className] - Additional custom CSS class.
+         * @param {Function} options.onClick - Click event handler.
+         * @param {String} [options.id] - Button ID.
+         * @param {HTMLElement} [options.container] - Container to append the button to.
+         * @param {Object} [options.attributes={}] - Additional HTML attributes.
+         * @param {String} [options.theme="default"] - Button theme.
+         * @param {String} [options.size="medium"] - Button size.
+         * @param {Boolean} [options.disabled=false] - Disabled state.
+         * @param {String} [options.icon] - Optional icon HTML.
+         * @param {String} [options.successText] - Success state text.
+         * @param {Number} [options.successDuration=1500] - Success state duration (ms).
+         */
+      constructor(options) {
+        this.text = options.text || '';
+        this.type = options.type || 'button';
+        this.customClassName = options.className || '';
+        this.onClick = options.onClick;
+        this.id = options.id;
+        this.container = options.container;
+        this.attributes = options.attributes || {};
+        this.theme = options.theme;
+        this.size = options.size || 'medium';
+        this.disabled = options.disabled || false;
+        this.icon = options.icon || null;
+        this.successText = options.successText || null;
+        this.successDuration = options.successDuration || 1500;
+        this.originalText = this.text;
+
+        // These properties will refer to the DOM elements.
+        this.button = null;
+        this.textElement = null;
+
+        Button.initStyles();
+        this.create();
+      }
+
+
+      /**
+         * Create the button element and, if a container is provided, append it.
+         * @return {HTMLButtonElement} The created button element.
+         */
+      create() {
+        this.button = document.createElement('button');
+        this.button.type = this.type;
+        this.button.disabled = this.disabled;
+        if (this.id) this.button.id = this.id;
+        this.button._buttonInstance = this;
+        this.updateButtonClasses();
+        this.updateContent();
+        if (this.onClick) this.button.addEventListener('click', (e) => this.handleClick(e));
+        Object.entries(this.attributes).forEach(([key, value]) => {
+          this.button.setAttribute(key, value);
+        });
+        if (this.container) this.container.appendChild(this.button);
+        return this.button;
+      }
+
+      /**
+         * Update the classes on the button element based on theme, size, and custom classes.
+         */
+      updateButtonClasses() {
+        const classNames = [Button.BASE_BUTTON_CLASS];
+        classNames.push(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
+        classNames.push(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
+        if (this.customClassName) classNames.push(this.customClassName);
+        this.button.className = classNames.join(' ');
+      }
+
+      /**
+         * Update the button content (icon and text).
+         */
+      updateContent() {
+        this.button.innerHTML = '';
+        if (this.icon) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
+          iconSpan.innerHTML = this.icon;
+          this.button.appendChild(iconSpan);
+        }
+        this.textElement = document.createElement('span');
+        this.textElement.className = `${Button.BASE_BUTTON_CLASS}__text`;
+        this.textElement.textContent = this.text;
+        this.button.appendChild(this.textElement);
+      }
+
+      /**
+         * Handle click events on the button.
+         * @param {Event} e - The click event.
+         */
+      handleClick(e) {
+        if (this.disabled) return;
+        const result = this.onClick(e);
+        if (this.successText && false !== result) {
+          this.showSuccessState();
+        }
+      }
+
+      /**
+         * Show a success state by temporarily changing the button's text and theme.
+         */
+      showSuccessState() {
+        const originalText = this.text;
+        const originalTheme = this.theme;
+        this.setText(this.successText);
+        this.setTheme('success');
+        setTimeout(() => {
+          this.setText(originalText);
+          this.setTheme(originalTheme);
+        }, this.successDuration);
+      }
+
+      /**
+         * Set the button's text.
+         * @param {String} text - The new text to display.
+         */
+      setText(text) {
+        this.text = text;
+        if (this.textElement) {
+          this.textElement.textContent = text;
+        } else {
+          this.updateContent();
+        }
+      }
+
+      /**
+         * Reset the button's text to its original value.
+         */
+      resetText() {
+        this.setText(this.originalText);
+      }
+
+      /**
+         * Set an icon for the button.
+         * @param {String} iconHtml - The HTML string for the icon.
+         */
+      setIcon(iconHtml) {
+        this.icon = iconHtml;
+        this.updateContent();
+      }
+
+      /**
+         * Enable or disable the button.
+         * @param {Boolean} disabled - Whether the button should be disabled.
+         */
+      setDisabled(disabled) {
+        this.disabled = disabled;
+        this.button.disabled = disabled;
+      }
+
+      /**
+         * Toggle the disabled state of the button.
+         * @return {Boolean} The new disabled state.
+         */
+      toggleDisabled() {
+        this.setDisabled(!this.disabled);
+        return this.disabled;
+      }
+
+      /**
+         * Change the button's theme.
+         * @param {String} theme - The new theme (e.g., "default", "primary", etc.).
+         */
+      setTheme(theme) {
+        this.button.classList.remove(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
+        this.theme = theme;
+        this.button.classList.add(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
+      }
+
+      /**
+         * Change the button's size.
+         * @param {String} size - The new size (e.g., "small", "medium", "large").
+         */
+      setSize(size) {
+        this.button.classList.remove(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
+        this.size = size;
+        this.button.classList.add(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
+      }
+
+      /**
+         * Apply a custom CSS class to the button.
+         * @param {String} className - The custom class name.
+         */
+      setCustomClass(className) {
+        if (this.customClassName) {
+          this.button.classList.remove(this.customClassName);
+        }
+        this.customClassName = className;
+        if (className) {
+          this.button.classList.add(className);
+        }
+      }
+    }
+
+    // Static property to track if styles have been initialized.
+    Button.stylesInitialized = false;
+    Button.initStyles();
+
+    /**
+     * Checkbox - A reusable UI component for checkboxes.
+     * Creates customizable, accessible checkboxes with various states and callbacks.
+     */
+
+    /**
+     * A reusable UI component for creating accessible, customizable checkboxes.
+     */
+    class Checkbox {
+      /**
+         * Returns the unique base CSS class for the Checkbox component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for checkboxes.
+         */
+      static get BASE_CHECKBOX_CLASS() {
+        return 'userscripts-checkbox';
+      }
+      /**
+         * Returns the CSS variable prefix used for theming and styling the Checkbox component.
+         * This prefix scopes all custom CSS variables (e.g., colors, borders) related to the checkbox.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+      static get CSS_VAR_PREFIX() {
+        return '--userscripts-checkbox-';
+      }
+      /**
+         * Initialize styles for all checkboxes.
+         * These styles reference the CSS variables with our defined prefix.
+         */
+      static initStyles() {
+        if (Checkbox.stylesInitialized) return;
+        StyleManager.addStyles(`
+      /* Scoped styles for Userscripts Checkbox Component */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container {
+        display: inline-flex;
+        align-items: center;
+        position: relative;
+        cursor: pointer;
+        user-select: none;
+        font-family: inherit;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      
+      /* Hide native checkbox */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-native {
+        position: absolute;
+        opacity: 0;
+        height: 0;
+        width: 0;
+      }
+      
+      /* Custom checkbox appearance */
+      .${Checkbox.BASE_CHECKBOX_CLASS} {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: 0.25rem;
+        border: 2px solid var(${Checkbox.CSS_VAR_PREFIX}border-color);
+        background-color: var(${Checkbox.CSS_VAR_PREFIX}bg);
+        transition: all 0.2s ease;
+        position: relative;
+      }
+      
+      /* Check mark (initially hidden) */
+      .${Checkbox.BASE_CHECKBOX_CLASS}::after {
+        content: '';
+        position: absolute;
+        opacity: 0;
+        transform: rotate(45deg) scale(0);
+        width: 0.3125rem;
+        height: 0.625rem;
+        border-right: 2px solid var(${Checkbox.CSS_VAR_PREFIX}checkmark-color);
+        border-bottom: 2px solid var(${Checkbox.CSS_VAR_PREFIX}checkmark-color);
+        transition: all 0.2s ease;
+      }
+      
+      /* When checkbox is checked */
+      .${Checkbox.BASE_CHECKBOX_CLASS}--checked {
+        background-color: var(${Checkbox.CSS_VAR_PREFIX}checked-bg);
+        border-color: var(${Checkbox.CSS_VAR_PREFIX}checked-border);
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--checked::after {
+        opacity: 1;
+        transform: rotate(45deg) scale(1);
+      }
+      
+      /* Indeterminate state */
+      .${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate::after {
+        opacity: 1;
+        transform: rotate(0) scale(1);
+        width: 0.625rem;
+        height: 0.125rem;
+        border-right: none;
+        border-bottom: 2px solid var(${Checkbox.CSS_VAR_PREFIX}checkmark-color);
+      }
+      
+      /* On hover */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container:hover .${Checkbox.BASE_CHECKBOX_CLASS}:not(.${Checkbox.BASE_CHECKBOX_CLASS}--checked):not(.${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate) {
+        border-color: var(${Checkbox.CSS_VAR_PREFIX}hover-border);
+        background-color: var(${Checkbox.CSS_VAR_PREFIX}hover-bg);
+      }
+      
+      /* On focus */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container:focus-within .${Checkbox.BASE_CHECKBOX_CLASS} {
+        box-shadow: 0 0 0 3px var(${Checkbox.CSS_VAR_PREFIX}focus-shadow);
+      }
+      
+      /* Label styles */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-label {
+        margin-left: 0.5rem;
+        font-size: 0.875rem;
+      }
+      
+      /* Checkbox sizes */
+      .${Checkbox.BASE_CHECKBOX_CLASS}--small {
+        width: 1rem;
+        height: 1rem;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--small::after {
+        width: 0.25rem;
+        height: 0.5rem;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--large {
+        width: 1.5rem;
+        height: 1.5rem;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--large::after {
+        width: 0.375rem;
+        height: 0.75rem;
+      }
+    `, 'userscripts-checkbox-styles');
+
+        Checkbox.stylesInitialized = true;
+      }
+      /**
+         * Inject default color variables for the checkbox component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+      static useDefaultColors() {
+        const styleId = 'userscripts-checkbox-default-colors';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.innerHTML = `
+        :root {
+          /* Default state */
+          ${Checkbox.CSS_VAR_PREFIX}bg: #ffffff;
+          ${Checkbox.CSS_VAR_PREFIX}border-color: #d1d5db;
+          ${Checkbox.CSS_VAR_PREFIX}hover-bg: #f3f4f6;
+          ${Checkbox.CSS_VAR_PREFIX}hover-border: #9ca3af;
+          
+          /* Checked state */
+          ${Checkbox.CSS_VAR_PREFIX}checked-bg: #3b82f6;
+          ${Checkbox.CSS_VAR_PREFIX}checked-border: #3b82f6;
+          ${Checkbox.CSS_VAR_PREFIX}checkmark-color: #ffffff;
+          
+          /* Focus state */
+          ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+      `;
+          document.head.appendChild(style);
+        }
+      }
+      /**
+         * Create a new Checkbox.
+         * @param {Object} options - Configuration options.
+         * @param {String} [options.label] - Checkbox label text.
+         * @param {Boolean} [options.checked=false] - Initial checked state.
+         * @param {Boolean} [options.indeterminate=false] - Initial indeterminate state.
+         * @param {String} [options.id] - Checkbox ID.
+         * @param {String} [options.name] - Input name attribute.
+         * @param {Function} [options.onChange] - Change event handler.
+         * @param {HTMLElement} [options.container] - Container to append the checkbox to.
+         * @param {String} [options.className] - Additional custom CSS class.
+         * @param {Boolean} [options.disabled=false] - Disabled state.
+         * @param {String} [options.size="medium"] - Checkbox size.
+         * @param {Object} [options.attributes={}] - Additional HTML attributes.
+         */
+      constructor(options = {}) {
+        this.label = options.label || '';
+        this.checked = options.checked || false;
+        this.indeterminate = options.indeterminate || false;
+        this.id = options.id;
+        this.name = options.name;
+        this.onChange = options.onChange;
+        this.container = options.container;
+        this.customClassName = options.className || '';
+        this.disabled = options.disabled || false;
+        this.size = options.size || 'medium';
+        this.attributes = options.attributes || {};
+
+        // DOM elements references
+        this.checkboxContainer = null;
+        this.customCheckbox = null;
+        this.nativeCheckbox = null;
+        this.labelElement = null;
+
+        Checkbox.initStyles();
+        this.create();
+      }
+
+
+      /**
+         * Create the checkbox UI and, if a container is provided, append it.
+         * @return {HTMLElement} The created checkbox container element.
+         */
+      create() {
+        // Create container
+        this.checkboxContainer = document.createElement('label');
+        this.checkboxContainer.className = `${Checkbox.BASE_CHECKBOX_CLASS}-container`;
+        if (this.customClassName) {
+          this.checkboxContainer.classList.add(this.customClassName);
+        }
+        if (this.disabled) {
+          this.checkboxContainer.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled`);
+        }
+
+        // Create hidden native checkbox for accessibility
+        this.nativeCheckbox = document.createElement('input');
+        this.nativeCheckbox.type = 'checkbox';
+        this.nativeCheckbox.className = `${Checkbox.BASE_CHECKBOX_CLASS}-native`;
+        this.nativeCheckbox.checked = this.checked;
+        this.nativeCheckbox.indeterminate = this.indeterminate;
+        this.nativeCheckbox.disabled = this.disabled;
+
+        if (this.id) this.nativeCheckbox.id = this.id;
+        if (this.name) this.nativeCheckbox.name = this.name;
+
+        Object.entries(this.attributes).forEach(([key, value]) => {
+          this.nativeCheckbox.setAttribute(key, value);
+        });
+
+        // Create custom checkbox visual
+        this.customCheckbox = document.createElement('span');
+        this.customCheckbox.className = `${Checkbox.BASE_CHECKBOX_CLASS} ${Checkbox.BASE_CHECKBOX_CLASS}--${this.size}`;
+        if (this.checked) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        } else if (this.indeterminate) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        }
+
+        // Create label if provided
+        if (this.label) {
+          this.labelElement = document.createElement('span');
+          this.labelElement.className = `${Checkbox.BASE_CHECKBOX_CLASS}-label`;
+          this.labelElement.textContent = this.label;
+        }
+
+        // Set up event listeners
+        this.nativeCheckbox.addEventListener('change', (e) => this.handleChange(e));
+        this.nativeCheckbox.addEventListener('focus', () => this.handleFocus());
+        this.nativeCheckbox.addEventListener('blur', () => this.handleBlur());
+
+        // Assemble the component
+        this.checkboxContainer.appendChild(this.nativeCheckbox);
+        this.checkboxContainer.appendChild(this.customCheckbox);
+        if (this.labelElement) {
+          this.checkboxContainer.appendChild(this.labelElement);
+        }
+
+        // Add to container if provided
+        if (this.container) {
+          this.container.appendChild(this.checkboxContainer);
+        }
+
+        // Store reference to instance on DOM element for potential external access
+        this.checkboxContainer._checkboxInstance = this;
+
+        return this.checkboxContainer;
+      }
+
+      /**
+         * Handle change events.
+         * @param {Event} e - The change event.
+         */
+      handleChange(e) {
+        this.checked = this.nativeCheckbox.checked;
+        this.indeterminate = this.nativeCheckbox.indeterminate;
+
+        if (this.checked) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        } else if (this.indeterminate) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        } else {
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        }
+
+        if (this.onChange) {
+          this.onChange(e);
+        }
+      }
+
+      /**
+         * Handle focus events.
+         */
+      handleFocus() {
+        // Additional focus behaviors can be added here if needed
+      }
+
+      /**
+         * Handle blur events.
+         */
+      handleBlur() {
+        // Additional blur behaviors can be added here if needed
+      }
+
+      /**
+         * Set the checked state.
+         * @param {Boolean} checked - The new checked state.
+         */
+      setChecked(checked) {
+        this.checked = checked;
+        this.nativeCheckbox.checked = checked;
+
+        if (checked) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+          this.indeterminate = false;
+          this.nativeCheckbox.indeterminate = false;
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        } else {
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        }
+      }
+
+      /**
+         * Set the indeterminate state.
+         * @param {Boolean} indeterminate - The new indeterminate state.
+         */
+      setIndeterminate(indeterminate) {
+        this.indeterminate = indeterminate;
+        this.nativeCheckbox.indeterminate = indeterminate;
+
+        if (indeterminate) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        } else {
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        }
+      }
+
+      /**
+         * Toggle the checked state.
+         * @return {Boolean} The new checked state.
+         */
+      toggle() {
+        this.setChecked(!this.checked);
+        return this.checked;
+      }
+
+      /**
+         * Set the disabled state.
+         * @param {Boolean} disabled - The new disabled state.
+         */
+      setDisabled(disabled) {
+        this.disabled = disabled;
+        this.nativeCheckbox.disabled = disabled;
+
+        if (disabled) {
+          this.checkboxContainer.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled`);
+        } else {
+          this.checkboxContainer.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled`);
+        }
+      }
+
+      /**
+         * Set the label text.
+         * @param {String} text - The new label text.
+         */
+      setLabel(text) {
+        this.label = text;
+
+        if (!this.labelElement) {
+          this.labelElement = document.createElement('span');
+          this.labelElement.className = `${Checkbox.BASE_CHECKBOX_CLASS}-label`;
+          this.checkboxContainer.appendChild(this.labelElement);
+        }
+
+        this.labelElement.textContent = text;
+      }
+
+      /**
+         * Change the checkbox size.
+         * @param {String} size - The new size (e.g., "small", "medium", "large").
+         */
+      setSize(size) {
+        this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--${this.size}`);
+        this.size = size;
+        this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--${this.size}`);
+      }
+
+      /**
+         * Apply a custom CSS class to the checkbox container.
+         * @param {String} className - The custom class name.
+         */
+      setCustomClass(className) {
+        if (this.customClassName) {
+          this.checkboxContainer.classList.remove(this.customClassName);
+        }
+        this.customClassName = className;
+        if (className) {
+          this.checkboxContainer.classList.add(className);
+        }
+      }
+
+      /**
+         * Get the current checked state.
+         * @return {Boolean} The current checked state.
+         */
+      isChecked() {
+        return this.checked;
+      }
+
+      /**
+         * Get the current indeterminate state.
+         * @return {Boolean} The current indeterminate state.
+         */
+      isIndeterminate() {
+        return this.indeterminate;
+      }
+
+      /**
+         * Get the current disabled state.
+         * @return {Boolean} The current disabled state.
+         */
+      isDisabled() {
+        return this.disabled;
+      }
+    }
+
+    // Static property to track if styles have been initialized.
+    Checkbox.stylesInitialized = false;
+    Checkbox.initStyles();
+
+    // import StyleManager from '../../../core/utils/StyleManager.js'; // If custom styles are needed
+
+    const SETTINGS_PANEL_ID = 'upwork-country-filter-settings-panel';
+    const BANNED_LIST_ID = 'upwork-banned-countries-list';
+    const ADD_COUNTRY_INPUT_ID = 'upwork-add-country-input';
+
+    class SettingsPanel {
+        static sidebarPanel = null;
+        static filterEnabledCheckbox = null;
+        static countriesListContainer = null;
+        static addCountryInput = null;
+
+        static currentBannedCountries = [];
+        static currentFilterEnabled = true;
+
+        static init() {
+            const initialSettings = UpworkCountryFilter.getSettings();
+            this.currentFilterEnabled = initialSettings.isEnabled;
+            this.currentBannedCountries = [...initialSettings.countries];
+
+            this.sidebarPanel = new SidebarPanel(SETTINGS_PANEL_ID, 'Upwork Country Filter Settings');
+            
+            this.buildPanelContent();
+
+            PubSub.subscribe('filterSettingsRefreshed', (settings) => {
+                this.currentFilterEnabled = settings.isEnabled;
+                this.currentBannedCountries = [...settings.countries];
+                this.refreshUiElements();
+            });
+        }
+
+        static buildPanelContent() {
+            const contentDiv = document.createElement('div');
+            contentDiv.style.padding = '10px';
+
+            // Filter Enabled/Disabled Checkbox
+            this.filterEnabledCheckbox = new Checkbox(
+                'Enable Country Filter',
+                this.currentFilterEnabled,
+                (isChecked) => {
+                    PubSub.publish('filterEnabledChanged', isChecked);
+                }
+            );
+            contentDiv.appendChild(this.filterEnabledCheckbox.getElement());
+
+            // Separator
+            const separator = document.createElement('hr');
+            separator.style.margin = '10px 0';
+            contentDiv.appendChild(separator);
+
+            // Banned Countries List Heading
+            const listHeading = document.createElement('h4');
+            listHeading.textContent = 'Banned Countries:';
+            listHeading.style.marginTop = '0';
+            listHeading.style.marginBottom = '5px';
+            contentDiv.appendChild(listHeading);
+
+            // Countries List Container
+            this.countriesListContainer = document.createElement('div');
+            this.countriesListContainer.id = BANNED_LIST_ID;
+            this.countriesListContainer.style.marginBottom = '10px';
+            contentDiv.appendChild(this.countriesListContainer);
+            this.renderBannedCountriesList();
+
+            // Add Country Input and Button
+            this.addCountryInput = document.createElement('input');
+            this.addCountryInput.type = 'text';
+            this.addCountryInput.id = ADD_COUNTRY_INPUT_ID;
+            this.addCountryInput.placeholder = 'Enter country name';
+            this.addCountryInput.style.marginRight = '5px';
+            this.addCountryInput.style.padding = '5px';
+            this.addCountryInput.style.border = '1px solid #ccc';
+            this.addCountryInput.style.borderRadius = '3px';
+
+            const addButton = new Button('Add Country', () => {
+                const countryName = this.addCountryInput.value.trim();
+                if (countryName && !this.currentBannedCountries.map(c => c.toLowerCase()).includes(countryName.toLowerCase())) {
+                    this.currentBannedCountries.push(countryName);
+                    PubSub.publish('bannedCountriesChanged', [...this.currentBannedCountries]);
+                    this.addCountryInput.value = ''; // Clear input
+                    // The list will re-render once CountryFilter confirms via 'filterSettingsRefreshed'
+                }
+            });
+            addButton.getElement().style.padding = '5px 10px';
+
+            const addControlsDiv = document.createElement('div');
+            addControlsDiv.appendChild(this.addCountryInput);
+            addControlsDiv.appendChild(addButton.getElement());
+            contentDiv.appendChild(addControlsDiv);
+
+            this.sidebarPanel.setContent(contentDiv);
+        }
+
+        static renderBannedCountriesList() {
+            if (!this.countriesListContainer) return;
+            this.countriesListContainer.innerHTML = ''; // Clear existing list
+
+            if (this.currentBannedCountries.length === 0) {
+                const noCountriesMsg = document.createElement('p');
+                noCountriesMsg.textContent = 'No countries are currently banned.';
+                noCountriesMsg.style.fontStyle = 'italic';
+                this.countriesListContainer.appendChild(noCountriesMsg);
+                return;
+            }
+
+            const ul = document.createElement('ul');
+            ul.style.listStyleType = 'none';
+            ul.style.paddingLeft = '0';
+            ul.style.maxHeight = '150px';
+            ul.style.overflowY = 'auto';
+            ul.style.border = '1px solid #eee';
+            ul.style.padding = '5px';
+
+            this.currentBannedCountries.forEach(country => {
+                const li = document.createElement('li');
+                li.style.display = 'flex';
+                li.style.justifyContent = 'space-between';
+                li.style.alignItems = 'center';
+                li.style.padding = '3px 0';
+                
+                const countryText = document.createElement('span');
+                countryText.textContent = country;
+                
+                const removeButton = new Button('Remove', () => {
+                    this.currentBannedCountries = this.currentBannedCountries.filter(c => c !== country);
+                    PubSub.publish('bannedCountriesChanged', [...this.currentBannedCountries]);
+                });
+                removeButton.getElement().style.padding = '2px 5px';
+                removeButton.getElement().style.fontSize = '0.8em';
+                removeButton.getElement().style.marginLeft = '10px';
+
+                li.appendChild(countryText);
+                li.appendChild(removeButton.getElement());
+                ul.appendChild(li);
+            });
+            this.countriesListContainer.appendChild(ul);
+        }
+
+        static refreshUiElements() {
+            if (this.filterEnabledCheckbox) {
+                this.filterEnabledCheckbox.setChecked(this.currentFilterEnabled);
+            }
+            this.renderBannedCountriesList();
+        }
+    }
+
+    async function main() {
+        // Initialize the core filter logic first to load settings
+        await UpworkCountryFilter.init();
+
+        // Then initialize the UI panel, which will use the loaded settings
+        SettingsPanel.init();
+    }
+
+    main().catch(error => {
+        console.error('Error initializing Upwork Country Filter:', error);
+    });
+
+})();

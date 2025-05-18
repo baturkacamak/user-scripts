@@ -7,7 +7,7 @@
 import Logger from './utils/Logger.js';
 import HTMLUtils from './utils/HTMLUtils.js';
 import StyleManager from './utils/StyleManager.js';
-import GMFunctions from './utils/GMFunctions.js';
+import * as GMFunctions from './utils/GMFunctions.js';
 
 // Internationalization
 import TranslationManager from './i18n/TranslationManager.js';

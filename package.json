@@ -20,11 +20,11 @@
   },
   "scripts": {
     "start": "node server.js",
-    "build": "node build.js",
-    "watch": "node build.js --watch",
-    "watch:verbose": "node build.js --watch --verbose",
-    "build:wallapop": "node build.js --dir wallapop-enhanced-tools",
-    "build:loom": "node build.js --dir loom-captions-extractor",
-    "build:upwork-country-filter": "node build.js --dir upwork-country-filter"
+    "build": "node config/build.js",
+    "watch": "node config/build.js --watch",
+    "watch:verbose": "node config/build.js --watch --verbose",
+    "build:wallapop": "node config/build.js --dir userscripts/wallapop-enhanced-tools",
+    "build:loom": "node config/build.js --dir userscripts/loom-captions-extractor",
+    "build:upwork-country-filter": "node config/build.js --dir userscripts/upwork-country-filter"
   }
 }

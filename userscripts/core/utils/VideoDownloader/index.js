@@ -1,5 +1,5 @@
 // Initialize Greasemonkey/Tampermonkey functions safely
-import GMFunctions from '../GMFunctions';
+import { GM_download } from '../GMFunctions';
 import PubSub from '../PubSub';
 import Logger from '../Logger';
 
@@ -10,8 +10,6 @@ import DataAttributeStrategy from './strategies/DataAttributeStrategy';
 import BlobFetchStrategy from './strategies/BlobFetchStrategy';
 import MediaRecorderStrategy from './strategies/MediaRecorderStrategy';
 import MediaUtils from "../MediaUtils";
-
-const GM = GMFunctions.initialize();
 
 /**
  * @typedef {Object} DVideoDownloownloadOptions
@@ -41,15 +39,15 @@ class VideoDownloader {
         Logger.debug('Attempting download via URL', {url: url.substring(0, 100) + '...', filename});
 
         try {
-            if (GM?.GM_download && 'function' === typeof GM.GM_download) {
+            if (GM_download && typeof GM_download === 'function') {
                 Logger.debug('Using GM_download for URL.', {filename});
                 // GM_download is often synchronous or doesn't return a useful promise
-                GM.GM_download({url: url, name: filename, saveAs: true});
+                GM_download({url: url, name: filename, saveAs: true});
             } else {
                 Logger.debug('Using fallback anchor download for URL.', {filename});
                 this.triggerDownload(url, filename);
             }
-            PubSub.publish('download:success', {filename, method: GM?.GM_download ? 'GM_download' : 'anchor'});
+            PubSub.publish('download:success', {filename, method: GM_download ? 'GM_download' : 'anchor'});
             Logger.debug('Download successfully initiated via URL method.', filename);
         } catch (err) {
             Logger.error(err, 'downloadFromUrl failed');
