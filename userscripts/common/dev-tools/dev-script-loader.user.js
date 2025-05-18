@@ -65,6 +65,13 @@
       isModule: false, // Standard userscript
       fallbacks: ['blob', 'iframe', 'worker'], // Standard fallbacks for non-modules
     },
+    {
+      name: 'Tidal URI Scheme Converter',
+      matches: ['whatsapp.com'], // Matches the current setting in meta.json
+      path: 'userscripts/tidal-uri-scheme-converter/tidal-uri-scheme-converter.user.js',
+      isModule: false, // Standard userscript
+      fallbacks: ['blob', 'iframe', 'worker'],
+    },
   ];
 
   const devServers = [

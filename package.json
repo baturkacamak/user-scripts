@@ -26,6 +26,7 @@
     "build:wallapop": "node config/build.js --dir userscripts/wallapop-enhanced-tools",
     "build:loom": "node config/build.js --dir userscripts/loom-captions-extractor",
     "build:upwork-country-filter": "node config/build.js --dir userscripts/upwork-country-filter",
-    "build:whatsapp-send-new": "node config/build.js --dir userscripts/whatsapp-send-new"
+    "build:whatsapp-send-new": "node config/build.js --dir userscripts/whatsapp-send-new",
+    "build:tidal-uri-scheme-converter": "node config/build.js --dir userscripts/tidal-uri-scheme-converter"
   }
 }
