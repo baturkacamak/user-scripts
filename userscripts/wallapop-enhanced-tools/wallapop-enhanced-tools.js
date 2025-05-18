@@ -13,7 +13,9 @@ import {
     SectionToggler, SidebarPanel,
 } from "../core";
 
-const GM = GMFunctions.initialize();
+// GMFunctions are now available as a namespace from the core import.
+// The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
+// const GM = GMFunctions.initialize();
 
 const SELECTORS = {
     ITEM_CARDS: [
@@ -3683,52 +3685,33 @@ class ControlPanel {
     /**
      * Save a specific panel state to localStorage
      */
-    static savePanelState(key, value) {
+    static async savePanelState(key, value) { // Made async
         try {
-            // Get existing states or create new object
-            let states = {};
-            try {
-                const savedStates = localStorage.getItem('wallapop-panel-states');
-                if (savedStates) {
-                    states = JSON.parse(savedStates);
-                }
-            } catch (e) {
-                Logger.error(e, "Parsing saved panel states");
-            }
-
-            // Update specific state
-            states[key] = value;
-
-            // Save back to localStorage
-            localStorage.setItem('wallapop-panel-states', JSON.stringify(states));
-            Logger.debug(`Panel state saved: ${key} = ${value}`);
+            await GMFunctions.setValue(key, value); // Use await and GMFunctions.setValue
+            Logger.debug('Panel state saved', { key, value });
         } catch (error) {
-            Logger.error(error, "Saving panel state");
+            Logger.error('Error saving panel state:', error, { key });
         }
     }
 
     /**
      * Load a specific panel state from localStorage
      */
-    static loadPanelState(key, defaultValue) {
+    static async loadPanelState(key, defaultValue) { // Made async
         try {
-            const savedStates = localStorage.getItem('wallapop-panel-states');
-            if (savedStates) {
-                const states = JSON.parse(savedStates);
-                if (key in states) {
-                    return states[key];
-                }
-            }
+            const value = await GMFunctions.getValue(key, defaultValue); // Use await and GMFunctions.getValue
+            Logger.debug('Panel state loaded', { key, value });
+            return value;
         } catch (error) {
-            Logger.error(error, "Loading panel state");
+            Logger.error('Error loading panel state:', error, { key });
+            return defaultValue;
         }
-        return defaultValue;
     }
 
     /**
      * Save all panel states at once
      */
-    static savePanelStates() {
+    static savePanelStates() { // This calls savePanelState, so it also needs to be async if savePanelState is awaited
         const states = {};
 
         // Get states from all togglers

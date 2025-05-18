@@ -5,6 +5,9 @@ const {rollup} = require('rollup');
 const resolve = require('@rollup/plugin-node-resolve');
 const metablock = require('rollup-plugin-userscript-metablock');
 
+// Path to core JavaScript files, relative to project root
+const CORE_DIR_JS = 'userscripts/core/**/*.js';
+
 // Configuration
 const CONFIG = {
     // Set to true for verbose mode, false for normal mode
@@ -187,34 +190,48 @@ function listFilesInDir(dir, prefix = '') {
 // Get all userscript directories
 function getUserscriptDirectories() {
     log('Scanning for userscript directories...', 'debug');
+    const baseDir = 'userscripts'; // Base directory for userscripts
 
-    const dirs = fs.readdirSync('.', {withFileTypes: true})
-        .filter((dirent) => dirent.isDirectory())
-        .filter((dirent) => !CONFIG.excludedDirs.includes(dirent.name))
-        .filter((dirent) => {
-            const dirPath = dirent.name;
+    if (!dirExists(baseDir)) {
+        log(`Userscripts directory '${baseDir}' not found. Cannot build.`, 'error');
+        return [];
+    }
 
-            // Check if this directory contains a userscript source file
-            try {
-                // First check if meta.json exists
-                if (fs.existsSync(path.join(dirPath, 'meta.json'))) {
-                    log(`Found meta.json in ${dirPath}`, 'debug');
-                    // Now check for a .js file that's not a .user.js file
-                    const files = fs.readdirSync(dirPath);
-                    return files.some((file) => file.endsWith('.js') && !file.endsWith('.user.js'));
+    try {
+        const scriptDirs = fs.readdirSync(baseDir, {withFileTypes: true})
+            .filter((dirent) => dirent.isDirectory())
+            .filter((dirent) => {
+                // Basic exclusion based on the directory name itself
+                if (CONFIG.excludedDirs.includes(dirent.name)) {
+                    log(`Excluding directory based on name: ${dirent.name}`, 'debug');
+                    return false;
                 }
 
-                log(`No meta.json found in ${dirPath}, skipping`, 'debug');
-                return false;
-            } catch (error) {
-                log(`Error reading directory ${dirPath}: ${error.message}`, 'error');
-                return false;
-            }
-        })
-        .map((dirent) => dirent.name);
+                const fullDirPath = path.join(baseDir, dirent.name);
+                log(`Checking directory: ${fullDirPath}`, 'debug');
 
-    log(`Found ${dirs.length} valid userscript directories: ${dirs.join(', ')}`, 'debug');
-    return dirs;
+                // Check if this directory contains a userscript indicator (e.g., meta.json)
+                if (fs.existsSync(path.join(fullDirPath, 'meta.json'))) {
+                    log(`Found meta.json in ${fullDirPath}, including.`, 'debug');
+                    return true;
+                }
+                // Add other conditions for identifying a userscript directory if needed
+                // For example, presence of a specific main file or a package.json with a certain type.
+                log(`No meta.json in ${fullDirPath}, excluding.`, 'debug');
+                return false;
+            })
+            .map((dirent) => path.join(baseDir, dirent.name)); // Map to full paths like 'userscripts/my-script'
+
+        if (scriptDirs.length > 0) {
+            log(`Found ${scriptDirs.length} userscript director(y/ies): ${scriptDirs.join(', ')}`, 'info');
+        } else {
+            log('No userscript directories found matching criteria.', 'warning');
+        }
+        return scriptDirs;
+    } catch (error) {
+        log(`Error reading userscript directories from ${baseDir}: ${error.message}`, 'error');
+        return [];
+    }
 }
 
 // Find all core files that userscripts depend on

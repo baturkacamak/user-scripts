@@ -36,67 +36,67 @@ Below is a list of userscripts available in this repository, categorized by the 
 
 ### <img src="https://es.wallapop.com/favicon.ico" width="16" height="16"> Wallapop
 
--   **[Wallapop Enhanced Tools](./wallapop-enhanced-tools#readme)**
+-   **[Wallapop Enhanced Tools](./userscripts/wallapop-enhanced-tools#readme)**
     -   *Description*: Comprehensive Wallapop enhancement suite: advanced description tools (incl. bulk view), versatile data export/download, powerful item filtering (keywords, delivery, reserved), multi-language UI.
-    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js)
-    -   *Source*: [📄 View Source Code](./wallapop-enhanced-tools/)
--   **[Wallapop Remove Featured Cards](./wallapop-remove-featured-cards/)**
-    -   *Info*: Further details (description, install link) to be added. Please [create a `meta.json`](./wallapop-remove-featured-cards/HOW_TO_CREATE_META.md) or add standard metadata comments to the `.user.js` file for this script.
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js)
+    -   *Source*: [📄 View Source Code](./userscripts/wallapop-enhanced-tools/)
+-   **[Wallapop Remove Featured Cards](./userscripts/wallapop-remove-featured-cards/)**
+    -   *Info*: Further details (description, install link) to be added. Please [create a `meta.json`](./userscripts/wallapop-remove-featured-cards/HOW_TO_CREATE_META.md) or add standard metadata comments to the `.user.js` file for this script.
 
 ### <img src="https://www.instagram.com/favicon.ico" width="16" height="16"> Instagram
 
--   **[Instagram Native Video Controls](./instagram-video-controls#readme)**
+-   **[Instagram Native Video Controls](./userscripts/instagram-video-controls#readme)**
     -   *Description*: Adds native HTML5 video controls to Instagram videos with enhanced features like download, speed control, and more.
-    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/instagram-video-controls/instagram-video-controls.user.js)
-    -   *Source*: [📄 View Source Code](./instagram-video-controls/)
--   **[Instagram Story Anonymity Guard](./instagram-story-anonymity-guard/)**
-    -   *Info*: Further details (description, install link) to be added. (Currently: Instagram Story Anonymity Guard). Please [create a `meta.json`](./instagram-story-anonymity-guard/HOW_TO_CREATE_META.md) or add standard metadata comments to the `.user.js` file for this script.
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/instagram-video-controls/instagram-video-controls.user.js)
+    -   *Source*: [📄 View Source Code](./userscripts/instagram-video-controls/)
+-   **[Instagram Story Anonymity Guard](./userscripts/instagram-story-anonymity-guard/)**
+    -   *Info*: Further details (description, install link) to be added. (Currently: Instagram Story Anonymity Guard). Please [create a `meta.json`](./userscripts/instagram-story-anonymity-guard/HOW_TO_CREATE_META.md) or add standard metadata comments to the `.user.js` file for this script.
 
 ### 🧅 Ekşi Sözlük
 
--   **[Eksi Advanced Sorter](./eksi-advanced-sorter/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Eksi Aria Enhancer](./eksi-aria-enhancer/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Eksi Block Post Favorited Users](./eksi-block-post-favorited-users/)** - *Info: Further details needed. (Currently: Block multiple users who favorited a post in bulk). Please document or add metadata.*
--   **[Eksi Content Loader](./eksi-content-loader/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Eksi Copy Entry With Prompt](./eksi-copy-entry-with-prompt/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Eksi Deck](./eksi-deck/)** - *Info: Structure suggests this might be a larger project or not a simple userscript. Details to be added if applicable.*
--   **[Eksi Manager](./eksi-manager/)** - *Info: Structure suggests this might be a larger project (contains a large `dist/userscript.js`). Details to be added if applicable.*
--   **[Eksi Olay](./eksi-olay/)** - *Info: Further details needed. (Currently: Eksi olay notification). Please document or add metadata.*
--   **[Eksi Post Automation](./eksi-post-automation/)** - *Info: Further details needed. (Currently: Automatically loads all posts and deletes posts on the Eksisozluk website). Please document or add metadata.*
--   **[Eksi Post Loader Apprender Trash](./eksi-post-loader-apprender-trash/)** - *Info: Further details needed. (Currently: Loads and appends the contents of multiple pages in trash page). Please document or add metadata.*
--   **[Eksi Response Enhancer](./eksi-response-enhancer/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Eksi Vote Monitor](./eksi-vote-monitor/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Advanced Sorter](./userscripts/eksi-advanced-sorter/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Aria Enhancer](./userscripts/eksi-aria-enhancer/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Block Post Favorited Users](./userscripts/eksi-block-post-favorited-users/)** - *Info: Further details needed. (Currently: Block multiple users who favorited a post in bulk). Please document or add metadata.*
+-   **[Eksi Content Loader](./userscripts/eksi-content-loader/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Copy Entry With Prompt](./userscripts/eksi-copy-entry-with-prompt/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Deck](./userscripts/eksi-deck/)** - *Info: Structure suggests this might be a larger project or not a simple userscript. Details to be added if applicable.*
+-   **[Eksi Manager](./userscripts/eksi-manager/)** - *Info: Structure suggests this might be a larger project (contains a large `dist/userscript.js`). Details to be added if applicable.*
+-   **[Eksi Olay](./userscripts/eksi-olay/)** - *Info: Further details needed. (Currently: Eksi olay notification). Please document or add metadata.*
+-   **[Eksi Post Automation](./userscripts/eksi-post-automation/)** - *Info: Further details needed. (Currently: Automatically loads all posts and deletes posts on the Eksisozluk website). Please document or add metadata.*
+-   **[Eksi Post Loader Apprender Trash](./userscripts/eksi-post-loader-apprender-trash/)** - *Info: Further details needed. (Currently: Loads and appends the contents of multiple pages in trash page). Please document or add metadata.*
+-   **[Eksi Response Enhancer](./userscripts/eksi-response-enhancer/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Vote Monitor](./userscripts/eksi-vote-monitor/)** - *Info: Further details needed. Please document or add metadata.*
 
 *For Ekşi Sözlük scripts, consider creating a `meta.json` or adding standard metadata comments to each `.user.js` file for easier management and clearer descriptions here.*
 
 ### <img src="https://static.whatsapp.net/rsrc.php/v3/yP/r/dJPs4AZ496F.png" width="16" height="16"> WhatsApp
 
--   **[Whatsapp Obfuscator](./whatsapp-obfuscator/)** - *Info: Further details (description, install link) to be added. (Currently: Obfuscate Whatsapp Web chatlist and removes profile photos). Please create a `meta.json` or add metadata to the `.user.js` file.*
--   **[Whatsapp Send New](./whatsapp-send-new/)** - *Info: Further details (description, install link) to be added. (Currently: Send Whatsapp messages to people without adding them). Please create a `meta.json` or add metadata to the `.user.js` file.*
+-   **[Whatsapp Obfuscator](./userscripts/whatsapp-obfuscator/)** - *Info: Further details (description, install link) to be added. (Currently: Obfuscate Whatsapp Web chatlist and removes profile photos). Please create a `meta.json` or add metadata to the `.user.js` file.*
+-   **[Whatsapp Send New](./userscripts/whatsapp-send-new/)** - *Info: Further details (description, install link) to be added. (Currently: Send Whatsapp messages to people without adding them). Please create a `meta.json` or add metadata to the `.user.js` file.*
 
 ### 🛠️ Productivity & Tools
 
--   **[ChatGPT Themes Prompter Enhanced (Story Grow)](./story-grow#readme)**
+-   **[ChatGPT Themes Prompter Enhanced (Story Grow)](./userscripts/story-grow#readme)**
     -   *Description*: Automatically inputs a random theme-based prompt into chat.openai.com and follows up with image generation prompts.
-    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/story-grow/dist/userscript.js)
-    -   *Source*: [📄 View Source Code](./story-grow/)
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/story-grow/dist/userscript.js)
+    -   *Source*: [📄 View Source Code](./userscripts/story-grow/)
     -   *Note*: Metadata in the script file could be updated for author and namespace.
--   **[Loom Captions Extractor](./loom-captions-extractor#readme)**
+-   **[Loom Captions Extractor](./userscripts/loom-captions-extractor#readme)**
     -   *Description*: Extract and download closed captions from Loom videos.
-    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/loom-captions-extractor/loom-captions-extractor.user.js)
-    -   *Source*: [📄 View Source Code](./loom-captions-extractor/)
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/loom-captions-extractor/loom-captions-extractor.user.js)
+    -   *Source*: [📄 View Source Code](./userscripts/loom-captions-extractor/)
 
--   **[Appointment Availability Notifier](./appointment-availability-notifier/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Copy Tracklist Data](./copy-tracklist-data/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Dev Tools](./dev-tools/)** - *Info: This directory may contain development utilities rather than a distributable userscript. Details to be added if applicable.*
--   **[Google Maps Image Downloader](./googlemaps-image-downloader/)** - *Info: Further details needed. (Currently: Google Maps Places image downloader). Please document or add metadata.*
--   **[Idealista House Listing Analyzer](./idealista-house-listing-analyzer/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Lingualeo Speak](./lingualeo-speak/)** - *Info: Further details needed. (Currently: Lingualeo Speaker). Please document or add metadata.*
--   **[Twitter Thread](./twitter-thread/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Twitter View Blocker](./twitter-view-blocker/)** - *Info: Further details needed. Please document or add metadata.*
--   **[Upwork Country Filter](./upwork-country-filter/)** - *Info: Further details needed. (Currently: Filter jobs by country). Please document or add metadata.*
--   **[URL to URI](./url-to-uri/)** - *Info: Further details needed. (Currently: URL converter). Please document or add metadata.*
--   **[Youtube Comments Sidebar](./youtube-comments-sidebar/)** - *Info: Further details needed. (Currently: Moves Youtube comments to sidebar). Please document or add metadata.*
+-   **[Appointment Availability Notifier](./userscripts/appointment-availability-notifier/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Copy Tracklist Data](./userscripts/copy-tracklist-data/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Dev Tools](./userscripts/dev-tools/)** - *Info: This directory may contain development utilities rather than a distributable userscript. Details to be added if applicable.*
+-   **[Google Maps Image Downloader](./userscripts/googlemaps-image-downloader/)** - *Info: Further details needed. (Currently: Google Maps Places image downloader). Please document or add metadata.*
+-   **[Idealista House Listing Analyzer](./userscripts/idealista-house-listing-analyzer/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Lingualeo Speak](./userscripts/lingualeo-speak/)** - *Info: Further details needed. (Currently: Lingualeo Speaker). Please document or add metadata.*
+-   **[Twitter Thread](./userscripts/twitter-thread/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Twitter View Blocker](./userscripts/twitter-view-blocker/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Upwork Country Filter](./userscripts/upwork-country-filter/)** - *Info: Further details needed. (Currently: Filter jobs by country). Please document or add metadata.*
+-   **[URL to URI](./userscripts/url-to-uri/)** - *Info: Further details needed. (Currently: URL converter). Please document or add metadata.*
+-   **[Youtube Comments Sidebar](./userscripts/youtube-comments-sidebar/)** - *Info: Further details needed. (Currently: Moves Youtube comments to sidebar). Please document or add metadata.*
 
 *For scripts in "Productivity & Tools" lacking full details, please consider creating a `meta.json` file in their respective directories or adding standard metadata comments to their `.user.js` files.*
 

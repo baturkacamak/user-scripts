@@ -16,8 +16,9 @@ import PollingStrategy from "../core/utils/UrlChangeWatcher/strategies/PollingSt
 import InstagramMediaFetcher from "./utils/InstagramMediaFetcher";
 import HoverAction from "../core/utils/HoverAction";
 
-// Initialize GM functions fallbacks
-const GM = GMFunctions.initialize();
+// GMFunctions are now available as a namespace from the core import.
+// The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
+// const GM = GMFunctions.initialize(); 
 
 // Configure logger
 Logger.setPrefix("Instagram Video Controls");
@@ -135,21 +136,21 @@ class InstagramVideoController {
     /**
      * Load saved settings from GM storage
      */
-    loadSettings() {
+    async loadSettings() {
         this.settings = {...InstagramVideoController.SETTINGS};
 
         try {
             // Load each setting individually with defaults
-            Object.entries(InstagramVideoController.SETTINGS_KEYS).forEach(([settingName, storageKey]) => {
-                const savedValue = GM_getValue(storageKey, null);
+            for (const [settingName, storageKey] of Object.entries(InstagramVideoController.SETTINGS_KEYS)) {
+                const savedValue = await GMFunctions.getValue(storageKey, null);
 
                 // Only update if the setting exists in storage
                 if (savedValue !== null) {
                     this.settings[settingName] = savedValue;
                 }
-            });
+            }
 
-            this.audioUnmuted = GM_getValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, false);
+            this.audioUnmuted = await GMFunctions.getValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, false);
             Logger.debug("Settings loaded", this.settings);
         } catch (error) {
             Logger.error(error, "Loading settings");
@@ -159,12 +160,12 @@ class InstagramVideoController {
     /**
      * Save settings to GM storage
      */
-    saveSettings() {
+    async saveSettings() {
         try {
             // Save each setting individually
-            Object.entries(InstagramVideoController.SETTINGS_KEYS).forEach(([settingName, storageKey]) => {
-                GM_setValue(storageKey, this.settings[settingName]);
-            });
+            for (const [settingName, storageKey] of Object.entries(InstagramVideoController.SETTINGS_KEYS)) {
+                await GMFunctions.setValue(storageKey, this.settings[settingName]);
+            }
 
             Logger.debug("Settings saved", this.settings);
         } catch (error) {
@@ -795,7 +796,7 @@ class InstagramVideoController {
 
                 if (isNowAudible && volumeEventTrusted) {
                     this.audioUnmuted = true;
-                    GM_setValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, true);
+                    GMFunctions.setValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, true);
                     Logger.debug("User unmuted video (volume > 0), preference saved.");
                 } else if (video.muted || video.volume === 0) {
                     this.audioUnmuted = false;

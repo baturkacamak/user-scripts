@@ -155,99 +155,110 @@ class GMFunctions {
      */
     static setupDownload() {
         window.GM_download = function (options) {
-            try {
-                const {url, name, onload, onerror} = options;
+            // Wrapping in a Promise to allow for async-like behavior if needed by caller,
+            // though current implementation is synchronous.
+            return new Promise((resolve, reject) => {
+                try {
+                    const {url, name, onload, onerror} = options;
 
-                Logger.debug('GM_download fallback executing', {
-                    url: url.substring(0, 100),
-                    filename: name
-                });
+                    Logger.debug('GM_download fallback executing', {
+                        url: url.substring(0, 100),
+                        filename: name
+                    });
 
-                // Create download link
-                const downloadLink = document.createElement('a');
-                downloadLink.href = url;
-                downloadLink.download = name || 'download';
-                downloadLink.style.display = 'none';
+                    // Create download link
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = url;
+                    downloadLink.download = name || 'download';
+                    downloadLink.style.display = 'none';
 
-                // Add to document, click, and remove
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
+                    // Add to document, click, and remove
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
 
-                // Clean up
-                setTimeout(() => {
-                    document.body.removeChild(downloadLink);
-                    if (onload) {
-                        Logger.debug('GM_download completed successfully');
-                        onload();
-                    }
-                }, 100);
+                    // Clean up
+                    setTimeout(() => {
+                        document.body.removeChild(downloadLink);
+                        if (onload) {
+                            Logger.debug('GM_download completed successfully');
+                            onload();
+                        }
+                        resolve(true); // Resolve promise on success
+                    }, 100);
 
-                return true;
-            } catch (err) {
-                Logger.error(err, 'Error downloading file');
-                if (options.onerror) options.onerror(err);
-                return false;
-            }
+                } catch (err) {
+                    Logger.error(err, 'Error downloading file');
+                    if (options.onerror) options.onerror(err);
+                    reject(err); // Reject promise on error
+                }
+            });
         };
     }
 
     /**
-     * Set up GM_getValue fallback using localStorage
+     * Set up GM_getValue fallback using localStorage, returning a Promise.
      */
     static setupGetValue() {
         window.GM_getValue = function (key, defaultValue) {
-            try {
-                const storageKey = `GM_${key}`;
-                Logger.debug('GM_getValue fallback executing', {key: storageKey});
-
-                const value = localStorage.getItem(storageKey);
-                if (null === value) {
-                    Logger.debug('GM_getValue: No value found, using default', {
-                        key,
-                        defaultValue
-                    });
-                    return defaultValue;
-                }
-
-                // Try to parse JSON
+            return new Promise((resolve) => {
                 try {
-                    const parsedValue = JSON.parse(value);
-                    Logger.debug('GM_getValue: Retrieved and parsed JSON value', {key});
-                    return parsedValue;
-                } catch (e) {
-                    Logger.debug('GM_getValue: Retrieved non-JSON value', {key, value});
-                    return value;
+                    const storageKey = `GM_${key}`;
+                    Logger.debug('GM_getValue fallback: Attempting to get \'' + storageKey + '\'');
+                    const value = localStorage.getItem(storageKey);
+                    if (value !== null) {
+                        try {
+                            const parsedValue = JSON.parse(value);
+                            Logger.debug('GM_getValue fallback: Found and parsed \'' + storageKey + '\', value:', parsedValue);
+                            resolve(parsedValue);
+                        } catch (e) {
+                            Logger.debug('GM_getValue fallback: Found non-JSON \'' + storageKey + '\', value:', value);
+                            resolve(value); // Return as string if not JSON
+                        }
+                    } else {
+                        Logger.debug('GM_getValue fallback: Key \'' + storageKey + '\' not found, returning default:', defaultValue);
+                        resolve(defaultValue);
+                    }
+                } catch (error) {
+                    Logger.error(error, 'Error getting value for key (GM_getValue fallback): ' + key);
+                    resolve(defaultValue);
                 }
-            } catch (e) {
-                Logger.error(e, 'Error in GM_getValue fallback');
-                return defaultValue;
-            }
+            });
         };
     }
 
     /**
-     * Set up GM_setValue fallback using localStorage
+     * Set up GM_setValue fallback using localStorage, returning a Promise.
      */
     static setupSetValue() {
         window.GM_setValue = function (key, value) {
-            try {
-                const storageKey = `GM_${key}`;
-                Logger.debug('GM_setValue fallback executing', {
-                    key: storageKey,
-                    valueType: typeof value
-                });
-
-                // Convert non-string values to JSON
-                const valueToStore = 'string' === typeof value ? value : JSON.stringify(value);
-                localStorage.setItem(storageKey, valueToStore);
-                Logger.debug('GM_setValue: Value stored successfully', {key: storageKey});
-                return true;
-            } catch (e) {
-                Logger.error(e, 'Error in GM_setValue fallback');
-                return false;
-            }
+            return new Promise((resolve, reject) => {
+                try {
+                    const storageKey = `GM_${key}`;
+                    Logger.debug('GM_setValue fallback: Attempting to set \'' + storageKey + '\' to:', value);
+                    localStorage.setItem(storageKey, JSON.stringify(value));
+                    resolve();
+                } catch (error) {
+                    Logger.error(error, 'Error setting value for key (GM_setValue fallback): ' + key);
+                    reject(error);
+                }
+            });
         };
     }
 }
 
-export default GMFunctions;
+// Initialize the fallbacks (this will populate window.GM_getValue etc.)
+// The initialize method also returns the map of functions.
+const gmFunctions = GMFunctions.initialize();
+
+// Export the functions for direct import, matching the names used in CountryFilter.js
+const GM_addStyle = gmFunctions.GM_addStyle;
+const GM_xmlhttpRequest = gmFunctions.GM_xmlhttpRequest;
+const GM_setClipboard = gmFunctions.GM_setClipboard;
+const GM_download = gmFunctions.GM_download;
+const getValue = gmFunctions.GM_getValue; // Maps to getValue for import { getValue }
+const setValue = gmFunctions.GM_setValue; // Maps to setValue for import { setValue }
+
+export { GM_addStyle, GM_xmlhttpRequest, GM_setClipboard, GM_download, getValue, setValue };
+
+// For potential direct class usage if ever needed, though current pattern is to use the initialized functions.
+// export default GMFunctions; // Not currently used this way

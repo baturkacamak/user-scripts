@@ -3,7 +3,7 @@
  * Similar to Wallapop's help button that shifts the site content
  */
 import StyleManager from '../utils/StyleManager.js';
-import GMFunctions from '../utils/GMFunctions.js';
+import { getValue, setValue } from '../utils/GMFunctions.js';
 import PubSub from '../utils/PubSub.js';
 import Logger from '../utils/Logger.js';
 
@@ -68,9 +68,6 @@ class SidebarPanel {
      * @param {String} [options.style.panelBg="#fff"] - Panel background color.
      */
     constructor(options = {}) {
-        // Initialize GM functions if not already
-        this.GM = GMFunctions.initialize();
-
         // Process and store options with defaults
         this.options = {
             title: options.title || 'Panel',
@@ -604,27 +601,39 @@ class SidebarPanel {
     }
 
     /**
-     * Save panel state using GM functions
-     */
-    saveState() {
-        try {
-            this.GM.GM_setValue(this.storageKey, this.state);
-            Logger.debug(`SidebarPanel state saved: ${this.options.id} - ${this.state}`);
-        } catch (error) {
-            Logger.error(error, "Saving sidebar panel state");
-        }
-    }
-
-    /**
      * Get saved panel state from GM storage
      * @return {String|null} Panel state or null if not found
      */
-    getSavedState() {
+    async getSavedState() {
+        if (!this.options.rememberState) return null;
+
         try {
-            return this.GM.GM_getValue(this.storageKey, null);
+            // Use directly imported getValue
+            const savedState = await getValue(this.storageKey, SidebarPanel.PANEL_STATES.CLOSED);
+            // Validate state
+            if (Object.values(SidebarPanel.PANEL_STATES).includes(savedState)) {
+                this.logger.debug('Retrieved saved panel state:', savedState, 'for key:', this.storageKey);
+                return savedState;
+            }
+            this.logger.warn('Invalid saved panel state retrieved:', savedState, 'for key:', this.storageKey);
         } catch (error) {
-            Logger.error(error, "Getting sidebar panel state");
-            return null;
+            this.logger.error('Error retrieving saved panel state:', error, 'for key:', this.storageKey);
+        }
+        return SidebarPanel.PANEL_STATES.CLOSED; // Default to closed on error or invalid
+    }
+
+    /**
+     * Save the current panel state (opened/closed) if rememberState is enabled.
+     */
+    async saveState() {
+        if (!this.options.rememberState) return;
+
+        try {
+            // Use directly imported setValue
+            await setValue(this.storageKey, this.state);
+            this.logger.debug('Saved panel state:', this.state, 'for key:', this.storageKey);
+        } catch (error) {
+            this.logger.error('Error saving panel state:', error, 'for key:', this.storageKey);
         }
     }
 

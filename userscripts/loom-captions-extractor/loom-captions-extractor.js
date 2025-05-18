@@ -1,15 +1,14 @@
 // Import core components
 import {
     Button,
-    GMFunctions,
     HTMLUtils,
     Logger,
     StyleManager,
     DOMObserver
 } from "../core";
 
-// Initialize GM functions fallbacks
-const GM = GMFunctions.initialize();
+// GMFunctions are now available as a namespace from the core import.
+// The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
 
 // Initialize logger
 Logger.setPrefix("Loom Captions Extractor");

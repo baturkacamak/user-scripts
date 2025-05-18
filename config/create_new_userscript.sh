@@ -160,8 +160,9 @@ fi
 print_success "Proceeding with project creation..."
 
 # --- Define Directories and Names ---
-TEMPLATE_DIR="_userscript-template"
-NEW_PROJECT_DIR="./${project_name_kebab}" # Create in current directory
+SCRIPT_DIR="$(dirname "$0")" # Get the directory where the script is located
+TEMPLATE_DIR="${SCRIPT_DIR}/_userscript-template"
+NEW_PROJECT_DIR="./userscripts/${project_name_kebab}" # Create in userscripts/ relative to CWD (assumed project root)
 
 # --- Check if template directory exists ---
 if [ ! -d "$TEMPLATE_DIR" ]; then

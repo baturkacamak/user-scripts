@@ -564,100 +564,111 @@
          */
         static setupDownload() {
             window.GM_download = function (options) {
-                try {
-                    const {url, name, onload, onerror} = options;
+                // Wrapping in a Promise to allow for async-like behavior if needed by caller,
+                // though current implementation is synchronous.
+                return new Promise((resolve, reject) => {
+                    try {
+                        const {url, name, onload, onerror} = options;
 
-                    Logger.debug('GM_download fallback executing', {
-                        url: url.substring(0, 100),
-                        filename: name
-                    });
+                        Logger.debug('GM_download fallback executing', {
+                            url: url.substring(0, 100),
+                            filename: name
+                        });
 
-                    // Create download link
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = url;
-                    downloadLink.download = name || 'download';
-                    downloadLink.style.display = 'none';
+                        // Create download link
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = url;
+                        downloadLink.download = name || 'download';
+                        downloadLink.style.display = 'none';
 
-                    // Add to document, click, and remove
-                    document.body.appendChild(downloadLink);
-                    downloadLink.click();
+                        // Add to document, click, and remove
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
 
-                    // Clean up
-                    setTimeout(() => {
-                        document.body.removeChild(downloadLink);
-                        if (onload) {
-                            Logger.debug('GM_download completed successfully');
-                            onload();
-                        }
-                    }, 100);
+                        // Clean up
+                        setTimeout(() => {
+                            document.body.removeChild(downloadLink);
+                            if (onload) {
+                                Logger.debug('GM_download completed successfully');
+                                onload();
+                            }
+                            resolve(true); // Resolve promise on success
+                        }, 100);
 
-                    return true;
-                } catch (err) {
-                    Logger.error(err, 'Error downloading file');
-                    if (options.onerror) options.onerror(err);
-                    return false;
-                }
+                    } catch (err) {
+                        Logger.error(err, 'Error downloading file');
+                        if (options.onerror) options.onerror(err);
+                        reject(err); // Reject promise on error
+                    }
+                });
             };
         }
 
         /**
-         * Set up GM_getValue fallback using localStorage
+         * Set up GM_getValue fallback using localStorage, returning a Promise.
          */
         static setupGetValue() {
             window.GM_getValue = function (key, defaultValue) {
-                try {
-                    const storageKey = `GM_${key}`;
-                    Logger.debug('GM_getValue fallback executing', {key: storageKey});
-
-                    const value = localStorage.getItem(storageKey);
-                    if (null === value) {
-                        Logger.debug('GM_getValue: No value found, using default', {
-                            key,
-                            defaultValue
-                        });
-                        return defaultValue;
-                    }
-
-                    // Try to parse JSON
+                return new Promise((resolve) => {
                     try {
-                        const parsedValue = JSON.parse(value);
-                        Logger.debug('GM_getValue: Retrieved and parsed JSON value', {key});
-                        return parsedValue;
-                    } catch (e) {
-                        Logger.debug('GM_getValue: Retrieved non-JSON value', {key, value});
-                        return value;
+                        const storageKey = `GM_${key}`;
+                        Logger.debug('GM_getValue fallback: Attempting to get \'' + storageKey + '\'');
+                        const value = localStorage.getItem(storageKey);
+                        if (value !== null) {
+                            try {
+                                const parsedValue = JSON.parse(value);
+                                Logger.debug('GM_getValue fallback: Found and parsed \'' + storageKey + '\', value:', parsedValue);
+                                resolve(parsedValue);
+                            } catch (e) {
+                                Logger.debug('GM_getValue fallback: Found non-JSON \'' + storageKey + '\', value:', value);
+                                resolve(value); // Return as string if not JSON
+                            }
+                        } else {
+                            Logger.debug('GM_getValue fallback: Key \'' + storageKey + '\' not found, returning default:', defaultValue);
+                            resolve(defaultValue);
+                        }
+                    } catch (error) {
+                        Logger.error(error, 'Error getting value for key (GM_getValue fallback): ' + key);
+                        resolve(defaultValue);
                     }
-                } catch (e) {
-                    Logger.error(e, 'Error in GM_getValue fallback');
-                    return defaultValue;
-                }
+                });
             };
         }
 
         /**
-         * Set up GM_setValue fallback using localStorage
+         * Set up GM_setValue fallback using localStorage, returning a Promise.
          */
         static setupSetValue() {
             window.GM_setValue = function (key, value) {
-                try {
-                    const storageKey = `GM_${key}`;
-                    Logger.debug('GM_setValue fallback executing', {
-                        key: storageKey,
-                        valueType: typeof value
-                    });
-
-                    // Convert non-string values to JSON
-                    const valueToStore = 'string' === typeof value ? value : JSON.stringify(value);
-                    localStorage.setItem(storageKey, valueToStore);
-                    Logger.debug('GM_setValue: Value stored successfully', {key: storageKey});
-                    return true;
-                } catch (e) {
-                    Logger.error(e, 'Error in GM_setValue fallback');
-                    return false;
-                }
+                return new Promise((resolve, reject) => {
+                    try {
+                        const storageKey = `GM_${key}`;
+                        Logger.debug('GM_setValue fallback: Attempting to set \'' + storageKey + '\' to:', value);
+                        localStorage.setItem(storageKey, JSON.stringify(value));
+                        resolve();
+                    } catch (error) {
+                        Logger.error(error, 'Error setting value for key (GM_setValue fallback): ' + key);
+                        reject(error);
+                    }
+                });
             };
         }
     }
+
+    // Initialize the fallbacks (this will populate window.GM_getValue etc.)
+    // The initialize method also returns the map of functions.
+    const gmFunctions = GMFunctions.initialize();
+
+    // Export the functions for direct import, matching the names used in CountryFilter.js
+    gmFunctions.GM_addStyle;
+    gmFunctions.GM_xmlhttpRequest;
+    gmFunctions.GM_setClipboard;
+    const GM_download = gmFunctions.GM_download;
+    const getValue = gmFunctions.GM_getValue; // Maps to getValue for import { getValue }
+    const setValue = gmFunctions.GM_setValue; // Maps to setValue for import { setValue }
+
+    // For potential direct class usage if ever needed, though current pattern is to use the initialized functions.
+    // export default GMFunctions; // Not currently used this way
 
     /**
      * PubSub - A simple publish/subscribe pattern implementation
@@ -2723,9 +2734,6 @@
          * @param {String} [options.style.panelBg="#fff"] - Panel background color.
          */
         constructor(options = {}) {
-            // Initialize GM functions if not already
-            this.GM = GMFunctions.initialize();
-
             // Process and store options with defaults
             this.options = {
                 title: options.title || 'Panel',
@@ -3259,27 +3267,39 @@
         }
 
         /**
-         * Save panel state using GM functions
-         */
-        saveState() {
-            try {
-                this.GM.GM_setValue(this.storageKey, this.state);
-                Logger.debug(`SidebarPanel state saved: ${this.options.id} - ${this.state}`);
-            } catch (error) {
-                Logger.error(error, "Saving sidebar panel state");
-            }
-        }
-
-        /**
          * Get saved panel state from GM storage
          * @return {String|null} Panel state or null if not found
          */
-        getSavedState() {
+        async getSavedState() {
+            if (!this.options.rememberState) return null;
+
             try {
-                return this.GM.GM_getValue(this.storageKey, null);
+                // Use directly imported getValue
+                const savedState = await getValue(this.storageKey, SidebarPanel.PANEL_STATES.CLOSED);
+                // Validate state
+                if (Object.values(SidebarPanel.PANEL_STATES).includes(savedState)) {
+                    this.logger.debug('Retrieved saved panel state:', savedState, 'for key:', this.storageKey);
+                    return savedState;
+                }
+                this.logger.warn('Invalid saved panel state retrieved:', savedState, 'for key:', this.storageKey);
             } catch (error) {
-                Logger.error(error, "Getting sidebar panel state");
-                return null;
+                this.logger.error('Error retrieving saved panel state:', error, 'for key:', this.storageKey);
+            }
+            return SidebarPanel.PANEL_STATES.CLOSED; // Default to closed on error or invalid
+        }
+
+        /**
+         * Save the current panel state (opened/closed) if rememberState is enabled.
+         */
+        async saveState() {
+            if (!this.options.rememberState) return;
+
+            try {
+                // Use directly imported setValue
+                await setValue(this.storageKey, this.state);
+                this.logger.debug('Saved panel state:', this.state, 'for key:', this.storageKey);
+            } catch (error) {
+                this.logger.error('Error saving panel state:', error, 'for key:', this.storageKey);
             }
         }
 
@@ -4755,8 +4775,6 @@
 
     // Initialize Greasemonkey/Tampermonkey functions safely
 
-    const GM = GMFunctions.initialize();
-
     /**
      * @typedef {Object} DVideoDownloownloadOptions
      * @property {string} [filename] - A custom filename for the downloaded video.
@@ -4785,15 +4803,15 @@
             Logger.debug('Attempting download via URL', {url: url.substring(0, 100) + '...', filename});
 
             try {
-                if (GM?.GM_download && 'function' === typeof GM.GM_download) {
+                if (GM_download && typeof GM_download === 'function') {
                     Logger.debug('Using GM_download for URL.', {filename});
                     // GM_download is often synchronous or doesn't return a useful promise
-                    GM.GM_download({url: url, name: filename, saveAs: true});
+                    GM_download({url: url, name: filename, saveAs: true});
                 } else {
                     Logger.debug('Using fallback anchor download for URL.', {filename});
                     this.triggerDownload(url, filename);
                 }
-                PubSub.publish('download:success', {filename, method: GM?.GM_download ? 'GM_download' : 'anchor'});
+                PubSub.publish('download:success', {filename, method: GM_download ? 'GM_download' : 'anchor'});
                 Logger.debug('Download successfully initiated via URL method.', filename);
             } catch (err) {
                 Logger.error(err, 'downloadFromUrl failed');
@@ -7615,8 +7633,9 @@
 
     // Import core components
 
-    // Initialize GM functions fallbacks
-    GMFunctions.initialize();
+    // GMFunctions are now available as a namespace from the core import.
+    // The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
+    // const GM = GMFunctions.initialize(); 
 
     // Configure logger
     Logger.setPrefix("Instagram Video Controls");
@@ -7734,21 +7753,21 @@
         /**
          * Load saved settings from GM storage
          */
-        loadSettings() {
+        async loadSettings() {
             this.settings = {...InstagramVideoController.SETTINGS};
 
             try {
                 // Load each setting individually with defaults
-                Object.entries(InstagramVideoController.SETTINGS_KEYS).forEach(([settingName, storageKey]) => {
-                    const savedValue = GM_getValue(storageKey, null);
+                for (const [settingName, storageKey] of Object.entries(InstagramVideoController.SETTINGS_KEYS)) {
+                    const savedValue = await getValue(storageKey, null);
 
                     // Only update if the setting exists in storage
                     if (savedValue !== null) {
                         this.settings[settingName] = savedValue;
                     }
-                });
+                }
 
-                this.audioUnmuted = GM_getValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, false);
+                this.audioUnmuted = await getValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, false);
                 Logger.debug("Settings loaded", this.settings);
             } catch (error) {
                 Logger.error(error, "Loading settings");
@@ -7758,12 +7777,12 @@
         /**
          * Save settings to GM storage
          */
-        saveSettings() {
+        async saveSettings() {
             try {
                 // Save each setting individually
-                Object.entries(InstagramVideoController.SETTINGS_KEYS).forEach(([settingName, storageKey]) => {
-                    GM_setValue(storageKey, this.settings[settingName]);
-                });
+                for (const [settingName, storageKey] of Object.entries(InstagramVideoController.SETTINGS_KEYS)) {
+                    await setValue(storageKey, this.settings[settingName]);
+                }
 
                 Logger.debug("Settings saved", this.settings);
             } catch (error) {
@@ -8394,7 +8413,7 @@
 
                     if (isNowAudible && volumeEventTrusted) {
                         this.audioUnmuted = true;
-                        GM_setValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, true);
+                        setValue(InstagramVideoController.SETTINGS_KEYS.AUDIO_UNMUTED, true);
                         Logger.debug("User unmuted video (volume > 0), preference saved.");
                     } else if (video.muted || video.volume === 0) {
                         this.audioUnmuted = false;
