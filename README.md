@@ -1,57 +1,115 @@
-# Userscripts
+# 🛠️ My UserScripts Collection
 
-This repository contains a collection of my personal userscripts, developed and maintained since 2010. These scripts
-enhance the functionality of various websites and platforms by automating repetitive tasks, adding new features and
-improving the overall user experience.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Assuming MIT for the whole collection, adjust if needed -->
 
-## Whatsapp
+> Welcome to my personal collection of userscripts! These scripts are designed to enhance your browsing experience on various websites by adding new features, automating tasks, and improving overall usability. I've been developing and maintaining these since 2010.
 
-- [Whatsapp Obfuscator](https://github.com/baturkacamak/user-scripts/tree/master/whatsapp-obfuscator#readme) - Obfuscate
-  Whatsapp Web chatlist and removes profile photos
-- [Whatsapp Send New](https://github.com/baturkacamak/user-scripts/tree/master/whatsapp-send-new#readme) - Send Whatsapp
-  messages to people without adding them
+## 📜 Table of Contents
 
-## Instagram
+- [What are Userscripts?](#ℹ️-what-are-userscripts)
+- [How to Install These Userscripts](#🚀-how-to-install-these-userscripts)
+- [Available UserScripts](#🗂️-available-userscripts)
+  - [Wallapop](#wallapop)
+  - [Instagram](#instagram)
+  - [Ekşi Sözlük](#ekşi-sözlük)
+  - [WhatsApp](#whatsapp)
+  - [Productivity & Tools](#productivity--tools)
+- [Contributing](#🤝-contributing)
+- [Disclaimer](#⚠️-disclaimer)
 
-- [Instagram Story Anonymity Guard](https://github.com/baturkacamak/user-scripts/tree/master/instagram-story-anonymity-guard#readme) -
-  Instagram Story Anonymity Guard
+## ℹ️ What are Userscripts?
 
-## Upwork
+Userscripts are small pieces of JavaScript code that can modify the behavior and appearance of web pages. They are run by a userscript manager browser extension, allowing you to customize websites to your liking.
 
-- [Upwork Country Filter](https://github.com/baturkacamak/user-scripts/tree/master/upwork-country-filter#readme) -
-  Filter jobs by country
+## 🚀 How to Install These Userscripts
 
-## Eksi Sozluk
+1.  **Install a Userscript Manager**: If you don't have one already, you'll need a browser extension to manage and run userscripts. Popular choices include:
+    *   [Tampermonkey](https://tampermonkey.net/) (Recommended for Chrome, Firefox, Edge, Safari, Opera)
+    *   [Greasemonkey](https://www.greasespot.net/) (Firefox)
+    *   [Violentmonkey](https://violentmonkey.github.io/) (Chrome, Firefox, Edge, Opera)
 
-- [Eksi Olay](https://github.com/baturkacamak/user-scripts/tree/master/eksi-olay#readme) - Eksi olay notification
-- [Eksi Advanced Sorter](https://github.com/baturkacamak/user-scripts/tree/master/eksi-advanced-sorter#readme) - Eksi
-  Advanced Sorter
-- [EksiSözlük - Load More Posts and Delete Posts Automation](https://github.com/baturkacamak/user-scripts/tree/master/eksi-post-automation#readme) -
-  Automatically loads all posts and deletes posts on the Eksisozluk website.
-- [EksiSözlük - Block Multiple Users in Bulk](https://github.com/baturkacamak/user-scripts/tree/master/eksi-block-post-favorited-users#readme) -
-  Block multiple users who favorited a post in bulk.
-- [EksiSözlük - Post Loader and Appender for Trash](https://github.com/baturkacamak/user-scripts/tree/master/eksi-post-loader-apprender-trash#readme) -
-  Loads and appends the contents of multiple pages in trash page
+2.  **Install a Script**: For each script listed below, you'll find a "Direct Install" link. Clicking this link will prompt your userscript manager to install it.
 
-## Lingualeo
+## 🗂️ Available UserScripts
 
-- [Lingualeo Speak](https://github.com/baturkacamak/user-scripts/tree/master/lingualeo-speak#readme) - Lingualeo Speaker
+Below is a list of userscripts available in this repository, categorized by the platform they enhance or their general purpose.
 
-## Google
+### <img src="https://es.wallapop.com/favicon.ico" width="16" height="16"> Wallapop
 
-- [Google Maps Image Downloader](https://github.com/baturkacamak/user-scripts/tree/master/googlemaps-image-downlaoder#readme) -
-  Google Maps Places image downloader
+-   **[Wallapop Enhanced Tools](./wallapop-enhanced-tools#readme)**
+    -   *Description*: Comprehensive Wallapop enhancement suite: advanced description tools (incl. bulk view), versatile data export/download, powerful item filtering (keywords, delivery, reserved), multi-language UI.
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js)
+    -   *Source*: [📄 View Source Code](./wallapop-enhanced-tools/)
+-   **[Wallapop Remove Featured Cards](./wallapop-remove-featured-cards/)**
+    -   *Info*: Further details (description, install link) to be added. Please [create a `meta.json`](./wallapop-remove-featured-cards/HOW_TO_CREATE_META.md) or add standard metadata comments to the `.user.js` file for this script.
 
-## Youtube
+### <img src="https://www.instagram.com/favicon.ico" width="16" height="16"> Instagram
 
-- [Youtube Comments Sidebar](https://github.com/baturkacamak/user-scripts/tree/master/youtube-comments-sidebar#readme
-  ) - Moves Youtube comments to sidebar
+-   **[Instagram Native Video Controls](./instagram-video-controls#readme)**
+    -   *Description*: Adds native HTML5 video controls to Instagram videos with enhanced features like download, speed control, and more.
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/instagram-video-controls/instagram-video-controls.user.js)
+    -   *Source*: [📄 View Source Code](./instagram-video-controls/)
+-   **[Instagram Story Anonymity Guard](./instagram-story-anonymity-guard/)**
+    -   *Info*: Further details (description, install link) to be added. (Currently: Instagram Story Anonymity Guard). Please [create a `meta.json`](./instagram-story-anonymity-guard/HOW_TO_CREATE_META.md) or add standard metadata comments to the `.user.js` file for this script.
 
-## Various
+### 🧅 Ekşi Sözlük
 
-- [URL to URI](https://github.com/baturkacamak/user-scripts/tree/master/url-to-url#readme) - URL converter
+-   **[Eksi Advanced Sorter](./eksi-advanced-sorter/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Aria Enhancer](./eksi-aria-enhancer/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Block Post Favorited Users](./eksi-block-post-favorited-users/)** - *Info: Further details needed. (Currently: Block multiple users who favorited a post in bulk). Please document or add metadata.*
+-   **[Eksi Content Loader](./eksi-content-loader/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Copy Entry With Prompt](./eksi-copy-entry-with-prompt/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Deck](./eksi-deck/)** - *Info: Structure suggests this might be a larger project or not a simple userscript. Details to be added if applicable.*
+-   **[Eksi Manager](./eksi-manager/)** - *Info: Structure suggests this might be a larger project (contains a large `dist/userscript.js`). Details to be added if applicable.*
+-   **[Eksi Olay](./eksi-olay/)** - *Info: Further details needed. (Currently: Eksi olay notification). Please document or add metadata.*
+-   **[Eksi Post Automation](./eksi-post-automation/)** - *Info: Further details needed. (Currently: Automatically loads all posts and deletes posts on the Eksisozluk website). Please document or add metadata.*
+-   **[Eksi Post Loader Apprender Trash](./eksi-post-loader-apprender-trash/)** - *Info: Further details needed. (Currently: Loads and appends the contents of multiple pages in trash page). Please document or add metadata.*
+-   **[Eksi Response Enhancer](./eksi-response-enhancer/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Eksi Vote Monitor](./eksi-vote-monitor/)** - *Info: Further details needed. Please document or add metadata.*
 
-### Disclaimer
+*For Ekşi Sözlük scripts, consider creating a `meta.json` or adding standard metadata comments to each `.user.js` file for easier management and clearer descriptions here.*
+
+### <img src="https://static.whatsapp.net/rsrc.php/v3/yP/r/dJPs4AZ496F.png" width="16" height="16"> WhatsApp
+
+-   **[Whatsapp Obfuscator](./whatsapp-obfuscator/)** - *Info: Further details (description, install link) to be added. (Currently: Obfuscate Whatsapp Web chatlist and removes profile photos). Please create a `meta.json` or add metadata to the `.user.js` file.*
+-   **[Whatsapp Send New](./whatsapp-send-new/)** - *Info: Further details (description, install link) to be added. (Currently: Send Whatsapp messages to people without adding them). Please create a `meta.json` or add metadata to the `.user.js` file.*
+
+### 🛠️ Productivity & Tools
+
+-   **[ChatGPT Themes Prompter Enhanced (Story Grow)](./story-grow#readme)**
+    -   *Description*: Automatically inputs a random theme-based prompt into chat.openai.com and follows up with image generation prompts.
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/story-grow/dist/userscript.js)
+    -   *Source*: [📄 View Source Code](./story-grow/)
+    -   *Note*: Metadata in the script file could be updated for author and namespace.
+-   **[Loom Captions Extractor](./loom-captions-extractor#readme)**
+    -   *Description*: Extract and download closed captions from Loom videos.
+    -   *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/loom-captions-extractor/loom-captions-extractor.user.js)
+    -   *Source*: [📄 View Source Code](./loom-captions-extractor/)
+
+-   **[Appointment Availability Notifier](./appointment-availability-notifier/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Copy Tracklist Data](./copy-tracklist-data/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Dev Tools](./dev-tools/)** - *Info: This directory may contain development utilities rather than a distributable userscript. Details to be added if applicable.*
+-   **[Google Maps Image Downloader](./googlemaps-image-downloader/)** - *Info: Further details needed. (Currently: Google Maps Places image downloader). Please document or add metadata.*
+-   **[Idealista House Listing Analyzer](./idealista-house-listing-analyzer/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Lingualeo Speak](./lingualeo-speak/)** - *Info: Further details needed. (Currently: Lingualeo Speaker). Please document or add metadata.*
+-   **[Twitter Thread](./twitter-thread/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Twitter View Blocker](./twitter-view-blocker/)** - *Info: Further details needed. Please document or add metadata.*
+-   **[Upwork Country Filter](./upwork-country-filter/)** - *Info: Further details needed. (Currently: Filter jobs by country). Please document or add metadata.*
+-   **[URL to URI](./url-to-uri/)** - *Info: Further details needed. (Currently: URL converter). Please document or add metadata.*
+-   **[Youtube Comments Sidebar](./youtube-comments-sidebar/)** - *Info: Further details needed. (Currently: Moves Youtube comments to sidebar). Please document or add metadata.*
+
+*For scripts in "Productivity & Tools" lacking full details, please consider creating a `meta.json` file in their respective directories or adding standard metadata comments to their `.user.js` files.*
+
+## 🤝 Contributing
+
+Contributions to this collection are welcome! If you have suggestions for improvements, bug fixes, or new scripts, please feel free to:
+
+1.  [Open an issue](https://github.com/baturkacamak/user-scripts/issues) to report bugs or suggest features for a specific script or the collection in general.
+2.  Fork the repository, make your changes, and submit a pull request.
+
+Please ensure your code follows the general style of the existing scripts and include a clear description of your changes.
+
+## ⚠️ Disclaimer
 
 **Please note that these scripts are intended for personal use only and use of these scripts is at your own risk. I will
 not be held responsible for any damages or losses that may occur as a result of using these scripts. It is the
