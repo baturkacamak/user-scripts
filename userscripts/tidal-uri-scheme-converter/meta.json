@@ -1,0 +1,20 @@
+{
+  "name": "Tidal URI Scheme Converter",
+  "namespace": "https://github.com/baturkacamak/userscripts",
+  "version": "0.3.0",
+  "description": "Replaces tidal.com URLs with tidal:// URI scheme to open in the Tidal desktop app, primarily for links found on WhatsApp.",
+  "author": "Batur Kacamak",
+  "copyright": "2020+, Batur Kacamak (https://batur.info/)",
+  "license": "MIT",
+  "homepage": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/tidal-uri-scheme-converter#readme",
+  "homepageURL": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/tidal-uri-scheme-converter#readme",
+  "supportURL": "https://github.com/baturkacamak/user-scripts/issues",
+  "downloadURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/tidal-uri-scheme-converter/tidal-uri-scheme-converter.user.js",
+  "updateURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/tidal-uri-scheme-converter/tidal-uri-scheme-converter.user.js",
+  "match": [
+    "*://*.whatsapp.com/*"
+  ],
+  "icon": "https://tidal.com/favicon.ico",
+  "run-at": "document-idle",
+  "grant": []
+} 

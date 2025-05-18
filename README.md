@@ -139,6 +139,10 @@ for easier management and clearer descriptions here.*
   jobs by country). Please document or add metadata.*
 - **[URL to URI](./userscripts/url-to-uri/)** - *Info: Further details needed. (Currently: URL converter). Please
   document or add metadata.*
+- **[Tidal URI Scheme Converter](./userscripts/tidal-uri-scheme-converter#readme)**
+    - *Description*: Replaces tidal.com URLs with tidal:// URI scheme to open in the Tidal desktop app, primarily for links found on WhatsApp.
+    - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/tidal-uri-scheme-converter/tidal-uri-scheme-converter.user.js)
+    - *Source*: [📄 View Source Code](./userscripts/tidal-uri-scheme-converter/)
 - **[Youtube Comments Sidebar](./userscripts/youtube-comments-sidebar/)** - *Info: Further details needed. (Currently:
   Moves Youtube comments to sidebar). Please document or add metadata.*
 
