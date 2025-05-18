@@ -1,0 +1,22 @@
+{
+  "name": "{{PROJECT_NAME_TITLE}}",
+  "namespace": "{{NAMESPACE_URL}}",
+  "version": "{{VERSION}}",
+  "description": "{{PROJECT_DESCRIPTION}}",
+  "author": "{{AUTHOR_NAME}}",
+  "copyright": "{{CURRENT_YEAR}}+, {{AUTHOR_NAME}} ({{AUTHOR_HOMEPAGE}})",
+  "license": "MIT",
+  "homepage": "{{HOMEPAGE_URL_BASE}}/{{PROJECT_NAME_KEBAB}}#readme",
+  "homepageURL": "{{HOMEPAGE_URL_BASE}}/{{PROJECT_NAME_KEBAB}}#readme",
+  "supportURL": "{{SUPPORT_URL_BASE}}",
+  "downloadURL": "{{DOWNLOAD_URL_BASE}}/{{PROJECT_NAME_KEBAB}}/{{PROJECT_NAME_KEBAB}}.user.js",
+  "updateURL": "{{DOWNLOAD_URL_BASE}}/{{PROJECT_NAME_KEBAB}}/{{PROJECT_NAME_KEBAB}}.user.js",
+  "match": [
+    {{MATCH_PATTERNS_JSON_ARRAY}}
+  ],
+  "icon": "{{ICON_URL}}",
+  "run-at": "document-idle",
+  "grant": [
+    {{GM_GRANTS_JSON_ARRAY}}
+  ]
+}
