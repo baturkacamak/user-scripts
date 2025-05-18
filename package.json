@@ -15,6 +15,7 @@
     "rollup-plugin-userscript-metablock": "^0.4.2"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "5.0.0"
   },
   "scripts": {
@@ -26,4 +27,3 @@
     "build:loom": "node build.js --dir loom-captions-extractor"
   }
 }
-
