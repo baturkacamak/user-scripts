@@ -87,6 +87,13 @@
       isModule: false, // Standard userscript, XHR override needs to happen early
       fallbacks: ['blob', 'iframe', 'worker'], // Basic fallbacks
     },
+    {
+      name: 'Google Maps Image Downloader',
+      matches: ['google.com/maps', 'google.co.uk/maps', 'google.es/maps', 'google.de/maps', 'google.fr/maps', 'google.it/maps', 'google.nl/maps', 'google.pl/maps', 'google.pt/maps', 'google.com.tr/maps'], // Add more TLDs as needed
+      path: 'userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js',
+      isModule: false, // Will become true if we use the .js file directly and it has imports
+      fallbacks: ['blob', 'iframe', 'worker'],
+    },
   ];
 
   const devServers = [

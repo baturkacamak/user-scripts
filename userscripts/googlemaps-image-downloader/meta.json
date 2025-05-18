@@ -1,0 +1,28 @@
+{
+  "name": "Google Maps Image Downloader",
+  "namespace": "https://github.com/baturkacamak/userscripts",
+  "version": "0.12.0",
+  "description": "This script will add a button to download the current highlighted image from Google Places",
+  "author": "Batur Kacamak",
+  "copyright": "2020+, Batur Kacamak (https://batur.info/)",
+  "license": "MIT",
+  "homepage": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/googlemaps-image-downloader#readme",
+  "homepageURL": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/googlemaps-image-downloader#readme",
+  "supportURL": "https://github.com/baturkacamak/user-scripts/issues",
+  "downloadURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js",
+  "updateURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js",
+  "match": [
+    "/^https:\/\/(www\.)?google(?=.*maps).*/"
+  ],
+  "icon": "https://www.google.com/images/branding/product/ico/maps15_bnuw3a_32dp.ico",
+  "require": [
+    "https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/voca/1.4.0/voca.min.js"
+  ],
+  "run-at": "document-idle",
+  "grant": [
+    "unsafeWindow",
+    "GM_addStyle"
+  ]
+} 
