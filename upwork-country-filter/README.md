@@ -1,58 +1,132 @@
-# [Upwork Country Filter](https://github.com/your-username/user-scripts/tree/master/upwork-country-filter)
+# Upwork Country Filter
 
-## Description
+[![version](https://img.shields.io/badge/version-1.0.1-blue.svg)](meta.json)
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](../../LICENSE) <!-- Assuming LICENSE is in the root -->
+[![install](https://img.shields.io/badge/install%20built%20script-userscript-brightgreen)](https://github.com/baturkacamak/userscripts/raw/master/upwork-country-filter/upwork-country-filter.user.js) <!-- Update this URL if your repo structure is different -->
 
-This script is a user script for Upwork that filters job listings by country. It removes jobs from specified countries,
-allowing users to customize their job search experience on Upwork.
+**Upwork Country Filter** is a userscript designed to enhance your job search on Upwork by automatically hiding job postings from countries you specify via a convenient settings panel.
 
-## How it Works
+> Streamline your Upwork job feed by filtering out listings from countries not relevant to your search, with settings that persist across sessions.
 
-The script uses a MutationObserver to detect changes in the DOM and remove job listings from specific countries. It
-maintains a list of countries to be filtered, and any job listing with a matching country will be removed from the page.
+## Table of Contents
 
-## Installation
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Installation Guide](#installation-guide)
+- [How to Use](#how-to-use)
+  - [Settings Panel](#settings-panel)
+- [Customization (via Settings Panel)](#customization-via-settings-panel)
+- [Building from Source](#building-from-source)
+- [Logging](#logging)
+- [Contributing](#contributing)
+- [License](#license)
+- [Author](#author)
 
-To use this script, you need a user script manager extension installed in your browser. Here are some popular user
-script managers:
+## Overview
 
-- [Tampermonkey](https://www.tampermonkey.net/) (for Chrome, Microsoft Edge, Safari, Opera Next, and Firefox)
-- [Greasemonkey](https://www.greasespot.net/) (for Firefox)
+This userscript helps declutter your Upwork job feed by removing listings from countries you define. It monitors the job search and browse pages in real-time, ensuring that newly loaded jobs are also filtered according to your preferences. Your settings are saved, so the filter remembers your choices for future browsing sessions.
 
-Once you have a user script manager installed, you can install the Upwork Country Filter script by following these
-steps:
+## Key Features
 
-1. Go to
-   the [raw script file](https://github.com/baturkacamak/user-scripts/raw/master/upwork-country-filter/upwork-country-filter.user.js).
-2. The user script manager should recognize the script and prompt you to install it. Click "Install" or "Add" to
-   proceed.
+-   ⚙️ **User-Friendly Settings Panel**: A convenient sidebar panel allows you to easily manage filter settings.
+-   🚫 **Customizable Country-Based Filtering**: Define and manage your own list of countries to filter.
+-   💾 **Persistent Settings**: Your filter preferences (enabled/disabled state and banned countries list) are saved and automatically loaded each time.
+-   🔄 **Real-time Monitoring**: Uses `DOMObserver` to detect new job listings as they are loaded on the page and applies filters immediately.
+-   ✅ **Toggle Filter On/Off**: Easily enable or disable the entire filtering functionality.
+-   ✨ **No Default Banned Countries**: Starts with a clean slate, giving you full control over which countries to filter.
+-   🧩 **Modular Design**: Follows a modern JavaScript module structure, leveraging a shared core library for UI and utility functions.
+-   📝 **Enhanced Logging**: Provides more detailed console logs for easier debugging and monitoring of script activity.
 
-## Usage
+## Installation Guide
 
-After installing the script, visit the Upwork website ([www.upwork.com](https://www.upwork.com)) and navigate to the job
-search or browse page. The script will automatically filter job listings based on the specified countries. Any job
-listings from the filtered countries will be removed from the page.
+To use the Upwork Country Filter, you'll need a userscript manager browser extension.
 
-## Customization
+1.  **Install a Userscript Manager**:
+    Popular choices include:
+    *   [Tampermonkey](https://tampermonkey.net/) (Recommended for Chrome, Firefox, Edge, Safari, Opera)
+    *   [Greasemonkey](https://www.greasespot.net/) (Firefox)
+    *   [Violentmonkey](https://violentmonkey.github.io/) (Chrome, Firefox, Edge, Opera)
 
-If you want to customize the list of filtered countries, you can modify the `COUNTRIES` array in the script. Simply add
-or remove country names as needed. For example:
+2.  **Install the Script**:
+    Once you have a userscript manager, click the link below to install the latest pre-built version of the script:
+    ➡️ **[Install Upwork Country Filter](https://github.com/baturkacamak/userscripts/raw/master/upwork-country-filter/upwork-country-filter.user.js)** <!-- Ensure this URL points to the built .user.js file in your repo -->
 
-```javascript
-static COUNTRIES = ['India', 'Bangladesh', 'Pakistan', 'Arab', 'Country5'];
-```
+3.  **Confirm Installation**:
+    Your userscript manager will display a confirmation screen. Review the script details and permissions (it will ask for `GM_setValue` and `GM_getValue` to save your settings), then click "Install".
 
-Save the modified script and refresh the Upwork page for the changes to take effect.
+4.  **Start Filtering!**:
+    Navigate to any Upwork job search or browse page (e.g., `https://www.upwork.com/ab/jobs/search/`, `https://www.upwork.com/nx/find-work/`). The script will automatically activate, and you should see the settings panel tab on the side of the page.
 
-## Compatibility
+## How to Use
 
-This script is compatible with modern web browsers that support user script managers like Tampermonkey or Greasemonkey.
-It has been tested on popular browsers such as Chrome, Firefox, and Safari.
+Once installed, the script provides a settings panel to control its behavior.
 
-Please note that Upwork may update its website, which could potentially affect the script's functionality. In such
-cases, the script may need to be updated to accommodate any changes made by Upwork.
+### Settings Panel
 
-## Contributions
+-   Look for a tab or button on the side of Upwork pages, typically labeled "Upwork Country Filter Settings" (or similar, depending on the `SidebarPanel` implementation from the core library).
+-   Click it to open the settings panel.
+-   Inside the panel, you can:
+    *   **Enable/Disable Filtering**: Use the checkbox to turn the country filtering on or off.
+    *   **Manage Banned Countries**: 
+        *   View the current list of banned countries.
+        *   Enter a country name in the input field and click "Add Country" to add it to the list.
+        *   Click the "Remove" button next to any country in the list to remove it.
+-   Your changes are saved automatically and will apply immediately to the current page and future sessions.
 
-Contributions to the Upwork Country Filter script are welcome. If you have any suggestions, improvements, or bug fixes,
-feel free to open an issue or submit a pull request on
-the [GitHub repository](https://github.com/your-username/user-scripts/tree/master/upwork-country-filter).
+## Customization (via Settings Panel)
+
+All customization of the filter (enabling/disabling and managing the list of banned countries) is done through the **Settings Panel** described above. The script no longer uses a hardcoded list of default banned countries; you start with an empty list and build it according to your needs.
+
+If you need to reset settings or manually inspect them, they are stored using Greasemonkey's `GM_setValue`/`GM_getValue` under keys like `upworkFilterEnabled` and `upworkBannedCountries`.
+
+## Building from Source
+
+If you want to modify the script or build it from its source files:
+
+1.  **Clone the Repository** (if you haven't already):
+    ```bash
+    git clone https://github.com/baturkacamak/userscripts.git
+    cd userscripts
+    ```
+
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
+
+3.  **Build the Script**:
+    Run the specific build command for this script:
+    ```bash
+    npm run build:upwork-country-filter
+    ```
+    This will generate the `upwork-country-filter.user.js` file in the `upwork-country-filter` directory.
+
+4.  **Install the Locally Built Script**:
+    Follow your userscript manager's instructions for installing scripts from a local file.
+
+## Logging
+
+The script now utilizes an enhanced `Logger` from the core library. You can view more detailed logs in your browser's developer console (usually accessed by pressing F12). This can be helpful for troubleshooting or understanding the script's behavior. By default, it logs initialization status, settings changes, and can be configured for more verbose debugging if needed (by adjusting the logger settings in the code).
+
+## Contributing
+
+Contributions are welcome! Please feel free to:
+
+1.  [Open an issue](https://github.com/baturkacamak/userscripts/issues) to report bugs or suggest features.
+2.  Fork the repository, make your changes, and submit a pull request.
+
+Please ensure your code follows the project's established style and that builds are successful.
+
+## License
+
+This project is licensed under the MIT License.
+See the [LICENSE](../../LICENSE) file in the root directory for details.
+
+## Author
+
+**Batur Kacamak**
+-   GitHub: [@baturkacamak](https://github.com/baturkacamak)
+-   Website: [batur.info](https://batur.info/)
+
+---
+*This README was last updated on 2024-07-13.* <!-- Update with current date -->

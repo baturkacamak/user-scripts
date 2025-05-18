@@ -24,6 +24,7 @@
     "watch": "node build.js --watch",
     "watch:verbose": "node build.js --watch --verbose",
     "build:wallapop": "node build.js --dir wallapop-enhanced-tools",
-    "build:loom": "node build.js --dir loom-captions-extractor"
+    "build:loom": "node build.js --dir loom-captions-extractor",
+    "build:upwork-country-filter": "node build.js --dir upwork-country-filter"
   }
 }
