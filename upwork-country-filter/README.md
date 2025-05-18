@@ -1,7 +1,7 @@
 # Upwork Country Filter
 
 [![version](https://img.shields.io/badge/version-1.0.1-blue.svg)](meta.json)
-[![license](https://img.shields.io/badge/license-MIT-green.svg)](../../LICENSE) <!-- Assuming LICENSE is in the root -->
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![install](https://img.shields.io/badge/install%20built%20script-userscript-brightgreen)](https://github.com/baturkacamak/userscripts/raw/master/upwork-country-filter/upwork-country-filter.user.js) <!-- Update this URL if your repo structure is different -->
 
 **Upwork Country Filter** is a userscript designed to enhance your job search on Upwork by automatically hiding job postings from countries you specify via a convenient settings panel.
@@ -120,7 +120,7 @@ Please ensure your code follows the project's established style and that builds 
 ## License
 
 This project is licensed under the MIT License.
-See the [LICENSE](../../LICENSE) file in the root directory for details.
+See the [LICENSE](LICENSE) file for details.
 
 ## Author
 
