@@ -5514,29 +5514,15 @@
         }
     };
 
-    // GM function fallbacks for direct browser execution
+    // Styles for the Wallapop Enhanced Tools
 
-    // GMFunctions are now available as a namespace from the core import.
-    // The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
-    // const GM = GMFunctions.initialize();
 
-    const SELECTORS = {
-        ITEM_CARDS: [
-            'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
-            '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]',
-            '[class^="feed_Feed__item__"] a[href^="/item/"]',
-        ],
-        ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description__"]',
-        EXPAND_BUTTON: '.expand-button',
-        // New consolidated control panel selectors
-        CONTROL_PANEL: '.control-panel',
-        FILTER_INPUT: '.filter-input',
-        FILTER_APPLY: '.filter-apply',
-        BLOCKED_TERMS_LIST: '.blocked-terms-list'
-    };
-
-    // Find the CSS styles section in the script
-    StyleManager.addStyles(`
+    /**
+     * Add all styles needed for the Wallapop Enhanced Tools
+     */
+    function addStyles() {
+            
+        StyleManager.addStyles(`
         :root {
             --transition-speed: 0.3s;
             --transition-easing: ease-in-out;
@@ -5594,6 +5580,7 @@
             --userscripts-section-success-title-color: #059669;
             --userscripts-section-success-icon-color: #10b981;
             
+            /* Sidebar panel variables */
             --wallapop-enhanced-sidebar-panel-button-bg: #008080;
             --wallapop-enhanced-sidebar-panel-button-bg-hover: #006666;
             --wallapop-enhanced-sidebar-panel-title-color: #008080;
@@ -5805,7 +5792,7 @@
             margin-top: 10px;
         }
 
-     .language-selector .userscripts-button.lang-button {
+        .language-selector .userscripts-button.lang-button {
             ${Button.CSS_VAR_PREFIX}bg: #f0f0f0;
             ${Button.CSS_VAR_PREFIX}bg-hover: #e0e0e0;
             ${Button.CSS_VAR_PREFIX}border: #ccc;
@@ -5828,7 +5815,7 @@
             border-color: var(--panel-accent-color);
         }
 
-        ${SELECTORS.EXPAND_BUTTON} {
+        .expand-button {
             background: none;
             border: none;
             color: #008080;
@@ -6127,7 +6114,32 @@
           background-color: var(--panel-accent-color);
           color: white;
         }
-`, 'wallapop-enhanced-tools');
+    `, 'wallapop-enhanced-tools');
+    }
+
+    // GM function fallbacks for direct browser execution
+
+    // GMFunctions are now available as a namespace from the core import.
+    // The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
+    // const GM = GMFunctions.initialize();
+
+    const SELECTORS = {
+        ITEM_CARDS: [
+            'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
+            '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]',
+            '[class^="feed_Feed__item__"] a[href^="/item/"]',
+        ],
+        ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description__"]',
+        EXPAND_BUTTON: '.expand-button',
+        // New consolidated control panel selectors
+        CONTROL_PANEL: '.control-panel',
+        FILTER_INPUT: '.filter-input',
+        FILTER_APPLY: '.filter-apply',
+        BLOCKED_TERMS_LIST: '.blocked-terms-list'
+    };
+
+    // Find the CSS styles section in the script
+    addStyles();
 
     Logger.setPrefix("Wallapop Enhanced Tools");
 

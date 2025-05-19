@@ -1,13 +1,14 @@
 // Styles for the Wallapop Enhanced Tools
 
-import {StyleManager} from "../../core";
+import {StyleManager} from "../../../common/core";
 import {SELECTORS} from '../utils/constants';
-import {Button, SectionToggler} from "../../core";
+import {Button, SectionToggler} from "../../../common/core";
 
 /**
  * Add all styles needed for the Wallapop Enhanced Tools
  */
 export function addStyles() {
+        
     StyleManager.addStyles(`
         :root {
             --transition-speed: 0.3s;
@@ -301,7 +302,7 @@ export function addStyles() {
             border-color: var(--panel-accent-color);
         }
 
-        ${SELECTORS.EXPAND_BUTTON} {
+        .expand-button {
             background: none;
             border: none;
             color: #008080;
