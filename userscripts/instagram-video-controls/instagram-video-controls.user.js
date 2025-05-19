@@ -3278,12 +3278,12 @@
                 const savedState = await getValue(this.storageKey, SidebarPanel.PANEL_STATES.CLOSED);
                 // Validate state
                 if (Object.values(SidebarPanel.PANEL_STATES).includes(savedState)) {
-                    this.logger.debug('Retrieved saved panel state:', savedState, 'for key:', this.storageKey);
+                    Logger.debug('Retrieved saved panel state:', savedState, 'for key:', this.storageKey);
                     return savedState;
                 }
-                this.logger.warn('Invalid saved panel state retrieved:', savedState, 'for key:', this.storageKey);
+                Logger.warn('Invalid saved panel state retrieved:', savedState, 'for key:', this.storageKey);
             } catch (error) {
-                this.logger.error('Error retrieving saved panel state:', error, 'for key:', this.storageKey);
+                Logger.error('Error retrieving saved panel state:', error, 'for key:', this.storageKey);
             }
             return SidebarPanel.PANEL_STATES.CLOSED; // Default to closed on error or invalid
         }
@@ -3297,9 +3297,9 @@
             try {
                 // Use directly imported setValue
                 await setValue(this.storageKey, this.state);
-                this.logger.debug('Saved panel state:', this.state, 'for key:', this.storageKey);
+                Logger.debug('Saved panel state:', this.state, 'for key:', this.storageKey);
             } catch (error) {
-                this.logger.error('Error saving panel state:', error, 'for key:', this.storageKey);
+                Logger.error('Error saving panel state:', error, 'for key:', this.storageKey);
             }
         }
 
