@@ -6,7 +6,7 @@ const resolve = require('@rollup/plugin-node-resolve');
 const metablock = require('rollup-plugin-userscript-metablock');
 
 // Path to core JavaScript files, relative to project root
-const CORE_DIR_JS = 'userscripts/core/**/*.js';
+const CORE_DIR_JS = 'userscripts/common/**/*.js';
 
 // Configuration
 const CONFIG = {
@@ -237,14 +237,15 @@ function getUserscriptDirectories() {
 // Find all core files that userscripts depend on
 function findWatchableCoreFiles() {
     // First, check if core directory exists
-    if (!dirExists('./core')) {
-        log('Core directory does not exist! Cannot watch core files.', 'error');
+    const commonDir = 'userscripts/common';
+    if (!dirExists(commonDir)) {
+        log(`Common directory (${commonDir}) does not exist! Cannot watch common files.`, 'error');
         return [];
     }
 
-    // List all JavaScript files in the core directory
-    log('Looking for JavaScript files in core directory...', 'debug');
-    const coreJsFiles = [];
+    // List all JavaScript files in the common directory
+    log('Looking for JavaScript files in common directory...', 'debug');
+    const commonJsFiles = [];
 
     function findJsFiles(dir) {
         try {
@@ -256,18 +257,18 @@ function findWatchableCoreFiles() {
                 if (entry.isDirectory()) {
                     findJsFiles(fullPath);
                 } else if (entry.isFile() && entry.name.endsWith('.js')) {
-                    coreJsFiles.push(fullPath.replace(/\\/g, '/'));
+                    commonJsFiles.push(fullPath.replace(/\\/g, '/'));
                 }
             }
         } catch (error) {
-            log(`Error reading core directory: ${error.message}`, 'error');
+            log(`Error reading common directory: ${error.message}`, 'error');
         }
     }
 
-    findJsFiles('./core');
-    log(`Found ${coreJsFiles.length} JS files in core directory`, 'debug');
+    findJsFiles(commonDir);
+    log(`Found ${commonJsFiles.length} JS files in common directory`, 'debug');
 
-    return coreJsFiles;
+    return commonJsFiles;
 }
 
 // Build a single userscript
@@ -387,31 +388,32 @@ async function buildAll() {
 function createRebuildMap() {
     const userscriptDirs = getUserscriptDirectories();
     const rebuildMap = {};
+    const commonBaseDir = 'userscripts/common';
 
-    // Check if core directory exists
-    const hasCoreDir = dirExists('./core');
+    // Check if common directory exists
+    const hasCommonDir = dirExists(commonBaseDir);
 
-    if (hasCoreDir) {
-        log('Core directory found, scanning for core files to watch...', 'debug');
+    if (hasCommonDir) {
+        log('Common directory found, scanning for common files to watch...', 'debug');
 
         if (CONFIG.verbose) {
-            // Debug: check the contents of the core directory
-            log('Core directory structure:', 'debug');
-            const coreFiles = listFilesInDir('./core');
-            coreFiles.forEach((file) => {
-                log(`  core/${file}`, 'debug');
+            // Debug: check the contents of the common directory
+            log('Common directory structure:', 'debug');
+            const commonFiles = listFilesInDir(commonBaseDir);
+            commonFiles.forEach((file) => {
+                log(`  ${commonBaseDir}/${file}`, 'debug');
             });
         }
 
-        // Find all core JS files and add them to the rebuild map
-        const coreJsFiles = findWatchableCoreFiles();
+        // Find all common JS files and add them to the rebuild map
+        const commonJsFiles = findWatchableCoreFiles();
 
-        coreJsFiles.forEach((filePath) => {
-            log(`Adding core file to watch list: ${filePath}`, 'debug');
-            rebuildMap[filePath] = [...userscriptDirs]; // All userscripts depend on core files
+        commonJsFiles.forEach((filePath) => {
+            log(`Adding common file to watch list: ${filePath}`, 'debug');
+            rebuildMap[filePath] = [...userscriptDirs]; // All userscripts depend on common files
         });
     } else {
-        log('Core directory does not exist! Skipping core file watching.', 'warning');
+        log(`Common directory (${commonBaseDir}) does not exist! Skipping common file watching.`, 'warning');
     }
 
     // Add userscript-specific files - they only trigger a rebuild of their own userscript
@@ -467,9 +469,9 @@ function watch() {
         });
     } else {
         // In normal mode, just show count of core/userscript files
-        const coreFiles = watchFiles.filter((file) => file.startsWith('core/')).length;
-        const userscriptFiles = watchFiles.length - coreFiles;
-        log(`Watching ${c.green}${coreFiles}${c.reset} core files and ${c.yellow}${userscriptFiles}${c.reset} userscript files`, 'watch');
+        const commonFilesCount = watchFiles.filter((file) => file.startsWith('userscripts/common/')).length;
+        const userscriptFilesCount = watchFiles.length - commonFilesCount;
+        log(`Watching ${c.green}${commonFilesCount}${c.reset} common files and ${c.yellow}${userscriptFilesCount}${c.reset} userscript files`, 'watch');
     }
 
     // Also watch meta.json files
@@ -542,10 +544,10 @@ function watch() {
         }
 
         // Is this a core file? (affects all userscripts)
-        const isCore = normalizedPath.startsWith('core/');
+        const isCommon = normalizedPath.startsWith('userscripts/common/');
 
-        if (isCore) {
-            log(`Core file changed: ${c.green}${normalizedPath}${c.reset}`, 'core');
+        if (isCommon) {
+            log(`Common file changed: ${c.green}${normalizedPath}${c.reset}`, 'core');
 
             if (CONFIG.verbose && stats) {
                 log(`File stats: size=${stats.size}, mtime=${stats.mtime}`, 'debug');
@@ -559,7 +561,7 @@ function watch() {
 
             // In normal mode, show a summary of affected userscripts
             if (!CONFIG.verbose) {
-                log(`Rebuilding ${c.yellow}${targetsToRebuild.length}${c.reset} userscripts due to core change`, 'build');
+                log(`Rebuilding ${c.yellow}${targetsToRebuild.length}${c.reset} userscripts due to common file change`, 'build');
             }
 
             // Rebuild each target, one at a time
@@ -573,7 +575,7 @@ function watch() {
                 lastBuilds[target] = now;
 
                 if (CONFIG.verbose) {
-                    log(`Rebuilding ${c.yellow}${target}${c.reset} due to core change`, 'build');
+                    log(`Rebuilding ${c.yellow}${target}${c.reset} due to common file change`, 'build');
                 }
                 await buildUserscript(target);
             }
@@ -619,7 +621,7 @@ function watch() {
             log('Watch mode is still active...', 'debug');
 
             // Check for physical changes to verify file system monitoring
-            const testFile = './core/utils/Logger.js';
+            const testFile = 'userscripts/common/utils/Logger.js'; // Adjusted path
             if (fs.existsSync(testFile)) {
                 try {
                     const stats = fs.statSync(testFile);
@@ -627,6 +629,8 @@ function watch() {
                 } catch (error) {
                     log(`Error checking test file: ${error.message}`, 'debug');
                 }
+            } else {
+                log(`Test file ${testFile} not found for periodic check.`, 'debug');
             }
         }, 60000);
     }
