@@ -101,6 +101,13 @@
       isModule: false, // Standard userscript for now
       fallbacks: ['blob', 'iframe', 'worker'],
     },
+    {
+      name: 'Idealista House Listing Analyzer',
+      matches: ['idealista.com', 'idealista.pt', 'idealista.it'],
+      path: 'userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js',
+      isModule: false, // New .js file has imports, so would be true if pointed directly
+      fallbacks: ['blob', 'iframe', 'worker'],
+    },
   ];
 
   const devServers = [

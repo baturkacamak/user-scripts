@@ -1,0 +1,24 @@
+{
+  "name": "Idealista House Listing Analyzer",
+  "namespace": "https://github.com/baturkacamak/userscripts",
+  "version": "1.1.0",
+  "description": "Analyzes house listing statistics from Idealista.com and displays a calculated score directly on listing links.",
+  "author": "Batur Kacamak",
+  "copyright": "2023+, Batur Kacamak (https://batur.info/)",
+  "license": "MIT",
+  "homepage": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/idealista-house-listing-analyzer#readme",
+  "homepageURL": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/idealista-house-listing-analyzer#readme",
+  "supportURL": "https://github.com/baturkacamak/user-scripts/issues",
+  "downloadURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js",
+  "updateURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js",
+  "match": [
+    "*://www.idealista.com/*",
+    "*://www.idealista.pt/*",
+    "*://www.idealista.it/*"
+  ],
+  "icon": "https://www.idealista.com/favicon.ico",
+  "run-at": "document-idle",
+  "grant": [
+    "GM_xmlhttpRequest"
+  ]
+} 

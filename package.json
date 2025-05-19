@@ -31,6 +31,7 @@
     "build:lingualeo-speak": "node config/build.js --dir userscripts/lingualeo-speak",
     "build:instagram-story-anonymity-guard": "node config/build.js --dir userscripts/instagram-story-anonymity-guard",
     "build:googlemaps-image-downloader": "node config/build.js --dir userscripts/googlemaps-image-downloader",
-    "build:discogs-tracklist-copier": "node config/build.js --dir userscripts/discogs-tracklist-copier"
+    "build:discogs-tracklist-copier": "node config/build.js --dir userscripts/discogs-tracklist-copier",
+    "build:idealista-house-listing-analyzer": "node config/build.js --dir userscripts/idealista-house-listing-analyzer"
   }
 }

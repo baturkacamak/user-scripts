@@ -125,8 +125,10 @@ for easier management and clearer descriptions here.*
     - *Description*: Adds a button to download the currently highlighted image from Google Maps Places, attempting to fetch a higher resolution version.
     - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js)
     - *Source*: [📄 View Source Code](./userscripts/googlemaps-image-downloader/)
-- **[Idealista House Listing Analyzer](./userscripts/idealista-house-listing-analyzer/)** - *Info: Further details
-  needed. Please document or add metadata.*
+- **[Idealista House Listing Analyzer](./userscripts/idealista-house-listing-analyzer#readme)**
+    - *Description*: Analyzes house listing statistics on Idealista (Spain, Portugal, Italy) and displays a calculated score directly next to listing links.
+    - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js)
+    - *Source*: [📄 View Source Code](./userscripts/idealista-house-listing-analyzer/)
 - **[Lingualeo Speaker](./userscripts/lingualeo-speak#readme)**
     - *Description*: Automatically clicks the speaker button in Lingualeo's Leo Sprint training to play word pronunciations.
     - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/lingualeo-speak/lingualeo-speak.user.js)
