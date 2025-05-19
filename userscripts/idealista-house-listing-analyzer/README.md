@@ -1,25 +1,48 @@
-# House Listing Analyzer
+# Idealista House Listing Analyzer
 
-This user script analyzes house listing statistics on the Idealista website and displays a calculated score on the listing pages.
+[![version](https://img.shields.io/badge/version-1.1.0-blue.svg)](meta.json)
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![install](https://img.shields.io/badge/install%20directly-userscript-brightgreen.svg)](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js)
 
-## Installation Guide
+This userscript analyzes house listing statistics on Idealista (Spain, Portugal, Italy) and displays a calculated score directly next to listing links. This score helps quickly assess a property's popularity and recency.
 
-To install the House Listing Analyzer user script, follow these steps:
+## Key Features
 
-1. Install a userscript manager like [Tampermonkey](https://tampermonkey.net/) or [Greasemonkey](https://www.greasespot.net/). These programs allow you to manage userscripts and run them on websites.
+-   **Statistical Analysis**: Fetches listing statistics (visits, shares, contacts, favorites).
+-   **Score Calculation**: Calculates a weighted score based on the fetched statistics and the listing's age.
+-   **Inline Display**: Shows the score and days since published (e.g., `(7.21) D:5`) next to each property link.
+-   **Caching**: Caches scores locally to reduce redundant API calls and speed up display on subsequent views.
+-   **Dynamic Content Support**: Works with dynamically loaded listings as you scroll or navigate.
+-   **Multi-country**: Supports Idealista for Spain, Portugal, and Italy.
 
-2. Click on the following link to install the script: [idealista-house-listing-analyzer.user.js](https://github.com/baturkacamak/user-scripts/raw/master/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js)
+## How to Use
 
-3. Your userscript manager should open and display information about the script. Click on the "Install" button to install the script.
+1.  **Install a Userscript Manager**: If you don't have one, install Tampermonkey, Greasemonkey, or Violentmonkey.
+2.  **Install the Script**: Click the "Install Directly" badge above.
+3.  **Browse Idealista**: Navigate to `idealista.com`, `idealista.pt`, or `idealista.it`. As you browse listings (search results, etc.), scores will appear next to property links.
+    -   The score is a numerical value (higher is generally more interaction/interest).
+    -   `D:X` indicates the number of days since the listing was published or last updated.
+    -   Hover over the score for a tooltip with more details, including if the score is from the cache.
 
-4. After the script is installed, visit a house listing page on the [Idealista](https://www.idealista.com/) website. You should see a new score displayed at the top right corner of the page.
+## Configuration
 
-That's it! You can now use the House Listing Analyzer script to analyze house listings on the Idealista website.
+The script includes internal configuration for:
+-   `expirationDays`: How long scores are cached (default: 1 day).
+-   `delayBetweenRequests`: A small delay between fetching stats for different listings (default: 500ms).
+-   `weights`: The weighting factors used in the score calculation for visits, shares, contacts, favorites, and recency.
 
-## Usage
+These are currently hardcoded but could be exposed via userscript commands or settings in future versions.
 
-After installing the script, visit a house listing page on the [Idealista](https://www.idealista.com/) website. The script will automatically analyze the listing statistics and calculate a score based on factors such as visits, friend shares, email contacts, favorites, and recency. The calculated score will be displayed at the top right corner of the page.
+## Contributing
+
+Contributions, issues, and feature requests are welcome! Please refer to the [GitHub repository issues page](https://github.com/baturkacamak/user-scripts/issues).
 
 ## License
 
-This script is licensed under the MIT License. See [LICENSE](https://github.com/baturkacamak/user-scripts/blob/master/idealista-house-listing-analyzer/LICENSE) for more information.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Author
+
+**Batur Kacamak**
+-   GitHub: [@baturkacamak](https://github.com/baturkacamak)
+-   Website: [batur.info](https://batur.info/)
