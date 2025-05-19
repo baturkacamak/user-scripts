@@ -71,16 +71,22 @@
         }
 
         static _timestamp() {
-            const {locale, hour12} = this._customFormat || this._detectTimeFormat();
             const now = new Date();
-            const time = now.toLocaleString(locale, {
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12
-            });
+
+            const day = String(now.getDate()).padStart(2, '0');
+            const month = String(now.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+            const year = now.getFullYear();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+
+            const time = `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}.${milliseconds}`;
+
             let diff = "";
             if (this._lastTimestamp) {
                 const ms = now - this._lastTimestamp;
-                diff = ` [+${(ms / 1000).toFixed(1)}s]`;
+                diff = ` [+${(ms / 1000).toFixed(3)}s]`; // Keep 3 decimal places for ms in diff
             }
             this._lastTimestamp = now;
             return `${time}${diff}`;
