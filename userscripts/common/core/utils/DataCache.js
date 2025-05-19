@@ -1,9 +1,8 @@
-import { config } from '../config.js';
-
-export class CacheHandler {
+export class DataCache {
   constructor(logger) {
     this.logger = logger;
   }
+
   get(key) {
     try {
       const value = localStorage.getItem(key);
@@ -22,7 +21,7 @@ export class CacheHandler {
     return null;
   }
 
-  set(key, value, expirationDays = config.expirationDays) {
+  set(key, value, expirationDays) {
     try {
       const expires = expirationDays ?
         new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :

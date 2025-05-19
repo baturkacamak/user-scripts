@@ -1,7 +1,7 @@
 import { Logger, DOMObserver } from '../common/core/index.js';
 import { HttpService } from '../common/core/services/httpService.js';
+import { DataCache } from '../common/core/utils/DataCache.js';
 import { config } from './config.js';
-import { CacheHandler } from './services/cacheHandler.js';
 import { StatisticsExtractor } from './services/statisticsExtractor.js';
 import { ScoreCalculator } from './services/scoreCalculator.js';
 
@@ -12,7 +12,7 @@ class IdealistaHouseListingAnalyzer {
     this.logger = new Logger(`[${SCRIPT_NAME}]`);
     this.domObserver = new DOMObserver(this.logger);
     this.httpService = new HttpService(this.logger);
-    this.cacheHandler = new CacheHandler(this.logger);
+    this.dataCache = new DataCache(this.logger);
     this.extractor = new StatisticsExtractor(this.logger, this.httpService);
     this.scoreCalculator = new ScoreCalculator(this.logger);
     this.processedLinks = new Set(); // Keep track of processed links
@@ -67,7 +67,7 @@ class IdealistaHouseListingAnalyzer {
       return;
     }
 
-    const cachedScoreData = this.cacheHandler.get(`score_${listingId}`);
+    const cachedScoreData = this.dataCache.get(`score_${listingId}`);
     if (cachedScoreData !== null) {
       this.logger.log(`Using cached score for ${listingId}: ${cachedScoreData.score}`);
       this.displayScore(anchorElement, cachedScoreData.score, cachedScoreData.daysSincePublished, true);
@@ -92,7 +92,7 @@ class IdealistaHouseListingAnalyzer {
         daysSincePublished,
       );
 
-      this.cacheHandler.set(`score_${listingId}`, { score, daysSincePublished });
+      this.dataCache.set(`score_${listingId}`, { score, daysSincePublished }, config.expirationDays);
       this.displayScore(anchorElement, score, daysSincePublished, false);
     } catch (error) {
       this.logger.error(`Error processing listing ${listingId}:`, error);
