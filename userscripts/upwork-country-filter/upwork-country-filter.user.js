@@ -685,7 +685,7 @@
             };
 
             this.observerInstance = new DOMObserver(mutationCallback);
-            this.observerInstance.observe(document.documentElement, { childList: true, subtree: true });
+            this.observerInstance.observe(document.documentElement, {childList: true, subtree: true});
 
             if (this.isFilterEnabled) {
                 this.removeCountryListings(); // Initial scan
@@ -723,7 +723,10 @@
                 } else {
                     this.removeCountryListings(); // Re-apply filter if enabled
                 }
-                PubSub.publish('filterSettingsRefreshed', { isEnabled: this.isFilterEnabled, countries: this.bannedCountriesList });
+                PubSub.publish('filterSettingsRefreshed', {
+                    isEnabled: this.isFilterEnabled,
+                    countries: this.bannedCountriesList
+                });
             }
         }
 
@@ -735,12 +738,15 @@
                 if (this.isFilterEnabled) {
                     this.removeCountryListings(); // Re-apply filter with new countries
                 }
-                PubSub.publish('filterSettingsRefreshed', { isEnabled: this.isFilterEnabled, countries: this.bannedCountriesList });
+                PubSub.publish('filterSettingsRefreshed', {
+                    isEnabled: this.isFilterEnabled,
+                    countries: this.bannedCountriesList
+                });
             }
         }
-        
+
         static getSettings() {
-            return { isEnabled: this.isFilterEnabled, countries: [...this.bannedCountriesList] };
+            return {isEnabled: this.isFilterEnabled, countries: [...this.bannedCountriesList]};
         }
 
         /**
@@ -2466,7 +2472,7 @@
             this.currentBannedCountries = [...initialSettings.countries];
 
             this.sidebarPanel = new SidebarPanel(SETTINGS_PANEL_ID, 'Upwork Country Filter Settings');
-            
+
             this.buildPanelContent();
 
             PubSub.subscribe('filterSettingsRefreshed', (settings) => {
@@ -2564,10 +2570,10 @@
                 li.style.justifyContent = 'space-between';
                 li.style.alignItems = 'center';
                 li.style.padding = '3px 0';
-                
+
                 const countryText = document.createElement('span');
                 countryText.textContent = country;
-                
+
                 const removeButton = new Button('Remove', () => {
                     this.currentBannedCountries = this.currentBannedCountries.filter(c => c !== country);
                     PubSub.publish('bannedCountriesChanged', [...this.currentBannedCountries]);

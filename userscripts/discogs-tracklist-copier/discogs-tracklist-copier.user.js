@@ -1,19 +1,20 @@
 // ==UserScript==
-// @name        Whatsapp Send New
-// @description Send whatsapp messages without needing to add them to your contact list.
+// @name        Discogs Tracklist Copier
+// @description Adds a button to copy tracklist data (Artist - Track) from Discogs.com release pages.
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     0.2.0
+// @version     1.1.0
 // @author      Batur Kacamak
 // @license     MIT
-// @homepage    https://github.com/baturkacamak/user-scripts/tree/master/userscripts/whatsapp-send-new#readme
-// @homepageURL https://github.com/baturkacamak/user-scripts/tree/master/userscripts/whatsapp-send-new#readme
+// @homepage    https://github.com/baturkacamak/user-scripts/tree/master/userscripts/discogs-tracklist-copier#readme
+// @homepageURL https://github.com/baturkacamak/user-scripts/tree/master/userscripts/discogs-tracklist-copier#readme
 // @supportURL  https://github.com/baturkacamak/user-scripts/issues
-// @downloadURL https://github.com/baturkacamak/user-scripts/raw/master/userscripts/whatsapp-send-new/whatsapp-send-new.user.js
-// @updateURL   https://github.com/baturkacamak/user-scripts/raw/master/userscripts/whatsapp-send-new/whatsapp-send-new.user.js
-// @match       https://*.whatsapp.com/*
-// @icon        https://whatsapp.com/favicon.ico
+// @downloadURL https://github.com/baturkacamak/user-scripts/raw/master/userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js
+// @updateURL   https://github.com/baturkacamak/user-scripts/raw/master/userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js
+// @match       *://www.discogs.com/*release/*
+// @match       *://www.discogs.com/*master/*
+// @icon        https://www.discogs.com/favicon.ico
 // @run-at      document-idle
-// @grant       unsafeWindow
+// @grant       GM_setClipboard
 // ==/UserScript==
 
 (function () {
@@ -551,195 +552,6 @@
 
     // For potential direct class usage if ever needed, though current pattern is to use the initialized functions.
     // export default GMFunctions; // Not currently used this way
-
-    /**
-     * PubSub - A simple publish/subscribe pattern implementation
-     * Enables components to communicate without direct references
-     */
-    class PubSub {
-        static #events = {};
-
-        /**
-         * Subscribe to an event
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         * @return {string} Subscription ID
-         */
-        static subscribe(event, callback) {
-            if (!this.#events[event]) {
-                this.#events[event] = [];
-            }
-
-            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            this.#events[event].push({callback, subscriptionId});
-            return subscriptionId;
-        }
-
-        /**
-         * Unsubscribe from an event
-         * @param {string} subscriptionId - Subscription ID
-         * @return {boolean} Success state
-         */
-        static unsubscribe(subscriptionId) {
-            for (const event in this.#events) {
-                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
-                if (index !== -1) {
-                    this.#events[event].splice(index, 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Publish an event
-         * @param {string} event - Event name
-         * @param {any} data - Data to pass to subscribers
-         */
-        static publish(event, data) {
-            if (!this.#events[event]) {
-                return;
-            }
-
-            this.#events[event].forEach(sub => {
-                sub.callback(data);
-            });
-        }
-
-        /**
-         * Clear all subscriptions
-         * @param {string} [event] - Optional event name to clear only specific event
-         */
-        static clear(event) {
-            if (event) {
-                delete this.#events[event];
-            } else {
-                this.#events = {};
-            }
-        }
-    }
-
-    class UrlChangeWatcher {
-      constructor(strategies = [], fireImmediately = true) {
-        this.strategies = strategies;
-        this.fireImmediately = fireImmediately;
-        this.lastUrl = location.href;
-        this.active = false;
-      }
-
-      start() {
-        if (this.active) return;
-        this.active = true;
-        Logger.debug('UrlChangeWatcher (Strategy) started');
-
-        this.strategies.forEach((strategy) =>
-          strategy.start?.(this._handleChange.bind(this)),
-        );
-
-        if (this.fireImmediately) {
-          this._handleChange(location.href, null, true);
-        }
-      }
-
-      stop() {
-        this.active = false;
-        this.strategies.forEach((strategy) => strategy.stop?.());
-        Logger.debug('UrlChangeWatcher (Strategy) stopped');
-      }
-
-      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
-        if (!force && newUrl === this.lastUrl) return;
-        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
-
-        this.lastUrl = newUrl;
-
-        if (PubSub?.publish) {
-          PubSub.publish('urlchange', {newUrl, oldUrl});
-        }
-      }
-    }
-
-    /**
-     * DOMObserver - Observes DOM changes and URL changes
-     * Uses UrlChangeWatcher for URL change detection with configurable strategies
-     */
-    class DOMObserver {
-      /**
-         * Wait for elements matching a selector
-         * @param {string} selector - CSS selector to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @return {Promise<NodeList>} - Promise resolving to found elements
-         */
-      static waitForElements(selector, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-
-          function checkElements() {
-            const elements = document.querySelectorAll(selector);
-            if (0 < elements.length) {
-              resolve(elements);
-              return;
-            }
-
-            if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selector}`));
-              return;
-            }
-
-            requestAnimationFrame(checkElements);
-          }
-
-          checkElements();
-        });
-      }
-      /**
-         * Create a new DOMObserver
-         * @param {Function} onMutation - Callback for handling mutations
-         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
-         */
-      constructor(onMutation, urlChangeStrategies = []) {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-        this.onMutation = onMutation;
-
-        // Initialize URL change watcher with provided strategies
-        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
-      }
-
-
-      /**
-         * Start observing DOM changes and URL changes
-         * @param {HTMLElement} target - Element to observe (defaults to document.body)
-         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
-         */
-      observe(target = document.body, config = {childList: true, subtree: true}) {
-        this.observer.observe(target, config);
-
-        // Start URL change watcher
-        this.urlChangeWatcher.start();
-      }
-
-      /**
-         * Stop observing DOM changes and URL changes
-         */
-      disconnect() {
-        this.observer.disconnect();
-
-        // Stop URL change watcher
-        this.urlChangeWatcher.stop();
-      }
-
-      /**
-         * Handle mutations
-         * @param {MutationRecord[]} mutations - Array of mutation records
-         * @private
-         */
-      handleMutations(mutations) {
-        if (this.onMutation) {
-          this.onMutation(mutations);
-        }
-      }
-    }
 
     /**
      * Button - A reusable UI component for buttons.
@@ -1963,209 +1775,167 @@
     Checkbox.stylesInitialized = false;
     Checkbox.initStyles();
 
-    /* global webpackJsonp, unsafeWindow  */
-
-    // Moved from static class methods to module-scoped functions
-    function getStore(modules) {
-      const win = window || unsafeWindow;
-      const storeObjects = [
-        {
-          id: 'Store',
-          conditions: (module) => ((module.default && module.default.Chat && module.default.Msg) ? module.default : null),
-        },
-        {
-          id: 'OpenChat',
-          conditions: (module) => ((module.default && module.default.prototype && module.default.prototype.openChat) ? module.default : null),
-        },
-      ];
-      let foundCount = 0;
-      for (const idx in modules) {
-        if (('object' === typeof modules[idx]) && (null !== modules[idx])) {
-          const first = Object.values(modules[idx])[0];
-          if (('object' === typeof first) && (first.exports)) {
-            for (const idx2 in modules[idx]) {
-              const module = modules(idx2);
-              if (!module) {
-                continue;
-              }
-              storeObjects.forEach((needObj) => {
-                if (!needObj.conditions || needObj.foundedModule) return;
-                const neededModule = needObj.conditions(module);
-                if (null !== neededModule) {
-                  foundCount++;
-                  needObj.foundedModule = neededModule;
-                }
-              });
-              if (foundCount == storeObjects.length) {
-                break;
-              }
-            }
-            const neededStore = storeObjects.find((needObj) => 'Store' === needObj.id);
-            win.Store = neededStore.foundedModule ? neededStore.foundedModule : window.Store;
-            storeObjects.splice(storeObjects.indexOf(neededStore), 1);
-            storeObjects.forEach((needObj) => {
-              if (needObj.foundedModule) win.Store[needObj.id] = needObj.foundedModule;
-            });
-            return win.Store;
-          }
-        }
-      }
-    }
-
-    function loadModule() {
-      if ('function' === typeof webpackJsonp) {
-        webpackJsonp([], {parasite: (x, y, z) => getStore(z)}, ['parasite']);
-      } else {
-        webpackJsonp.push([['parasite'], {
-          parasite(o, e, t) {
-            getStore(t);
-          },
-        }, [['parasite']]]);
-      }
-    }
-
-    class WhatsappSendNew {
+    class DiscogsTracklistCopier {
       constructor() {
-        this.CSS_STYLES = `
-        .wsnu {display: flex; height: 72px; border-bottom: 1px solid;position: relative}
-        .wsnu__input {font-family: inherit; width: 100%;display:block;padding: 5px 40px 5px 10px; margin:10px; border:1px dashed; border-radius: 10px;}
-        .wsnu__input:active {outline:none}
-        .wsnu__input:focus {outline:none}
-        .wsnu__input:hover {cursor:pointer}
-        .wsnu__button {transform: rotate(180deg) translateY(50%); position: absolute; top: 50%;right: 10px;padding: 0 10px; z-index: 10; border:none 0; height:50px; background-color: transparent !important;}
-    `;
-        this.SVG_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 4l1.4 1.4L7.8 11H20v2H7.8l5.6 5.6L12 20l-8-8 8-8z"></path></svg>';
-
-        this.SELECTORS = {
-          mutationObserver: 'div[tabindex="-1"]>div>div>span',
-          mutationLeftPanel: 'div[tabindex="-1"]>div>div>span [data-list-scroll-offset]>div',
-          searchContactsInput: '[tabindex] [style] div.copyable-text.selectable-text[data-tab="3"][dir]',
-        };
-        this.win = window || unsafeWindow;
-        this.logger = new Logger('[WhatsappSendNew]');
+        this.logger = new Logger('[DiscogsTracklistCopier]');
+        this.coreButton = new Button(this.logger);
+        this.tracklistTableSelector = 'table.tracklist, table.tracklist_track_table'; // Common selectors for Discogs tracklist tables
+        this.copyButton = null;
         this.init();
       }
 
-      injectStyles() {
-        StyleManager.addStyles(this.CSS_STYLES, 'wsnu-styles');
-      }
-
-      createPhoneNumberInput() {
-        const input = document.createElement('input');
-        input.classList.add('wsnu__input');
-        input.setAttribute('placeholder', 'Write a phone number and hit enter');
-        input.setAttribute('autofocus', 'autofocus');
-        input.addEventListener('keyup', (event) => {
-          if ('Enter' === event.key) {
-            this.sendMessageUrl(input.value);
-          }
-        });
-        return input;
-      }
-
-      createSendButton(inputElement) {
-        const button = new Button({
-            icon: this.SVG_ICON,
-            onClick: () => this.sendMessageUrl(inputElement.value),
-            className: 'wsnu__button',
-        });
-        return button.button;
-      }
-
-      createUiElements() {
-        const input = this.createPhoneNumberInput();
-        const buttonElement = this.createSendButton(input);
-
-        const wsnuContainer = document.createElement('div');
-        wsnuContainer.classList.add('wsnu');
-        wsnuContainer.appendChild(buttonElement);
-        wsnuContainer.appendChild(input);
-        
-        return { container: wsnuContainer, inputElement: input };
-      }
-
-      handleNewChatPanelNode(node) {
-        const listDiv = node.querySelector('[data-list-scroll-offset]>div');
-        if (listDiv && !listDiv.parentElement.querySelector('.wsnu')) { 
-            this.injectStyles();
-            const { container, inputElement } = this.createUiElements();
-            listDiv.parentElement.append(container);
-            inputElement.focus();
-            return true;
-        }
-        return false;
-      }
-
-      handleUiMutations(mutations) {
-          for (const mutation of mutations) {
-              if (mutation.addedNodes.length > 0) {
-                  for (const addedNode of mutation.addedNodes) {
-                      if (addedNode.nodeType === Node.ELEMENT_NODE) { 
-                         if (this.handleNewChatPanelNode(addedNode)) {
-                             return; 
-                         }
-                      }
-                  }
-              }
-          }
-      }
-
-      startWhatsapp() {
-        this.newWhatsapp(); 
-        
-        const observerTargetNode = document.querySelector(this.SELECTORS.mutationObserver);
-        if (observerTargetNode) {
-            if (this.uiObserver) {
-                this.uiObserver.disconnect();
-            }
-            this.uiObserver = new DOMObserver(this.handleUiMutations.bind(this));
-            this.uiObserver.observe(observerTargetNode, { childList: true, subtree: true });
-            this.logger.log('UI Observer started.');
-        } else {
-            this.logger.warn('Could not find target node for UI observer.');
-        }
-      }
-
-      async initialDomReadyCheck() {
-        try {
-            this.logger.log('Waiting for WhatsApp main UI to be ready...');
-            await DOMObserver.waitForElements(this.SELECTORS.mutationObserver, 30000);
-            this.logger.log('WhatsApp main UI is ready.');
-            this.startWhatsapp();
-        } catch (error) {
-            this.logger.error('Failed to initialize script, WhatsApp UI not found after timeout.', error);
-        }
-      }
-
-      sendMessageUrl(number) {
-        if (number) {
-          let phoneNumber = number.replace(/\s+/g, '');
-          phoneNumber = phoneNumber.replace(/^00/g, '');
-          phoneNumber = phoneNumber.replace(/^\+/g, '');
-          if (this.wchat && typeof this.wchat.openChat === 'function') {
-            this.wchat.openChat(phoneNumber);
-          } else {
-            this.logger.error('wchat or openChat method not available.');
-          }
-        }
-      }
-
-      newWhatsapp() {
-        loadModule(); // Now calls the module-scoped function
-        if (this.win.Store && this.win.Store.OpenChat) {
-            this.wchat = new this.win.Store.OpenChat();
-            this.logger.log('WhatsApp OpenChat module loaded.');
-        } else {
-            this.logger.error('Failed to load WhatsApp OpenChat module.');
-        }
-      }
-
       init() {
-        this.initialDomReadyCheck(); // Renamed from mutationReady for clarity
+        this.logger.log('Initializing...');
+        // Attempt to add the button. DOMObserver could be used if table loads very dynamically.
+        // For now, run-at: document-idle should be sufficient for most cases.
+        this.addButtonWhenReady();
+      }
+
+      addButtonWhenReady() {
+        const tracklistTable = document.querySelector(this.tracklistTableSelector);
+        if (tracklistTable) {
+          this.logger.log('Tracklist table found. Adding button.');
+          this.addButton(tracklistTable);
+        } else {
+          // Optional: use DOMObserver if table isn't always present at document-idle
+          this.logger.log('Tracklist table not immediately found. Consider DOMObserver for dynamic pages.');
+          // Fallback to a simple interval check for simplicity, or recommend DOMObserver for robustness
+          let attempts = 0;
+          const interval = setInterval(() => {
+            attempts++;
+            const table = document.querySelector(this.tracklistTableSelector);
+            if (table) {
+              clearInterval(interval);
+              this.logger.log('Tracklist table found after delay. Adding button.');
+              this.addButton(table);
+            }
+            if (attempts > 10) { // Stop after 5 seconds (10 * 500ms)
+                clearInterval(interval);
+                this.logger.warn('Tracklist table not found after several attempts.');
+            }
+          }, 500);
+        }
+      }
+
+      addButton(tracklistTable) {
+        if (this.copyButton && this.copyButton.parentNode) {
+            this.logger.log('Button already exists.');
+            return;
+        }
+
+        this.copyButton = this.coreButton.createButton({
+          id: 'discogs-copy-btn',
+          label: 'Copy Tracklist Data',
+          onClick: () => this.copyTracklistData(tracklistTable),
+          // No icon specified, will be a text button by default by core.Button
+        });
+
+        if (this.copyButton && tracklistTable.parentNode) {
+          tracklistTable.parentNode.insertBefore(this.copyButton, tracklistTable);
+          // Add some basic styling to the button if not handled by core.Button entirely
+          this.copyButton.style.margin = '10px 0';
+          this.copyButton.style.padding = '8px 12px';
+          this.copyButton.style.cursor = 'pointer';
+          this.logger.log('Copy button added.');
+        } else {
+            this.logger.error('Failed to create or append the copy button.');
+        }
+      }
+
+      extractTextContent(element, selector) {
+        const targetElement = element.querySelector(selector);
+        // Fallback for artist if it's directly in a td without specific class (sometimes happens)
+        if (!targetElement && selector.includes('artist')) {
+            Array.from(element.querySelectorAll('td'));
+            // Heuristic: artist is often in a cell with multiple `<a>` or complex structure before title
+            // This needs to be adjusted based on actual Discogs HTML structure variance.
+            // For now, let's assume the original selectors are mostly reliable.
+        }
+        return targetElement ? targetElement.textContent.trim() : '';
+      }
+
+      async copyTracklistData(tracklistTable) {
+        this.logger.log('Attempting to copy tracklist data...');
+        let tracklistData = '';
+        const tracklistRows = tracklistTable.querySelectorAll('tbody tr.track, tbody tr.tracklist_track');
+
+        if (!tracklistRows.length) {
+            this.logger.warn('No track rows found in the table.');
+            alert('No track rows found. Cannot copy.');
+            return;
+        }
+
+        tracklistRows.forEach((row) => {
+          // Discogs has varying structures, try to be flexible
+          const artistSelectors = [
+            'td.tracklist_track_artists a', // Common for releases
+            'span.tracklist_track_title_master_artist_details a', // For master releases sometimes
+            'td[data-track-credits] a', // Another variant
+            // older structures might not have specific artist column per track if it's a compilation by Various Artists
+          ];
+          const titleSelectors = [
+            'span.tracklist_track_title',
+            'td.track_title > span', // older style
+            'td.title > span.tracklist_track_title'
+          ];
+
+          let artist = '';
+          for (const selector of artistSelectors) {
+            artist = this.extractTextContent(row, selector);
+            if (artist) break;
+          }
+          // If no specific track artist, it might be overall release artist (e.g. an album by one artist)
+          // This part might require fetching main release artist if not available per track, or assuming it for VA.
+
+          let trackTitle = '';
+          for (const selector of titleSelectors) {
+            trackTitle = this.extractTextContent(row, selector);
+            if (trackTitle) break;
+          }
+
+          if (trackTitle) { // Artist can sometimes be omitted for Various Artists compilations if copying raw titles
+            const trackLine = (artist ? `${artist} - ` : '') + `${trackTitle}\n`;
+            tracklistData += trackLine;
+            this.logger.debug(`Added: ${trackLine.trim()}`);
+          }
+        });
+
+        if (tracklistData) {
+          try {
+            if (typeof GM_setClipboard !== 'undefined') {
+              GM_setClipboard(tracklistData.trim());
+              this.logger.log('Tracklist data copied to clipboard using GM_setClipboard.');
+              alert('Tracklist data copied to clipboard!');
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(tracklistData.trim());
+              this.logger.log('Tracklist data copied to clipboard using navigator.clipboard.');
+              alert('Tracklist data copied to clipboard!');
+            } else {
+              // Fallback to old execCommand if others fail (less reliable)
+              const textarea = document.createElement('textarea');
+              textarea.value = tracklistData.trim();
+              textarea.style.position = 'fixed'; // Prevent scrolling to bottom
+              document.body.appendChild(textarea);
+              textarea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textarea);
+              this.logger.log('Tracklist data copied to clipboard using execCommand (fallback).');
+              alert('Tracklist data copied to clipboard! (fallback method)');
+            }
+          } catch (err) {
+            this.logger.error('Failed to copy tracklist data to clipboard:', err);
+            alert('Failed to copy tracklist data. See console for details.');
+          }
+        } else {
+          this.logger.warn('No tracklist data could be extracted.');
+          alert('No tracklist data found or extracted on the page!');
+        }
       }
     }
 
-    // eslint-disable-next-line no-unused-vars
-    new WhatsappSendNew();
+    // Initialize the script
+    new DiscogsTracklistCopier();
+
+    return DiscogsTracklistCopier;
 
 })();

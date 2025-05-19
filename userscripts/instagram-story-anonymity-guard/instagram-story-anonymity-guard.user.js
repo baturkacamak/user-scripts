@@ -1,44 +1,1812 @@
 // ==UserScript==
-// @id           instagram-story-anonymity-guard@https://github.com/baturkacamak/userscripts
-// @name         Instagram Story Anonymity Guard
-// @namespace    https://github.com/baturkacamak/userscripts
-// @version      1.1.0
-// @description  Blocks a specific request to maintain anonymity while viewing Instagram stories.
-// @author       Batur Kacamak
-// @license      MIT
-// @homepage     https://github.com/baturkacamak/user-scripts/tree/master/instagram-story-anonymity-guard#readme
-// @supportURL   https://github.com/baturkacamak/user-scripts/issues
-// @icon         https://instagram.com/favicon.ico
-// @noframes
-// @run-at       document-start
-// @grant        none
-// @match        *://www.instagram.com/*
-// @include      *://www.instagram.com/*
+// @name        Instagram Story Anonymity Guard
+// @description Blocks specific network requests to help maintain anonymity while viewing Instagram stories.
+// @namespace   https://github.com/baturkacamak/userscripts
+// @version     1.1.0
+// @author      Batur Kacamak
+// @license     MIT
+// @homepage    https://github.com/baturkacamak/user-scripts/tree/master/userscripts/instagram-story-anonymity-guard#readme
+// @homepageURL https://github.com/baturkacamak/user-scripts/tree/master/userscripts/instagram-story-anonymity-guard#readme
+// @supportURL  https://github.com/baturkacamak/user-scripts/issues
+// @downloadURL https://github.com/baturkacamak/user-scripts/raw/master/userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js
+// @updateURL   https://github.com/baturkacamak/user-scripts/raw/master/userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js
+// @match       *://www.instagram.com/*
+// @icon        https://instagram.com/favicon.ico
+// @run-at      document-start
+// @grant       none
 // ==/UserScript==
 
-/**
- * The InstagramStoryAnonymityGuard class ensures users maintain their anonymity while viewing Instagram stories.
- * It achieves this by overriding the XMLHttpRequest send method to block specific requests.
- */
-class InstagramStoryAnonymityGuard {
-  /**
-     * Initializes a new instance of the InstagramStoryAnonymityGuard class and sets up the request blocking mechanism.
-     */
-  constructor() {
-    InstagramStoryAnonymityGuard.originalXMLSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.send = this.send;
-  }
+(function () {
+    'use strict';
 
-  /**
-     * Custom send method to check and block specific requests.
-     * @param {...any} args - The arguments passed to the XMLHttpRequest send method.
+    /**
+     * Enhanced Logger - A feature-rich logging utility
+     * Supports log levels, styling, grouping, caller info, filtering, persistence, exporting, and more
      */
-  send(...args) {
-    const requestData = args[0];
-    if ('string' !== typeof requestData || !requestData.includes('viewSeenAt')) {
-      InstagramStoryAnonymityGuard.originalXMLSend.apply(this, args);
+    class Logger {
+        static DEBUG = true;
+        static PREFIX = "Userscript";
+        static _customFormat = null;
+        static _logHistory = [];
+        static _filters = new Set();
+        static _lastTimestamp = null;
+        static _persist = false;
+        static _mock = false;
+        static _theme = {
+            debug: "color: #3498db; font-weight: bold;",
+            info: "color: #1abc9c; font-weight: bold;",
+            warn: "color: #f39c12; font-weight: bold;",
+            error: "color: #e74c3c; font-weight: bold;",
+            success: "color: #2ecc71; font-weight: bold;",
+            trace: "color: #8e44ad; font-weight: bold;",
+            htmlTitle: "color: #9b59b6; font-weight: bold;",
+            htmlContent: "color: #2c3e50;",
+            toggle: "color: #f39c12; font-weight: bold;"
+        };
+        static _emojis = {
+            debug: "\uD83D\uDC1B",
+            info: "\u2139\uFE0F",
+            warn: "\u26A0\uFE0F",
+            error: "\u274C",
+            success: "\u2705",
+            trace: "\uD83D\uDCCC",
+            html: "\uD83E\uDDE9",
+            toggle: "\uD83C\uDF9B\uFE0F"
+        };
+
+        static setTimeFormat(locale = "en-US", use12Hour = false) {
+            this._customFormat = {locale, hour12: use12Hour};
+        }
+
+        static _detectTimeFormat() {
+            try {
+                const testDate = new Date(Date.UTC(2020, 0, 1, 13, 0, 0));
+                const locale = navigator.language || "tr-TR";
+                const timeString = testDate.toLocaleTimeString(locale);
+                const is12Hour = timeString.toLowerCase().includes("pm") || timeString.toLowerCase().includes("am");
+                return {locale, hour12: is12Hour};
+            } catch (e) {
+                return {locale: "tr-TR", hour12: false};
+            }
+        }
+
+        static _timestamp() {
+            const {locale, hour12} = this._customFormat || this._detectTimeFormat();
+            const now = new Date();
+            const time = now.toLocaleString(locale, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12
+            });
+            let diff = "";
+            if (this._lastTimestamp) {
+                const ms = now - this._lastTimestamp;
+                diff = ` [+${(ms / 1000).toFixed(1)}s]`;
+            }
+            this._lastTimestamp = now;
+            return `${time}${diff}`;
+        }
+
+        static _getCaller() {
+            const err = new Error();
+            const stack = err.stack?.split("\n")[3];
+            return stack ? stack.trim() : "(unknown)";
+        }
+
+        static _log(level, ...args) {
+            if (!this.DEBUG && level === "debug") return;
+            if (this._filters.size && !args.some(arg => this._filters.has(arg))) return;
+            const emoji = this._emojis[level] || '';
+            const style = this._theme[level] || '';
+            const timestamp = this._timestamp();
+            const caller = this._getCaller();
+
+            const message = [
+                `%c${timestamp} %c${emoji} [${this.PREFIX} ${level.toUpperCase()}]%c:`,
+                "color: gray; font-style: italic;",
+                style,
+                "color: inherit;",
+                ...args,
+                `\nCaller: ${caller}`
+            ];
+
+            this._logHistory.push({timestamp, level, args});
+
+            if (this._persist) localStorage.setItem("LoggerHistory", JSON.stringify(this._logHistory));
+            if (!this._mock) console.log(...message);
+        }
+
+        static debug(...args) {
+            this._log("debug", ...args);
+        }
+
+        static info(...args) {
+            this._log("info", ...args);
+        }
+
+        static warn(...args) {
+            this._log("warn", ...args);
+        }
+
+        static error(...args) {
+            this._log("error", ...args);
+        }
+
+        static success(...args) {
+            this._log("success", ...args);
+        }
+
+        static trace(...args) {
+            this._log("trace", ...args);
+            console.trace();
+        }
+
+        static logHtml(title, htmlContent) {
+            const shortContent = htmlContent.substring(0, 1500) + "...";
+            this._log("html", `[${title}]`, shortContent);
+            if (!this._mock) {
+                console.groupCollapsed(`%c\uD83E\uDDE9 HTML Details (${title})`, this._theme.htmlTitle);
+                console.log("%cComplete HTML:", this._theme.htmlTitle);
+                console.log(`%c${htmlContent}`, this._theme.htmlContent);
+                console.groupEnd();
+            }
+        }
+
+        static setPrefix(prefix) {
+            this.PREFIX = prefix;
+        }
+
+        static setTheme(theme) {
+            Object.assign(this._theme, theme);
+        }
+
+        static addFilter(tag) {
+            this._filters.add(tag);
+        }
+
+        static clearFilters() {
+            this._filters.clear();
+        }
+
+        static persistLogs(enable = true) {
+            this._persist = enable;
+        }
+
+        static mock(enable = true) {
+            this._mock = enable;
+        }
+
+        static group(label) {
+            if (!this._mock) console.group(label);
+        }
+
+        static groupEnd() {
+            if (!this._mock) console.groupEnd();
+        }
+
+        static step(msg) {
+            this.info(`\u2705 ${msg}`);
+        }
+
+        static hello() {
+            this.info("Hello, dev! \uD83D\uDC4B Ready to debug?");
+        }
+
+        static downloadLogs(filename = "logs.json") {
+            const blob = new Blob([JSON.stringify(this._logHistory, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        static autoClear(intervalMs) {
+            setInterval(() => {
+                this._logHistory = [];
+                if (this._persist) localStorage.removeItem("LoggerHistory");
+            }, intervalMs);
+        }
     }
-  }
-}
 
-new InstagramStoryAnonymityGuard();
+    /**
+     * StyleManager - Utility for CSS style management
+     * Handles adding and removing styles, theme variables, etc.
+     */
+    class StyleManager {
+        static styleElements = new Map();
+
+        /**
+         * Add CSS styles to the document
+         * @param {string} css - CSS string to add
+         * @param {string} id - Optional ID for the style element
+         * @returns {HTMLStyleElement} - The created style element
+         */
+        static addStyles(css, id = null) {
+            const style = document.createElement('style');
+            style.textContent = css;
+
+            if (id) {
+                style.id = id;
+                // Remove any existing style with the same ID
+                if (this.styleElements.has(id)) {
+                    this.removeStyles(id);
+                }
+                this.styleElements.set(id, style);
+            }
+
+            document.head.appendChild(style);
+            return style;
+        }
+
+        /**
+         * Remove styles by ID
+         * @param {string} id - ID of the style element to remove
+         * @returns {boolean} - True if styles were removed, false otherwise
+         */
+        static removeStyles(id) {
+            if (!this.styleElements.has(id)) return false;
+
+            const styleElement = this.styleElements.get(id);
+            if (styleElement && styleElement.parentNode) {
+                styleElement.parentNode.removeChild(styleElement);
+            }
+
+            this.styleElements.delete(id);
+            return true;
+        }
+
+        /**
+         * Apply CSS variables for theming
+         * @param {Object} variables - Object with variable names and values
+         * @param {string} selector - CSS selector to apply variables to (default: :root)
+         */
+        static applyThemeVariables(variables, selector = ':root') {
+            let css = `${selector} {\n`;
+
+            Object.entries(variables).forEach(([name, value]) => {
+                // Ensure variable names start with --
+                const varName = name.startsWith('--') ? name : `--${name}`;
+                css += `  ${varName}: ${value};\n`;
+            });
+
+            css += `}\n`;
+
+            this.addStyles(css, 'theme-variables');
+        }
+
+        /**
+         * Add styles to handle animations
+         * @param {Object} animations - Key-value pairs of animation name and keyframes
+         */
+        static addAnimations(animations) {
+            let css = '';
+
+            Object.entries(animations).forEach(([name, keyframes]) => {
+                css += `@keyframes ${name} {\n${keyframes}\n}\n\n`;
+            });
+
+            this.addStyles(css, 'animations');
+        }
+    }
+
+    /**
+     * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
+     * Ensures compatibility across different userscript managers and direct browser execution
+     */
+
+    class GMFunctions {
+        /**
+         * Check if we're running in development mode (outside a userscript manager)
+         * @return {boolean} True if in development environment
+         */
+        static isDevelopmentMode() {
+            // In production, GM_info should be defined by the userscript manager
+            return 'undefined' === typeof GM_info;
+        }
+
+        /**
+         * Initialize fallbacks for missing GM functions
+         * @return {Object} Object containing references to all GM functions (either native or polyfilled)
+         */
+        static initialize() {
+            const isDevMode = this.isDevelopmentMode();
+
+            Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');
+
+            if (isDevMode) {
+                // Create fallbacks for common GM functions
+                this.setupAddStyle();
+                this.setupXmlHttpRequest();
+                this.setupSetClipboard();
+                this.setupDownload();
+                this.setupGetValue();
+                this.setupSetValue();
+
+                Logger.info('GM function fallbacks have been created for development mode');
+            } else {
+                Logger.debug('Using native userscript manager GM functions');
+            }
+
+            // Return references to all functions (either native or polyfilled)
+            return {
+                GM_addStyle: window.GM_addStyle,
+                GM_xmlhttpRequest: window.GM_xmlhttpRequest,
+                GM_setClipboard: window.GM_setClipboard,
+                GM_download: window.GM_download,
+                GM_getValue: window.GM_getValue,
+                GM_setValue: window.GM_setValue,
+            };
+        }
+
+        /**
+         * Set up GM_addStyle fallback
+         */
+        static setupAddStyle() {
+            window.GM_addStyle = function (css) {
+                Logger.debug('GM_addStyle fallback executing', css.substring(0, 50) + '...');
+                const style = document.createElement('style');
+                style.textContent = css;
+                document.head.appendChild(style);
+                return style;
+            };
+        }
+
+        /**
+         * Set up GM_xmlhttpRequest fallback
+         */
+        static setupXmlHttpRequest() {
+            window.GM_xmlhttpRequest = function (details) {
+                Logger.debug('GM_xmlhttpRequest fallback executing', {
+                    method: details.method,
+                    url: details.url
+                });
+
+                const xhr = new XMLHttpRequest();
+                xhr.open(details.method, details.url);
+
+                if (details.headers) {
+                    Object.keys(details.headers).forEach((key) => {
+                        xhr.setRequestHeader(key, details.headers[key]);
+                    });
+                }
+
+                xhr.onload = function () {
+                    if (details.onload) {
+                        const response = {
+                            responseText: xhr.responseText,
+                            response: xhr.response,
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            readyState: xhr.readyState,
+                        };
+
+                        Logger.debug('GM_xmlhttpRequest completed', {
+                            status: xhr.status,
+                            url: details.url
+                        });
+
+                        details.onload(response);
+                    }
+                };
+
+                xhr.onerror = function () {
+                    Logger.error('GM_xmlhttpRequest error', {
+                        url: details.url,
+                        status: xhr.status
+                    });
+
+                    if (details.onerror) {
+                        details.onerror(xhr);
+                    }
+                };
+
+                xhr.send(details.data);
+                return xhr;
+            };
+        }
+
+        /**
+         * Set up GM_setClipboard fallback
+         */
+        static setupSetClipboard() {
+            window.GM_setClipboard = function (text) {
+                Logger.debug('GM_setClipboard fallback executing', {
+                    textLength: text.length
+                });
+
+                // Create a temporary textarea element
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+
+                // Make the textarea not visible
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+
+                document.body.appendChild(textarea);
+                textarea.select();
+
+                // Try to copy the text
+                let success = false;
+                try {
+                    success = document.execCommand('copy');
+                    Logger.info('Clipboard copy ' + (success ? 'successful' : 'unsuccessful'));
+                } catch (err) {
+                    Logger.error(err, 'Error copying to clipboard');
+                }
+
+                // Clean up
+                document.body.removeChild(textarea);
+                return success;
+            };
+        }
+
+        /**
+         * Set up GM_download fallback
+         */
+        static setupDownload() {
+            window.GM_download = function (options) {
+                // Wrapping in a Promise to allow for async-like behavior if needed by caller,
+                // though current implementation is synchronous.
+                return new Promise((resolve, reject) => {
+                    try {
+                        const {url, name, onload, onerror} = options;
+
+                        Logger.debug('GM_download fallback executing', {
+                            url: url.substring(0, 100),
+                            filename: name
+                        });
+
+                        // Create download link
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = url;
+                        downloadLink.download = name || 'download';
+                        downloadLink.style.display = 'none';
+
+                        // Add to document, click, and remove
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+
+                        // Clean up
+                        setTimeout(() => {
+                            document.body.removeChild(downloadLink);
+                            if (onload) {
+                                Logger.debug('GM_download completed successfully');
+                                onload();
+                            }
+                            resolve(true); // Resolve promise on success
+                        }, 100);
+
+                    } catch (err) {
+                        Logger.error(err, 'Error downloading file');
+                        if (options.onerror) options.onerror(err);
+                        reject(err); // Reject promise on error
+                    }
+                });
+            };
+        }
+
+        /**
+         * Set up GM_getValue fallback using localStorage, returning a Promise.
+         */
+        static setupGetValue() {
+            window.GM_getValue = function (key, defaultValue) {
+                return new Promise((resolve) => {
+                    try {
+                        const storageKey = `GM_${key}`;
+                        Logger.debug('GM_getValue fallback: Attempting to get \'' + storageKey + '\'');
+                        const value = localStorage.getItem(storageKey);
+                        if (value !== null) {
+                            try {
+                                const parsedValue = JSON.parse(value);
+                                Logger.debug('GM_getValue fallback: Found and parsed \'' + storageKey + '\', value:', parsedValue);
+                                resolve(parsedValue);
+                            } catch (e) {
+                                Logger.debug('GM_getValue fallback: Found non-JSON \'' + storageKey + '\', value:', value);
+                                resolve(value); // Return as string if not JSON
+                            }
+                        } else {
+                            Logger.debug('GM_getValue fallback: Key \'' + storageKey + '\' not found, returning default:', defaultValue);
+                            resolve(defaultValue);
+                        }
+                    } catch (error) {
+                        Logger.error(error, 'Error getting value for key (GM_getValue fallback): ' + key);
+                        resolve(defaultValue);
+                    }
+                });
+            };
+        }
+
+        /**
+         * Set up GM_setValue fallback using localStorage, returning a Promise.
+         */
+        static setupSetValue() {
+            window.GM_setValue = function (key, value) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const storageKey = `GM_${key}`;
+                        Logger.debug('GM_setValue fallback: Attempting to set \'' + storageKey + '\' to:', value);
+                        localStorage.setItem(storageKey, JSON.stringify(value));
+                        resolve();
+                    } catch (error) {
+                        Logger.error(error, 'Error setting value for key (GM_setValue fallback): ' + key);
+                        reject(error);
+                    }
+                });
+            };
+        }
+    }
+
+    // Initialize the fallbacks (this will populate window.GM_getValue etc.)
+    // The initialize method also returns the map of functions.
+    const gmFunctions = GMFunctions.initialize();
+
+    // Export the functions for direct import, matching the names used in CountryFilter.js
+    gmFunctions.GM_addStyle;
+    gmFunctions.GM_xmlhttpRequest;
+    gmFunctions.GM_setClipboard;
+    gmFunctions.GM_download;
+    gmFunctions.GM_getValue; // Maps to getValue for import { getValue }
+    gmFunctions.GM_setValue; // Maps to setValue for import { setValue }
+
+    // For potential direct class usage if ever needed, though current pattern is to use the initialized functions.
+    // export default GMFunctions; // Not currently used this way
+
+    /**
+     * Button - A reusable UI component for buttons.
+     * Creates customizable, accessible buttons with various states and callbacks.
+     */
+
+    /**
+     * A reusable UI component for creating accessible, customizable buttons.
+     */
+    class Button {
+      /**
+         * Returns the unique base CSS class for the Button component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for buttons.
+         */
+      static get BASE_BUTTON_CLASS() {
+        return 'userscripts-button';
+      }
+      /**
+         * Returns the CSS variable prefix used for theming and styling the Button component.
+         * This prefix scopes all custom CSS variables (e.g., colors, borders) related to the button.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+      static get CSS_VAR_PREFIX() {
+        return '--userscripts-button-';
+      }
+      /**
+         * Initialize styles for all buttons.
+         * These styles reference the CSS variables with our defined prefix.
+         */
+      static initStyles() {
+        if (Button.stylesInitialized) return;
+        StyleManager.addStyles(`
+      /* Scoped styles for Userscripts Button Component */
+      .${Button.BASE_BUTTON_CLASS} {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-family: inherit;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        text-align: center;
+        background-color: var(${Button.CSS_VAR_PREFIX}bg);
+        color: var(${Button.CSS_VAR_PREFIX}color);
+        border-color: var(${Button.CSS_VAR_PREFIX}border);
+      }
+      
+      /* Button sizes */
+      .${Button.BASE_BUTTON_CLASS}--small {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        min-height: 1.75rem;
+      }
+      .${Button.BASE_BUTTON_CLASS}--medium {
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+        min-height: 2.25rem;
+      }
+      .${Button.BASE_BUTTON_CLASS}--large {
+        font-size: 1rem;
+        padding: 0.75rem 1.5rem;
+        min-height: 2.75rem;
+      }
+      
+      /* Button themes using CSS variables */
+      .${Button.BASE_BUTTON_CLASS}--default {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-default);
+        color: var(${Button.CSS_VAR_PREFIX}color-default);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-default);
+      }
+      .${Button.BASE_BUTTON_CLASS}--default:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-default-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--primary {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-primary);
+        color: var(${Button.CSS_VAR_PREFIX}color-primary);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-primary);
+      }
+      .${Button.BASE_BUTTON_CLASS}--primary:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-primary-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-primary-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--secondary {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-secondary);
+        color: var(${Button.CSS_VAR_PREFIX}color-secondary);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-secondary);
+      }
+      .${Button.BASE_BUTTON_CLASS}--secondary:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-secondary-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-secondary-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--success {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-success);
+        color: var(${Button.CSS_VAR_PREFIX}color-success);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-success);
+      }
+      .${Button.BASE_BUTTON_CLASS}--success:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-success-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-success-hover);
+      }
+      
+      .${Button.BASE_BUTTON_CLASS}--danger {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-danger);
+        color: var(${Button.CSS_VAR_PREFIX}color-danger);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-danger);
+      }
+      .${Button.BASE_BUTTON_CLASS}--danger:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-danger-hover);
+        border-color: var(${Button.CSS_VAR_PREFIX}border-danger-hover);
+      }
+      
+      /* Generic state styles */
+      .${Button.BASE_BUTTON_CLASS}:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      .${Button.BASE_BUTTON_CLASS}:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px var(${Button.CSS_VAR_PREFIX}focus-shadow);
+      }
+      
+      /* Generic pseudo-class rules */
+      .${Button.BASE_BUTTON_CLASS}:hover:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-hover);
+      }
+      .${Button.BASE_BUTTON_CLASS}:active:not(:disabled) {
+        background-color: var(${Button.CSS_VAR_PREFIX}bg-active);
+      }
+      
+      /* Button content */
+      .${Button.BASE_BUTTON_CLASS}__icon {
+        display: inline-flex;
+        margin-right: 0.5rem;
+      }
+      .${Button.BASE_BUTTON_CLASS}__text {
+        display: inline-block;
+      }
+    `, 'userscripts-button-styles');
+
+        Button.stylesInitialized = true;
+      }
+      /**
+         * Inject default color variables for the button component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+      static useDefaultColors() {
+        const styleId = 'userscripts-button-default-colors';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.innerHTML = `
+        :root {
+          ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
+          ${Button.CSS_VAR_PREFIX}color-default: #374151;
+          ${Button.CSS_VAR_PREFIX}border-default: #d1d5db;
+          ${Button.CSS_VAR_PREFIX}bg-default-hover: #e5e7eb;
+          
+          ${Button.CSS_VAR_PREFIX}bg-primary: #3b82f6;
+          ${Button.CSS_VAR_PREFIX}color-primary: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-primary: #3b82f6;
+          ${Button.CSS_VAR_PREFIX}bg-primary-hover: #2563eb;
+          ${Button.CSS_VAR_PREFIX}border-primary-hover: #2563eb;
+          
+          ${Button.CSS_VAR_PREFIX}bg-secondary: #6b7280;
+          ${Button.CSS_VAR_PREFIX}color-secondary: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-secondary: #6b7280;
+          ${Button.CSS_VAR_PREFIX}bg-secondary-hover: #4b5563;
+          ${Button.CSS_VAR_PREFIX}border-secondary-hover: #4b5563;
+          
+          ${Button.CSS_VAR_PREFIX}bg-success: #10b981;
+          ${Button.CSS_VAR_PREFIX}color-success: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-success: #10b981;
+          ${Button.CSS_VAR_PREFIX}bg-success-hover: #059669;
+          ${Button.CSS_VAR_PREFIX}border-success-hover: #059669;
+          
+          ${Button.CSS_VAR_PREFIX}bg-danger: #ef4444;
+          ${Button.CSS_VAR_PREFIX}color-danger: #ffffff;
+          ${Button.CSS_VAR_PREFIX}border-danger: #ef4444;
+          ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
+          ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
+          
+          ${Button.CSS_VAR_PREFIX}bg-hover: #e0e0e0;
+          ${Button.CSS_VAR_PREFIX}bg-active: #d0d0d0;
+          
+          ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+      `;
+          document.head.appendChild(style);
+        }
+      }
+      /**
+         * Create a new Button.
+         * @param {Object} options - Configuration options.
+         * @param {String} options.text - Button text.
+         * @param {String} [options.type="button"] - Button type.
+         * @param {String} [options.className] - Additional custom CSS class.
+         * @param {Function} options.onClick - Click event handler.
+         * @param {String} [options.id] - Button ID.
+         * @param {HTMLElement} [options.container] - Container to append the button to.
+         * @param {Object} [options.attributes={}] - Additional HTML attributes.
+         * @param {String} [options.theme="default"] - Button theme.
+         * @param {String} [options.size="medium"] - Button size.
+         * @param {Boolean} [options.disabled=false] - Disabled state.
+         * @param {String} [options.icon] - Optional icon HTML.
+         * @param {String} [options.successText] - Success state text.
+         * @param {Number} [options.successDuration=1500] - Success state duration (ms).
+         */
+      constructor(options) {
+        this.text = options.text || '';
+        this.type = options.type || 'button';
+        this.customClassName = options.className || '';
+        this.onClick = options.onClick;
+        this.id = options.id;
+        this.container = options.container;
+        this.attributes = options.attributes || {};
+        this.theme = options.theme;
+        this.size = options.size || 'medium';
+        this.disabled = options.disabled || false;
+        this.icon = options.icon || null;
+        this.successText = options.successText || null;
+        this.successDuration = options.successDuration || 1500;
+        this.originalText = this.text;
+
+        // These properties will refer to the DOM elements.
+        this.button = null;
+        this.textElement = null;
+
+        Button.initStyles();
+        this.create();
+      }
+
+
+      /**
+         * Create the button element and, if a container is provided, append it.
+         * @return {HTMLButtonElement} The created button element.
+         */
+      create() {
+        this.button = document.createElement('button');
+        this.button.type = this.type;
+        this.button.disabled = this.disabled;
+        if (this.id) this.button.id = this.id;
+        this.button._buttonInstance = this;
+        this.updateButtonClasses();
+        this.updateContent();
+        if (this.onClick) this.button.addEventListener('click', (e) => this.handleClick(e));
+        Object.entries(this.attributes).forEach(([key, value]) => {
+          this.button.setAttribute(key, value);
+        });
+        if (this.container) this.container.appendChild(this.button);
+        return this.button;
+      }
+
+      /**
+         * Update the classes on the button element based on theme, size, and custom classes.
+         */
+      updateButtonClasses() {
+        const classNames = [Button.BASE_BUTTON_CLASS];
+        classNames.push(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
+        classNames.push(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
+        if (this.customClassName) classNames.push(this.customClassName);
+        this.button.className = classNames.join(' ');
+      }
+
+      /**
+         * Update the button content (icon and text).
+         */
+      updateContent() {
+        this.button.innerHTML = '';
+        if (this.icon) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
+          iconSpan.innerHTML = this.icon;
+          this.button.appendChild(iconSpan);
+        }
+        this.textElement = document.createElement('span');
+        this.textElement.className = `${Button.BASE_BUTTON_CLASS}__text`;
+        this.textElement.textContent = this.text;
+        this.button.appendChild(this.textElement);
+      }
+
+      /**
+         * Handle click events on the button.
+         * @param {Event} e - The click event.
+         */
+      handleClick(e) {
+        if (this.disabled) return;
+        const result = this.onClick(e);
+        if (this.successText && false !== result) {
+          this.showSuccessState();
+        }
+      }
+
+      /**
+         * Show a success state by temporarily changing the button's text and theme.
+         */
+      showSuccessState() {
+        const originalText = this.text;
+        const originalTheme = this.theme;
+        this.setText(this.successText);
+        this.setTheme('success');
+        setTimeout(() => {
+          this.setText(originalText);
+          this.setTheme(originalTheme);
+        }, this.successDuration);
+      }
+
+      /**
+         * Set the button's text.
+         * @param {String} text - The new text to display.
+         */
+      setText(text) {
+        this.text = text;
+        if (this.textElement) {
+          this.textElement.textContent = text;
+        } else {
+          this.updateContent();
+        }
+      }
+
+      /**
+         * Reset the button's text to its original value.
+         */
+      resetText() {
+        this.setText(this.originalText);
+      }
+
+      /**
+         * Set an icon for the button.
+         * @param {String} iconHtml - The HTML string for the icon.
+         */
+      setIcon(iconHtml) {
+        this.icon = iconHtml;
+        this.updateContent();
+      }
+
+      /**
+         * Enable or disable the button.
+         * @param {Boolean} disabled - Whether the button should be disabled.
+         */
+      setDisabled(disabled) {
+        this.disabled = disabled;
+        this.button.disabled = disabled;
+      }
+
+      /**
+         * Toggle the disabled state of the button.
+         * @return {Boolean} The new disabled state.
+         */
+      toggleDisabled() {
+        this.setDisabled(!this.disabled);
+        return this.disabled;
+      }
+
+      /**
+         * Change the button's theme.
+         * @param {String} theme - The new theme (e.g., "default", "primary", etc.).
+         */
+      setTheme(theme) {
+        this.button.classList.remove(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
+        this.theme = theme;
+        this.button.classList.add(`${Button.BASE_BUTTON_CLASS}--${this.theme}`);
+      }
+
+      /**
+         * Change the button's size.
+         * @param {String} size - The new size (e.g., "small", "medium", "large").
+         */
+      setSize(size) {
+        this.button.classList.remove(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
+        this.size = size;
+        this.button.classList.add(`${Button.BASE_BUTTON_CLASS}--${this.size}`);
+      }
+
+      /**
+         * Apply a custom CSS class to the button.
+         * @param {String} className - The custom class name.
+         */
+      setCustomClass(className) {
+        if (this.customClassName) {
+          this.button.classList.remove(this.customClassName);
+        }
+        this.customClassName = className;
+        if (className) {
+          this.button.classList.add(className);
+        }
+      }
+    }
+
+    // Static property to track if styles have been initialized.
+    Button.stylesInitialized = false;
+    Button.initStyles();
+
+    /**
+     * Enhanced version of the ProgressBar core component with Eksi-style UI
+     * This replaces the existing ProgressBar.js file in the core/ui directory
+     */
+
+    class ProgressBar {
+      /**
+         * Returns the unique base CSS class for the ProgressBar component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for progress bars.
+         */
+      static get BASE_PROGRESS_CLASS() {
+        return 'userscripts-progress';
+      }
+      /**
+         * Returns the CSS variable prefix used for theming the ProgressBar component.
+         * This prefix scopes all custom CSS variables (e.g., colors) related to the progress bar.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+      static get CSS_VAR_PREFIX() {
+        return '--userscripts-progress-';
+      }
+      /**
+         * Initialize styles for all progress bars.
+         * These styles reference the CSS variables with our defined prefix.
+         */
+      static initStyles() {
+        if (ProgressBar.stylesInitialized) return;
+        StyleManager.addStyles(`
+      /* Scoped styles for Userscripts ProgressBar Component */
+      .${ProgressBar.BASE_PROGRESS_CLASS} {
+        width: 100%;
+        margin: 10px 0;
+        position: relative;
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}-label {
+        font-size: 0.875rem;
+        margin-bottom: 4px;
+        display: block;
+        color: var(${ProgressBar.CSS_VAR_PREFIX}label-color, #555);
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}-bar {
+        height: 20px;
+        background-color: var(${ProgressBar.CSS_VAR_PREFIX}bar-bg, #f3f3f3);
+        border-radius: 10px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 10px;
+        transition: width 0.5s ease;
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}fill-bg)), 
+          var(${ProgressBar.CSS_VAR_PREFIX}fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}fill-bg))
+        );
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}-fill::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.1) 25%,
+          transparent 25%,
+          transparent 50%,
+          rgba(255, 255, 255, 0.1) 50%,
+          rgba(255, 255, 255, 0.1) 75%,
+          transparent 75%,
+          transparent 100%
+        );
+        background-size: 30px 30px;
+        animation: ${ProgressBar.BASE_PROGRESS_CLASS}-stripes 1s linear infinite;
+      }
+      
+      @keyframes ${ProgressBar.BASE_PROGRESS_CLASS}-stripes {
+        0% {
+          background-position: 0 0;
+        }
+        100% {
+          background-position: 30px 0;
+        }
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}-text {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 10px;
+        font-size: 0.75rem;
+        color: var(${ProgressBar.CSS_VAR_PREFIX}text-color, #333);
+        font-weight: bold;
+        text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+        z-index: 1;
+      }
+      
+      /* Themes */
+      .${ProgressBar.BASE_PROGRESS_CLASS}--default .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}default-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}default-fill-bg))
+        );
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}--primary .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}primary-fill-bg))
+        );
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}--success .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}success-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}success-fill-bg))
+        );
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}--danger .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}danger-fill-bg))
+        );
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}--warning .${ProgressBar.BASE_PROGRESS_CLASS}-fill {
+        background: linear-gradient(90deg, 
+          var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start, var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-bg)),
+          var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end, var(${ProgressBar.CSS_VAR_PREFIX}warning-fill-bg))
+        );
+      }
+      
+      /* Sizes */
+      .${ProgressBar.BASE_PROGRESS_CLASS}--small .${ProgressBar.BASE_PROGRESS_CLASS}-bar {
+        height: 8px;
+      }
+      
+      .${ProgressBar.BASE_PROGRESS_CLASS}--large .${ProgressBar.BASE_PROGRESS_CLASS}-bar {
+        height: 24px;
+      }
+    `, 'userscripts-progress-styles');
+        ProgressBar.stylesInitialized = true;
+      }
+      /**
+         * Injects default color variables for the ProgressBar component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+      static useDefaultColors() {
+        const styleId = 'userscripts-progress-default-colors';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.innerHTML = `
+        :root {
+          /* Base colors */
+          ${ProgressBar.CSS_VAR_PREFIX}label-color: #555;
+          ${ProgressBar.CSS_VAR_PREFIX}bar-bg: #f3f3f3;
+          ${ProgressBar.CSS_VAR_PREFIX}fill-bg: #6b7280;
+          ${ProgressBar.CSS_VAR_PREFIX}text-color: #333;
+          
+          /* Theme colors with gradients */
+          ${ProgressBar.CSS_VAR_PREFIX}default-fill-bg: #6b7280;
+          ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start: #6b7280;
+          ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end: #4b5563;
+          
+          ${ProgressBar.CSS_VAR_PREFIX}primary-fill-bg: #3b82f6;
+          ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start: #3b82f6;
+          ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end: #2563eb;
+          
+          ${ProgressBar.CSS_VAR_PREFIX}success-fill-bg: #10b981;
+          ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start: #10b981;
+          ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end: #059669;
+          
+          ${ProgressBar.CSS_VAR_PREFIX}danger-fill-bg: #ef4444;
+          ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start: #ef4444;
+          ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end: #dc2626;
+          
+          ${ProgressBar.CSS_VAR_PREFIX}warning-fill-bg: #f59e0b;
+          ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
+          ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
+        }
+      `;
+          document.head.appendChild(style);
+        }
+      }
+      /**
+         * Create a new progress bar.
+         * @param {Object} options - Configuration options.
+         * @param {number} options.initialValue - Initial progress value (0-100).
+         * @param {string} [options.className='userscripts-progress'] - CSS class for styling.
+         * @param {HTMLElement} options.container - Container element to which the progress bar will be appended.
+         * @param {boolean} [options.showText=true] - Whether to display the progress text.
+         * @param {boolean} [options.showLabel=false] - Whether to display a label above the progress bar.
+         * @param {string} [options.label=''] - Label text to display if showLabel is true.
+         * @param {string} [options.theme='default'] - Theme for the progress bar (e.g., "default", "primary", "success").
+         * @param {string} [options.size='normal'] - Size of the progress bar ('small', 'normal', 'large').
+         */
+      constructor(options) {
+        this.value = options.initialValue || 0;
+        this.className = options.className || ProgressBar.BASE_PROGRESS_CLASS;
+        this.container = options.container;
+        this.showText = options.showText !== undefined ? options.showText : true;
+        this.showLabel = options.showLabel || false;
+        this.label = options.label || '';
+        this.theme = options.theme || 'default';
+        this.size = options.size || 'normal';
+
+        this.progressElement = null;
+        this.progressBarElement = null;
+        this.progressFillElement = null;
+        this.progressTextElement = null;
+        this.labelElement = null;
+
+        ProgressBar.initStyles();
+        this.create();
+      }
+
+
+      /**
+         * Creates the progress bar elements and appends them to the container if provided.
+         * @return {HTMLElement} The created progress bar container element.
+         */
+      create() {
+        // Create the progress bar container
+        this.progressElement = document.createElement('div');
+        this.progressElement.className = `${this.className} ${this.className}--${this.theme}`;
+
+        if ('normal' !== this.size) {
+          this.progressElement.classList.add(`${this.className}--${this.size}`);
+        }
+
+        // Add a label if requested
+        if (this.showLabel) {
+          this.labelElement = document.createElement('span');
+          this.labelElement.className = `${this.className}-label`;
+          this.labelElement.textContent = this.label;
+          this.progressElement.appendChild(this.labelElement);
+        }
+
+        // Create the progress bar and its fill
+        this.progressBarElement = document.createElement('div');
+        this.progressBarElement.className = `${this.className}-bar`;
+
+        this.progressFillElement = document.createElement('div');
+        this.progressFillElement.className = `${this.className}-fill`;
+        this.progressFillElement.style.width = `${this.value}%`;
+
+        this.progressBarElement.appendChild(this.progressFillElement);
+        this.progressElement.appendChild(this.progressBarElement);
+
+        // Add progress text as absolute positioned element
+        if (this.showText) {
+          this.progressTextElement = document.createElement('div');
+          this.progressTextElement.className = `${this.className}-text`;
+          this.progressTextElement.textContent = `${this.value}%`;
+          this.progressBarElement.appendChild(this.progressTextElement);
+        }
+
+        // Append the entire progress element to the container, if one was provided
+        if (this.container) {
+          this.container.appendChild(this.progressElement);
+        }
+        return this.progressElement;
+      }
+
+      /**
+         * Updates the progress value and (optionally) the display text.
+         * @param {number} value - The new progress value (between 0 and 100).
+         * @param {string} [text] - Optional custom text to display.
+         * @return {number} The updated progress value.
+         */
+      setValue(value, text) {
+        this.value = Math.min(100, Math.max(0, value));
+        if (this.progressFillElement) {
+          this.progressFillElement.style.width = `${this.value}%`;
+        }
+        if (this.showText && this.progressTextElement) {
+          this.progressTextElement.textContent = text || `${this.value}%`;
+        }
+        return this.value;
+      }
+
+      /**
+         * Changes the progress bar theme by updating the theme class.
+         * @param {string} theme - The new theme (e.g., "default", "primary", "success", etc.).
+         */
+      setTheme(theme) {
+        this.theme = theme;
+        if (this.progressElement) {
+          // Remove any existing theme class (assumed to be in the format `${this.className}--<theme>`)
+          const classes = this.progressElement.className.split(' ');
+          const nonThemeClasses = classes.filter((cls) =>
+            !cls.startsWith(`${this.className}--`) ||
+                    cls === `${this.className}--${this.size}`, // Keep size class
+          );
+          this.progressElement.className = `${nonThemeClasses.join(' ')} ${this.className}--${this.theme}`;
+        }
+      }
+
+      /**
+         * Changes the progress bar size.
+         * @param {string} size - The new size ('small', 'normal', 'large').
+         */
+      setSize(size) {
+        this.size = size;
+        if (this.progressElement) {
+          // Remove size classes
+          this.progressElement.classList.remove(`${this.className}--small`);
+          this.progressElement.classList.remove(`${this.className}--large`);
+
+          // Add new size class if not normal
+          if ('normal' !== size) {
+            this.progressElement.classList.add(`${this.className}--${size}`);
+          }
+        }
+      }
+
+      /**
+         * Sets the label text for the progress bar.
+         * @param {string} label - The new label text.
+         */
+      setLabel(label) {
+        this.label = label;
+        if (this.labelElement) {
+          this.labelElement.textContent = label;
+        }
+      }
+
+      /**
+         * Shows or hides the entire progress bar.
+         * @param {boolean} visible - True to show, false to hide.
+         */
+      setVisible(visible) {
+        if (this.progressElement) {
+          this.progressElement.style.display = visible ? '' : 'none';
+        }
+      }
+
+      /**
+         * Destroys the progress bar and removes it from the DOM.
+         */
+      destroy() {
+        if (this.progressElement && this.progressElement.parentNode) {
+          this.progressElement.parentNode.removeChild(this.progressElement);
+        }
+        this.progressElement = null;
+        this.progressBarElement = null;
+        this.progressFillElement = null;
+        this.progressTextElement = null;
+        this.labelElement = null;
+      }
+    }
+
+    // Static property to track if styles have been initialized.
+    ProgressBar.stylesInitialized = false;
+
+    // Initialize styles when imported.
+    ProgressBar.initStyles();
+
+    /**
+     * Checkbox - A reusable UI component for checkboxes.
+     * Creates customizable, accessible checkboxes with various states and callbacks.
+     */
+
+    /**
+     * A reusable UI component for creating accessible, customizable checkboxes.
+     */
+    class Checkbox {
+      /**
+         * Returns the unique base CSS class for the Checkbox component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for checkboxes.
+         */
+      static get BASE_CHECKBOX_CLASS() {
+        return 'userscripts-checkbox';
+      }
+      /**
+         * Returns the CSS variable prefix used for theming and styling the Checkbox component.
+         * This prefix scopes all custom CSS variables (e.g., colors, borders) related to the checkbox.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+      static get CSS_VAR_PREFIX() {
+        return '--userscripts-checkbox-';
+      }
+      /**
+         * Initialize styles for all checkboxes.
+         * These styles reference the CSS variables with our defined prefix.
+         */
+      static initStyles() {
+        if (Checkbox.stylesInitialized) return;
+        StyleManager.addStyles(`
+      /* Scoped styles for Userscripts Checkbox Component */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container {
+        display: inline-flex;
+        align-items: center;
+        position: relative;
+        cursor: pointer;
+        user-select: none;
+        font-family: inherit;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      
+      /* Hide native checkbox */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-native {
+        position: absolute;
+        opacity: 0;
+        height: 0;
+        width: 0;
+      }
+      
+      /* Custom checkbox appearance */
+      .${Checkbox.BASE_CHECKBOX_CLASS} {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: 0.25rem;
+        border: 2px solid var(${Checkbox.CSS_VAR_PREFIX}border-color);
+        background-color: var(${Checkbox.CSS_VAR_PREFIX}bg);
+        transition: all 0.2s ease;
+        position: relative;
+      }
+      
+      /* Check mark (initially hidden) */
+      .${Checkbox.BASE_CHECKBOX_CLASS}::after {
+        content: '';
+        position: absolute;
+        opacity: 0;
+        transform: rotate(45deg) scale(0);
+        width: 0.3125rem;
+        height: 0.625rem;
+        border-right: 2px solid var(${Checkbox.CSS_VAR_PREFIX}checkmark-color);
+        border-bottom: 2px solid var(${Checkbox.CSS_VAR_PREFIX}checkmark-color);
+        transition: all 0.2s ease;
+      }
+      
+      /* When checkbox is checked */
+      .${Checkbox.BASE_CHECKBOX_CLASS}--checked {
+        background-color: var(${Checkbox.CSS_VAR_PREFIX}checked-bg);
+        border-color: var(${Checkbox.CSS_VAR_PREFIX}checked-border);
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--checked::after {
+        opacity: 1;
+        transform: rotate(45deg) scale(1);
+      }
+      
+      /* Indeterminate state */
+      .${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate::after {
+        opacity: 1;
+        transform: rotate(0) scale(1);
+        width: 0.625rem;
+        height: 0.125rem;
+        border-right: none;
+        border-bottom: 2px solid var(${Checkbox.CSS_VAR_PREFIX}checkmark-color);
+      }
+      
+      /* On hover */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container:hover .${Checkbox.BASE_CHECKBOX_CLASS}:not(.${Checkbox.BASE_CHECKBOX_CLASS}--checked):not(.${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate) {
+        border-color: var(${Checkbox.CSS_VAR_PREFIX}hover-border);
+        background-color: var(${Checkbox.CSS_VAR_PREFIX}hover-bg);
+      }
+      
+      /* On focus */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-container:focus-within .${Checkbox.BASE_CHECKBOX_CLASS} {
+        box-shadow: 0 0 0 3px var(${Checkbox.CSS_VAR_PREFIX}focus-shadow);
+      }
+      
+      /* Label styles */
+      .${Checkbox.BASE_CHECKBOX_CLASS}-label {
+        margin-left: 0.5rem;
+        font-size: 0.875rem;
+      }
+      
+      /* Checkbox sizes */
+      .${Checkbox.BASE_CHECKBOX_CLASS}--small {
+        width: 1rem;
+        height: 1rem;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--small::after {
+        width: 0.25rem;
+        height: 0.5rem;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--large {
+        width: 1.5rem;
+        height: 1.5rem;
+      }
+      
+      .${Checkbox.BASE_CHECKBOX_CLASS}--large::after {
+        width: 0.375rem;
+        height: 0.75rem;
+      }
+    `, 'userscripts-checkbox-styles');
+
+        Checkbox.stylesInitialized = true;
+      }
+      /**
+         * Inject default color variables for the checkbox component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+      static useDefaultColors() {
+        const styleId = 'userscripts-checkbox-default-colors';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.innerHTML = `
+        :root {
+          /* Default state */
+          ${Checkbox.CSS_VAR_PREFIX}bg: #ffffff;
+          ${Checkbox.CSS_VAR_PREFIX}border-color: #d1d5db;
+          ${Checkbox.CSS_VAR_PREFIX}hover-bg: #f3f4f6;
+          ${Checkbox.CSS_VAR_PREFIX}hover-border: #9ca3af;
+          
+          /* Checked state */
+          ${Checkbox.CSS_VAR_PREFIX}checked-bg: #3b82f6;
+          ${Checkbox.CSS_VAR_PREFIX}checked-border: #3b82f6;
+          ${Checkbox.CSS_VAR_PREFIX}checkmark-color: #ffffff;
+          
+          /* Focus state */
+          ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+      `;
+          document.head.appendChild(style);
+        }
+      }
+      /**
+         * Create a new Checkbox.
+         * @param {Object} options - Configuration options.
+         * @param {String} [options.label] - Checkbox label text.
+         * @param {Boolean} [options.checked=false] - Initial checked state.
+         * @param {Boolean} [options.indeterminate=false] - Initial indeterminate state.
+         * @param {String} [options.id] - Checkbox ID.
+         * @param {String} [options.name] - Input name attribute.
+         * @param {Function} [options.onChange] - Change event handler.
+         * @param {HTMLElement} [options.container] - Container to append the checkbox to.
+         * @param {String} [options.className] - Additional custom CSS class.
+         * @param {Boolean} [options.disabled=false] - Disabled state.
+         * @param {String} [options.size="medium"] - Checkbox size.
+         * @param {Object} [options.attributes={}] - Additional HTML attributes.
+         */
+      constructor(options = {}) {
+        this.label = options.label || '';
+        this.checked = options.checked || false;
+        this.indeterminate = options.indeterminate || false;
+        this.id = options.id;
+        this.name = options.name;
+        this.onChange = options.onChange;
+        this.container = options.container;
+        this.customClassName = options.className || '';
+        this.disabled = options.disabled || false;
+        this.size = options.size || 'medium';
+        this.attributes = options.attributes || {};
+
+        // DOM elements references
+        this.checkboxContainer = null;
+        this.customCheckbox = null;
+        this.nativeCheckbox = null;
+        this.labelElement = null;
+
+        Checkbox.initStyles();
+        this.create();
+      }
+
+
+      /**
+         * Create the checkbox UI and, if a container is provided, append it.
+         * @return {HTMLElement} The created checkbox container element.
+         */
+      create() {
+        // Create container
+        this.checkboxContainer = document.createElement('label');
+        this.checkboxContainer.className = `${Checkbox.BASE_CHECKBOX_CLASS}-container`;
+        if (this.customClassName) {
+          this.checkboxContainer.classList.add(this.customClassName);
+        }
+        if (this.disabled) {
+          this.checkboxContainer.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled`);
+        }
+
+        // Create hidden native checkbox for accessibility
+        this.nativeCheckbox = document.createElement('input');
+        this.nativeCheckbox.type = 'checkbox';
+        this.nativeCheckbox.className = `${Checkbox.BASE_CHECKBOX_CLASS}-native`;
+        this.nativeCheckbox.checked = this.checked;
+        this.nativeCheckbox.indeterminate = this.indeterminate;
+        this.nativeCheckbox.disabled = this.disabled;
+
+        if (this.id) this.nativeCheckbox.id = this.id;
+        if (this.name) this.nativeCheckbox.name = this.name;
+
+        Object.entries(this.attributes).forEach(([key, value]) => {
+          this.nativeCheckbox.setAttribute(key, value);
+        });
+
+        // Create custom checkbox visual
+        this.customCheckbox = document.createElement('span');
+        this.customCheckbox.className = `${Checkbox.BASE_CHECKBOX_CLASS} ${Checkbox.BASE_CHECKBOX_CLASS}--${this.size}`;
+        if (this.checked) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        } else if (this.indeterminate) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        }
+
+        // Create label if provided
+        if (this.label) {
+          this.labelElement = document.createElement('span');
+          this.labelElement.className = `${Checkbox.BASE_CHECKBOX_CLASS}-label`;
+          this.labelElement.textContent = this.label;
+        }
+
+        // Set up event listeners
+        this.nativeCheckbox.addEventListener('change', (e) => this.handleChange(e));
+        this.nativeCheckbox.addEventListener('focus', () => this.handleFocus());
+        this.nativeCheckbox.addEventListener('blur', () => this.handleBlur());
+
+        // Assemble the component
+        this.checkboxContainer.appendChild(this.nativeCheckbox);
+        this.checkboxContainer.appendChild(this.customCheckbox);
+        if (this.labelElement) {
+          this.checkboxContainer.appendChild(this.labelElement);
+        }
+
+        // Add to container if provided
+        if (this.container) {
+          this.container.appendChild(this.checkboxContainer);
+        }
+
+        // Store reference to instance on DOM element for potential external access
+        this.checkboxContainer._checkboxInstance = this;
+
+        return this.checkboxContainer;
+      }
+
+      /**
+         * Handle change events.
+         * @param {Event} e - The change event.
+         */
+      handleChange(e) {
+        this.checked = this.nativeCheckbox.checked;
+        this.indeterminate = this.nativeCheckbox.indeterminate;
+
+        if (this.checked) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        } else if (this.indeterminate) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        } else {
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        }
+
+        if (this.onChange) {
+          this.onChange(e);
+        }
+      }
+
+      /**
+         * Handle focus events.
+         */
+      handleFocus() {
+        // Additional focus behaviors can be added here if needed
+      }
+
+      /**
+         * Handle blur events.
+         */
+      handleBlur() {
+        // Additional blur behaviors can be added here if needed
+      }
+
+      /**
+         * Set the checked state.
+         * @param {Boolean} checked - The new checked state.
+         */
+      setChecked(checked) {
+        this.checked = checked;
+        this.nativeCheckbox.checked = checked;
+
+        if (checked) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+          this.indeterminate = false;
+          this.nativeCheckbox.indeterminate = false;
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        } else {
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        }
+      }
+
+      /**
+         * Set the indeterminate state.
+         * @param {Boolean} indeterminate - The new indeterminate state.
+         */
+      setIndeterminate(indeterminate) {
+        this.indeterminate = indeterminate;
+        this.nativeCheckbox.indeterminate = indeterminate;
+
+        if (indeterminate) {
+          this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--checked`);
+        } else {
+          this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--indeterminate`);
+        }
+      }
+
+      /**
+         * Toggle the checked state.
+         * @return {Boolean} The new checked state.
+         */
+      toggle() {
+        this.setChecked(!this.checked);
+        return this.checked;
+      }
+
+      /**
+         * Set the disabled state.
+         * @param {Boolean} disabled - The new disabled state.
+         */
+      setDisabled(disabled) {
+        this.disabled = disabled;
+        this.nativeCheckbox.disabled = disabled;
+
+        if (disabled) {
+          this.checkboxContainer.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled`);
+        } else {
+          this.checkboxContainer.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}-container--disabled`);
+        }
+      }
+
+      /**
+         * Set the label text.
+         * @param {String} text - The new label text.
+         */
+      setLabel(text) {
+        this.label = text;
+
+        if (!this.labelElement) {
+          this.labelElement = document.createElement('span');
+          this.labelElement.className = `${Checkbox.BASE_CHECKBOX_CLASS}-label`;
+          this.checkboxContainer.appendChild(this.labelElement);
+        }
+
+        this.labelElement.textContent = text;
+      }
+
+      /**
+         * Change the checkbox size.
+         * @param {String} size - The new size (e.g., "small", "medium", "large").
+         */
+      setSize(size) {
+        this.customCheckbox.classList.remove(`${Checkbox.BASE_CHECKBOX_CLASS}--${this.size}`);
+        this.size = size;
+        this.customCheckbox.classList.add(`${Checkbox.BASE_CHECKBOX_CLASS}--${this.size}`);
+      }
+
+      /**
+         * Apply a custom CSS class to the checkbox container.
+         * @param {String} className - The custom class name.
+         */
+      setCustomClass(className) {
+        if (this.customClassName) {
+          this.checkboxContainer.classList.remove(this.customClassName);
+        }
+        this.customClassName = className;
+        if (className) {
+          this.checkboxContainer.classList.add(className);
+        }
+      }
+
+      /**
+         * Get the current checked state.
+         * @return {Boolean} The current checked state.
+         */
+      isChecked() {
+        return this.checked;
+      }
+
+      /**
+         * Get the current indeterminate state.
+         * @return {Boolean} The current indeterminate state.
+         */
+      isIndeterminate() {
+        return this.indeterminate;
+      }
+
+      /**
+         * Get the current disabled state.
+         * @return {Boolean} The current disabled state.
+         */
+      isDisabled() {
+        return this.disabled;
+      }
+    }
+
+    // Static property to track if styles have been initialized.
+    Checkbox.stylesInitialized = false;
+    Checkbox.initStyles();
+
+    class InstagramStoryAnonymityGuard {
+      constructor() {
+        this.logger = new Logger('[InstagramStoryAnonymityGuard]');
+        this.originalXHRSend = XMLHttpRequest.prototype.send;
+        this.overrideXHRSend();
+        this.logger.log('Initialized. XHR.send overridden to block story view tracking.');
+      }
+
+      customXHRSend(...args) {
+        const requestData = args[0];
+        if (typeof requestData === 'string' && requestData.includes('viewSeenAt')) {
+          this.logger.log('Blocked a story view tracking request.');
+          // By not calling originalXHRSend, the request is effectively blocked.
+          return; 
+        }
+        // For all other requests, call the original send method
+        this.originalXHRSend.apply(this, args);
+      }
+
+      overrideXHRSend() {
+        // Ensure 'this' inside customXHRSend refers to the XHR instance
+        XMLHttpRequest.prototype.send = this.customXHRSend.bind(this);
+      }
+
+      // It might be useful to have a method to revert the override, e.g., for debugging or if the script is disabled.
+      // revertXHROverride() {
+      //   XMLHttpRequest.prototype.send = this.originalXHRSend;
+      //   this.logger.log('XHR.send override reverted.');
+      // }
+    }
+
+    // Initialize the guard
+    // eslint-disable-next-line no-unused-vars
+    new InstagramStoryAnonymityGuard();
+
+})();

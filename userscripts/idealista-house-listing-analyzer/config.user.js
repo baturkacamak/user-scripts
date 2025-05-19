@@ -1,0 +1,40 @@
+// ==UserScript==
+// @name        Idealista House Listing Analyzer
+// @description Analyzes house listing statistics from Idealista.com and displays a calculated score directly on listing links.
+// @namespace   https://github.com/baturkacamak/userscripts
+// @version     1.1.0
+// @author      Batur Kacamak
+// @license     MIT
+// @homepage    https://github.com/baturkacamak/user-scripts/tree/master/userscripts/idealista-house-listing-analyzer#readme
+// @homepageURL https://github.com/baturkacamak/user-scripts/tree/master/userscripts/idealista-house-listing-analyzer#readme
+// @supportURL  https://github.com/baturkacamak/user-scripts/issues
+// @downloadURL https://github.com/baturkacamak/user-scripts/raw/master/userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js
+// @updateURL   https://github.com/baturkacamak/user-scripts/raw/master/userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js
+// @match       *://www.idealista.com/*
+// @match       *://www.idealista.pt/*
+// @match       *://www.idealista.it/*
+// @icon        https://www.idealista.com/favicon.ico
+// @run-at      document-idle
+// @grant       GM_xmlhttpRequest
+// ==/UserScript==
+
+(function (exports) {
+  'use strict';
+
+  const config = {
+    expirationDays: 1, // Default expiration days for cache
+    delayBetweenRequests: 500, // Delay in milliseconds between each request
+    weights: {
+      visits: 0.0001,
+      friendShares: 0.3,
+      emailContacts: 0.6,
+      favorites: 0.4,
+      recency: 0.2,
+    },
+  };
+
+  exports.config = config;
+
+  return exports;
+
+})({});
