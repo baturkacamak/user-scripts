@@ -25,6 +25,8 @@ export const translations = {
         failedToParse: 'Failed to parse description:',
         // Export functionality
         selectFormat: 'Select Format',
+        formatOptions: 'Format Options',
+        formatOptionsLabel: 'Format Options:',
         exportData: 'Export',
         exportDescriptions: 'Export Descriptions',
         // New entries for download functionality
@@ -71,6 +73,8 @@ export const translations = {
         failedToParse: 'Error al analizar la descripción:',
         // Export functionality
         selectFormat: 'Seleccionar Formato',
+        formatOptions: 'Opciones de Formato',
+        formatOptionsLabel: 'Opciones de Formato:',
         exportData: 'Exportar',
         exportDescriptions: 'Exportar Descripciones',
         // New entries for download functionality
@@ -107,6 +111,8 @@ export const translations = {
         failedToParse: 'Error en analitzar la descripció:',
         // Export functionality
         selectFormat: 'Seleccionar Format',
+        formatOptions: 'Opcions de Format',
+        formatOptionsLabel: 'Opcions de Format:',
         exportData: 'Exportar',
         exportDescriptions: 'Exportar Descripcions',
         // New entries for download functionality
@@ -138,6 +144,8 @@ export const translations = {
         failedToParse: 'Açıklama ayrıştırılamadı:',
         // Export functionality
         selectFormat: 'Format Seçin',
+        formatOptions: 'Format Seçenekleri',
+        formatOptionsLabel: 'Format Seçenekleri:',
         exportData: 'Dışa Aktar',
         exportDescriptions: 'Açıklamaları Dışa Aktar',
         // New entries for download functionality
@@ -174,6 +182,8 @@ export const translations = {
         failedToParse: 'Falha ao analisar descrição:',
         // Export functionality
         selectFormat: 'Selecionar Formato',
+        formatOptions: 'Opções de Formato',
+        formatOptionsLabel: 'Opções de Formato:',
         exportData: 'Exportar',
         exportDescriptions: 'Exportar Descrições',
         // New entries for download functionality
@@ -205,6 +215,8 @@ export const translations = {
         failedToParse: 'Impossibile analizzare la descrizione:',
         // Export functionality
         selectFormat: 'Seleziona Formato',
+        formatOptions: 'Opzioni Formato',
+        formatOptionsLabel: 'Opzioni Formato:',
         exportData: 'Esporta',
         exportDescriptions: 'Esporta Descrizioni',
         // New entries for download functionality
@@ -236,6 +248,8 @@ export const translations = {
         failedToParse: 'Échec de l\'analyse de la description :',
         // Export functionality
         selectFormat: 'Sélectionner Format',
+        formatOptions: 'Options de Format',
+        formatOptionsLabel: 'Options de Format:',
         exportData: 'Exporter',
         exportDescriptions: 'Exporter les Descriptions',
         // New entries for download functionality
@@ -264,23 +278,25 @@ export const translations = {
         nothingToCopy: 'Nichts zu kopieren!',
         languageSettings: 'Spracheinstellungen',
         errorOccurred: 'Ein unerwarteter Fehler ist aufgetreten',
-        failedToParse: 'Fehler beim Analysieren der Beschreibung:',
+        failedToParse: 'Beschreibung konnte nicht analysiert werden:',
         // Export functionality
-        selectFormat: 'Format Auswählen',
+        selectFormat: 'Format auswählen',
+        formatOptions: 'Formatoptionen',
+        formatOptionsLabel: 'Formatoptionen:',
         exportData: 'Exportieren',
-        exportDescriptions: 'Beschreibungen Exportieren',
+        exportDescriptions: 'Beschreibungen exportieren',
         // New entries for download functionality
         copyToClipboard: 'In die Zwischenablage Kopieren',
         downloadFile: 'Datei Herunterladen',
         downloaded: 'Heruntergeladen!'
     },
     nl: {
-        expandDescription: 'Beschrijving Uitklappen',
+        expandDescription: 'Beschrijving Uitbreiden',
         hideDescription: 'Beschrijving Verbergen',
         loading: 'Laden...',
-        wallapopTools: 'Wallapop Hulpmiddelen',
+        wallapopTools: 'Wallapop Tools',
         filterUnwantedWords: 'Ongewenste Woorden Filteren',
-        example: 'Bijv: mac, apple, macbook...',
+        example: 'Bijv.: mac, apple, macbook...',
         addAndApply: 'Toevoegen en Toepassen',
         noWordsToFilter: 'Geen woorden om te filteren',
         remove: 'Verwijderen',
@@ -290,14 +306,16 @@ export const translations = {
         withHeaders: 'Met Headers',
         withoutHeaders: 'Zonder Headers',
         clearAll: 'Alles Wissen',
-        cleared: 'Gewist!',
+        cleared: 'Geleegd!',
         copied: 'Gekopieerd!',
         nothingToCopy: 'Niets om te kopiëren!',
         languageSettings: 'Taalinstellingen',
         errorOccurred: 'Er is een onverwachte fout opgetreden',
-        failedToParse: 'Kan beschrijving niet analyseren:',
+        failedToParse: 'Kan beschrijving niet parsen:',
         // Export functionality
         selectFormat: 'Selecteer Formaat',
+        formatOptions: 'Formaatopties',
+        formatOptionsLabel: 'Formaatopties:',
         exportData: 'Exporteren',
         exportDescriptions: 'Beschrijvingen Exporteren',
         // New entries for download functionality
