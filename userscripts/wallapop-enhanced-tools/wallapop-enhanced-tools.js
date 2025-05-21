@@ -571,7 +571,7 @@ class FormatOption {
             const expandButton = document.createElement('button');
             expandButton.className = 'userscripts-format-options__expand-button';
             expandButton.innerHTML = SVG_MORE_OPTIONS; // SVG for more options icon
-            expandButton.title = translator.get('formatOptions'); // Use translator
+            expandButton.title = TranslationManager.getText('formatOptions'); // Use translator
             expandButton.addEventListener('click', (e) => {
                 this.toggleOptions();
                 e.stopPropagation();
@@ -581,7 +581,7 @@ class FormatOption {
             // Create a label
             const optionsLabel = document.createElement('div');
             optionsLabel.className = 'userscripts-format-options__label';
-            optionsLabel.textContent = translator.get('formatOptionsLabel'); // Use translator
+            optionsLabel.textContent = TranslationManager.getText('formatOptionsLabel'); // Use translator
             this.optionsContainer.appendChild(optionsLabel);
         }
 
@@ -1396,7 +1396,7 @@ class ControlPanel {
         // Create a label
         const optionsLabel = document.createElement('div');
         optionsLabel.className = 'format-options-label';
-        optionsLabel.textContent = translator.get('formatOptionsLabel'); // Use translator
+        optionsLabel.textContent = TranslationManager.getText('formatOptionsLabel'); // Use translator
         container.appendChild(optionsLabel);
 
         // Create options using Checkbox component
