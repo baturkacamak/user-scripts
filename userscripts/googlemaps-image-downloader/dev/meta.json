@@ -12,7 +12,8 @@
   "downloadURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js",
   "updateURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js",
   "match": [
-    "/^https:\/\/(www\.)?google(?=.*maps).*/"
+    "https://www.google.com/maps/*",
+    "https://maps.google.com/*"
   ],
   "icon": "https://www.google.com/images/branding/product/ico/maps15_bnuw3a_32dp.ico",
   "require": [

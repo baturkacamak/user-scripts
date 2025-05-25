@@ -1,4 +1,4 @@
-import {Logger} from '../../../../common/core';
+import {Logger} from '../../../../../common/core';
 
 /**
  * Handler for extracting media information from Instagram reels.

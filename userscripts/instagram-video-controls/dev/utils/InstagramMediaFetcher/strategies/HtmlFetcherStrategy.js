@@ -1,6 +1,6 @@
-import {HTMLUtils, Logger} from "../../../../common/core";
+import {HTMLUtils, Logger} from '../../../../../common/core';
 import MediaFetcherStrategy from "./MediaFetcherStrategy";
-import SimpleCache from "../../../../common/core/utils/SimpleCache";
+import SimpleCache from '../../../../../common/core/utils/SimpleCache';
 
 /**
  * Strategy for fetching media information by parsing HTML content
