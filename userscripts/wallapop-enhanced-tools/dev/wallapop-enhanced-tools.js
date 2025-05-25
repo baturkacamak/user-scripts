@@ -12,7 +12,7 @@ import {
     Checkbox,
     SectionToggler,
     SidebarPanel,
-} from "../common/core";
+} from "../../common/core";
 import {translations} from "./src/i18n/translations.js";
 import {addStyles} from "./src/ui/styles.js";
 
