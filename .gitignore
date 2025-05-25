@@ -113,3 +113,6 @@ dist
 .history/
 
 examples/
+
+# Ignore dev build artifacts
+**/dev/*.dev.user.js
