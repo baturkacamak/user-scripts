@@ -332,7 +332,7 @@ async function buildUserscript(dirName) {
         await bundle.write({
             file: targetPath,
             format: 'iife',
-            sourcemap: false,
+            sourcemap: args.watch,
             banner: warningHeader,
         });
         log(`Successfully built ${targetPath}`, 'success');
