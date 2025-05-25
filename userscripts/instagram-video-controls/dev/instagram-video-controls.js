@@ -10,11 +10,11 @@ import {
     SidebarPanel,
     Slider,
     StyleManager
-} from "../common/core";
-import VideoDownloader from "../common/core/utils/VideoDownloader";
-import PollingStrategy from "../common/core/utils/UrlChangeWatcher/strategies/PollingStrategy";
+} from "../../common/core";
+import VideoDownloader from "../../common/core/utils/VideoDownloader";
+import PollingStrategy from "../../common/core/utils/UrlChangeWatcher/strategies/PollingStrategy";
 import InstagramMediaFetcher from "./utils/InstagramMediaFetcher";
-import HoverAction from "../common/core/utils/HoverAction";
+import HoverAction from "../../common/core/utils/HoverAction";
 
 // GMFunctions are now available as a namespace from the core import.
 // The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.

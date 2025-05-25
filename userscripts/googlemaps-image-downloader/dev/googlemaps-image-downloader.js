@@ -1,4 +1,4 @@
-import { Logger, DOMObserver, Button } from '../common/core/index.js';
+import { Logger, DOMObserver, Button } from '../../common/core/index.js';
 
 /* global axios, v, moment, unsafeWindow */
 

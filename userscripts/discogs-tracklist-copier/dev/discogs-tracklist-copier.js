@@ -1,4 +1,4 @@
-import { Logger, Button } from '../common/core/index.js';
+import { Logger, Button } from '../../common/core/index.js';
 
 class DiscogsTracklistCopier {
   constructor() {

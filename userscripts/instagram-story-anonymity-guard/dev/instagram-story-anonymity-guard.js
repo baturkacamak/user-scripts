@@ -1,4 +1,4 @@
-import { Logger } from '../common/core/index.js';
+import { Logger } from '../../common/core/index.js';
 
 class InstagramStoryAnonymityGuard {
   constructor() {
