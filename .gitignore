@@ -116,3 +116,4 @@ examples/
 
 # Ignore dev build artifacts
 **/dev/*.dev.user.js
+**/dev/*.dev.user.js.map
