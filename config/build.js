@@ -295,8 +295,15 @@ async function buildUserscript(dirName) {
             return false;
         }
         const sourcePath = path.join(devDir, sourceFile);
-        // Output .user.js to parent directory
-        const targetPath = path.join(dirName, `${path.basename(sourceFile, '.js')}.user.js`);
+        // Determine output path based on mode
+        let targetPath;
+        if (args.watch) {
+            // In watch mode, output to dev directory as .dev.user.js
+            targetPath = path.join(devDir, `${path.basename(sourceFile, '.js')}.dev.user.js`);
+        } else {
+            // In build mode, output to parent directory as .user.js
+            targetPath = path.join(dirName, `${path.basename(sourceFile, '.js')}.user.js`);
+        }
         log(`Source file: ${sourcePath}`, 'debug');
         log(`Target file: ${targetPath}`, 'debug');
         // Read meta.json to validate it before building
@@ -328,7 +335,7 @@ async function buildUserscript(dirName) {
             sourcemap: false,
             banner: warningHeader,
         });
-        log(`Successfully built ${dirName}/${path.basename(targetPath)}`, 'success');
+        log(`Successfully built ${targetPath}`, 'success');
         return true;
     } catch (error) {
         log(`Error building userscript in ${dirName}: ${error.message}`, 'error');
