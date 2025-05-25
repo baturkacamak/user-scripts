@@ -1,6 +1,6 @@
 // Sidebar panel component for housing the Wallapop tools
 
-import {Logger} from "../../core";
+import {Logger} from "../../../../common/core";
 
 /**
  * Sidebar panel component for displaying controls

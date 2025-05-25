@@ -1,8 +1,8 @@
 // Control panel component with all tool controls
 
-import {Logger} from "../../core";
-import {TranslationManager} from "../../core";
-import {Button, Checkbox, SectionToggler, Slider, SelectBox, ProgressBar} from "../../core";
+import {Logger} from "../../../../common/core";
+import {TranslationManager} from "../../../../common/core";
+import {Button, Checkbox, SectionToggler, Slider, SelectBox, ProgressBar} from "../../../../common/core";
 import {DescriptionManager} from "../managers/DescriptionManager";
 import {FilterManager} from "../managers/FilterManager";
 import {FormatterService} from "../services/FormatterService";

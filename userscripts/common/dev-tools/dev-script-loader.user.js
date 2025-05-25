@@ -41,7 +41,7 @@
     {
       name: 'Wallapop Enhanced Tools',
       matches: ['wallapop.com'],
-      path: 'userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js',
+      path: (window.__USERSCRIPTS_DEV__ ? 'userscripts/wallapop-enhanced-tools/dev/wallapop-enhanced-tools.js' : 'userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js'),
       isModule: false,
       fallbacks: ['blob', 'iframe', 'worker', 'moduleFallback'],
     },

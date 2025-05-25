@@ -1,8 +1,8 @@
 // Styles for the Wallapop Enhanced Tools
 
-import {StyleManager} from "../../../common/core";
+import {StyleManager} from "../../../../common/core";
 import {SELECTORS} from '../utils/constants';
-import {Button, SectionToggler} from "../../../common/core";
+import {Button, SectionToggler} from "../../../../common/core";
 
 /**
  * Add all styles needed for the Wallapop Enhanced Tools
