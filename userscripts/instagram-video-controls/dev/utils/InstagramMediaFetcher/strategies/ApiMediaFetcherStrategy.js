@@ -1,6 +1,6 @@
-import {Logger} from "../../../../common/core";
+import {Logger} from '../../../../../common/core';
 import MediaFetcherStrategy from "./MediaFetcherStrategy";
-import MediaUtils from "../../../../common/core/utils/MediaUtils";
+import MediaUtils from '../../../../../common/core/utils/MediaUtils';
 
 /**
  * Strategy for fetching media information using Instagram's API

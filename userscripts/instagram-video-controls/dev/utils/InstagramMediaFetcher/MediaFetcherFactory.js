@@ -1,4 +1,4 @@
-import {Logger} from '../../../common/core';
+import {Logger} from '../../../../common/core';
 import PostMediaHandler from "./handlers/PostMediaHandler";
 import StoryMediaHandler from "./handlers/StoryMediaHandler";
 import ReelMediaHandler from "./handlers/ReelMediaHandler";
