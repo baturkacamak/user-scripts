@@ -5,7 +5,7 @@ import {
     Logger,
     StyleManager,
     DOMObserver
-} from "../common/core";
+} from "../../common/core";
 
 // GMFunctions are now available as a namespace from the core import.
 // The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.

@@ -1,4 +1,4 @@
-import { StyleManager, Button, DOMObserver, Logger } from '../common/core/index.js';
+import { StyleManager, Button, DOMObserver, Logger } from '../../common/core/index.js';
 
 /* global webpackJsonp, unsafeWindow  */
 

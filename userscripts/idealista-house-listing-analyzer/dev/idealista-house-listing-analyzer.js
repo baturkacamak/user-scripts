@@ -1,6 +1,6 @@
-import { Logger, DOMObserver } from '../common/core/index.js';
-import { HttpService } from '../common/core/services/httpService.js';
-import { DataCache } from '../common/core/utils/DataCache.js';
+import { Logger, DOMObserver } from '../../common/core/index.js';
+import { HttpService } from '../../common/core/services/httpService.js';
+import { DataCache } from '../../common/core/utils/DataCache.js';
 import { config } from './config.js';
 import { StatisticsExtractor } from './services/statisticsExtractor.js';
 import { ScoreCalculator } from './services/scoreCalculator.js';
