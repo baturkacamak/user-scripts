@@ -41,70 +41,90 @@
     {
       name: 'Wallapop Enhanced Tools',
       matches: ['wallapop.com'],
-      path: (window.__USERSCRIPTS_DEV__ ? 'userscripts/wallapop-enhanced-tools/dev/wallapop-enhanced-tools.js' : 'userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js'),
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/wallapop-enhanced-tools/dev/wallapop-enhanced-tools.dev.user.js'
+        : 'userscripts/wallapop-enhanced-tools/wallapop-enhanced-tools.user.js'),
       isModule: false,
       fallbacks: ['blob', 'iframe', 'worker', 'moduleFallback'],
     },
     {
       name: 'Loom Captions Extractor',
       matches: ['loom.com'],
-      path: 'userscripts/loom-captions-extractor/loom-captions-extractor.user.js',
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/loom-captions-extractor/dev/loom-captions-extractor.dev.user.js'
+        : 'userscripts/loom-captions-extractor/loom-captions-extractor.user.js'),
       isModule: true, // Vite module
       fallbacks: ['moduleBlob', 'moduleProxy', 'moduleIframe', 'moduleEval'],
     },
     {
       name: 'Instagram Video Controls',
       matches: ['instagram.com'],
-      path: 'userscripts/instagram-video-controls/instagram-video-controls.user.js',
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/instagram-video-controls/dev/instagram-video-controls.dev.user.js'
+        : 'userscripts/instagram-video-controls/instagram-video-controls.user.js'),
       isModule: true, // Vite module
       fallbacks: ['moduleBlob', 'moduleProxy', 'moduleIframe', 'vanilla'],
     },
     {
       name: 'Whatsapp Send New',
       matches: ['whatsapp.com'],
-      path: 'userscripts/whatsapp-send-new/whatsapp-send-new.user.js',
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/whatsapp-send-new/dev/whatsapp-send-new.dev.user.js'
+        : 'userscripts/whatsapp-send-new/whatsapp-send-new.user.js'),
       isModule: false, // Standard userscript
       fallbacks: ['blob', 'iframe', 'worker'], // Standard fallbacks for non-modules
     },
     {
       name: 'Tidal URI Scheme Converter',
-      matches: ['whatsapp.com'], // Matches the current setting in meta.json
-      path: 'userscripts/tidal-uri-scheme-converter/tidal-uri-scheme-converter.user.js',
+      matches: ['whatsapp.com'],
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/tidal-uri-scheme-converter/dev/tidal-uri-scheme-converter.dev.user.js'
+        : 'userscripts/tidal-uri-scheme-converter/tidal-uri-scheme-converter.user.js'),
       isModule: false, // Standard userscript
       fallbacks: ['blob', 'iframe', 'worker'],
     },
     {
       name: 'Lingualeo Speaker',
       matches: ['lingualeo.com/tr/training/leoSprint'],
-      path: 'userscripts/lingualeo-speak/lingualeo-speak.user.js',
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/lingualeo-speak/dev/lingualeo-speak.dev.user.js'
+        : 'userscripts/lingualeo-speak/lingualeo-speak.user.js'),
       isModule: false, // Standard userscript
       fallbacks: ['blob', 'iframe', 'worker'],
     },
     {
       name: 'Instagram Story Anonymity Guard',
       matches: ['instagram.com'],
-      path: 'userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js',
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/instagram-story-anonymity-guard/dev/instagram-story-anonymity-guard.dev.user.js'
+        : 'userscripts/instagram-story-anonymity-guard/instagram-story-anonymity-guard.user.js'),
       isModule: false, // Standard userscript, XHR override needs to happen early
       fallbacks: ['blob', 'iframe', 'worker'], // Basic fallbacks
     },
     {
       name: 'Google Maps Image Downloader',
-      matches: ['google.com/maps', 'google.co.uk/maps', 'google.es/maps', 'google.de/maps', 'google.fr/maps', 'google.it/maps', 'google.nl/maps', 'google.pl/maps', 'google.pt/maps', 'google.com.tr/maps'], // Add more TLDs as needed
-      path: 'userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js',
+      matches: ['google.com/maps', 'google.co.uk/maps', 'google.es/maps', 'google.de/maps', 'google.fr/maps', 'google.it/maps', 'google.nl/maps', 'google.pl/maps', 'google.pt/maps', 'google.com.tr/maps'],
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/googlemaps-image-downloader/dev/googlemaps-image-downloader.dev.user.js'
+        : 'userscripts/googlemaps-image-downloader/googlemaps-image-downloader.user.js'),
       isModule: false, // Will become true if we use the .js file directly and it has imports
       fallbacks: ['blob', 'iframe', 'worker'],
     },
     {
       name: 'Discogs Tracklist Copier',
-      matches: ['discogs.com/release', 'discogs.com/master'], // Matches release and master pages
-      path: 'userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js',
+      matches: ['discogs.com/release', 'discogs.com/master'],
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/discogs-tracklist-copier/dev/discogs-tracklist-copier.dev.user.js'
+        : 'userscripts/discogs-tracklist-copier/discogs-tracklist-copier.user.js'),
       isModule: false, // Standard userscript for now
       fallbacks: ['blob', 'iframe', 'worker'],
     },
     {
       name: 'Idealista House Listing Analyzer',
       matches: ['idealista.com', 'idealista.pt', 'idealista.it'],
-      path: 'userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js',
+      path: (window.__USERSCRIPTS_DEV__
+        ? 'userscripts/idealista-house-listing-analyzer/dev/idealista-house-listing-analyzer.dev.user.js'
+        : 'userscripts/idealista-house-listing-analyzer/idealista-house-listing-analyzer.user.js'),
       isModule: false, // New .js file has imports, so would be true if pointed directly
       fallbacks: ['blob', 'iframe', 'worker'],
     },
