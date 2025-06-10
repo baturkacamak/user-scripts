@@ -390,6 +390,15 @@
         }
 
         /**
+         * Check if styles with a given ID have already been added
+         * @param {string} id - ID of the style element to check
+         * @returns {boolean} - True if styles exist, false otherwise
+         */
+        static hasStyles(id) {
+            return this.styleElements.has(id) || document.getElementById(id) !== null;
+        }
+
+        /**
          * Apply CSS variables for theming
          * @param {Object} variables - Object with variable names and values
          * @param {string} selector - CSS selector to apply variables to (default: :root)
