@@ -28,6 +28,8 @@ import ProgressBar from './ui/ProgressBar.js';
 import Checkbox from './ui/Checkbox';
 import SidebarPanel from './ui/SidebarPanel';
 import Notification from './ui/Notification';
+import Input from './ui/Input.js';
+import TextArea from './ui/TextArea.js';
 
 // Export all components
 export {
@@ -56,6 +58,8 @@ export {
   Checkbox,
   SidebarPanel,
   Notification,
+  Input,
+  TextArea,
 };
 
 // Also export as default for convenience
@@ -77,4 +81,6 @@ export default {
   Checkbox,
   SidebarPanel,
   Notification,
+  Input,
+  TextArea,
 };
