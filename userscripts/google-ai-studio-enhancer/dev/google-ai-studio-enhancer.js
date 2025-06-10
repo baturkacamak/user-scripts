@@ -2,6 +2,7 @@
 import {
     Button,
     Checkbox,
+    Debouncer,
     DOMObserver,
     HTMLUtils,
     Logger,
@@ -134,9 +135,13 @@ class AIStudioEnhancer {
         this.copyButton = null;
         this.toggleButton = null;
         this.isInitialLoad = true;
-        this.copyNotificationTimeout = null;
 
         Logger.info("Initializing Google AI Studio Enhancer");
+
+        // Create debounced notification function for initial load
+        this.debouncedInitialNotification = Debouncer.debounce((count) => {
+            this.showNotification(`Collected ${count} responses from current chat`, 'info');
+        }, 1000);
 
         // Load saved settings
         this.loadSettings().then(() => {
@@ -552,6 +557,9 @@ class AIStudioEnhancer {
         // Set initial load mode for the new chat
         this.isInitialLoad = true;
         
+        // Cancel any pending debounced notifications from the previous chat
+        this.debouncedInitialNotification.cancel();
+        
         // Collect responses from the new chat after a short delay
         setTimeout(() => {
             this.collectExistingResponses();
@@ -750,15 +758,8 @@ class AIStudioEnhancer {
 
         // Handle notifications smartly
         if (this.isInitialLoad) {
-            // During initial load, debounce notifications
-            if (this.copyNotificationTimeout) {
-                clearTimeout(this.copyNotificationTimeout);
-            }
-            
-            this.copyNotificationTimeout = setTimeout(() => {
-                this.showNotification(`Collected ${this.responses.length} responses from current chat`, 'info');
-            }, 1000); // Wait 1 second before showing notification
-            
+            // During initial load, use debounced notification
+            this.debouncedInitialNotification(this.responses.length);
         } else {
             // After initial load, show immediate notifications for new responses
             this.showNotification(`New response copied! Total: ${this.responses.length}`, 'success');
