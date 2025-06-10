@@ -133,6 +133,8 @@ class AIStudioEnhancer {
         this.currentChatId = null;
         this.copyButton = null;
         this.toggleButton = null;
+        this.isInitialLoad = true;
+        this.copyNotificationTimeout = null;
 
         Logger.info("Initializing Google AI Studio Enhancer");
 
@@ -185,6 +187,8 @@ class AIStudioEnhancer {
         SidebarPanel.initStyles();
         Button.initStyles();
         Button.useDefaultColors();
+        Notification.initStyles();
+        Notification.useDefaultColors();
         
         // Add custom styles for full-width buttons
         StyleManager.addStyles(`
@@ -205,6 +209,12 @@ class AIStudioEnhancer {
 
         // Collect existing responses
         this.collectExistingResponses();
+
+        // Mark initial load as complete after a delay to allow for all responses to be collected
+        setTimeout(() => {
+            this.isInitialLoad = false;
+            Logger.debug("Initial load completed, notifications now enabled for new responses");
+        }, 2000);
 
         Logger.success("Google AI Studio Enhancer initialized successfully!");
     }
@@ -290,7 +300,7 @@ class AIStudioEnhancer {
             text: 'Copy All Responses',
             theme: 'primary',
             size: 'medium',
-            onClick: () => this.copyAllResponses(),
+            onClick: () => this.copyAllResponsesManual(),
             successText: '✅ Copied!',
             successDuration: 1000,
             className: 'copy-responses-button',
@@ -539,9 +549,17 @@ class AIStudioEnhancer {
         this.responses = [];
         this.updateResponseCount();
         
+        // Set initial load mode for the new chat
+        this.isInitialLoad = true;
+        
         // Collect responses from the new chat after a short delay
         setTimeout(() => {
             this.collectExistingResponses();
+            // Mark initial load as complete for the new chat
+            setTimeout(() => {
+                this.isInitialLoad = false;
+                Logger.debug("New chat initial load completed");
+            }, 1000);
         }, 1000);
         
         this.showNotification('Switched to new chat - responses cleared', 'info');
@@ -705,7 +723,7 @@ class AIStudioEnhancer {
         return this.cleanResponseText(fullText);
     }
 
-    /**
+        /**
      * Add a response to the collection
      */
     addResponse(element) {
@@ -715,9 +733,56 @@ class AIStudioEnhancer {
             this.updateResponseCount();
             
             // Always auto-copy new responses
-            this.copyAllResponses();
+            this.copyAllResponsesWithSmartNotification();
 
             Logger.debug('New response added:', text.substring(0, 100) + '...');
+        }
+    }
+
+    /**
+     * Copy responses with intelligent notification handling
+     */
+    async copyAllResponsesWithSmartNotification() {
+        // Always copy to clipboard
+        const success = await this.copyAllResponsesSilent();
+        
+        if (!success) return;
+
+        // Handle notifications smartly
+        if (this.isInitialLoad) {
+            // During initial load, debounce notifications
+            if (this.copyNotificationTimeout) {
+                clearTimeout(this.copyNotificationTimeout);
+            }
+            
+            this.copyNotificationTimeout = setTimeout(() => {
+                this.showNotification(`Collected ${this.responses.length} responses from current chat`, 'info');
+            }, 1000); // Wait 1 second before showing notification
+            
+        } else {
+            // After initial load, show immediate notifications for new responses
+            this.showNotification(`New response copied! Total: ${this.responses.length}`, 'success');
+        }
+    }
+
+    /**
+     * Copy all responses to clipboard without showing notifications
+     */
+    async copyAllResponsesSilent() {
+        if (this.responses.length === 0) {
+            return false;
+        }
+
+        // Format responses - clean output without headers
+        const content = this.responses.join('\n\n---\n\n');
+
+        try {
+            GM_setClipboard(content);
+            Logger.success(`Copied ${this.responses.length} responses to clipboard`);
+            return true;
+        } catch (error) {
+            Logger.error('Failed to copy responses:', error);
+            return false;
         }
     }
 
@@ -731,27 +796,28 @@ class AIStudioEnhancer {
     }
 
     /**
-     * Copy all responses to clipboard
+     * Manual copy button handler - always shows notifications
      */
-    async copyAllResponses() {
+    async copyAllResponsesManual() {
         if (this.responses.length === 0) {
             this.showNotification('No responses found to copy', 'warning');
             return false;
         }
 
-        // Format responses - clean output without headers
-        const content = this.responses.join('\n\n---\n\n');
-
-        try {
-            GM_setClipboard(content);
+        const success = await this.copyAllResponsesSilent();
+        if (success) {
             this.showNotification(`Copied ${this.responses.length} responses to clipboard`, 'success');
-            Logger.success(`Copied ${this.responses.length} responses to clipboard`);
-            return true;
-        } catch (error) {
+        } else {
             this.showNotification('Failed to copy responses', 'error');
-            Logger.error('Failed to copy responses:', error);
-            return false;
         }
+        return success;
+    }
+
+    /**
+     * Copy all responses to clipboard (legacy method for compatibility)
+     */
+    async copyAllResponses() {
+        return await this.copyAllResponsesManual();
     }
 
     /**
@@ -836,7 +902,7 @@ class AIStudioEnhancer {
                 this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
                 Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
             } else {
-                this.stopAutoRun();
+            this.stopAutoRun();
             }
             return;
         }
@@ -1183,26 +1249,52 @@ class AIStudioEnhancer {
         if (this.statusElement) {
             if (this.isAutoRunning) {
                 this.statusElement.textContent = `Running: ${this.currentIteration}/${this.maxIterations}`;
-            } else {
-                this.statusElement.textContent = 'Ready to start';
+                } else {
+                    this.statusElement.textContent = 'Ready to start';
             }
         }
     }
 
     /**
-     * Show notification if enabled
+     * Show notification using the Notification component
      */
     showNotification(message, type = 'info') {
-        if (this.settings.SHOW_NOTIFICATIONS) {
-            // Simple notification using alert as fallback
-            // Since Trusted Types might block advanced notifications too
-            console.log(`[${type.toUpperCase()}] ${message}`);
-            
-            // You could also create a simple toast notification using DOM methods
-            if (type === 'error') {
-                alert(`Error: ${message}`);
-            }
+        // Always show notifications since we removed the setting
+        // Use the Notification component for proper toast notifications
+        switch (type) {
+            case 'success':
+                Notification.success(message, {
+                    duration: 3000,
+                    position: 'top-center',
+                    showProgress: true
+                });
+                break;
+            case 'warning':
+                Notification.warning(message, {
+                    duration: 4000,
+                    position: 'top-center',
+                    showProgress: true
+                });
+                break;
+            case 'error':
+                Notification.error(message, {
+                    duration: 5000,
+                    position: 'top-center',
+                    showProgress: true
+                });
+                break;
+            case 'info':
+            default:
+                Notification.info(message, {
+                    duration: 3000,
+                    position: 'top-center',
+                    showProgress: true
+                });
+                break;
         }
+        
+        // Also log to console for debugging
+        Logger.info(`[NOTIFICATION ${type.toUpperCase()}] ${message}`);
     }
 }
 
