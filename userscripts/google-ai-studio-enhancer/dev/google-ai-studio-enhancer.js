@@ -234,16 +234,26 @@ class AIStudioEnhancer {
     /**
      * Wait for the page to be ready
      */
-    waitForPageReady() {
-        return new Promise((resolve) => {
-            if (document.readyState === 'complete') {
-                setTimeout(resolve, 1000);
-            } else {
-                window.addEventListener('load', () => {
-                    setTimeout(resolve, 1000);
-                });
-            }
-        });
+    async waitForPageReady() {
+        // Wait for document to be complete
+        if (document.readyState !== 'complete') {
+            await new Promise(resolve => {
+                window.addEventListener('load', resolve, { once: true });
+            });
+        }
+        
+        // Wait for main content areas to be available
+        try {
+            // Wait for key Google AI Studio elements to be present
+            await HTMLUtils.waitForElement('body', 5000);
+            
+            // Give additional time for dynamic content to load
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            Logger.debug('Page ready - main elements found');
+        } catch (error) {
+            Logger.warn('Some page elements not found, but continuing:', error.message);
+        }
     }
 
     /**
@@ -1034,33 +1044,31 @@ class AIStudioEnhancer {
      * Wait for the run button to become available and enabled
      */
     async waitForRunButton(maxWaitTime = 10000) {
-        return new Promise((resolve) => {
-            let attempts = 0;
-            const maxAttempts = maxWaitTime / 500; // Check every 500ms
+        try {
+            // Try to find enabled run button using HTMLUtils
+            const button = await HTMLUtils.waitForElement('button.run-button[aria-label="Run"]:not(.disabled):not([disabled]):not(.stoppable)', maxWaitTime);
+            Logger.debug('Run button found and enabled using HTMLUtils');
+            return button;
+        } catch (error) {
+            // Fallback to custom logic if specific selector doesn't work
+            Logger.debug('HTMLUtils waitForElement failed, trying fallback method');
             
-            const checkForButton = () => {
-                attempts++;
+            try {
+                // Wait for any run button first
+                await HTMLUtils.waitForElement('button.run-button[aria-label="Run"]', maxWaitTime);
+                
+                // Then check if it's enabled
                 const button = this.findRunButton();
-                
                 if (button) {
-                    Logger.debug('Run button found and enabled after', attempts * 500, 'ms');
-                    resolve(button);
-                    return;
+                    Logger.debug('Run button found via fallback method');
+                    return button;
                 }
-                
-                if (attempts >= maxAttempts) {
-                    Logger.warn(`Run button not found after ${maxWaitTime}ms`);
-                    resolve(null);
-                    return;
-                }
-                
-                Logger.debug(`Waiting for run button... attempt ${attempts}/${maxAttempts}`);
-                setTimeout(checkForButton, 500);
-            };
+            } catch (fallbackError) {
+                Logger.warn(`Run button not found after ${maxWaitTime}ms`);
+            }
             
-            // Start checking immediately
-            checkForButton();
-        });
+            return null;
+        }
     }
 
     /**
