@@ -399,12 +399,12 @@ class AIStudioEnhancer {
 
         // Button container
         const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 10px;';
+        buttonContainer.style.cssText = 'margin-bottom: 10px;';
 
-        // Start button
-        this.startButton = document.createElement('button');
-        this.startButton.textContent = 'Start Auto Run';
-        this.startButton.style.cssText = `
+        // Single toggle button for start/stop
+        this.toggleButton = document.createElement('button');
+        this.toggleButton.textContent = 'Start Auto Run';
+        this.toggleButton.style.cssText = `
             background: #4285f4;
             color: white;
             border: none;
@@ -413,29 +413,11 @@ class AIStudioEnhancer {
             cursor: pointer;
             font-size: 14px;
             font-weight: 500;
-            flex: 1;
+            width: 100%;
         `;
-        this.startButton.addEventListener('click', () => this.startAutoRun());
+        this.toggleButton.addEventListener('click', () => this.toggleAutoRun());
 
-        // Stop button
-        this.stopButton = document.createElement('button');
-        this.stopButton.textContent = 'Stop';
-        this.stopButton.disabled = true;
-        this.stopButton.style.cssText = `
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            flex: 1;
-        `;
-        this.stopButton.addEventListener('click', () => this.stopAutoRun());
-
-        buttonContainer.appendChild(this.startButton);
-        buttonContainer.appendChild(this.stopButton);
+        buttonContainer.appendChild(this.toggleButton);
 
         // Status display
         this.statusElement = document.createElement('div');
@@ -823,6 +805,17 @@ class AIStudioEnhancer {
     }
 
     /**
+     * Toggle auto-run process (start/stop)
+     */
+    async toggleAutoRun() {
+        if (this.isAutoRunning) {
+            this.stopAutoRun();
+        } else {
+            await this.startAutoRun();
+        }
+    }
+
+    /**
      * Start auto-run process
      */
     async startAutoRun() {
@@ -842,8 +835,7 @@ class AIStudioEnhancer {
         this.maxIterations = iterations;
 
         // Update UI
-        this.startButton.disabled = true;
-        this.stopButton.disabled = false;
+        this.updateButtonState();
         this.updateAutoRunStatus();
 
         this.showNotification(`Starting auto runner for ${iterations} iterations`, 'info');
@@ -859,13 +851,15 @@ class AIStudioEnhancer {
     stopAutoRun() {
         this.isAutoRunning = false;
         
+        // Reset iteration count to 0
+        this.currentIteration = 0;
+        
         // Update UI
-        this.startButton.disabled = false;
-        this.stopButton.disabled = true;
+        this.updateButtonState();
         this.updateAutoRunStatus();
 
-        this.showNotification(`Auto runner stopped at ${this.currentIteration}/${this.maxIterations}`, 'info');
-        Logger.info(`Auto runner stopped. Completed ${this.currentIteration}/${this.maxIterations} iterations`);
+        this.showNotification(`Auto runner stopped and reset`, 'info');
+        Logger.info(`Auto runner stopped and reset`);
     }
 
     /**
@@ -873,7 +867,17 @@ class AIStudioEnhancer {
      */
     async runIteration() {
         if (!this.isAutoRunning || this.currentIteration >= this.maxIterations) {
-            this.stopAutoRun();
+            if (this.currentIteration >= this.maxIterations) {
+                // Auto-run completed all iterations
+                this.isAutoRunning = false;
+                this.currentIteration = 0;
+                this.updateButtonState();
+                this.updateAutoRunStatus();
+                this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
+                Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
+            } else {
+                this.stopAutoRun();
+            }
             return;
         }
 
@@ -1198,6 +1202,21 @@ class AIStudioEnhancer {
     }
 
     /**
+     * Update button state based on running status
+     */
+    updateButtonState() {
+        if (this.toggleButton) {
+            if (this.isAutoRunning) {
+                this.toggleButton.textContent = 'Stop Auto Run';
+                this.toggleButton.style.background = '#dc3545';  // Red color for stop
+            } else {
+                this.toggleButton.textContent = 'Start Auto Run';
+                this.toggleButton.style.background = '#4285f4';  // Blue color for start
+            }
+        }
+    }
+
+    /**
      * Update auto-run status display
      */
     updateAutoRunStatus() {
@@ -1205,11 +1224,7 @@ class AIStudioEnhancer {
             if (this.isAutoRunning) {
                 this.statusElement.textContent = `Running: ${this.currentIteration}/${this.maxIterations}`;
             } else {
-                if (this.currentIteration > 0) {
-                    this.statusElement.textContent = `Completed: ${this.currentIteration}/${this.maxIterations}`;
-                } else {
-                    this.statusElement.textContent = 'Ready to start';
-                }
+                this.statusElement.textContent = 'Ready to start';
             }
         }
     }
