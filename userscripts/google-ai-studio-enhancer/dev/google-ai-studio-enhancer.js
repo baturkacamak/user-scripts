@@ -6,12 +6,14 @@ import {
     Debouncer,
     DOMObserver,
     HTMLUtils,
+    Input,
     Logger,
     Notification,
     PollingStrategy,
     PubSub,
     SidebarPanel,
     StyleManager,
+    TextArea,
     UrlChangeWatcher,
     UserInteractionDetector
 } from "../../common/core";
@@ -277,6 +279,17 @@ class AIStudioEnhancer {
         if (this.statsUpdateInterval) {
             clearInterval(this.statsUpdateInterval);
             this.statsUpdateInterval = null;
+        }
+        
+        // Clean up form components
+        if (this.promptTextArea) {
+            this.promptTextArea.destroy();
+            this.promptTextArea = null;
+        }
+        
+        if (this.iterationsInput) {
+            this.iterationsInput.destroy();
+            this.iterationsInput = null;
         }
         
         Logger.debug("All subscriptions and resources cleaned up");
@@ -673,14 +686,23 @@ class AIStudioEnhancer {
         Button.useDefaultColors();
         Notification.initStyles();
         Notification.useDefaultColors();
+        Input.initStyles();
+        Input.useDefaultColors();
+        TextArea.initStyles();
+        TextArea.useDefaultColors();
         
-        // Add custom styles for full-width buttons
+        // Add custom styles for full-width buttons and form inputs
         StyleManager.addStyles(`
             .copy-responses-button,
             .auto-run-toggle-button {
                 width: 100% !important;
             }
-        `, 'ai-studio-enhancer-button-styles');
+            
+            .auto-run-prompt-textarea,
+            .auto-run-iterations-input {
+                margin-bottom: 12px;
+            }
+        `, 'ai-studio-enhancer-custom-styles');
 
         // Create the UI panel using SidebarPanel component
         this.createSidebarPanel();
@@ -830,70 +852,49 @@ class AIStudioEnhancer {
         title.textContent = '🔄 Auto Runner';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-        // Prompt input
-        this.promptInput = document.createElement('textarea');
-        this.promptInput.value = this.settings.AUTO_RUN_PROMPT;
-        this.promptInput.placeholder = 'Enter prompt to auto-run (optional)';
-        this.promptInput.rows = 3;
-        this.promptInput.style.cssText = `
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            margin-bottom: 12px;
-            box-sizing: border-box;
-            resize: vertical;
-            font-family: inherit;
-            color: #333;
-            background: #fff;
-        `;
-        this.promptInput.style.setProperty('color', '#333', 'important');
-        this.promptInput.style.setProperty('background-color', '#fff', 'important');
-        
-        // Add focus and hover effects
-        this.promptInput.addEventListener('focus', () => {
-            this.promptInput.style.borderColor = '#4285f4';
-            this.promptInput.style.boxShadow = '0 0 0 2px rgba(66, 133, 244, 0.2)';
-        });
-        this.promptInput.addEventListener('blur', () => {
-            this.promptInput.style.borderColor = '#ddd';
-            this.promptInput.style.boxShadow = 'none';
-        });
-        this.promptInput.addEventListener('input', () => {
-            this.settings.AUTO_RUN_PROMPT = this.promptInput.value;
-            this.saveSettings();
+        // Prompt input using TextArea component
+        this.promptTextArea = new TextArea({
+            value: this.settings.AUTO_RUN_PROMPT,
+            placeholder: 'Enter prompt to auto-run (optional)',
+            rows: 3,
+            theme: 'primary',
+            size: 'medium',
+            className: 'auto-run-prompt-textarea',
+            onInput: (event, textArea) => {
+                this.settings.AUTO_RUN_PROMPT = textArea.getValue();
+                this.saveSettings();
+            },
+            container: section
         });
 
-        // Iterations input
-        this.iterationsInput = document.createElement('input');
-        this.iterationsInput.type = 'number';
-        this.iterationsInput.min = '1';
-        this.iterationsInput.max = '100';
-        this.iterationsInput.value = this.settings.DEFAULT_ITERATIONS;
-        this.iterationsInput.placeholder = 'Number of iterations';
-        this.iterationsInput.style.cssText = `
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            margin-bottom: 12px;
-            box-sizing: border-box;
-            color: #333;
-            background: #fff;
-        `;
-        this.iterationsInput.style.setProperty('color', '#333', 'important');
-        this.iterationsInput.style.setProperty('background-color', '#fff', 'important');
-        
-        // Add focus effects
-        this.iterationsInput.addEventListener('focus', () => {
-            this.iterationsInput.style.borderColor = '#4285f4';
-            this.iterationsInput.style.boxShadow = '0 0 0 2px rgba(66, 133, 244, 0.2)';
-        });
-        this.iterationsInput.addEventListener('blur', () => {
-            this.iterationsInput.style.borderColor = '#ddd';
-            this.iterationsInput.style.boxShadow = 'none';
+        // Iterations input using Input component
+        this.iterationsInput = new Input({
+            type: 'number',
+            value: this.settings.DEFAULT_ITERATIONS.toString(),
+            placeholder: 'Number of iterations',
+            min: '1',
+            max: '100',
+            theme: 'primary',
+            size: 'medium',
+            className: 'auto-run-iterations-input',
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 1) {
+                    return 'Please enter a number greater than 0';
+                }
+                if (num > 100) {
+                    return 'Maximum 100 iterations allowed';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value > 0) {
+                    this.settings.DEFAULT_ITERATIONS = value;
+                    this.saveSettings();
+                }
+            },
+            container: section
         });
 
         // Button container
@@ -916,8 +917,7 @@ class AIStudioEnhancer {
         this.statusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center;';
 
         section.appendChild(title);
-        section.appendChild(this.promptInput);
-        section.appendChild(this.iterationsInput);
+        // promptTextArea and iterationsInput are automatically appended via container option
         section.appendChild(buttonContainer);
         section.appendChild(this.statusElement);
 
@@ -1525,7 +1525,13 @@ class AIStudioEnhancer {
             return false;
         }
 
-        const iterations = parseInt(this.iterationsInput.value, 10);
+        // Validate iterations input first
+        if (!this.iterationsInput.validate()) {
+            this.showNotification('Please fix the iterations input error', 'error');
+            return false;
+        }
+
+        const iterations = parseInt(this.iterationsInput.getValue(), 10);
         if (isNaN(iterations) || iterations <= 0) {
             this.showNotification('Please enter a valid number of iterations', 'error');
             return false;
@@ -1603,8 +1609,9 @@ class AIStudioEnhancer {
         Logger.info(`Running iteration ${this.currentIteration}/${this.maxIterations}`);
 
         // Enter prompt if specified
-        if (this.settings.AUTO_RUN_PROMPT.trim()) {
-            const promptEntered = await this.enterPrompt(this.settings.AUTO_RUN_PROMPT);
+        const currentPrompt = this.promptTextArea.getValue().trim();
+        if (currentPrompt) {
+            const promptEntered = await this.enterPrompt(currentPrompt);
             if (!promptEntered) {
                 this.showNotification('Could not enter prompt - prompt input not found', 'error');
                 this.stopAutoRun();
