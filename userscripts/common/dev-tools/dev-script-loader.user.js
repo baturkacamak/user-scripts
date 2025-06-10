@@ -10,6 +10,7 @@
 // @match        https://*.instagram.com/*
 // @match        https://*.whatsapp.com/*
 // @match        https://lingualeo.com/tr/training/leoSprint
+// @match        https://aistudio.google.com/*
 // @icon         https://github.com/baturkacamak.png
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
@@ -107,6 +108,13 @@
       path: 'userscripts/idealista-house-listing-analyzer/dev/idealista-house-listing-analyzer.dev.user.js',
       isModule: false, // New .js file has imports, so would be true if pointed directly
       fallbacks: ['blob', 'iframe', 'worker'],
+    },
+    {
+      name: 'Google AI Studio Enhancer',
+      matches: ['aistudio.google.com'],
+      path: 'userscripts/google-ai-studio-enhancer/dev/google-ai-studio-enhancer.dev.user.js',
+      isModule: true, // Uses ES6 imports from common components
+      fallbacks: ['moduleBlob', 'moduleProxy', 'moduleIframe', 'moduleEval'],
     },
   ];
 
