@@ -102,7 +102,6 @@ class AIStudioEnhancer {
     };
 
     static SETTINGS_KEYS = {
-        AUTO_COPY_RESPONSES: 'gaise-auto-copy-responses',
         DEFAULT_ITERATIONS: 'gaise-default-iterations',
         AUTO_RUN_DELAY: 'gaise-auto-run-delay',
         SHOW_NOTIFICATIONS: 'gaise-show-notifications',
@@ -111,7 +110,6 @@ class AIStudioEnhancer {
     };
 
     static DEFAULT_SETTINGS = {
-        AUTO_COPY_RESPONSES: false,
         DEFAULT_ITERATIONS: 10,
         AUTO_RUN_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
@@ -128,8 +126,10 @@ class AIStudioEnhancer {
         this.currentIteration = 0;
         this.maxIterations = 0;
         this.responseObserver = null;
+        this.chatObserver = null;
         this.settings = { ...AIStudioEnhancer.DEFAULT_SETTINGS };
         this.panel = null;
+        this.currentChatId = null;
 
         Logger.info("Initializing Google AI Studio Enhancer");
 
@@ -180,6 +180,9 @@ class AIStudioEnhancer {
 
         // Create the UI panel using DOM methods
         this.createPanel();
+
+        // Setup chat monitoring to detect chat switches
+        this.setupChatMonitoring();
 
         // Setup response monitoring
         this.setupResponseMonitoring();
@@ -275,7 +278,7 @@ class AIStudioEnhancer {
 
         // Response counter
         this.responseCountElement = document.createElement('div');
-        this.responseCountElement.textContent = `Responses collected: ${this.responses.length}`;
+        this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
         this.responseCountElement.style.cssText = 'margin-bottom: 10px; color: #666; font-size: 12px;';
 
         // Copy button
@@ -297,7 +300,7 @@ class AIStudioEnhancer {
 
         // Clear button
         const clearButton = document.createElement('button');
-        clearButton.textContent = 'Clear Response History';
+        clearButton.textContent = 'Clear Chat Responses';
         clearButton.style.cssText = `
             background: #6c757d;
             color: white;
@@ -444,54 +447,18 @@ class AIStudioEnhancer {
         title.textContent = '⚙️ Settings';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-        // Auto-copy checkbox
-        const autoCopyContainer = document.createElement('label');
-        autoCopyContainer.style.cssText = `
-            display: flex; 
-            align-items: center; 
-            margin-bottom: 10px; 
-            cursor: pointer;
-            color: #333;
-            font-size: 14px;
+        // Info text about auto-copy
+        const autoCopyInfo = document.createElement('div');
+        autoCopyInfo.textContent = '✅ Auto-copy new responses (always enabled)';
+        autoCopyInfo.style.cssText = `
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #4285f4;
         `;
-
-        const autoCopyCheckbox = document.createElement('input');
-        autoCopyCheckbox.type = 'checkbox';
-        autoCopyCheckbox.checked = this.settings.AUTO_COPY_RESPONSES;
-        autoCopyCheckbox.style.cssText = `
-            margin-right: 8px;
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-        `;
-        autoCopyCheckbox.addEventListener('change', (e) => {
-            this.settings.AUTO_COPY_RESPONSES = e.target.checked;
-            this.saveSettings();
-        });
-        
-        // Add hover effects
-        autoCopyContainer.addEventListener('mouseenter', () => {
-            autoCopyContainer.style.backgroundColor = '#f5f5f5';
-            autoCopyContainer.style.borderRadius = '4px';
-            autoCopyContainer.style.padding = '4px';
-            autoCopyContainer.style.margin = '0 -4px 6px -4px';
-        });
-        autoCopyContainer.addEventListener('mouseleave', () => {
-            autoCopyContainer.style.backgroundColor = 'transparent';
-            autoCopyContainer.style.padding = '0';
-            autoCopyContainer.style.margin = '0 0 10px 0';
-        });
-
-        const autoCopyLabel = document.createElement('span');
-        autoCopyLabel.textContent = 'Auto-copy new responses';
-        autoCopyLabel.style.cssText = `
-            color: #333;
-            font-size: 14px;
-            user-select: none;
-        `;
-
-        autoCopyContainer.appendChild(autoCopyCheckbox);
-        autoCopyContainer.appendChild(autoCopyLabel);
 
         // Notifications checkbox
         const notifContainer = document.createElement('label');
@@ -542,7 +509,7 @@ class AIStudioEnhancer {
         notifContainer.appendChild(notifLabel);
 
         section.appendChild(title);
-        section.appendChild(autoCopyContainer);
+        section.appendChild(autoCopyInfo);
         section.appendChild(notifContainer);
 
         container.appendChild(section);
@@ -584,6 +551,113 @@ class AIStudioEnhancer {
             initialY = currentY;
             isDragging = false;
         });
+    }
+
+    /**
+     * Setup chat monitoring to detect when user switches between chats
+     */
+    setupChatMonitoring() {
+        // Monitor URL changes
+        let currentUrl = window.location.href;
+        this.currentChatId = this.extractChatId(currentUrl);
+        
+        // Check for URL changes periodically
+        setInterval(() => {
+            const newUrl = window.location.href;
+            if (newUrl !== currentUrl) {
+                currentUrl = newUrl;
+                const newChatId = this.extractChatId(newUrl);
+                if (newChatId !== this.currentChatId) {
+                    Logger.info(`Chat changed from ${this.currentChatId} to ${newChatId}`);
+                    this.currentChatId = newChatId;
+                    this.onChatChanged();
+                }
+            }
+        }, 1000);
+
+        // Also monitor DOM changes that might indicate chat switches
+        this.chatObserver = new DOMObserver((mutations) => {
+            this.handleChatDOMChanges(mutations);
+        });
+
+        this.chatObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        Logger.debug("Chat monitoring setup complete");
+    }
+
+    /**
+     * Extract chat ID from URL or content
+     */
+    extractChatId(url) {
+        // Try to extract chat ID from URL patterns
+        const urlPatterns = [
+            /\/chat\/([^\/\?]+)/,
+            /\/conversation\/([^\/\?]+)/,
+            /\/prompt\/([^\/\?]+)/,
+            /\/c\/([^\/\?]+)/
+        ];
+
+        for (const pattern of urlPatterns) {
+            const match = url.match(pattern);
+            if (match) {
+                return match[1];
+            }
+        }
+
+        // Fallback: use the full pathname as identifier
+        return window.location.pathname;
+    }
+
+    /**
+     * Handle chat DOM changes that might indicate a chat switch
+     */
+    handleChatDOMChanges(mutations) {
+        for (const mutation of mutations) {
+            if (mutation.type === 'childList') {
+                // Look for elements that might indicate a new chat
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Check if this looks like a new conversation container
+                        if (node.querySelector && 
+                            (node.querySelector('[data-testid*="conversation"]') ||
+                             node.querySelector('.conversation') ||
+                             node.querySelector('.chat-container'))) {
+                            // Slight delay to ensure the chat has fully loaded
+                            setTimeout(() => {
+                                const newChatId = this.extractChatId(window.location.href);
+                                if (newChatId !== this.currentChatId) {
+                                    Logger.info(`Chat changed via DOM to ${newChatId}`);
+                                    this.currentChatId = newChatId;
+                                    this.onChatChanged();
+                                }
+                            }, 500);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Handle chat change event
+     */
+    onChatChanged() {
+        Logger.info('Chat changed - clearing responses and collecting new ones');
+        
+        // Clear existing responses for the new chat
+        this.responses = [];
+        this.updateResponseCount();
+        
+        // Collect responses from the new chat after a short delay
+        setTimeout(() => {
+            this.collectExistingResponses();
+        }, 1000);
+        
+        this.showNotification('Switched to new chat - responses cleared', 'info');
     }
 
     /**
@@ -753,9 +827,8 @@ class AIStudioEnhancer {
             this.responses.push(text);
             this.updateResponseCount();
             
-            if (this.settings.AUTO_COPY_RESPONSES) {
-                this.copyAllResponses();
-            }
+            // Always auto-copy new responses
+            this.copyAllResponses();
 
             Logger.debug('New response added:', text.substring(0, 100) + '...');
         }
@@ -766,7 +839,7 @@ class AIStudioEnhancer {
      */
     updateResponseCount() {
         if (this.responseCountElement) {
-            this.responseCountElement.textContent = `Responses collected: ${this.responses.length}`;
+            this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
         }
     }
 
@@ -800,8 +873,8 @@ class AIStudioEnhancer {
     clearResponses() {
         this.responses = [];
         this.updateResponseCount();
-        this.showNotification('Response history cleared', 'info');
-        Logger.info('Response history cleared');
+        this.showNotification('Chat responses cleared', 'info');
+        Logger.info('Chat responses cleared');
     }
 
     /**
