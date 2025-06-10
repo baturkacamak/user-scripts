@@ -7,8 +7,10 @@ import {
     HTMLUtils,
     Logger,
     Notification,
+    PollingStrategy,
     SidebarPanel,
-    StyleManager
+    StyleManager,
+    UrlChangeWatcher
 } from "../../common/core";
 import { getValue, setValue, GM_setClipboard } from "../../common/core/utils/GMFunctions";
 
@@ -142,6 +144,11 @@ class AIStudioEnhancer {
         this.debouncedInitialNotification = Debouncer.debounce((count) => {
             this.showNotification(`Collected ${count} responses from current chat`, 'info');
         }, 1000);
+
+        // Initialize URL change watcher for chat monitoring
+        this.urlWatcher = new UrlChangeWatcher([
+            new PollingStrategy(this.handleUrlChange.bind(this), 1000)
+        ], false); // false = don't fire immediately
 
         // Load saved settings
         this.loadSettings().then(() => {
@@ -456,26 +463,26 @@ class AIStudioEnhancer {
 
 
     /**
+     * Handle URL changes detected by UrlChangeWatcher
+     */
+    handleUrlChange(newUrl, oldUrl) {
+        const newChatId = this.extractChatId(newUrl);
+        if (newChatId !== this.currentChatId) {
+            Logger.info(`Chat changed from ${this.currentChatId} to ${newChatId} (URL: ${oldUrl} → ${newUrl})`);
+            this.currentChatId = newChatId;
+            this.onChatChanged();
+        }
+    }
+
+    /**
      * Setup chat monitoring to detect when user switches between chats
      */
     setupChatMonitoring() {
-        // Monitor URL changes
-        let currentUrl = window.location.href;
-        this.currentChatId = this.extractChatId(currentUrl);
+        // Initialize current chat ID
+        this.currentChatId = this.extractChatId(window.location.href);
         
-        // Check for URL changes periodically
-        setInterval(() => {
-            const newUrl = window.location.href;
-            if (newUrl !== currentUrl) {
-                currentUrl = newUrl;
-                const newChatId = this.extractChatId(newUrl);
-                if (newChatId !== this.currentChatId) {
-                    Logger.info(`Chat changed from ${this.currentChatId} to ${newChatId}`);
-                    this.currentChatId = newChatId;
-                    this.onChatChanged();
-                }
-            }
-        }, 1000);
+        // Start URL change monitoring
+        this.urlWatcher.start();
 
         // Also monitor DOM changes that might indicate chat switches
         this.chatObserver = new DOMObserver((mutations) => {
