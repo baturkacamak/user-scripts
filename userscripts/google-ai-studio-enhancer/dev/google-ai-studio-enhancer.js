@@ -131,6 +131,8 @@ class AIStudioEnhancer {
         this.settings = { ...AIStudioEnhancer.DEFAULT_SETTINGS };
         this.sidebarPanel = null;
         this.currentChatId = null;
+        this.copyButton = null;
+        this.toggleButton = null;
 
         Logger.info("Initializing Google AI Studio Enhancer");
 
@@ -181,6 +183,16 @@ class AIStudioEnhancer {
 
         // Initialize styles
         SidebarPanel.initStyles();
+        Button.initStyles();
+        Button.useDefaultColors();
+        
+        // Add custom styles for full-width buttons
+        StyleManager.addStyles(`
+            .copy-responses-button,
+            .auto-run-toggle-button {
+                width: 100% !important;
+            }
+        `, 'ai-studio-enhancer-button-styles');
 
         // Create the UI panel using SidebarPanel component
         this.createSidebarPanel();
@@ -273,25 +285,21 @@ class AIStudioEnhancer {
         this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
         this.responseCountElement.style.cssText = 'margin-bottom: 10px; color: #666; font-size: 12px;';
 
-        // Copy button
-        const copyButton = document.createElement('button');
-        copyButton.textContent = 'Copy All Responses';
-        copyButton.style.cssText = `
-            background: #4285f4;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            width: 100%;
-        `;
-        copyButton.addEventListener('click', () => this.copyAllResponses());
+        // Copy button using Button component
+        this.copyButton = new Button({
+            text: 'Copy All Responses',
+            theme: 'primary',
+            size: 'medium',
+            onClick: () => this.copyAllResponses(),
+            successText: '✅ Copied!',
+            successDuration: 1000,
+            className: 'copy-responses-button',
+            container: section
+        });
 
         section.appendChild(title);
         section.appendChild(this.responseCountElement);
-        section.appendChild(copyButton);
+        // Note: copyButton is automatically appended to section via container option
 
         container.appendChild(section);
     }
@@ -378,23 +386,15 @@ class AIStudioEnhancer {
         const buttonContainer = document.createElement('div');
         buttonContainer.style.cssText = 'margin-bottom: 10px;';
 
-        // Single toggle button for start/stop
-        this.toggleButton = document.createElement('button');
-        this.toggleButton.textContent = 'Start Auto Run';
-        this.toggleButton.style.cssText = `
-            background: #4285f4;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            width: 100%;
-        `;
-        this.toggleButton.addEventListener('click', () => this.toggleAutoRun());
-
-        buttonContainer.appendChild(this.toggleButton);
+        // Single toggle button for start/stop using Button component
+        this.toggleButton = new Button({
+            text: 'Start Auto Run',
+            theme: 'primary',
+            size: 'medium',
+            onClick: () => this.toggleAutoRun(),
+            className: 'auto-run-toggle-button',
+            container: buttonContainer
+        });
 
         // Status display
         this.statusElement = document.createElement('div');
@@ -1167,11 +1167,11 @@ class AIStudioEnhancer {
     updateButtonState() {
         if (this.toggleButton) {
             if (this.isAutoRunning) {
-                this.toggleButton.textContent = 'Stop Auto Run';
-                this.toggleButton.style.background = '#dc3545';  // Red color for stop
+                this.toggleButton.setText('Stop Auto Run');
+                this.toggleButton.setTheme('danger');  // Red color for stop
             } else {
-                this.toggleButton.textContent = 'Start Auto Run';
-                this.toggleButton.style.background = '#4285f4';  // Blue color for start
+                this.toggleButton.setText('Start Auto Run');
+                this.toggleButton.setTheme('primary');  // Blue color for start
             }
         }
     }
