@@ -1632,8 +1632,7 @@ class AIStudioEnhancer {
         // Click the run button programmatically during auto-run
         const clickEvent = new MouseEvent('click', {
             bubbles: true,
-            cancelable: true,
-            view: window
+            cancelable: true
         });
         
         // Mark this as a programmatic click for our own tracking
