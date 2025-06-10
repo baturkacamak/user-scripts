@@ -531,6 +531,7 @@
     const timestamp = Date.now();
     return devServers.map((server) => ({
       url: `${server.protocol}://${server.host}:${server.port}/${scriptPath}?t=${timestamp}`,
+      sourcemapUrl: `${server.protocol}://${server.host}:${server.port}/${scriptPath}.map`,
       priority: server.priority,
       isVite: server.isVite,
     })).sort((a, b) => a.priority - b.priority);
@@ -554,8 +555,9 @@
     }
 
     // Try each server URL in order
-    for (const {url, isVite} of scriptUrls) {
+    for (const {url, sourcemapUrl, isVite} of scriptUrls) {
       logger.debug(`Attempting to load from: ${url} (Vite: ${isVite})`);
+      logger.debug(`Sourcemap URL: ${sourcemapUrl}`);
 
       try {
         // Try GM_addElement first if available
@@ -566,7 +568,20 @@
 
         // Try direct script tag injection first
         try {
-          await injectViaScriptTag(url, scriptName);
+          const script = document.createElement('script');
+          script.src = url;
+          // Add sourcemap reference
+          script.onload = () => {
+            // Add sourcemap reference after script loads
+            const sourceMapComment = document.createComment(`//# sourceMappingURL=${sourcemapUrl}`);
+            script.parentNode.insertBefore(sourceMapComment, script.nextSibling);
+            logger.log(`Successfully loaded ${scriptName} via direct script tag`);
+          };
+          script.onerror = (err) => {
+            logger.warn(`Direct script tag failed for ${scriptName}`);
+            throw err;
+          };
+          document.head.appendChild(script);
           return true;
         } catch (e) {
           logger.debug(`Direct script tag failed, trying fallbacks: ${e.message}`);
