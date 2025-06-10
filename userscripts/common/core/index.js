@@ -7,6 +7,7 @@
 import Logger from './utils/Logger.js';
 import HTMLUtils from './utils/HTMLUtils.js';
 import StyleManager from './utils/StyleManager.js';
+import Debouncer from './utils/Debouncer.js';
 import * as GMFunctions from './utils/GMFunctions.js';
 
 // Internationalization
@@ -29,6 +30,7 @@ export {
   Logger,
   HTMLUtils,
   StyleManager,
+  Debouncer,
   GMFunctions,
 
   // Internationalization
@@ -51,6 +53,7 @@ export default {
   Logger,
   HTMLUtils,
   StyleManager,
+  Debouncer,
   TranslationManager,
   SectionToggler,
   DOMObserver,
