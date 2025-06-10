@@ -1402,7 +1402,7 @@ class AIStudioEnhancer {
         return this.cleanResponseText(fullText);
     }
 
-        /**
+    /**
      * Add a response to the collection
      */
     addResponse(element) {
@@ -1586,7 +1586,7 @@ class AIStudioEnhancer {
                 Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
             } else {
                 // Stopped by user or error
-                this.stopAutoRun();
+            this.stopAutoRun();
             }
             return;
         }
@@ -1746,7 +1746,7 @@ class AIStudioEnhancer {
                     return button;
                 }
             } catch (fallbackError) {
-                Logger.warn(`Run button not found after ${maxWaitTime}ms`);
+                    Logger.warn(`Run button not found after ${maxWaitTime}ms`);
             }
             
             return null;

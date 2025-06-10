@@ -225,6 +225,122 @@
     }
 
     /**
+     * HTMLUtils - Utilities for HTML manipulation
+     * Provides functions for escaping HTML, encoding/decoding entities, etc.
+     */
+    class HTMLUtils {
+        /**
+         * Escape special HTML characters to prevent XSS
+         * @param {string} str - The string to escape
+         * @return {string} - The escaped string
+         */
+        static escapeHTML(str) {
+            const escapeMap = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '\'': '&#39;',
+                '"': '&quot;',
+            };
+            return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
+        }
+
+        /**
+         * Escape XML special characters
+         * @param {string} str - The string to escape
+         * @return {string} - The escaped string
+         */
+        static escapeXML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        /**
+         * Convert a plain text string to sanitized HTML
+         * @param {string} text - The text to convert
+         * @return {string} - HTML with line breaks and links
+         */
+        static textToHtml(text) {
+            if (!text) return '';
+
+            // First escape HTML
+            let html = this.escapeHTML(text);
+
+            // Convert line breaks to <br>
+            html = html.replace(/\n/g, '<br>');
+
+            // Convert URLs to links
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+
+            return html;
+        }
+
+        /**
+         * * Wait for a specific element to appear in the DOM.
+         *  * Continues checking using requestAnimationFrame until it appears,
+         *  * a timeout is reached, or the maximum number of attempts is exceeded.
+         *  *
+         *  * @param {string} selector - CSS selector of the target element.
+         *  * @param {number} [timeout=10000] - Maximum time in milliseconds to wait.
+         *  * @param {Document|Element} [root=document] - DOM root to query from.
+         *  * @param {number} [maxRetries=60] - Maximum number of requestAnimationFrame attempts.
+         *  * @returns {Promise<Element>} Resolves with the found element or rejects on timeout.
+         */
+        static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+                let attempts = 0;
+
+                function checkElement() {
+                    const element = root.querySelector(selector);
+                    if (element) {
+                        resolve(element);
+                        return;
+                    }
+
+                    if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
+                        reject(new Error(`Timeout waiting for element: ${selector}`));
+                        return;
+                    }
+
+                    attempts++;
+                    requestAnimationFrame(checkElement);
+                }
+
+                checkElement();
+            });
+        }
+
+        static decodeHtmlEntities(encodedString) {
+            if (!encodedString || typeof encodedString !== 'string') return encodedString;
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = encodedString;
+            return textarea.value;
+        }
+
+        static extractMetaTags(html) {
+            if (!html) return {};
+
+            const metaTags = {};
+            const regex = /<meta\s+(?:property|name)=["']([^"']+)["']\s+content=["']([^"']+)["']/gi;
+
+            let match;
+            while (match = regex.exec(html)) {
+                if (match[1] && match[2]) {
+                    metaTags[match[1]] = this.decodeHtmlEntities(match[2]);
+                }
+            }
+
+            return metaTags;
+        }
+    }
+
+    /**
      * StyleManager - Utility for CSS style management
      * Handles adding and removing styles, theme variables, etc.
      */
@@ -303,6 +419,881 @@
 
             this.addStyles(css, 'animations');
         }
+    }
+
+    /**
+     * Debouncer - A utility class for creating debounced and throttled functions
+     *
+     * Provides sophisticated debouncing and throttling with options for immediate/delayed
+     * execution, cancellation, and flushing of pending operations.
+     */
+    class Debouncer {
+      /**
+         * Creates a debounced version of a function that delays invocation until after
+         * a specified wait time has elapsed since the last time the debounced function was called.
+         *
+         * @param {Function} func - The function to debounce.
+         * @param {number} wait - The number of milliseconds to delay.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=false] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new debounced function.
+         */
+      static debounce(func, wait, options = {}) {
+        const {leading = false, trailing = true} = options;
+        let timeout;
+        let lastArgs;
+        let lastThis;
+        let lastCallTime;
+        let result;
+
+        function invokeFunc() {
+          const args = lastArgs;
+          const thisArg = lastThis;
+
+          lastArgs = lastThis = undefined;
+          result = func.apply(thisArg, args);
+          return result;
+        }
+
+        function startTimer(pendingFunc, wait) {
+          return setTimeout(pendingFunc, wait);
+        }
+
+        function cancelTimer(id) {
+          clearTimeout(id);
+        }
+
+        function trailingEdge() {
+          timeout = undefined;
+
+          // Only invoke if we have `lastArgs` which means `func` has been debounced at least once
+          if (trailing && lastArgs) {
+            return invokeFunc();
+          }
+
+          lastArgs = lastThis = undefined;
+          return result;
+        }
+
+        function leadingEdge() {
+          // Reset any `maxWait` timer
+          timeout = startTimer(trailingEdge, wait);
+
+          // Invoke the leading edge
+          return leading ? invokeFunc() : result;
+        }
+
+        function cancel() {
+          if (timeout !== undefined) {
+            cancelTimer(timeout);
+          }
+          lastArgs = lastThis = lastCallTime = undefined;
+          timeout = undefined;
+        }
+
+        function flush() {
+          return timeout === undefined ? result : trailingEdge();
+        }
+
+        function debounced(...args) {
+          const time = Date.now();
+          const isInvoking = shouldInvoke(time);
+
+          lastArgs = args;
+          lastThis = this;
+          lastCallTime = time;
+
+          if (isInvoking) {
+            if (timeout === undefined) {
+              return leadingEdge();
+            }
+            if (isInvoking) {
+              // Handle invocations in a tight loop
+              timeout = startTimer(trailingEdge, wait);
+              return invokeFunc();
+            }
+          }
+          if (timeout === undefined) {
+            timeout = startTimer(trailingEdge, wait);
+          }
+          return result;
+        }
+
+        function shouldInvoke(time) {
+          const timeSinceLastCall = time - (lastCallTime || 0);
+
+          // Either this is the first call, activity has stopped and we're at the
+          // trailing edge, the system time has gone backwards and we're treating
+          // it as the trailing edge, or we've hit the `maxWait` limit
+          return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
+                    (0 > timeSinceLastCall));
+        }
+
+        debounced.cancel = cancel;
+        debounced.flush = flush;
+        return debounced;
+      }
+
+      /**
+         * Creates a throttled function that only invokes func at most once per
+         * every wait milliseconds.
+         *
+         * @param {Function} func - The function to throttle.
+         * @param {number} wait - The number of milliseconds to throttle invocations to.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=true] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new throttled function.
+         */
+      static throttle(func, wait, options = {}) {
+        return this.debounce(func, wait, {
+          leading: false !== options.leading,
+          trailing: false !== options.trailing,
+        });
+      }
+    }
+
+    /**
+     * PubSub - A simple publish/subscribe pattern implementation
+     * Enables components to communicate without direct references
+     */
+    class PubSub {
+        static #events = {};
+
+        /**
+         * Subscribe to an event
+         * @param {string} event - Event name
+         * @param {Function} callback - Callback function
+         * @return {string} Subscription ID
+         */
+        static subscribe(event, callback) {
+            if (!this.#events[event]) {
+                this.#events[event] = [];
+            }
+
+            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            this.#events[event].push({callback, subscriptionId});
+            return subscriptionId;
+        }
+
+        /**
+         * Unsubscribe from an event
+         * @param {string} subscriptionId - Subscription ID
+         * @return {boolean} Success state
+         */
+        static unsubscribe(subscriptionId) {
+            for (const event in this.#events) {
+                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
+                if (index !== -1) {
+                    this.#events[event].splice(index, 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Publish an event
+         * @param {string} event - Event name
+         * @param {any} data - Data to pass to subscribers
+         */
+        static publish(event, data) {
+            if (!this.#events[event]) {
+                return;
+            }
+
+            this.#events[event].forEach(sub => {
+                sub.callback(data);
+            });
+        }
+
+        /**
+         * Clear all subscriptions
+         * @param {string} [event] - Optional event name to clear only specific event
+         */
+        static clear(event) {
+            if (event) {
+                delete this.#events[event];
+            } else {
+                this.#events = {};
+            }
+        }
+    }
+
+    class DataCache {
+      constructor(logger) {
+        this.logger = logger;
+      }
+
+      get(key) {
+        try {
+          const value = localStorage.getItem(key);
+          if (value !== null) {
+            const { data, expires } = JSON.parse(value);
+            if (expires === null || new Date(expires) > new Date()) {
+              return data;
+            }
+            localStorage.removeItem(key);
+            this.logger.log(`Cache expired and removed for key: ${key}`);
+          }
+        } catch (e) {
+          this.logger.error(`Error getting cache for key ${key}:`, e);
+          localStorage.removeItem(key); // Remove potentially corrupted data
+        }
+        return null;
+      }
+
+      set(key, value, expirationDays) {
+        try {
+          const expires = expirationDays ?
+            new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
+            null;
+          localStorage.setItem(key, JSON.stringify({ data: value, expires }));
+          this.logger.log(`Cache set for key: ${key}, expires: ${expires}`);
+        } catch (e) {
+          this.logger.error(`Error setting cache for key ${key}:`, e);
+        }
+      }
+    }
+
+    /**
+     * UserInteractionDetector - A utility class for detecting genuine user interactions
+     *
+     * Provides robust detection of user-initiated events vs programmatic ones
+     * with multiple fallback mechanisms and integration with other utility classes.
+     */
+
+    class UserInteractionDetector {
+      /**
+         * Get a singleton instance - this allows sharing the detector across modules
+         * @param {Object} [options] - Configuration options (only used for first initialization)
+         * @return {UserInteractionDetector} Singleton instance
+         * @static
+         */
+      static getInstance(options = {}) {
+        if (!window.UserInteractionDetector) {
+          window.UserInteractionDetector = {};
+        }
+
+        if (!window.UserInteractionDetector._instance) {
+          window.UserInteractionDetector._instance = new UserInteractionDetector(options);
+        }
+
+        return window.UserInteractionDetector._instance;
+      }
+      /**
+         * Create a new UserInteractionDetector
+         * @param {Object} options - Configuration options
+         * @param {number} [options.interactionWindow=150] - Time window in ms to consider events related to user interaction
+         * @param {number} [options.interactionThrottle=50] - Minimum ms between interaction broadcasts
+         * @param {boolean} [options.debug=false] - Enable debug logging
+         * @param {string} [options.namespace='userscripts'] - Namespace for events
+         * @param {boolean} [options.trackGlobalInteractions=true] - Whether to track interactions on document/window level
+         * @param {boolean} [options.trackProgrammaticEvents=true] - Whether to track programmatic events like dispatchEvent
+         */
+      constructor(options = {}) {
+        // Configuration
+        this.interactionWindow = options.interactionWindow || 150; // Time window in ms
+        this.interactionThrottle = options.interactionThrottle || 50; // Throttle in ms
+        this.debug = options.debug || false;
+        this.namespace = options.namespace || 'userscripts';
+        this.trackGlobalInteractions = (false !== options.trackGlobalInteractions); // Default true
+        this.trackProgrammaticEvents = (false !== options.trackProgrammaticEvents); // Default true
+
+        // State tracking
+        this._isInteracting = false;
+        this._lastInteractionTime = 0;
+        this._interactionTypes = new Set();
+        this._lastEventTarget = null;
+        this._lastEventType = null;
+        this._interactionTimer = null;
+        this._throttleTimer = null;
+        this._overrideTimestamp = null;
+        this._userInteractionCounter = 0;
+        this._programmaticEventCounter = 0;
+        this._patched = new Set();
+
+        // Event tracking arrays
+        this._recentEvents = [];
+        this._trackedElements = new Map(); // element -> {events: [], handlers: []}
+
+        // Initialize
+        this._initTracking();
+
+        // Log initialization
+        if (this.debug) {
+          Logger.debug('UserInteractionDetector initialized with options:', {
+            interactionWindow: this.interactionWindow,
+            interactionThrottle: this.interactionThrottle,
+            namespace: this.namespace,
+            trackGlobalInteractions: this.trackGlobalInteractions,
+            trackProgrammaticEvents: this.trackProgrammaticEvents,
+          });
+        }
+      }
+
+
+      /**
+         * Track a specific element for interaction events
+         * You can use this for elements you want to specifically monitor
+         * @param {HTMLElement} element - The element to track
+         * @param {Array<string>} eventTypes - Event types to track
+         * @param {Function} callback - Callback to invoke with interaction info
+         * @return {Function} Unsubscribe function
+         */
+      trackElement(element, eventTypes = ['click', 'touchstart', 'keydown'], callback) {
+        if (!element || !element.addEventListener) {
+          this._logError('Invalid element provided to trackElement');
+          return () => {
+          }; // No-op unsubscribe
+        }
+
+        // Initialize tracking data for this element if needed
+        if (!this._trackedElements.has(element)) {
+          this._trackedElements.set(element, {
+            events: [],
+            handlers: [],
+          });
+        }
+
+        const elementData = this._trackedElements.get(element);
+        const handlers = [];
+
+        // Create handler for each event type
+        eventTypes.forEach((eventType) => {
+          const handler = (e) => {
+            const isUserInitiated = this.isUserEvent(e);
+            const interactionData = {
+              event: e,
+              timestamp: Date.now(),
+              isUserInitiated,
+              globalInteracting: this._isInteracting,
+              timeSinceLastInteraction: Date.now() - this._lastInteractionTime,
+            };
+
+            // Track this event
+            elementData.events.unshift(interactionData);
+            if (5 < elementData.events.length) {
+              elementData.events.pop();
+            }
+
+            // Call the callback
+            callback(interactionData);
+          };
+
+          // Attach the handler
+          element.addEventListener(eventType, handler);
+          handlers.push({eventType, handler});
+          elementData.handlers.push({eventType, handler});
+        });
+
+        this._log(`Now tracking ${eventTypes.join(', ')} events on element:`, element);
+
+        // Return unsubscribe function
+        return () => {
+          handlers.forEach(({eventType, handler}) => {
+            element.removeEventListener(eventType, handler);
+
+            // Remove from tracked handlers
+            if (this._trackedElements.has(element)) {
+              const data = this._trackedElements.get(element);
+              data.handlers = data.handlers.filter((h) => h.handler !== handler);
+
+              // Clean up if no more handlers
+              if (0 === data.handlers.length) {
+                this._trackedElements.delete(element);
+              }
+            }
+          });
+
+          this._log('Unsubscribed from element events');
+        };
+      }
+
+      /**
+         * Check if an event was initiated by a real user interaction
+         * @param {Event} event - The event to check
+         * @return {boolean} True if the event was likely initiated by a user
+         */
+      isUserEvent(event) {
+        if (!event) return false;
+
+        // Primary check: isTrusted property (most reliable)
+        if (event.isTrusted) {
+          return true;
+        }
+
+        // Secondary check: event occurred during known interaction window
+        if (this._isInteracting) {
+          const timeSinceInteraction = Date.now() - this._lastInteractionTime;
+          if (timeSinceInteraction < this.interactionWindow) {
+            this._log(`Event occurred ${timeSinceInteraction}ms after user interaction`);
+            return true;
+          }
+        }
+
+        // Tertiary check: was the event part of a trusted cascade?
+        // (sometimes events trigger other events programmatically, but they're still part of user input)
+        const cascadeWindow = 50; // ms to consider event cascades
+        const recentTrustedEvents = this._recentEvents.filter((e) =>
+          e.trusted && Date.now() - e.timestamp < cascadeWindow,
+        );
+
+        if (0 < recentTrustedEvents.length) {
+          this._log(`Event may be part of trusted cascade (${recentTrustedEvents.length} recent trusted events)`);
+          return true;
+        }
+
+        // Special check for specific event types that are always user-initiated
+        const alwaysUserEvents = ['beforeinput', 'mousedown', 'touchstart', 'keydown'];
+        if (alwaysUserEvents.includes(event.type) && !event._detectedByUserInteractionDetector) {
+          this._log(`Event type ${event.type} is typically user-initiated`);
+          return true;
+        }
+
+        return false;
+      }
+
+      /**
+         * Check if an element's event was likely initiated by a real user
+         * @param {HTMLElement} element - The element to check
+         * @param {string} eventType - The type of event
+         * @param {number} [timeWindow=500] - Time window to look back in ms
+         * @return {boolean} True if there's evidence the user interacted with this element
+         */
+      didUserInteractWith(element, eventType, timeWindow = 500) {
+        if (!element) return false;
+
+        // First check if we're tracking this element
+        if (this._trackedElements.has(element)) {
+          const data = this._trackedElements.get(element);
+          const recentEvents = data.events.filter((entry) =>
+            entry.event.type === eventType &&
+                    Date.now() - entry.timestamp < timeWindow &&
+                    entry.isUserInitiated,
+          );
+
+          if (0 < recentEvents.length) {
+            return true;
+          }
+        }
+
+        // Fallback: check if this element was the last interaction target
+        if (this._lastEventTarget === element &&
+                this._lastEventType === eventType &&
+                Date.now() - this._lastInteractionTime < timeWindow) {
+          return true;
+        }
+
+        // Final fallback: check if element contains last interaction target
+        if (this._lastEventTarget &&
+                element.contains(this._lastEventTarget) &&
+                Date.now() - this._lastInteractionTime < timeWindow) {
+          return true;
+        }
+
+        return false;
+      }
+
+      /**
+         * Check if the user is currently interacting with the page
+         * @return {boolean} True if user interaction was detected within the interaction window
+         */
+      isInteracting() {
+        return this._isInteracting;
+      }
+
+      /**
+         * Get time (ms) since last user interaction
+         * @return {number} Milliseconds since last interaction, or Infinity if no interaction yet
+         */
+      getTimeSinceLastInteraction() {
+        if (0 === this._lastInteractionTime) return Infinity;
+        return Date.now() - this._lastInteractionTime;
+      }
+
+      /**
+         * Check if an interaction happened recently within the given time window
+         * @param {number} withinMs - Time window in milliseconds
+         * @return {boolean} True if interaction happened within the specified window
+         */
+      interactedWithin(withinMs) {
+        return this.getTimeSinceLastInteraction() < withinMs;
+      }
+      /**
+         * Get statistics about detected interactions
+         * @return {Object} Interaction statistics
+         */
+      getStats() {
+        return {
+          isInteracting: this._isInteracting,
+          lastInteractionTime: this._lastInteractionTime,
+          timeSinceLastInteraction: this.getTimeSinceLastInteraction(),
+          interactionTypes: Array.from(this._interactionTypes),
+          userInteractionCount: this._userInteractionCounter,
+          programmaticEventCount: this._programmaticEventCounter,
+          trackedElements: this._trackedElements.size,
+          recentEvents: this._recentEvents.length,
+        };
+      }
+      /**
+         * Reset all tracking state
+         */
+      reset() {
+        this._resetInteractionState();
+        this._lastInteractionTime = 0;
+        this._userInteractionCounter = 0;
+        this._programmaticEventCounter = 0;
+        this._recentEvents = [];
+
+        // Clear tracked elements
+        this._trackedElements.forEach((data, element) => {
+          data.handlers.forEach(({eventType, handler}) => {
+            try {
+              element.removeEventListener(eventType, handler);
+            } catch (e) {
+              // Element might be gone from DOM
+            }
+          });
+        });
+        this._trackedElements.clear();
+
+        this._log('All tracking state reset');
+      }
+      /**
+         * Clean up resources when detector is no longer needed
+         */
+      destroy() {
+        this.reset();
+
+        // Could unpatch event methods here, but it's generally safer
+        // to leave them patched to avoid breaking other code
+
+        this._log('Detector destroyed');
+      }
+      /**
+         * Initialize event tracking
+         * @private
+         */
+      _initTracking() {
+        if (this.trackGlobalInteractions) {
+          // Track global user interactions (capture phase to get them early)
+          this._setupGlobalEventListeners();
+        }
+
+        if (this.trackProgrammaticEvents) {
+          // Track programmatic events by patching EventTarget.prototype
+          this._patchEventMethods();
+        }
+      }
+
+
+      /**
+         * Set up global event listeners to detect user interaction
+         * @private
+         */
+      _setupGlobalEventListeners() {
+        // Primary interaction events with capture to catch events early
+        const interactionEvents = [
+          'mousedown', 'mouseup', 'click', 'touchstart', 'touchend',
+          'keydown', 'keyup', 'keypress', 'input', 'change', 'focus',
+        ];
+
+        const handleInteraction = this._handleGlobalInteraction.bind(this);
+
+        interactionEvents.forEach((eventType) => {
+          document.addEventListener(eventType, handleInteraction, {
+            capture: true,
+            passive: true, // For better performance
+          });
+        });
+
+        // Special handling for scroll events (throttled)
+        let scrollTimeout = null;
+        const handleScroll = (e) => {
+          if (!scrollTimeout) {
+            scrollTimeout = setTimeout(() => {
+              handleInteraction(e);
+              scrollTimeout = null;
+            }, 100); // Throttle scroll events
+          }
+        };
+
+        window.addEventListener('scroll', handleScroll, {
+          capture: true,
+          passive: true,
+        });
+
+        // Track window focus/blur for tab switching context
+        window.addEventListener('focus', () => {
+          this._log('Window focused');
+          this._overrideTimestamp = Date.now();
+        });
+
+        window.addEventListener('blur', () => {
+          this._log('Window blurred - resetting interaction state');
+          this._resetInteractionState();
+        });
+
+        this._log('Global event listeners registered');
+      }
+
+
+      /**
+         * Handle a global interaction event
+         * @param {Event} e - The event object
+         * @private
+         */
+      _handleGlobalInteraction(e) {
+        // Only process trusted events from the user
+        if (!e.isTrusted) {
+          this._log(`Ignoring untrusted event: ${e.type}`);
+          return;
+        }
+
+        // Track this event in the recent events list
+        this._trackEvent(e);
+
+        // Update interaction state
+        this._setInteracting(e);
+      }
+
+
+      /**
+         * Reset interaction state
+         * @private
+         */
+      _resetInteractionState() {
+        this._isInteracting = false;
+        this._interactionTypes.clear();
+        this._lastEventTarget = null;
+        this._lastEventType = null;
+        clearTimeout(this._interactionTimer);
+        this._interactionTimer = null;
+
+        // Emit an event about interaction end
+        PubSub.publish(`${this.namespace}:interaction:end`, {
+          timestamp: Date.now(),
+          duration: Date.now() - this._lastInteractionTime,
+        });
+
+        this._log('Interaction state reset');
+      }
+
+
+      /**
+         * Set interaction state and schedule timeout
+         * @param {Event} e - The triggering event
+         * @private
+         */
+      _setInteracting(e) {
+        const now = Date.now();
+        const wasInteracting = this._isInteracting;
+
+        // Update state
+        this._isInteracting = true;
+        this._lastInteractionTime = now;
+        this._interactionTypes.add(e.type);
+        this._lastEventTarget = e.target;
+        this._lastEventType = e.type;
+        this._userInteractionCounter++;
+
+        // Clear any existing timeout and set a new one
+        clearTimeout(this._interactionTimer);
+        this._interactionTimer = setTimeout(() => {
+          this._log(`Interaction window timeout after ${this.interactionWindow}ms`);
+          this._resetInteractionState();
+        }, this.interactionWindow);
+
+        // Emit event (throttled)
+        if (!wasInteracting || !this._throttleTimer) {
+          if (this._throttleTimer) {
+            clearTimeout(this._throttleTimer);
+          }
+
+          // Immediate first notification
+          this._emitInteractionEvent(e);
+
+          // Throttle subsequent notifications
+          this._throttleTimer = setTimeout(() => {
+            this._throttleTimer = null;
+          }, this.interactionThrottle);
+        }
+      }
+
+
+      /**
+         * Emit interaction event via PubSub
+         * @param {Event} e - The triggering event
+         * @private
+         */
+      _emitInteractionEvent(e) {
+        PubSub.publish(`${this.namespace}:interaction`, {
+          timestamp: Date.now(),
+          event: {
+            type: e.type,
+            target: e.target,
+          },
+          interactionTypes: Array.from(this._interactionTypes),
+          interactionCount: this._userInteractionCounter,
+        });
+
+        this._log(`Emitted interaction event for ${e.type}`);
+      }
+
+
+      /**
+         * Track an event in the recent events list
+         * @param {Event} e - The event object
+         * @private
+         */
+      _trackEvent(e) {
+        const eventData = {
+          type: e.type,
+          timestamp: Date.now(),
+          target: e.target,
+          trusted: e.isTrusted,
+        };
+
+        // Add to recent events, keeping last 10
+        this._recentEvents.unshift(eventData);
+        if (10 < this._recentEvents.length) {
+          this._recentEvents.pop();
+        }
+      }
+
+
+      /**
+         * Patch event methods to detect programmatic events
+         * @private
+         */
+      _patchEventMethods() {
+        // Don't patch twice
+        if (this._patched.has('events')) return;
+
+        // Save original methods
+        const originalDispatchEvent = EventTarget.prototype.dispatchEvent;
+
+        // Patch dispatchEvent
+        EventTarget.prototype.dispatchEvent = function(event) {
+          // Mark the event as detected by our utility
+          event._detectedByUserInteractionDetector = true;
+
+          // Track programmatic event
+          if (window.UserInteractionDetector && window.UserInteractionDetector._instance) {
+            window.UserInteractionDetector._instance._programmaticEventCounter++;
+
+            window.UserInteractionDetector._instance._log(
+                `Programmatic event detected: ${event.type} on ${this.tagName || 'EventTarget'}`,
+            );
+          }
+
+          // Call original method
+          return originalDispatchEvent.apply(this, arguments);
+        };
+
+        this._patched.add('events');
+        this._log('Event methods patched to detect programmatic events');
+      }
+
+
+      /**
+         * Private logging helper
+         * @param {...any} args - Arguments to log
+         * @private
+         */
+      _log(...args) {
+        if (this.debug) {
+          Logger.debug('[UserInteractionDetector]', ...args);
+        }
+      }
+
+      /**
+         * Private error logging helper
+         * @param {...any} args - Arguments to log
+         * @private
+         */
+      _logError(...args) {
+        Logger.error('[UserInteractionDetector]', ...args);
+      }
+    }
+
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    class BaseStrategy {
+      constructor(callback) {
+        this.callback = callback;
+      }
+
+      start() {
+      }
+
+      stop() {
+      }
+    }
+
+    class PollingStrategy extends BaseStrategy {
+      constructor(callback, interval = 500) {
+        super(callback);
+        this.interval = interval;
+        this.lastUrl = location.href;
+      }
+
+      start() {
+        Logger.debug('PollingStrategy started');
+        this.timer = setInterval(() => {
+          const current = location.href;
+          if (current !== this.lastUrl) {
+            Logger.debug(`Polling detected change: ${this.lastUrl} → ${current}`);
+            this.callback(current, this.lastUrl);
+            this.lastUrl = current;
+          }
+        }, this.interval);
+      }
+
+      stop() {
+        clearInterval(this.timer);
+        Logger.debug('PollingStrategy stopped');
+      }
     }
 
     /**
@@ -568,113 +1559,6 @@
     // export default GMFunctions; // Not currently used this way
 
     /**
-     * PubSub - A simple publish/subscribe pattern implementation
-     * Enables components to communicate without direct references
-     */
-    class PubSub {
-        static #events = {};
-
-        /**
-         * Subscribe to an event
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         * @return {string} Subscription ID
-         */
-        static subscribe(event, callback) {
-            if (!this.#events[event]) {
-                this.#events[event] = [];
-            }
-
-            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            this.#events[event].push({callback, subscriptionId});
-            return subscriptionId;
-        }
-
-        /**
-         * Unsubscribe from an event
-         * @param {string} subscriptionId - Subscription ID
-         * @return {boolean} Success state
-         */
-        static unsubscribe(subscriptionId) {
-            for (const event in this.#events) {
-                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
-                if (index !== -1) {
-                    this.#events[event].splice(index, 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Publish an event
-         * @param {string} event - Event name
-         * @param {any} data - Data to pass to subscribers
-         */
-        static publish(event, data) {
-            if (!this.#events[event]) {
-                return;
-            }
-
-            this.#events[event].forEach(sub => {
-                sub.callback(data);
-            });
-        }
-
-        /**
-         * Clear all subscriptions
-         * @param {string} [event] - Optional event name to clear only specific event
-         */
-        static clear(event) {
-            if (event) {
-                delete this.#events[event];
-            } else {
-                this.#events = {};
-            }
-        }
-    }
-
-    class UrlChangeWatcher {
-      constructor(strategies = [], fireImmediately = true) {
-        this.strategies = strategies;
-        this.fireImmediately = fireImmediately;
-        this.lastUrl = location.href;
-        this.active = false;
-      }
-
-      start() {
-        if (this.active) return;
-        this.active = true;
-        Logger.debug('UrlChangeWatcher (Strategy) started');
-
-        this.strategies.forEach((strategy) =>
-          strategy.start?.(this._handleChange.bind(this)),
-        );
-
-        if (this.fireImmediately) {
-          this._handleChange(location.href, null, true);
-        }
-      }
-
-      stop() {
-        this.active = false;
-        this.strategies.forEach((strategy) => strategy.stop?.());
-        Logger.debug('UrlChangeWatcher (Strategy) stopped');
-      }
-
-      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
-        if (!force && newUrl === this.lastUrl) return;
-        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
-
-        this.lastUrl = newUrl;
-
-        if (PubSub?.publish) {
-          PubSub.publish('urlchange', {newUrl, oldUrl});
-        }
-      }
-    }
-
-    /**
      * DOMObserver - Observes DOM changes and URL changes
      * Uses UrlChangeWatcher for URL change detection with configurable strategies
      */
@@ -914,7 +1798,8 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          style.innerHTML = `
+          // Use textContent instead of innerHTML for CSP compliance
+          style.textContent = `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -1031,11 +1916,16 @@
          * Update the button content (icon and text).
          */
       updateContent() {
-        this.button.innerHTML = '';
+        // Clear existing content using DOM methods instead of innerHTML
+        while (this.button.firstChild) {
+          this.button.removeChild(this.button.firstChild);
+        }
+        
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          iconSpan.innerHTML = this.icon;
+          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
+          iconSpan.textContent = this.icon;
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');
@@ -1978,6 +2868,1434 @@
     Checkbox.stylesInitialized = false;
     Checkbox.initStyles();
 
+    /**
+     * SidebarPanel - A reusable UI component for creating a sidebar panel with a trigger button
+     * Similar to Wallapop's help button that shifts the site content
+     */
+
+    /**
+     * A reusable component that creates a toggle button and sidebar panel
+     */
+    class SidebarPanel {
+        // Panel states
+        static PANEL_STATES = {
+            OPENED: 'opened',
+            CLOSED: 'closed'
+        };
+
+        // Panel positions
+        static PANEL_POSITIONS = {
+            RIGHT: 'right',
+            LEFT: 'left'
+        };
+
+        // Panel transitions
+        static PANEL_TRANSITIONS = {
+            SLIDE: 'slide',
+            PUSH: 'push'
+        };
+
+        // GM storage keys
+        static STORAGE_KEYS = {
+            PANEL_STATE: 'sidebar-panel-state',
+            PANEL_SETTINGS: 'sidebar-panel-settings'
+        };
+
+        // PubSub events
+        static EVENTS = {
+            PANEL_OPEN: 'sidebar-panel-open',
+            PANEL_CLOSE: 'sidebar-panel-close',
+            PANEL_TOGGLE: 'sidebar-panel-toggle',
+            PANEL_INITIALIZED: 'sidebar-panel-initialized'
+        };
+
+        /**
+         * Create a new SidebarPanel.
+         * @param {Object} options - Configuration options.
+         * @param {String} options.title - Panel title.
+         * @param {String} [options.id="sidebar-panel"] - Unique ID for the panel.
+         * @param {String} [options.position="right"] - Position of the panel ("right" or "left").
+         * @param {String} [options.transition="slide"] - Transition effect ("slide" or "push").
+         * @param {String} [options.buttonIcon="?"] - HTML content for the toggle button.
+         * @param {Boolean} [options.showButton=true] - Whether to show the toggle button.
+         * @param {String} [options.namespace="userscripts"] - Namespace for CSS classes.
+         * @param {Function} [options.onOpen=null] - Callback when panel opens.
+         * @param {Function} [options.onClose=null] - Callback when panel closes.
+         * @param {Boolean} [options.overlay=true] - Whether to show an overlay behind the panel.
+         * @param {Object} [options.content={}] - Content configuration.
+         * @param {String|HTMLElement} [options.content.html=null] - HTML content for the panel.
+         * @param {Function} [options.content.generator=null] - Function that returns content.
+         * @param {Boolean} [options.rememberState=true] - Whether to remember the panel state.
+         * @param {Object} [options.style={}] - Custom style options.
+         * @param {String} [options.style.width="320px"] - Panel width.
+         * @param {String} [options.style.buttonSize="48px"] - Button size.
+         * @param {String} [options.style.buttonColor="#fff"] - Button text color.
+         * @param {String} [options.style.buttonBg="#625df5"] - Button background color.
+         * @param {String} [options.style.panelBg="#fff"] - Panel background color.
+         */
+        constructor(options = {}) {
+            // Process and store options with defaults
+            this.options = {
+                title: options.title || 'Panel',
+                id: options.id || 'sidebar-panel',
+                position: options.position || SidebarPanel.PANEL_POSITIONS.RIGHT,
+                transition: options.transition || SidebarPanel.PANEL_TRANSITIONS.SLIDE,
+                buttonIcon: options.buttonIcon || '?',
+                showButton: options.showButton !== false,
+                namespace: options.namespace || 'userscripts',
+                onOpen: options.onOpen || null,
+                onClose: options.onClose || null,
+                overlay: options.overlay !== false,
+                content: options.content || {},
+                rememberState: options.rememberState !== false,
+                style: options.style || {}
+            };
+
+            // Setup base class names based on namespace
+            this.baseClass = `${this.options.namespace}-sidebar-panel`;
+            this.cssVarPrefix = `--${this.options.namespace}-sidebar-panel-`;
+
+            // Elements references
+            this.container = null;
+            this.panel = null;
+            this.button = null;
+            this.closeButton = null;
+            this.content = null;
+            this.header = null;
+            this.footer = null;
+            this.overlay = null;
+
+            // Panel state
+            this.state = this.getSavedState() || SidebarPanel.PANEL_STATES.CLOSED;
+
+            // Storage key for this specific panel instance
+            this.storageKey = `${SidebarPanel.STORAGE_KEYS.PANEL_STATE}-${this.options.id}`;
+
+            // Initialize the component
+            this.init();
+        }
+
+        /**
+         * Initialize the styles for the SidebarPanel
+         * @param {String} namespace - Optional namespace to prevent CSS collisions
+         */
+        static initStyles(namespace = 'userscripts') {
+            const baseClass = `${namespace}-sidebar-panel`;
+            const cssVarPrefix = `--${namespace}-sidebar-panel-`;
+
+            StyleManager.addStyles(`
+            /* Base styles for the sidebar panel */
+            .${baseClass}-container {
+                position: fixed;
+                top: 0;
+                height: 100%;
+                z-index: 9998;
+                transition: transform 0.3s ease-in-out;
+            }
+            
+            .${baseClass}-container--right {
+                right: 0;
+                transform: translateX(100%);
+            }
+            
+            .${baseClass}-container--left {
+                left: 0;
+                transform: translateX(-100%);
+            }
+            
+            .${baseClass}-container--opened {
+                transform: translateX(0);
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            }
+            
+            .${baseClass} {
+                width: var(${cssVarPrefix}width, 320px);
+                height: 100%;
+                background-color: var(${cssVarPrefix}bg, #fff);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                position: relative;
+            }
+            
+            .${baseClass}-header {
+                padding: 16px;
+                background-color: var(${cssVarPrefix}header-bg, #f5f5f5);
+                border-bottom: 1px solid var(${cssVarPrefix}border-color, #eee);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .${baseClass}-title {
+                font-weight: bold;
+                font-size: 18px;
+                color: var(${cssVarPrefix}title-color, #333);
+                margin: 0;
+            }
+            
+            .${baseClass}-close {
+                background: none;
+                border: none;
+                cursor: pointer;
+                font-size: 24px;
+                line-height: 24px;
+                padding: 0;
+                width: 24px;
+                height: 24px;
+                color: var(${cssVarPrefix}close-color, #777);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .${baseClass}-close:hover {
+                color: var(${cssVarPrefix}close-color-hover, #333);
+            }
+            
+            .${baseClass}-content {
+                flex: 1;
+                overflow-y: auto;
+                padding: 16px;
+            }
+            
+            .${baseClass}-footer {
+                padding: 16px;
+                background-color: var(${cssVarPrefix}footer-bg, #f5f5f5);
+                border-top: 1px solid var(${cssVarPrefix}border-color, #eee);
+            }
+            
+            /* Toggle button styles */
+            .${baseClass}-toggle {
+                position: fixed;
+                width: var(${cssVarPrefix}button-size, 48px);
+                height: var(${cssVarPrefix}button-size, 48px);
+                border-radius: 50%;
+                background-color: var(${cssVarPrefix}button-bg, #625df5);
+                color: var(${cssVarPrefix}button-color, #fff);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                z-index: 9999;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+                border: none;
+                outline: none;
+                transition: background-color 0.2s ease, transform 0.2s ease;
+            }
+            
+            .${baseClass}-toggle:hover {
+                background-color: var(${cssVarPrefix}button-bg-hover, #514dc6);
+                transform: scale(1.05);
+            }
+            
+            .${baseClass}-toggle--right {
+                right: 20px;
+                bottom: 20px;
+            }
+            
+            .${baseClass}-toggle--left {
+                left: 20px;
+                bottom: 20px;
+            }
+            
+            /* For push transition effect */
+            body.${baseClass}-push-active--right {
+                transition: margin-left 0.3s ease-in-out;
+            }
+            
+            body.${baseClass}-push-active--right.${baseClass}-push--opened {
+                margin-left: calc(-1 * var(${cssVarPrefix}width, 320px));
+            }
+            
+            body.${baseClass}-push-active--left {
+                transition: margin-right 0.3s ease-in-out;
+            }
+            
+            body.${baseClass}-push-active--left.${baseClass}-push--opened {
+                margin-right: calc(-1 * var(${cssVarPrefix}width, 320px));
+            }
+            
+            /* Overlay for mobile views */
+            .${baseClass}-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 9997;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+            
+            .${baseClass}-overlay--visible {
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+            }
+            
+            /* Responsive styles */
+            @media (max-width: 768px) {
+                .${baseClass} {
+                    width: 85vw;
+                }
+            }
+        `, `${namespace}-sidebar-panel-styles`);
+        }
+
+        /**
+         * Initialize the panel and button
+         */
+        init() {
+            // Initialize styles if not already done
+            SidebarPanel.initStyles(this.options.namespace);
+
+            // Create custom CSS variables for this instance
+            this.applyCustomStyles();
+
+            // Create the panel elements
+            this.createPanel();
+
+            // Create toggle button if needed
+            if (this.options.showButton) {
+                this.createToggleButton();
+            }
+
+            // Create overlay if needed
+            if (this.options.overlay) {
+                this.createOverlay();
+            }
+
+            // Set up events
+            this.setupEvents();
+
+            // Apply saved state if we're remembering state
+            if (this.options.rememberState) {
+                if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                    this.open(false); // Open without animation for initial state
+                }
+            }
+
+            // Publish initialization event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, {
+                id: this.options.id,
+                panel: this
+            });
+
+            Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
+        }
+
+        /**
+         * Apply custom styles from options
+         */
+        applyCustomStyles() {
+            const customStyles = {};
+
+            // Process style options
+            if (this.options.style.width) {
+                customStyles[`${this.cssVarPrefix}width`] = this.options.style.width;
+            }
+            if (this.options.style.buttonSize) {
+                customStyles[`${this.cssVarPrefix}button-size`] = this.options.style.buttonSize;
+            }
+            if (this.options.style.buttonColor) {
+                customStyles[`${this.cssVarPrefix}button-color`] = this.options.style.buttonColor;
+            }
+            if (this.options.style.buttonBg) {
+                customStyles[`${this.cssVarPrefix}button-bg`] = this.options.style.buttonBg;
+            }
+            if (this.options.style.buttonBgHover) {
+                customStyles[`${this.cssVarPrefix}button-bg-hover`] = this.options.style.buttonBgHover;
+            }
+            if (this.options.style.panelBg) {
+                customStyles[`${this.cssVarPrefix}bg`] = this.options.style.panelBg;
+            }
+
+            // Apply the CSS variables using StyleManager
+            if (Object.keys(customStyles).length > 0) {
+                const styleId = `${this.baseClass}-custom-${this.options.id}`;
+                let cssText = `:root {\n`;
+
+                for (const [key, value] of Object.entries(customStyles)) {
+                    cssText += `  ${key}: ${value};\n`;
+                }
+
+                cssText += `}\n`;
+                StyleManager.addStyles(cssText, styleId);
+            }
+        }
+
+        /**
+         * Create the panel element
+         */
+        createPanel() {
+            // Create panel container
+            this.container = document.createElement('div');
+            this.container.id = `${this.baseClass}-${this.options.id}`;
+            this.container.className = `${this.baseClass}-container ${this.baseClass}-container--${this.options.position}`;
+
+            // Create panel
+            this.panel = document.createElement('div');
+            this.panel.className = this.baseClass;
+
+            // Create panel header
+            this.header = document.createElement('div');
+            this.header.className = `${this.baseClass}-header`;
+
+            // Create title
+            const title = document.createElement('h2');
+            title.className = `${this.baseClass}-title`;
+            title.textContent = this.options.title;
+            this.header.appendChild(title);
+
+            // Create close button
+            this.closeButton = document.createElement('button');
+            this.closeButton.type = 'button';
+            this.closeButton.className = `${this.baseClass}-close`;
+            this.closeButton.textContent = '×';
+            this.closeButton.setAttribute('aria-label', 'Close');
+            this.header.appendChild(this.closeButton);
+
+            // Create content container
+            this.content = document.createElement('div');
+            this.content.className = `${this.baseClass}-content`;
+
+            // Add initial content if provided
+            if (this.options.content.html) {
+                if (typeof this.options.content.html === 'string') {
+                    // For string content, create a text node instead of using innerHTML
+                    this.content.textContent = this.options.content.html;
+                } else if (this.options.content.html instanceof HTMLElement) {
+                    this.content.appendChild(this.options.content.html);
+                }
+            } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
+                const generatedContent = this.options.content.generator();
+                if (typeof generatedContent === 'string') {
+                    // For string content, create a text node instead of using innerHTML
+                    this.content.textContent = generatedContent;
+                } else if (generatedContent instanceof HTMLElement) {
+                    this.content.appendChild(generatedContent);
+                }
+            }
+
+            // Create footer (optional)
+            if (this.options.footer) {
+                this.footer = document.createElement('div');
+                this.footer.className = `${this.baseClass}-footer`;
+
+                if (typeof this.options.footer === 'string') {
+                    // For string content, create a text node instead of using innerHTML
+                    this.footer.textContent = this.options.footer;
+                } else if (this.options.footer instanceof HTMLElement) {
+                    this.footer.appendChild(this.options.footer);
+                }
+            }
+
+            // Assemble the panel
+            this.panel.appendChild(this.header);
+            this.panel.appendChild(this.content);
+            if (this.footer) {
+                this.panel.appendChild(this.footer);
+            }
+            this.container.appendChild(this.panel);
+
+            // Add to document
+            document.body.appendChild(this.container);
+        }
+
+        /**
+         * Create toggle button
+         */
+        createToggleButton() {
+            this.button = document.createElement('button');
+            this.button.type = 'button';
+            this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
+            this.button.textContent = this.options.buttonIcon;
+            this.button.setAttribute('aria-label', `Open ${this.options.title}`);
+
+            // Add to document
+            document.body.appendChild(this.button);
+        }
+
+        /**
+         * Create overlay element
+         */
+        createOverlay() {
+            this.overlay = document.createElement('div');
+            this.overlay.className = `${this.baseClass}-overlay`;
+            document.body.appendChild(this.overlay);
+        }
+
+        /**
+         * Set up event listeners
+         */
+        setupEvents() {
+            // Toggle button click
+            if (this.button) {
+                this.button.addEventListener('click', () => this.toggle());
+            }
+
+            // Close button click
+            if (this.closeButton) {
+                this.closeButton.addEventListener('click', () => this.close());
+            }
+
+            // Overlay click
+            if (this.overlay) {
+                this.overlay.addEventListener('click', () => this.close());
+            }
+
+            // Listen for PubSub events
+            this.subscriptions = [
+                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_OPEN}-${this.options.id}`, () => this.open()),
+                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_CLOSE}-${this.options.id}`, () => this.close()),
+                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_TOGGLE}-${this.options.id}`, () => this.toggle())
+            ];
+
+            // ESC key to close
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                    this.close();
+                }
+            });
+        }
+
+        /**
+         * Toggle panel state
+         */
+        toggle() {
+            if (this.state === SidebarPanel.PANEL_STATES.CLOSED) {
+                this.open();
+            } else {
+                this.close();
+            }
+        }
+
+        /**
+         * Open the panel
+         * @param {Boolean} animate - Whether to animate the opening
+         */
+        open(animate = true) {
+            if (this.state === SidebarPanel.PANEL_STATES.OPENED) return;
+
+            this.state = SidebarPanel.PANEL_STATES.OPENED;
+
+            // Update panel class
+            if (!animate) {
+                this.container.style.transition = 'none';
+                requestAnimationFrame(() => {
+                    this.container.style.transition = '';
+                });
+            }
+
+            this.container.classList.add(`${this.baseClass}-container--opened`);
+
+            // Handle push transition
+            if (this.options.transition === SidebarPanel.PANEL_TRANSITIONS.PUSH) {
+                document.body.classList.add(`${this.baseClass}-push-active--${this.options.position}`);
+                document.body.classList.add(`${this.baseClass}-push--opened`);
+            }
+
+            // Show overlay
+            if (this.overlay) {
+                this.overlay.classList.add(`${this.baseClass}-overlay--visible`);
+            }
+
+            // Save state
+            if (this.options.rememberState) {
+                this.saveState();
+            }
+
+            // Call onOpen callback if provided
+            if (typeof this.options.onOpen === 'function') {
+                this.options.onOpen();
+            }
+
+            // Publish event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_OPEN, {
+                id: this.options.id,
+                panel: this
+            });
+
+            Logger.debug(`SidebarPanel opened: ${this.options.id}`);
+        }
+
+        /**
+         * Close the panel
+         */
+        close() {
+            if (this.state === SidebarPanel.PANEL_STATES.CLOSED) return;
+
+            this.state = SidebarPanel.PANEL_STATES.CLOSED;
+
+            // Update panel class
+            this.container.classList.remove(`${this.baseClass}-container--opened`);
+
+            // Handle push transition
+            if (this.options.transition === SidebarPanel.PANEL_TRANSITIONS.PUSH) {
+                document.body.classList.remove(`${this.baseClass}-push--opened`);
+                // We keep the active class for transition
+                setTimeout(() => {
+                    if (this.state === SidebarPanel.PANEL_STATES.CLOSED) {
+                        document.body.classList.remove(`${this.baseClass}-push-active--${this.options.position}`);
+                    }
+                }, 300); // Match transition duration
+            }
+
+            // Hide overlay
+            if (this.overlay) {
+                this.overlay.classList.remove(`${this.baseClass}-overlay--visible`);
+            }
+
+            // Save state
+            if (this.options.rememberState) {
+                this.saveState();
+            }
+
+            // Call onClose callback if provided
+            if (typeof this.options.onClose === 'function') {
+                this.options.onClose();
+            }
+
+            // Publish event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_CLOSE, {
+                id: this.options.id,
+                panel: this
+            });
+
+            Logger.debug(`SidebarPanel closed: ${this.options.id}`);
+        }
+
+        /**
+         * Get saved panel state from GM storage
+         * @return {String|null} Panel state or null if not found
+         */
+        async getSavedState() {
+            if (!this.options.rememberState) return null;
+
+            try {
+                // Use directly imported getValue
+                const savedState = await getValue(this.storageKey, SidebarPanel.PANEL_STATES.CLOSED);
+                // Validate state
+                if (Object.values(SidebarPanel.PANEL_STATES).includes(savedState)) {
+                    Logger.debug('Retrieved saved panel state:', savedState, 'for key:', this.storageKey);
+                    return savedState;
+                }
+                Logger.warn('Invalid saved panel state retrieved:', savedState, 'for key:', this.storageKey);
+            } catch (error) {
+                Logger.error('Error retrieving saved panel state:', error, 'for key:', this.storageKey);
+            }
+            return SidebarPanel.PANEL_STATES.CLOSED; // Default to closed on error or invalid
+        }
+
+        /**
+         * Save the current panel state (opened/closed) if rememberState is enabled.
+         */
+        async saveState() {
+            if (!this.options.rememberState) return;
+
+            try {
+                // Use directly imported setValue
+                await setValue(this.storageKey, this.state);
+                Logger.debug('Saved panel state:', this.state, 'for key:', this.storageKey);
+            } catch (error) {
+                Logger.error('Error saving panel state:', error, 'for key:', this.storageKey);
+            }
+        }
+
+        /**
+         * Set panel content
+         * @param {String|HTMLElement} content - HTML string or element to set as content
+         */
+        setContent(content) {
+            if (!this.content) return;
+
+            // Clear existing content
+            while (this.content.firstChild) {
+                this.content.removeChild(this.content.firstChild);
+            }
+
+            // Add new content
+            if (typeof content === 'string') {
+                // For string content, create a text node instead of using innerHTML
+                this.content.textContent = content;
+            } else if (content instanceof HTMLElement) {
+                this.content.appendChild(content);
+            }
+        }
+
+        /**
+         * Set panel title
+         * @param {String} title - New title text
+         */
+        setTitle(title) {
+            const titleElement = this.header ? this.header.querySelector(`.${this.baseClass}-title`) : null;
+            if (titleElement) {
+                titleElement.textContent = title;
+                this.options.title = title;
+            }
+        }
+
+        /**
+         * Set button icon
+         * @param {String} iconHtml - Text content for icon (no HTML allowed for CSP compliance)
+         */
+        setButtonIcon(iconHtml) {
+            if (this.button) {
+                this.button.textContent = iconHtml;
+                this.options.buttonIcon = iconHtml;
+            }
+        }
+
+        /**
+         * Destroy the panel and clean up
+         */
+        destroy() {
+            // Remove DOM elements
+            if (this.container && this.container.parentNode) {
+                this.container.parentNode.removeChild(this.container);
+            }
+
+            if (this.button && this.button.parentNode) {
+                this.button.parentNode.removeChild(this.button);
+            }
+
+            if (this.overlay && this.overlay.parentNode) {
+                this.overlay.parentNode.removeChild(this.overlay);
+            }
+
+            // Remove body classes
+            document.body.classList.remove(`${this.baseClass}-push-active--${this.options.position}`);
+            document.body.classList.remove(`${this.baseClass}-push--opened`);
+
+            // Unsubscribe from PubSub events
+            if (this.subscriptions) {
+                this.subscriptions.forEach(subscriptionId => {
+                    PubSub.unsubscribe(subscriptionId);
+                });
+            }
+
+            Logger.debug(`SidebarPanel destroyed: ${this.options.id}`);
+        }
+    }
+
+    /**
+     * Notification - A reusable UI component for toast notifications.
+     * Creates customizable, temporary notifications that appear and disappear automatically.
+     */
+
+    /**
+     * A reusable UI component for creating toast notifications that provide non-intrusive
+     * feedback to users.
+     */
+    class Notification {
+        /**
+         * Storage for the notification container elements by position
+         * @private
+         */
+        static _containers = {};
+        /**
+         * Storage for all active notifications
+         * @private
+         */
+        static _activeNotifications = [];
+        /**
+         * Counter for generating unique notification IDs
+         * @private
+         */
+        static _idCounter = 0;
+        /**
+         * Maximum number of notifications to show per container
+         * @private
+         */
+        static _maxNotificationsPerContainer = 5;
+        /**
+         * Queue for notifications waiting to be shown
+         * @private
+         */
+        static _queue = [];
+
+        /**
+         * Returns the unique base CSS class for the Notification component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for notifications.
+         */
+        static get BASE_NOTIFICATION_CLASS() {
+            return 'userscripts-notification';
+        }
+
+        /**
+         * Returns the CSS variable prefix used for theming the Notification component.
+         * This prefix scopes all custom CSS variables related to the notification.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+        static get CSS_VAR_PREFIX() {
+            return '--userscripts-notification-';
+        }
+
+        /**
+         * Initialize styles for all notifications.
+         * These styles reference the CSS variables with our defined prefix.
+         */
+        static initStyles() {
+            if (Notification.stylesInitialized) return;
+
+            StyleManager.addStyles(`
+      /* Container for all notifications */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container {
+        position: fixed;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 9999;
+        pointer-events: none; /* Allow clicking through the container */
+        
+        /* Default positioning at bottom center */
+        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
+        left: 50%;
+        transform: translateX(-50%);
+        
+        /* Container width */
+        width: var(${Notification.CSS_VAR_PREFIX}container-width, auto);
+        max-width: var(${Notification.CSS_VAR_PREFIX}container-max-width, 350px);
+      }
+      
+      /* Position variants */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center {
+        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
+        bottom: auto;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left {
+        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
+        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
+        bottom: auto;
+        transform: none;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
+        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
+        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
+        left: auto;
+        bottom: auto;
+        transform: none;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left {
+        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
+        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
+        transform: none;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
+        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
+        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
+        left: auto;
+        transform: none;
+      }
+      
+      /* Individual notification toast */
+      .${Notification.BASE_NOTIFICATION_CLASS} {
+        position: relative;
+        display: flex;
+        align-items: center;
+        padding: var(${Notification.CSS_VAR_PREFIX}padding, 12px 16px);
+        border-radius: var(${Notification.CSS_VAR_PREFIX}border-radius, 6px);
+        box-shadow: var(${Notification.CSS_VAR_PREFIX}shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
+        color: var(${Notification.CSS_VAR_PREFIX}color, #fff);
+        font-family: var(${Notification.CSS_VAR_PREFIX}font-family, inherit);
+        font-size: var(${Notification.CSS_VAR_PREFIX}font-size, 14px);
+        line-height: var(${Notification.CSS_VAR_PREFIX}line-height, 1.5);
+        opacity: 0;
+        transform: translateY(100%);
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        pointer-events: auto; /* Make the notification clickable */
+        max-width: 100%;
+        box-sizing: border-box;
+        width: 100%;
+        overflow: hidden;
+        
+        /* Progress bar at the bottom */
+        &::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          height: var(${Notification.CSS_VAR_PREFIX}progress-height, 3px);
+          background-color: var(${Notification.CSS_VAR_PREFIX}progress-color, rgba(255, 255, 255, 0.5));
+          width: 100%;
+          transform-origin: left;
+          transform: scaleX(0);
+        }
+      }
+      
+      /* Visible notification */
+      .${Notification.BASE_NOTIFICATION_CLASS}--visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      
+      /* Animation for progress bar */
+      .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
+        animation-name: ${Notification.BASE_NOTIFICATION_CLASS}-progress;
+        animation-timing-function: linear;
+        animation-fill-mode: forwards;
+      }
+      
+      @keyframes ${Notification.BASE_NOTIFICATION_CLASS}-progress {
+        from { transform: scaleX(1); }
+        to { transform: scaleX(0); }
+      }
+      
+      /* Close button */
+      .${Notification.BASE_NOTIFICATION_CLASS}-close {
+        background: none;
+        border: none;
+        color: inherit;
+        opacity: 0.7;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 4px;
+        margin-left: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.2s ease;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-close:hover {
+        opacity: 1;
+      }
+      
+      /* Icon area */
+      .${Notification.BASE_NOTIFICATION_CLASS}-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+      }
+      
+      /* Content area */
+      .${Notification.BASE_NOTIFICATION_CLASS}-content {
+        flex-grow: 1;
+        word-break: break-word;
+      }
+      
+      /* Types styling */
+      .${Notification.BASE_NOTIFICATION_CLASS}--info {
+        background-color: var(${Notification.CSS_VAR_PREFIX}info-bg, #3498db);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}--success {
+        background-color: var(${Notification.CSS_VAR_PREFIX}success-bg, #2ecc71);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}--warning {
+        background-color: var(${Notification.CSS_VAR_PREFIX}warning-bg, #f39c12);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}--error {
+        background-color: var(${Notification.CSS_VAR_PREFIX}error-bg, #e74c3c);
+      }
+      
+      /* Customizable style */
+      .${Notification.BASE_NOTIFICATION_CLASS}--custom {
+        background-color: var(${Notification.CSS_VAR_PREFIX}custom-bg, #7f8c8d);
+      }
+      
+      /* Animation for top position variants */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS},
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS},
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS} {
+        transform: translateY(-100%);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS}--visible,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS}--visible,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS}--visible {
+        transform: translateY(0);
+      }
+      
+      /* Give slightly different vertical spacing based on position */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
+        flex-direction: column;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-center,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
+        flex-direction: column-reverse;
+      }
+      
+      /* For reduced motion preferences */
+      @media (prefers-reduced-motion: reduce) {
+        .${Notification.BASE_NOTIFICATION_CLASS} {
+          transition: opacity 0.1s ease;
+          transform: translateY(0);
+        }
+        
+        .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
+          animation: none;
+        }
+      }
+    `, 'userscripts-notification-styles');
+
+            Notification.stylesInitialized = true;
+        }
+
+        /**
+         * Injects default color variables for the notification component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+        static useDefaultColors() {
+            const styleId = 'userscripts-notification-default-colors';
+            if (!document.getElementById(styleId)) {
+                const style = document.createElement('style');
+                style.id = styleId;
+                // Use textContent instead of innerHTML for CSP compliance
+                style.textContent = `
+        :root {
+          /* Container styling */
+          ${Notification.CSS_VAR_PREFIX}container-width: auto;
+          ${Notification.CSS_VAR_PREFIX}container-max-width: 350px;
+          ${Notification.CSS_VAR_PREFIX}container-bottom: 16px;
+          ${Notification.CSS_VAR_PREFIX}container-top: 16px;
+          ${Notification.CSS_VAR_PREFIX}container-left: 16px;
+          ${Notification.CSS_VAR_PREFIX}container-right: 16px;
+          
+          /* Toast styling */
+          ${Notification.CSS_VAR_PREFIX}font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          ${Notification.CSS_VAR_PREFIX}font-size: 14px;
+          ${Notification.CSS_VAR_PREFIX}line-height: 1.5;
+          ${Notification.CSS_VAR_PREFIX}padding: 12px 16px;
+          ${Notification.CSS_VAR_PREFIX}border-radius: 6px;
+          ${Notification.CSS_VAR_PREFIX}shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          ${Notification.CSS_VAR_PREFIX}color: #ffffff;
+          
+          /* Progress bar */
+          ${Notification.CSS_VAR_PREFIX}progress-height: 3px;
+          ${Notification.CSS_VAR_PREFIX}progress-color: rgba(255, 255, 255, 0.5);
+          
+          /* Toast types */
+          ${Notification.CSS_VAR_PREFIX}info-bg: #3498db;
+          ${Notification.CSS_VAR_PREFIX}success-bg: #2ecc71;
+          ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
+          ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
+          ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
+        }
+      `;
+                document.head.appendChild(style);
+            }
+        }
+
+        /**
+         * Creates and shows a notification.
+         * @param {Object|string} options - Configuration options or message string
+         * @param {string} [options.message] - The notification message
+         * @param {string} [options.type='info'] - Notification type (info, success, warning, error, custom)
+         * @param {number} [options.duration=3000] - How long to show the notification (ms)
+         * @param {string} [options.position='bottom-center'] - Position (top-left, top-center, top-middle, top-right, bottom-left, bottom-center, bottom-middle, bottom-right)
+         * @param {boolean} [options.showProgress=true] - Show progress bar
+         * @param {boolean} [options.showClose=true] - Show close button
+         * @param {Function} [options.onClick] - Callback when notification is clicked
+         * @param {Function} [options.onClose] - Callback when notification closes
+         * @param {string} [options.icon] - HTML for icon to display
+         * @param {string} [options.className] - Additional CSS class
+         * @param {boolean} [options.html=false] - Whether to interpret message as HTML
+         * @param {Object} [options.style] - Custom inline styles for the notification
+         * @return {string} ID of the created notification (can be used to close it)
+         */
+        static show(options) {
+            // Initialize styles if not already done
+            this.initStyles();
+
+            // Allow passing just a message string
+            if (typeof options === 'string') {
+                options = {message: options};
+            }
+
+            // Set defaults
+            const config = {
+                message: '',
+                type: 'info',
+                duration: 3000,
+                position: 'bottom-center',
+                showProgress: true,
+                showClose: true,
+                onClick: null,
+                onClose: null,
+                icon: null,
+                className: '',
+                html: false,
+                style: null,
+                ...options
+            };
+
+            // Generate a unique ID for this notification
+            const id = `${Notification.BASE_NOTIFICATION_CLASS}-${++this._idCounter}`;
+
+            // Check if we're at the limit for the specified position
+            const positionString = this._normalizePosition(config.position);
+            const activeInPosition = this._activeNotifications.filter(n => n.position === positionString).length;
+
+            // If we're at the limit, queue this notification
+            if (activeInPosition >= this._maxNotificationsPerContainer) {
+                this._queue.push({id, ...config});
+                return id;
+            }
+
+            // Create and show the notification
+            this._createNotification(id, config);
+            return id;
+        }
+
+        /**
+         * Convenience method to show an info notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static info(message, options = {}) {
+            return this.show({...options, message, type: 'info'});
+        }
+
+        /**
+         * Convenience method to show a success notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static success(message, options = {}) {
+            return this.show({...options, message, type: 'success'});
+        }
+
+        /**
+         * Convenience method to show a warning notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static warning(message, options = {}) {
+            return this.show({...options, message, type: 'warning'});
+        }
+
+        /**
+         * Convenience method to show an error notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static error(message, options = {}) {
+            return this.show({...options, message, type: 'error'});
+        }
+
+        /**
+         * Close a notification by ID
+         * @param {string} id - The notification ID
+         * @param {boolean} [animate=true] - Whether to animate the closing
+         */
+        static close(id, animate = true) {
+            const element = document.getElementById(id);
+            if (!element) {
+                // Check if it's in the queue
+                const queueIndex = this._queue.findIndex(n => n.id === id);
+                if (queueIndex !== -1) {
+                    this._queue.splice(queueIndex, 1);
+                }
+                return;
+            }
+
+            // Get the notification object
+            const notificationIndex = this._activeNotifications.findIndex(n => n.id === id);
+            if (notificationIndex === -1) return;
+
+            const notification = this._activeNotifications[notificationIndex];
+
+            // Remove from active notifications
+            this._activeNotifications.splice(notificationIndex, 1);
+
+            // If animated, fade out then remove
+            if (animate) {
+                element.classList.remove(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
+                setTimeout(() => {
+                    this._removeNotificationElement(element, notification);
+                }, 300); // Match the transition time in CSS
+            } else {
+                this._removeNotificationElement(element, notification);
+            }
+
+            // Process the queue after removing
+            this._processQueue(notification.position);
+        }
+
+        /**
+         * Close all notifications
+         * @param {string} [position] - Only close notifications in this position
+         * @param {boolean} [animate=true] - Whether to animate the closing
+         */
+        static closeAll(position = null, animate = true) {
+            // Clear the queue
+            if (position) {
+                const normalizedPosition = this._normalizePosition(position);
+                this._queue = this._queue.filter(n => this._normalizePosition(n.position) !== normalizedPosition);
+            } else {
+                this._queue = [];
+            }
+
+            // Close active notifications
+            const notificationsToClose = position
+                ? this._activeNotifications.filter(n => n.position === this._normalizePosition(position))
+                : [...this._activeNotifications];
+
+            notificationsToClose.forEach(notification => {
+                this.close(notification.id, animate);
+            });
+        }
+
+        /**
+         * Set the maximum number of notifications to show per container
+         * @param {number} max - Maximum number of notifications
+         */
+        static setMaxNotifications(max) {
+            if (typeof max === 'number' && max > 0) {
+                this._maxNotificationsPerContainer = max;
+            }
+        }
+
+        /**
+         * Get a container element for a specific position, creating it if it doesn't exist
+         * @param {string} position - The notification position
+         * @return {HTMLElement} The container element
+         * @private
+         */
+        static _getContainer(position) {
+            const positionString = this._normalizePosition(position);
+
+            if (this._containers[positionString]) {
+                return this._containers[positionString];
+            }
+
+            // Create new container
+            const container = document.createElement('div');
+            container.className = `${Notification.BASE_NOTIFICATION_CLASS}-container ${Notification.BASE_NOTIFICATION_CLASS}-container--${positionString}`;
+            document.body.appendChild(container);
+
+            // Store for future use
+            this._containers[positionString] = container;
+            return container;
+        }
+
+        /**
+         * Normalize position string to one of the supported values
+         * @param {string} position - Position string
+         * @return {string} Normalized position string
+         * @private
+         */
+        static _normalizePosition(position) {
+            const validPositions = [
+                'top-center', 'top-left', 'top-right',
+                'bottom-center', 'bottom-left', 'bottom-right'
+            ];
+
+            if (validPositions.includes(position)) {
+                return position;
+            }
+
+            // Handle abbreviated positions
+            if (position === 'top') return 'top-center';
+            if (position === 'bottom') return 'bottom-center';
+            
+            // Handle alternative naming
+            if (position === 'top-middle') return 'top-center';
+            if (position === 'bottom-middle') return 'bottom-center';
+
+            // Default
+            return 'bottom-center';
+        }
+
+        /**
+         * Create and show a notification
+         * @param {string} id - The notification ID
+         * @param {Object} config - Notification configuration
+         * @private
+         */
+        static _createNotification(id, config) {
+            const position = this._normalizePosition(config.position);
+            const container = this._getContainer(position);
+
+            // Create the notification element
+            const element = document.createElement('div');
+            element.id = id;
+            element.className = `${Notification.BASE_NOTIFICATION_CLASS} ${Notification.BASE_NOTIFICATION_CLASS}--${config.type}`;
+
+            if (config.showProgress && config.duration > 0) {
+                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--with-progress`);
+                // Set the animation duration for the progress bar
+                element.style.setProperty('--progress-duration', `${config.duration}ms`);
+            }
+
+            if (config.className) {
+                element.classList.add(config.className);
+            }
+
+            // Apply custom styles
+            if (config.style && typeof config.style === 'object') {
+                Object.assign(element.style, config.style);
+            }
+
+            // Create content structure using DOM methods instead of innerHTML
+            
+            // Add icon if provided
+            if (config.icon) {
+                const iconDiv = document.createElement('div');
+                iconDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-icon`;
+                iconDiv.textContent = config.icon; // Use textContent for icons (should be emoji/text)
+                element.appendChild(iconDiv);
+            }
+
+            // Add message content
+            const contentDiv = document.createElement('div');
+            contentDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-content`;
+            if (config.html) {
+                // For HTML content, we'll just use text content for CSP compliance
+                // This is a security decision - no HTML allowed in notifications
+                contentDiv.textContent = config.message;
+            } else {
+                contentDiv.textContent = config.message;
+            }
+            element.appendChild(contentDiv);
+
+            // Add close button if needed
+            if (config.showClose) {
+                const closeButton = document.createElement('button');
+                closeButton.className = `${Notification.BASE_NOTIFICATION_CLASS}-close`;
+                closeButton.setAttribute('aria-label', 'Close notification');
+                closeButton.textContent = '×';
+                element.appendChild(closeButton);
+            }
+
+            // Set up animations
+            requestAnimationFrame(() => {
+                container.appendChild(element);
+
+                // Trigger layout/reflow before adding the visible class
+                void element.offsetWidth;
+
+                // Make visible
+                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
+
+                // Set animation for progress bar if applicable
+                const progressBar = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after`);
+                if (progressBar) {
+                    progressBar.style.animationDuration = `${config.duration}ms`;
+                }
+            });
+
+            // Add to active notifications
+            this._activeNotifications.push({
+                id,
+                element,
+                position,
+                config
+            });
+
+            // Set up click handler
+            if (config.onClick) {
+                element.addEventListener('click', event => {
+                    // Only trigger if not clicking the close button
+                    if (!event.target.closest(`.${Notification.BASE_NOTIFICATION_CLASS}-close`)) {
+                        config.onClick(event, id);
+                    }
+                });
+            }
+
+            // Set up close button handler
+            const closeButton = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}-close`);
+            if (closeButton) {
+                closeButton.addEventListener('click', () => this.close(id, true));
+            }
+
+            // Set auto-close timeout if duration > 0
+            if (config.duration > 0) {
+                setTimeout(() => {
+                    // Check if notification still exists before closing
+                    if (document.getElementById(id)) {
+                        this.close(id, true);
+                    }
+                }, config.duration);
+            }
+        }
+
+        /**
+         * Remove a notification element from the DOM
+         * @param {HTMLElement} element - The notification element
+         * @param {Object} notification - The notification object
+         * @private
+         */
+        static _removeNotificationElement(element, notification) {
+            if (!element) return;
+
+            // Call onClose callback if provided
+            if (notification && notification.config && notification.config.onClose) {
+                try {
+                    notification.config.onClose(notification.id);
+                } catch (e) {
+                    Logger.error(e, 'Error in notification onClose callback');
+                }
+            }
+
+            // Remove the element
+            if (element.parentNode) {
+                element.parentNode.removeChild(element);
+            }
+
+            // Check if container is empty and remove it if so
+            const container = this._containers[notification.position];
+            if (container && !container.hasChildNodes()) {
+                if (container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+                delete this._containers[notification.position];
+            }
+        }
+
+        /**
+         * Process the notification queue for a specific position
+         * @param {string} position - Position to process
+         * @private
+         */
+        static _processQueue(position) {
+            const normalizedPosition = this._normalizePosition(position);
+
+            // Check how many active notifications we have in this position
+            const activeCount = this._activeNotifications.filter(n => n.position === normalizedPosition).length;
+
+            // Check if we can show more
+            if (activeCount >= this._maxNotificationsPerContainer) return;
+
+            // Find the first queued notification for this position
+            const queueIndex = this._queue.findIndex(n =>
+                this._normalizePosition(n.position) === normalizedPosition
+            );
+
+            if (queueIndex !== -1) {
+                // Remove from queue and show
+                const nextNotification = this._queue.splice(queueIndex, 1)[0];
+                this._createNotification(nextNotification.id, nextNotification);
+            }
+        }
+    }
+
+    // Static property to track if styles have been initialized
+    Notification.stylesInitialized = false;
+
     // Import core components
 
     // Configure logger
@@ -2072,7 +4390,6 @@
         };
 
         static SETTINGS_KEYS = {
-            AUTO_COPY_RESPONSES: 'gaise-auto-copy-responses',
             DEFAULT_ITERATIONS: 'gaise-default-iterations',
             AUTO_RUN_DELAY: 'gaise-auto-run-delay',
             SHOW_NOTIFICATIONS: 'gaise-show-notifications',
@@ -2081,12 +4398,23 @@
         };
 
         static DEFAULT_SETTINGS = {
-            AUTO_COPY_RESPONSES: false,
             DEFAULT_ITERATIONS: 10,
             AUTO_RUN_DELAY: 2000,
             SHOW_NOTIFICATIONS: true,
             PANEL_POSITION: { x: 20, y: 20 },
             AUTO_RUN_PROMPT: ''
+        };
+
+        // Event names for PubSub communication
+        static EVENTS = {
+            RESPONSE_ADDED: 'ai-studio:response-added',
+            RESPONSES_COPIED: 'ai-studio:responses-copied',
+            CHAT_CHANGED: 'ai-studio:chat-changed',
+            AUTO_RUN_STARTED: 'ai-studio:auto-run-started',
+            AUTO_RUN_STOPPED: 'ai-studio:auto-run-stopped',
+            AUTO_RUN_ITERATION: 'ai-studio:auto-run-iteration',
+            SETTINGS_CHANGED: 'ai-studio:settings-changed',
+            UI_UPDATE_REQUIRED: 'ai-studio:ui-update-required'
         };
 
         /**
@@ -2098,15 +4426,487 @@
             this.currentIteration = 0;
             this.maxIterations = 0;
             this.responseObserver = null;
+            this.chatObserver = null;
             this.settings = { ...AIStudioEnhancer.DEFAULT_SETTINGS };
-            this.panel = null;
+            this.sidebarPanel = null;
+            this.currentChatId = null;
+            this.copyButton = null;
+            this.toggleButton = null;
+            this.isInitialLoad = true;
+            
+            // Store subscription IDs for cleanup
+            this.subscriptionIds = [];
+            
+            // Initialize cache for persistent response storage
+            this.responseCache = new DataCache(Logger);
+            
+            // Initialize user interaction detector for distinguishing real vs programmatic events
+            this.userInteraction = UserInteractionDetector.getInstance({
+                debug: Logger.DEBUG,
+                namespace: 'ai-studio-enhancer',
+                interactionWindow: 200, // 200ms window for related events
+                interactionThrottle: 100 // 100ms throttle for performance
+            });
 
             Logger.info("Initializing Google AI Studio Enhancer");
+
+            // Setup PubSub event handlers
+            this.setupEventHandlers();
+
+            // Create debounced notification function for initial load
+            this.debouncedInitialNotification = Debouncer.debounce((count) => {
+                this.showNotification(`Collected ${count} responses from current chat`, 'info');
+            }, 1000);
+
+            // Initialize URL change watcher for chat monitoring
+            this.urlWatcher = new UrlChangeWatcher([
+                new PollingStrategy(this.handleUrlChange.bind(this), 1000)
+            ], false); // false = don't fire immediately
 
             // Load saved settings
             this.loadSettings().then(() => {
                 // Initialize components
                 this.init();
+            });
+            
+            // Setup cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                this.cleanup();
+            });
+        }
+
+        /**
+         * Setup PubSub event handlers for event-driven communication
+         */
+        setupEventHandlers() {
+            // Handle response additions
+            this.subscriptionIds.push(
+                PubSub.subscribe(AIStudioEnhancer.EVENTS.RESPONSE_ADDED, (data) => {
+                    this.handleResponseAdded(data);
+                })
+            );
+
+            // Handle chat changes
+            this.subscriptionIds.push(
+                PubSub.subscribe(AIStudioEnhancer.EVENTS.CHAT_CHANGED, (data) => {
+                    this.handleChatChangedEvent(data);
+                })
+            );
+
+            // Handle UI updates
+            this.subscriptionIds.push(
+                PubSub.subscribe(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, (data) => {
+                    this.handleUIUpdate(data);
+                })
+            );
+
+            // Handle auto-run events
+            this.subscriptionIds.push(
+                PubSub.subscribe(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, (data) => {
+                    this.handleAutoRunStarted(data);
+                })
+            );
+
+            this.subscriptionIds.push(
+                PubSub.subscribe(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, (data) => {
+                    this.handleAutoRunStopped(data);
+                })
+            );
+
+            this.subscriptionIds.push(
+                PubSub.subscribe(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, (data) => {
+                    this.handleAutoRunIteration(data);
+                })
+            );
+
+            Logger.debug("PubSub event handlers setup complete");
+        }
+
+        /**
+         * Cleanup PubSub subscriptions and other resources
+         */
+        cleanup() {
+            // Clean up PubSub subscriptions
+            this.subscriptionIds.forEach(id => {
+                PubSub.unsubscribe(id);
+            });
+            this.subscriptionIds = [];
+            
+            // Clean up UserInteractionDetector if it was created by this instance
+            if (this.userInteraction) {
+                // Note: We don't destroy the singleton instance since other scripts might be using it
+                // Just reset our specific tracking if needed
+                Logger.debug("UserInteractionDetector cleanup - instance preserved for other users");
+            }
+            
+            // Clean up tracked run buttons
+            document.querySelectorAll('[data-ai-studio-enhancer-tracked]').forEach(button => {
+                if (button._aiStudioEnhancerCleanup) {
+                    button._aiStudioEnhancerCleanup.forEach(unsubscribe => {
+                        try {
+                            unsubscribe();
+                        } catch (error) {
+                            Logger.warn('Error during run button cleanup:', error);
+                        }
+                    });
+                    delete button._aiStudioEnhancerCleanup;
+                    delete button._aiStudioEnhancerTracked;
+                }
+            });
+            
+            // Clean up stats update interval
+            if (this.statsUpdateInterval) {
+                clearInterval(this.statsUpdateInterval);
+                this.statsUpdateInterval = null;
+            }
+            
+            Logger.debug("All subscriptions and resources cleaned up");
+        }
+
+        /**
+         * Generate cache key for current chat
+         */
+        getChatCacheKey() {
+            const chatId = this.currentChatId || 'default';
+            return `ai-studio-responses-${chatId}`;
+        }
+
+        /**
+         * Load responses from cache for current chat
+         */
+        loadResponsesFromCache() {
+            const cacheKey = this.getChatCacheKey();
+            const cachedResponses = this.responseCache.get(cacheKey);
+            
+            if (cachedResponses && Array.isArray(cachedResponses)) {
+                this.responses = [...cachedResponses];
+                Logger.debug(`Loaded ${this.responses.length} responses from cache for chat: ${this.currentChatId}`);
+                
+                // Update UI to reflect cached responses
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                    type: 'chat-changed',
+                    chatId: this.currentChatId 
+                });
+                
+                return true;
+            }
+            
+            Logger.debug(`No cached responses found for chat: ${this.currentChatId}`);
+            return false;
+        }
+
+        /**
+         * Save responses to cache for current chat
+         */
+        saveResponsesToCache() {
+            const cacheKey = this.getChatCacheKey();
+            
+            // Save responses with 7 days expiration
+            this.responseCache.set(cacheKey, this.responses, 7);
+            
+            Logger.debug(`Saved ${this.responses.length} responses to cache for chat: ${this.currentChatId}`);
+        }
+
+        /**
+         * Clear cache for current chat
+         */
+        clearChatCache() {
+            const cacheKey = this.getChatCacheKey();
+            this.responseCache.set(cacheKey, [], 7); // Set empty array instead of removing
+            Logger.debug(`Cleared cache for chat: ${this.currentChatId}`);
+        }
+
+        /**
+         * Clear all cached responses
+         */
+        clearAllCache() {
+            // This would require knowing all chat IDs, which is complex
+            // For now, we'll just clear the current chat
+            this.clearChatCache();
+            Logger.info("Cache cleared for current chat");
+        }
+
+        /**
+         * Clear current chat cache and update UI
+         */
+        clearCurrentChatCache() {
+            this.clearChatCache();
+            
+            // Also clear current responses in memory
+            this.responses = [];
+            
+            // Update UI
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'chat-changed',
+                chatId: this.currentChatId 
+            });
+            
+            this.showNotification('Cache cleared for current chat', 'success');
+            Logger.info("Current chat cache cleared via UI");
+        }
+
+        /**
+         * Update interaction statistics display
+         */
+        updateInteractionStats() {
+            if (!this.interactionStatsElement || !this.userInteraction) {
+                return;
+            }
+
+            const stats = this.userInteraction.getStats();
+            const timeSince = stats.timeSinceLastInteraction === Infinity ? 'Never' : `${Math.round(stats.timeSinceLastInteraction / 1000)}s ago`;
+
+            const statsText = [
+                `Currently Interacting: ${stats.isInteracting ? '✅ Yes' : '❌ No'}`,
+                `Last Interaction: ${timeSince}`,
+                `User Interactions: ${stats.userInteractionCount}`,
+                `Programmatic Events: ${stats.programmaticEventCount}`,
+                `Tracked Elements: ${stats.trackedElements}`,
+                `Recent Events: ${stats.recentEvents}`
+            ].join('\n');
+
+            this.interactionStatsElement.textContent = statsText;
+        }
+
+        /**
+         * Handle copy button click with user interaction detection
+         */
+        handleCopyButtonClick(event) {
+            const isUserInitiated = this.userInteraction.isUserEvent(event);
+            
+            Logger.debug('Copy button clicked', {
+                isUserInitiated,
+                eventType: event?.type,
+                isTrusted: event?.isTrusted,
+                isInteracting: this.userInteraction.isInteracting(),
+                timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+            });
+
+            if (isUserInitiated) {
+                // Real user click - show notification and copy
+                this.copyAllResponsesManual();
+                
+                // Publish event for analytics/logging
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                    type: 'user-action',
+                    action: 'copy-responses',
+                    userInitiated: true
+                });
+            } else {
+                // Programmatic click - copy silently without notification
+                Logger.info('Programmatic copy button click detected - copying silently');
+                this.copyAllResponsesSilent();
+                
+                // Publish event for analytics/logging
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                    type: 'programmatic-action',
+                    action: 'copy-responses',
+                    userInitiated: false
+                });
+            }
+        }
+
+        /**
+         * Handle toggle button click with user interaction detection
+         */
+        handleToggleButtonClick(event) {
+            const isUserInitiated = this.userInteraction.isUserEvent(event);
+            
+            Logger.debug('Toggle button clicked', {
+                isUserInitiated,
+                eventType: event?.type,
+                isTrusted: event?.isTrusted,
+                isInteracting: this.userInteraction.isInteracting(),
+                timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+            });
+
+            if (isUserInitiated) {
+                // Real user click - proceed with normal toggle behavior
+                this.toggleAutoRun();
+                
+                // Publish event for analytics/logging
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                    type: 'user-action',
+                    action: 'toggle-auto-run',
+                    userInitiated: true,
+                    newState: this.isAutoRunning
+                });
+            } else {
+                // Programmatic click - log but potentially ignore or handle differently
+                Logger.warn('Programmatic toggle button click detected - this may indicate automation or testing');
+                
+                // For now, still allow programmatic toggling but log it
+                this.toggleAutoRun();
+                
+                // Publish event for analytics/logging
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                    type: 'programmatic-action',
+                    action: 'toggle-auto-run',
+                    userInitiated: false,
+                    newState: this.isAutoRunning
+                });
+            }
+        }
+
+        /**
+         * Handle clear cache button click with user interaction detection
+         */
+        handleClearCacheClick(event) {
+            const isUserInitiated = this.userInteraction.isUserEvent(event);
+            
+            Logger.debug('Clear cache button clicked', {
+                isUserInitiated,
+                eventType: event?.type,
+                isTrusted: event?.isTrusted,
+                isInteracting: this.userInteraction.isInteracting(),
+                timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+            });
+
+            if (isUserInitiated) {
+                // Real user click - proceed with cache clearing
+                this.clearCurrentChatCache();
+                
+                // Publish event for analytics/logging
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                    type: 'user-action',
+                    action: 'clear-cache',
+                    userInitiated: true
+                });
+            } else {
+                // Programmatic click - be more cautious with destructive actions
+                Logger.warn('Programmatic clear cache click detected - requiring user confirmation');
+                
+                // For destructive actions, we might want to require real user interaction
+                // For now, we'll allow it but with extra logging
+                this.clearCurrentChatCache();
+                
+                // Publish event for analytics/logging
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                    type: 'programmatic-action',
+                    action: 'clear-cache',
+                    userInitiated: false
+                });
+            }
+        }
+
+        /**
+         * Handle response addition events
+         */
+        handleResponseAdded(data) {
+            // Update UI counter
+            this.updateResponseCount();
+            
+            // Save to cache
+            this.saveResponsesToCache();
+            
+            // Auto-copy new responses
+            this.copyAllResponsesWithSmartNotification();
+            
+            Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}`);
+        }
+
+        /**
+         * Handle chat change events
+         */
+        handleChatChangedEvent(data) {
+            Logger.info(`Chat changed event: ${data.oldChatId} → ${data.newChatId}`);
+            
+            // Try to load responses from cache for the new chat first
+            const loadedFromCache = this.loadResponsesFromCache();
+            
+            if (!loadedFromCache) {
+                // Clear responses if no cache found
+                this.responses = [];
+                
+                // Publish UI update event
+                PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                    type: 'chat-changed',
+                    chatId: data.newChatId 
+                });
+            }
+            
+            // Set initial load mode for the new chat
+            this.isInitialLoad = true;
+            
+            // Cancel any pending debounced notifications from the previous chat
+            this.debouncedInitialNotification.cancel();
+            
+            // Collect responses from the new chat after a short delay
+            setTimeout(() => {
+                this.collectExistingResponses();
+                setTimeout(() => {
+                    this.isInitialLoad = false;
+                    Logger.debug("New chat initial load completed");
+                }, 1000);
+            }, 1000);
+            
+            if (loadedFromCache) {
+                this.showNotification(`Switched to chat - loaded ${this.responses.length} cached responses`, 'info');
+            } else {
+                this.showNotification('Switched to new chat - responses cleared', 'info');
+            }
+        }
+
+        /**
+         * Handle UI update events
+         */
+        handleUIUpdate(data) {
+            switch (data.type) {
+                case 'chat-changed':
+                    this.updateResponseCount();
+                    break;
+                case 'auto-run-status':
+                    this.updateAutoRunStatus();
+                    break;
+                case 'button-state':
+                    this.updateButtonState();
+                    break;
+                default:
+                    Logger.debug('Unknown UI update type:', data.type);
+            }
+        }
+
+        /**
+         * Handle auto-run started events
+         */
+        handleAutoRunStarted(data) {
+            Logger.info(`Auto-run started event: ${data.iterations} iterations`);
+            this.showNotification(`Starting auto runner for ${data.iterations} iterations`, 'info');
+            
+            // Update UI
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'button-state' 
+            });
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'auto-run-status' 
+            });
+        }
+
+        /**
+         * Handle auto-run stopped events
+         */
+        handleAutoRunStopped(data) {
+            Logger.info(`Auto-run stopped event: ${data.reason || 'user requested'}`);
+            this.showNotification(`Auto runner stopped and reset`, 'info');
+            
+            // Update UI
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'button-state' 
+            });
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'auto-run-status' 
+            });
+        }
+
+        /**
+         * Handle auto-run iteration events
+         */
+        handleAutoRunIteration(data) {
+            Logger.info(`Auto-run iteration event: ${data.current}/${data.total}`);
+            
+            // Update UI
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'auto-run-status' 
             });
         }
 
@@ -2148,14 +4948,48 @@
             // Wait for page to be ready
             await this.waitForPageReady();
 
-            // Create the UI panel using DOM methods
-            this.createPanel();
+            // Initialize styles
+            SidebarPanel.initStyles();
+            Button.initStyles();
+            Button.useDefaultColors();
+            Notification.initStyles();
+            Notification.useDefaultColors();
+            
+            // Add custom styles for full-width buttons
+            StyleManager.addStyles(`
+            .copy-responses-button,
+            .auto-run-toggle-button {
+                width: 100% !important;
+            }
+        `, 'ai-studio-enhancer-button-styles');
+
+            // Create the UI panel using SidebarPanel component
+            this.createSidebarPanel();
+
+            // Setup chat monitoring to detect chat switches
+            this.setupChatMonitoring();
 
             // Setup response monitoring
             this.setupResponseMonitoring();
 
-            // Collect existing responses
+            // Setup user interaction tracking for run buttons
+            this.setupRunButtonInteractionTracking();
+
+            // Try to load cached responses for current chat first
+            const loadedFromCache = this.loadResponsesFromCache();
+            
+            if (loadedFromCache) {
+                Logger.info(`Loaded ${this.responses.length} cached responses for current chat`);
+            }
+
+            // Collect existing responses (this will merge with cached ones)
             this.collectExistingResponses();
+
+            // Mark initial load as complete after a delay to allow for all responses to be collected
+            setTimeout(() => {
+                this.isInitialLoad = false;
+                Logger.debug("Initial load completed, notifications now enabled for new responses");
+            }, 2000);
 
             Logger.success("Google AI Studio Enhancer initialized successfully!");
         }
@@ -2163,72 +4997,70 @@
         /**
          * Wait for the page to be ready
          */
-        waitForPageReady() {
-            return new Promise((resolve) => {
-                if (document.readyState === 'complete') {
-                    setTimeout(resolve, 1000);
-                } else {
-                    window.addEventListener('load', () => {
-                        setTimeout(resolve, 1000);
-                    });
-                }
-            });
+        async waitForPageReady() {
+            // Wait for document to be complete
+            if (document.readyState !== 'complete') {
+                await new Promise(resolve => {
+                    window.addEventListener('load', resolve, { once: true });
+                });
+            }
+            
+            // Wait for main content areas to be available
+            try {
+                // Wait for key Google AI Studio elements to be present
+                await HTMLUtils.waitForElement('body', 5000);
+                
+                // Give additional time for dynamic content to load
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                Logger.debug('Page ready - main elements found');
+            } catch (error) {
+                Logger.warn('Some page elements not found, but continuing:', error.message);
+            }
         }
 
         /**
-         * Create the main UI panel using pure DOM methods
+         * Create the main UI panel using SidebarPanel component
          */
-        createPanel() {
-            // Create main panel container
-            this.panel = document.createElement('div');
-            this.panel.className = 'ai-studio-enhancer-panel';
-            this.panel.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 320px;
-            background: #ffffff;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            z-index: 10000;
+        createSidebarPanel() {
+            this.sidebarPanel = new SidebarPanel({
+                title: '🤖 AI Studio Enhancer',
+                id: 'ai-studio-enhancer-panel',
+                position: 'right',
+                transition: 'slide',
+                buttonIcon: '🤖',
+                content: {
+                    generator: () => this.createPanelContent()
+                },
+                style: {
+                    width: '380px',
+                    buttonSize: '48px',
+                    buttonColor: '#fff',
+                    buttonBg: '#4285f4',
+                    panelBg: '#fff'
+                },
+                rememberState: true
+            });
+
+            Logger.debug("SidebarPanel created");
+        }
+
+        /**
+         * Create the content for the sidebar panel
+         */
+        createPanelContent() {
+            const content = document.createElement('div');
+            content.style.cssText = `
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 14px;
         `;
-
-            // Create header
-            const header = document.createElement('div');
-            header.style.cssText = `
-            background: #4285f4;
-            color: white;
-            padding: 12px 16px;
-            border-radius: 8px 8px 0 0;
-            font-weight: 600;
-            cursor: move;
-            user-select: none;
-        `;
-            header.textContent = '🤖 AI Studio Enhancer';
-
-            // Create content container
-            const content = document.createElement('div');
-            content.style.padding = '16px';
 
             // Create sections
             this.createResponseSection(content);
             this.createAutoRunSection(content);
             this.createSettingsSection(content);
 
-            // Assemble panel
-            this.panel.appendChild(header);
-            this.panel.appendChild(content);
-
-            // Add to page
-            document.body.appendChild(this.panel);
-
-            // Make draggable
-            this.makeDraggable(header);
-
-            Logger.debug("Panel created using DOM methods");
+            return content;
         }
 
         /**
@@ -2245,46 +5077,24 @@
 
             // Response counter
             this.responseCountElement = document.createElement('div');
-            this.responseCountElement.textContent = `Responses collected: ${this.responses.length}`;
+            this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
             this.responseCountElement.style.cssText = 'margin-bottom: 10px; color: #666; font-size: 12px;';
 
-            // Copy button
-            const copyButton = document.createElement('button');
-            copyButton.textContent = 'Copy All Responses';
-            copyButton.style.cssText = `
-            background: #4285f4;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            width: 100%;
-            margin-bottom: 8px;
-        `;
-            copyButton.addEventListener('click', () => this.copyAllResponses());
-
-            // Clear button
-            const clearButton = document.createElement('button');
-            clearButton.textContent = 'Clear Response History';
-            clearButton.style.cssText = `
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            width: 100%;
-        `;
-            clearButton.addEventListener('click', () => this.clearResponses());
+            // Copy button using Button component
+            this.copyButton = new Button({
+                text: 'Copy All Responses',
+                theme: 'primary',
+                size: 'medium',
+                onClick: (event) => this.handleCopyButtonClick(event),
+                successText: '✅ Copied!',
+                successDuration: 1000,
+                className: 'copy-responses-button',
+                container: section
+            });
 
             section.appendChild(title);
             section.appendChild(this.responseCountElement);
-            section.appendChild(copyButton);
-            section.appendChild(clearButton);
+            // Note: copyButton is automatically appended to section via container option
 
             container.appendChild(section);
         }
@@ -2369,43 +5179,17 @@
 
             // Button container
             const buttonContainer = document.createElement('div');
-            buttonContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 10px;';
+            buttonContainer.style.cssText = 'margin-bottom: 10px;';
 
-            // Start button
-            this.startButton = document.createElement('button');
-            this.startButton.textContent = 'Start Auto Run';
-            this.startButton.style.cssText = `
-            background: #4285f4;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            flex: 1;
-        `;
-            this.startButton.addEventListener('click', () => this.startAutoRun());
-
-            // Stop button
-            this.stopButton = document.createElement('button');
-            this.stopButton.textContent = 'Stop';
-            this.stopButton.disabled = true;
-            this.stopButton.style.cssText = `
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            flex: 1;
-        `;
-            this.stopButton.addEventListener('click', () => this.stopAutoRun());
-
-            buttonContainer.appendChild(this.startButton);
-            buttonContainer.appendChild(this.stopButton);
+            // Single toggle button for start/stop using Button component
+            this.toggleButton = new Button({
+                text: 'Start Auto Run',
+                theme: 'primary',
+                size: 'medium',
+                onClick: (event) => this.handleToggleButtonClick(event),
+                className: 'auto-run-toggle-button',
+                container: buttonContainer
+            });
 
             // Status display
             this.statusElement = document.createElement('div');
@@ -2432,146 +5216,183 @@
             title.textContent = '⚙️ Settings';
             title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-            // Auto-copy checkbox
-            const autoCopyContainer = document.createElement('label');
-            autoCopyContainer.style.cssText = `
-            display: flex; 
-            align-items: center; 
-            margin-bottom: 10px; 
-            cursor: pointer;
-            color: #333;
-            font-size: 14px;
+            // Cache management subsection
+            const cacheSubsection = document.createElement('div');
+            cacheSubsection.style.marginBottom = '16px';
+
+            const cacheTitle = document.createElement('h4');
+            cacheTitle.textContent = '💾 Cache Management';
+            cacheTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
+
+            // Cache info
+            const cacheInfo = document.createElement('div');
+            cacheInfo.textContent = 'Responses are automatically saved per chat';
+            cacheInfo.style.cssText = `
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
         `;
 
-            const autoCopyCheckbox = document.createElement('input');
-            autoCopyCheckbox.type = 'checkbox';
-            autoCopyCheckbox.checked = this.settings.AUTO_COPY_RESPONSES;
-            autoCopyCheckbox.style.cssText = `
-            margin-right: 8px;
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-        `;
-            autoCopyCheckbox.addEventListener('change', (e) => {
-                this.settings.AUTO_COPY_RESPONSES = e.target.checked;
-                this.saveSettings();
-            });
-            
-            // Add hover effects
-            autoCopyContainer.addEventListener('mouseenter', () => {
-                autoCopyContainer.style.backgroundColor = '#f5f5f5';
-                autoCopyContainer.style.borderRadius = '4px';
-                autoCopyContainer.style.padding = '4px';
-                autoCopyContainer.style.margin = '0 -4px 6px -4px';
-            });
-            autoCopyContainer.addEventListener('mouseleave', () => {
-                autoCopyContainer.style.backgroundColor = 'transparent';
-                autoCopyContainer.style.padding = '0';
-                autoCopyContainer.style.margin = '0 0 10px 0';
+            // Clear cache button
+            new Button({
+                text: 'Clear Current Chat Cache',
+                theme: 'danger',
+                size: 'small',
+                onClick: (event) => this.handleClearCacheClick(event),
+                successText: '✅ Cleared!',
+                successDuration: 1500,
+                container: cacheSubsection
             });
 
-            const autoCopyLabel = document.createElement('span');
-            autoCopyLabel.textContent = 'Auto-copy new responses';
-            autoCopyLabel.style.cssText = `
-            color: #333;
-            font-size: 14px;
-            user-select: none;
-        `;
+            cacheSubsection.appendChild(cacheTitle);
+            cacheSubsection.appendChild(cacheInfo);
+            // clearCacheButton is automatically appended via container option
 
-            autoCopyContainer.appendChild(autoCopyCheckbox);
-            autoCopyContainer.appendChild(autoCopyLabel);
+            // User interaction subsection
+            const interactionSubsection = document.createElement('div');
+            interactionSubsection.style.marginBottom = '16px';
 
-            // Notifications checkbox
-            const notifContainer = document.createElement('label');
-            notifContainer.style.cssText = `
-            display: flex; 
-            align-items: center; 
-            cursor: pointer;
-            color: #333;
-            font-size: 14px;
+            const interactionTitle = document.createElement('h4');
+            interactionTitle.textContent = '👆 User Interaction Detection';
+            interactionTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
+
+            // Interaction stats
+            this.interactionStatsElement = document.createElement('div');
+            this.updateInteractionStats();
+            this.interactionStatsElement.style.cssText = `
+            color: #666;
+            font-size: 11px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-line;
         `;
 
-            const notifCheckbox = document.createElement('input');
-            notifCheckbox.type = 'checkbox';
-            notifCheckbox.checked = this.settings.SHOW_NOTIFICATIONS;
-            notifCheckbox.style.cssText = `
-            margin-right: 8px;
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-        `;
-            notifCheckbox.addEventListener('change', (e) => {
-                this.settings.SHOW_NOTIFICATIONS = e.target.checked;
-                this.saveSettings();
-            });
-            
-            // Add hover effects
-            notifContainer.addEventListener('mouseenter', () => {
-                notifContainer.style.backgroundColor = '#f5f5f5';
-                notifContainer.style.borderRadius = '4px';
-                notifContainer.style.padding = '4px';
-                notifContainer.style.margin = '0 -4px 0 -4px';
-            });
-            notifContainer.addEventListener('mouseleave', () => {
-                notifContainer.style.backgroundColor = 'transparent';
-                notifContainer.style.padding = '0';
-                notifContainer.style.margin = '0';
-            });
+            // Auto-update stats every 2 seconds
+            this.statsUpdateInterval = setInterval(() => {
+                this.updateInteractionStats();
+            }, 2000);
 
-            const notifLabel = document.createElement('span');
-            notifLabel.textContent = 'Show notifications';
-            notifLabel.style.cssText = `
-            color: #333;
-            font-size: 14px;
-            user-select: none;
-        `;
-
-            notifContainer.appendChild(notifCheckbox);
-            notifContainer.appendChild(notifLabel);
+            interactionSubsection.appendChild(interactionTitle);
+            interactionSubsection.appendChild(this.interactionStatsElement);
 
             section.appendChild(title);
-            section.appendChild(autoCopyContainer);
-            section.appendChild(notifContainer);
+            section.appendChild(cacheSubsection);
+            section.appendChild(interactionSubsection);
 
             container.appendChild(section);
         }
 
+
+
         /**
-         * Make panel draggable
+         * Handle URL changes detected by UrlChangeWatcher
          */
-        makeDraggable(header) {
-            let isDragging = false;
-            let currentX;
-            let currentY;
-            let initialX;
-            let initialY;
-            let xOffset = 0;
-            let yOffset = 0;
+        handleUrlChange(newUrl, oldUrl) {
+            const newChatId = this.extractChatId(newUrl);
+            if (newChatId !== this.currentChatId) {
+                Logger.info(`Chat changed from ${this.currentChatId} to ${newChatId} (URL: ${oldUrl} → ${newUrl})`);
+                this.currentChatId = newChatId;
+                this.onChatChanged();
+            }
+        }
 
-            header.addEventListener('mousedown', (e) => {
-                initialX = e.clientX - xOffset;
-                initialY = e.clientY - yOffset;
-                if (e.target === header) {
-                    isDragging = true;
+        /**
+         * Setup chat monitoring to detect when user switches between chats
+         */
+        setupChatMonitoring() {
+            // Initialize current chat ID
+            this.currentChatId = this.extractChatId(window.location.href);
+            
+            // Start URL change monitoring
+            this.urlWatcher.start();
+
+            // Also monitor DOM changes that might indicate chat switches
+            this.chatObserver = new DOMObserver((mutations) => {
+                this.handleChatDOMChanges(mutations);
+            });
+
+            this.chatObserver.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            Logger.debug("Chat monitoring setup complete");
+        }
+
+        /**
+         * Extract chat ID from URL or content
+         */
+        extractChatId(url) {
+            // Try to extract chat ID from URL patterns
+            const urlPatterns = [
+                /\/chat\/([^\/\?]+)/,
+                /\/conversation\/([^\/\?]+)/,
+                /\/prompt\/([^\/\?]+)/,
+                /\/c\/([^\/\?]+)/
+            ];
+
+            for (const pattern of urlPatterns) {
+                const match = url.match(pattern);
+                if (match) {
+                    return match[1];
                 }
-            });
+            }
 
-            document.addEventListener('mousemove', (e) => {
-                if (isDragging) {
-                    e.preventDefault();
-                    currentX = e.clientX - initialX;
-                    currentY = e.clientY - initialY;
-                    xOffset = currentX;
-                    yOffset = currentY;
-                    this.panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+            // Fallback: use the full pathname as identifier
+            return window.location.pathname;
+        }
+
+        /**
+         * Handle chat DOM changes that might indicate a chat switch
+         */
+        handleChatDOMChanges(mutations) {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    // Look for elements that might indicate a new chat
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Check if this looks like a new conversation container
+                            if (node.querySelector && 
+                                (node.querySelector('[data-testid*="conversation"]') ||
+                                 node.querySelector('.conversation') ||
+                                 node.querySelector('.chat-container'))) {
+                                // Slight delay to ensure the chat has fully loaded
+                                setTimeout(() => {
+                                    const newChatId = this.extractChatId(window.location.href);
+                                    if (newChatId !== this.currentChatId) {
+                                        Logger.info(`Chat changed via DOM to ${newChatId}`);
+                                        this.currentChatId = newChatId;
+                                        this.onChatChanged();
+                                    }
+                                }, 500);
+                                break;
+                            }
+                        }
+                    }
                 }
-            });
+            }
+        }
 
-            document.addEventListener('mouseup', () => {
-                initialX = currentX;
-                initialY = currentY;
-                isDragging = false;
+        /**
+         * Handle chat change event
+         */
+        onChatChanged() {
+            Logger.info('Chat changed - clearing responses and collecting new ones');
+            
+            // Publish chat change event instead of handling directly
+            PubSub.publish(AIStudioEnhancer.EVENTS.CHAT_CHANGED, {
+                oldChatId: this.previousChatId || null,
+                newChatId: this.currentChatId
             });
+            
+            // Store previous chat ID for next change
+            this.previousChatId = this.currentChatId;
         }
 
         /**
@@ -2588,6 +5409,133 @@
             });
 
             Logger.debug("Response monitoring setup complete");
+        }
+
+        /**
+         * Setup user interaction tracking for run buttons
+         */
+        setupRunButtonInteractionTracking() {
+            // Track run button interactions using a MutationObserver to detect when buttons appear
+            const runButtonObserver = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'childList') {
+                        mutation.addedNodes.forEach((node) => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                // Look for run buttons in the added nodes
+                                this.trackRunButtonsInElement(node);
+                            }
+                        });
+                    }
+                });
+            });
+
+            runButtonObserver.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            // Track existing run buttons
+            this.trackExistingRunButtons();
+
+            Logger.debug("Run button interaction tracking setup complete");
+        }
+
+        /**
+         * Track existing run buttons on the page
+         */
+        trackExistingRunButtons() {
+            AIStudioEnhancer.SELECTORS.RUN_BUTTONS.forEach(selector => {
+                document.querySelectorAll(selector).forEach(button => {
+                    this.trackRunButton(button);
+                });
+            });
+        }
+
+        /**
+         * Track run buttons within a specific element
+         */
+        trackRunButtonsInElement(element) {
+            // Check if the element itself is a run button
+            if (element.matches) {
+                AIStudioEnhancer.SELECTORS.RUN_BUTTONS.forEach(selector => {
+                    if (element.matches(selector)) {
+                        this.trackRunButton(element);
+                    }
+                });
+            }
+
+            // Check for run buttons within the element
+            if (element.querySelectorAll) {
+                AIStudioEnhancer.SELECTORS.RUN_BUTTONS.forEach(selector => {
+                    element.querySelectorAll(selector).forEach(button => {
+                        this.trackRunButton(button);
+                    });
+                });
+            }
+        }
+
+        /**
+         * Track interactions with a specific run button
+         */
+        trackRunButton(button) {
+            // Avoid double-tracking
+            if (button._aiStudioEnhancerTracked) {
+                return;
+            }
+            button._aiStudioEnhancerTracked = true;
+
+            // Use UserInteractionDetector to track this button
+            const unsubscribe = this.userInteraction.trackElement(
+                button,
+                ['click', 'mousedown', 'touchstart'],
+                (interactionData) => {
+                    this.handleRunButtonInteraction(button, interactionData);
+                }
+            );
+
+            // Store unsubscribe function for cleanup
+            if (!button._aiStudioEnhancerCleanup) {
+                button._aiStudioEnhancerCleanup = [];
+            }
+            button._aiStudioEnhancerCleanup.push(unsubscribe);
+
+            Logger.debug('Started tracking run button interactions:', button);
+        }
+
+        /**
+         * Handle run button interaction events
+         */
+        handleRunButtonInteraction(button, interactionData) {
+            const { event, isUserInitiated, globalInteracting, timeSinceLastInteraction } = interactionData;
+            
+            // Check if this is our programmatic click
+            const isProgrammaticFromAutoRun = event._aiStudioEnhancerProgrammatic;
+            
+            Logger.debug('Run button interaction detected', {
+                eventType: event.type,
+                isUserInitiated,
+                isProgrammaticFromAutoRun,
+                globalInteracting,
+                timeSinceLastInteraction,
+                isAutoRunning: this.isAutoRunning,
+                isTrusted: event.isTrusted
+            });
+
+            // Publish event for analytics/logging
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                type: isUserInitiated ? 'user-action' : 'programmatic-action',
+                action: 'run-button-click',
+                userInitiated: isUserInitiated,
+                isProgrammaticFromAutoRun,
+                eventType: event.type,
+                isAutoRunning: this.isAutoRunning
+            });
+
+            // Special handling for user-initiated clicks during auto-run
+            if (isUserInitiated && this.isAutoRunning && !isProgrammaticFromAutoRun) {
+                Logger.info('User clicked run button while auto-run is active - this may interfere with automation');
+                this.showNotification('Manual run detected during auto-run - may cause conflicts', 'warning');
+            }
         }
 
         /**
@@ -2627,13 +5575,16 @@
          * Collect existing responses on page
          */
         collectExistingResponses() {
+            const initialResponseCount = this.responses.length;
+            
             AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS.forEach(selector => {
                 document.querySelectorAll(selector).forEach(element => {
                     this.addResponse(element);
                 });
             });
 
-            Logger.info(`Collected ${this.responses.length} existing responses`);
+            const newResponseCount = this.responses.length - initialResponseCount;
+            Logger.info(`Collected ${newResponseCount} new responses (${this.responses.length} total including cached)`);
             this.updateResponseCount();
         }
 
@@ -2739,31 +5690,42 @@
             const text = this.extractResponseText(element);
             if (text && text.length > 10 && !this.responses.includes(text)) {
                 this.responses.push(text);
-                this.updateResponseCount();
                 
-                if (this.settings.AUTO_COPY_RESPONSES) {
-                    this.copyAllResponses();
-                }
+                // Publish event instead of direct method calls
+                PubSub.publish(AIStudioEnhancer.EVENTS.RESPONSE_ADDED, {
+                    text: text,
+                    total: this.responses.length,
+                    isInitialLoad: this.isInitialLoad
+                });
 
                 Logger.debug('New response added:', text.substring(0, 100) + '...');
             }
         }
 
         /**
-         * Update response counter display
+         * Copy responses with intelligent notification handling
          */
-        updateResponseCount() {
-            if (this.responseCountElement) {
-                this.responseCountElement.textContent = `Responses collected: ${this.responses.length}`;
+        async copyAllResponsesWithSmartNotification() {
+            // Always copy to clipboard
+            const success = await this.copyAllResponsesSilent();
+            
+            if (!success) return;
+
+            // Handle notifications smartly
+            if (this.isInitialLoad) {
+                // During initial load, use debounced notification
+                this.debouncedInitialNotification(this.responses.length);
+            } else {
+                // After initial load, show immediate notifications for new responses
+                this.showNotification(`New response copied! Total: ${this.responses.length}`, 'success');
             }
         }
 
         /**
-         * Copy all responses to clipboard
+         * Copy all responses to clipboard without showing notifications
          */
-        async copyAllResponses() {
+        async copyAllResponsesSilent() {
             if (this.responses.length === 0) {
-                this.showNotification('No responses found to copy', 'warning');
                 return false;
             }
 
@@ -2772,14 +5734,46 @@
 
             try {
                 GM_setClipboard(content);
-                this.showNotification(`Copied ${this.responses.length} responses to clipboard`, 'success');
                 Logger.success(`Copied ${this.responses.length} responses to clipboard`);
                 return true;
             } catch (error) {
-                this.showNotification('Failed to copy responses', 'error');
                 Logger.error('Failed to copy responses:', error);
                 return false;
             }
+        }
+
+        /**
+         * Update response counter display
+         */
+        updateResponseCount() {
+            if (this.responseCountElement) {
+                this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
+            }
+        }
+
+        /**
+         * Manual copy button handler - always shows notifications
+         */
+        async copyAllResponsesManual() {
+            if (this.responses.length === 0) {
+                this.showNotification('No responses found to copy', 'warning');
+                return false;
+            }
+
+            const success = await this.copyAllResponsesSilent();
+            if (success) {
+                this.showNotification(`Copied ${this.responses.length} responses to clipboard`, 'success');
+            } else {
+                this.showNotification('Failed to copy responses', 'error');
+            }
+            return success;
+        }
+
+        /**
+         * Copy all responses to clipboard (legacy method for compatibility)
+         */
+        async copyAllResponses() {
+            return await this.copyAllResponsesManual();
         }
 
         /**
@@ -2788,8 +5782,19 @@
         clearResponses() {
             this.responses = [];
             this.updateResponseCount();
-            this.showNotification('Response history cleared', 'info');
-            Logger.info('Response history cleared');
+            this.showNotification('Chat responses cleared', 'info');
+            Logger.info('Chat responses cleared');
+        }
+
+        /**
+         * Toggle auto-run process (start/stop)
+         */
+        async toggleAutoRun() {
+            if (this.isAutoRunning) {
+                this.stopAutoRun();
+            } else {
+                await this.startAutoRun();
+            }
         }
 
         /**
@@ -2811,12 +5816,12 @@
             this.currentIteration = 0;
             this.maxIterations = iterations;
 
-            // Update UI
-            this.startButton.disabled = true;
-            this.stopButton.disabled = false;
-            this.updateAutoRunStatus();
+            // Publish auto-run started event
+            PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, {
+                iterations: iterations,
+                timestamp: Date.now()
+            });
 
-            this.showNotification(`Starting auto runner for ${iterations} iterations`, 'info');
             Logger.info(`Starting auto runner for ${iterations} iterations`);
 
             await this.runIteration();
@@ -2829,13 +5834,16 @@
         stopAutoRun() {
             this.isAutoRunning = false;
             
-            // Update UI
-            this.startButton.disabled = false;
-            this.stopButton.disabled = true;
-            this.updateAutoRunStatus();
+            // Reset iteration count to 0
+            this.currentIteration = 0;
+            
+            // Publish auto-run stopped event
+            PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                reason: 'user requested',
+                timestamp: Date.now()
+            });
 
-            this.showNotification(`Auto runner stopped at ${this.currentIteration}/${this.maxIterations}`, 'info');
-            Logger.info(`Auto runner stopped. Completed ${this.currentIteration}/${this.maxIterations} iterations`);
+            Logger.info(`Auto runner stopped and reset`);
         }
 
         /**
@@ -2843,12 +5851,36 @@
          */
         async runIteration() {
             if (!this.isAutoRunning || this.currentIteration >= this.maxIterations) {
+                if (this.currentIteration >= this.maxIterations) {
+                    // Auto-run completed all iterations
+                    this.isAutoRunning = false;
+                    this.currentIteration = 0;
+                    
+                    // Publish completion event
+                    PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                        reason: 'completed',
+                        completedIterations: this.maxIterations,
+                        timestamp: Date.now()
+                    });
+                    
+                    this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
+                    Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
+                } else {
+                    // Stopped by user or error
                 this.stopAutoRun();
+                }
                 return;
             }
 
             this.currentIteration++;
-            this.updateAutoRunStatus();
+            
+            // Publish iteration event
+            PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, {
+                current: this.currentIteration,
+                total: this.maxIterations,
+                timestamp: Date.now()
+            });
+            
             Logger.info(`Running iteration ${this.currentIteration}/${this.maxIterations}`);
 
             // Enter prompt if specified
@@ -2871,9 +5903,18 @@
                 return;
             }
 
-            // Click the run button
-            runButton.click();
-            Logger.debug('Run button clicked');
+            // Click the run button programmatically during auto-run
+            const clickEvent = new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            });
+            
+            // Mark this as a programmatic click for our own tracking
+            clickEvent._aiStudioEnhancerProgrammatic = true;
+            
+            runButton.dispatchEvent(clickEvent);
+            Logger.debug('Run button clicked programmatically during auto-run iteration');
 
             // Wait for response completion
             await this.waitForResponseCompletion();
@@ -2966,33 +6007,31 @@
          * Wait for the run button to become available and enabled
          */
         async waitForRunButton(maxWaitTime = 10000) {
-            return new Promise((resolve) => {
-                let attempts = 0;
-                const maxAttempts = maxWaitTime / 500; // Check every 500ms
+            try {
+                // Try to find enabled run button using HTMLUtils
+                const button = await HTMLUtils.waitForElement('button.run-button[aria-label="Run"]:not(.disabled):not([disabled]):not(.stoppable)', maxWaitTime);
+                Logger.debug('Run button found and enabled using HTMLUtils');
+                return button;
+            } catch (error) {
+                // Fallback to custom logic if specific selector doesn't work
+                Logger.debug('HTMLUtils waitForElement failed, trying fallback method');
                 
-                const checkForButton = () => {
-                    attempts++;
+                try {
+                    // Wait for any run button first
+                    await HTMLUtils.waitForElement('button.run-button[aria-label="Run"]', maxWaitTime);
+                    
+                    // Then check if it's enabled
                     const button = this.findRunButton();
-                    
                     if (button) {
-                        Logger.debug('Run button found and enabled after', attempts * 500, 'ms');
-                        resolve(button);
-                        return;
+                        Logger.debug('Run button found via fallback method');
+                        return button;
                     }
-                    
-                    if (attempts >= maxAttempts) {
+                } catch (fallbackError) {
                         Logger.warn(`Run button not found after ${maxWaitTime}ms`);
-                        resolve(null);
-                        return;
-                    }
-                    
-                    Logger.debug(`Waiting for run button... attempt ${attempts}/${maxAttempts}`);
-                    setTimeout(checkForButton, 500);
-                };
+                }
                 
-                // Start checking immediately
-                checkForButton();
-            });
+                return null;
+            }
         }
 
         /**
@@ -3168,36 +6207,73 @@
         }
 
         /**
+         * Update button state based on running status
+         */
+        updateButtonState() {
+            if (this.toggleButton) {
+                if (this.isAutoRunning) {
+                    this.toggleButton.setText('Stop Auto Run');
+                    this.toggleButton.setTheme('danger');  // Red color for stop
+                } else {
+                    this.toggleButton.setText('Start Auto Run');
+                    this.toggleButton.setTheme('primary');  // Blue color for start
+                }
+            }
+        }
+
+        /**
          * Update auto-run status display
          */
         updateAutoRunStatus() {
             if (this.statusElement) {
                 if (this.isAutoRunning) {
                     this.statusElement.textContent = `Running: ${this.currentIteration}/${this.maxIterations}`;
-                } else {
-                    if (this.currentIteration > 0) {
-                        this.statusElement.textContent = `Completed: ${this.currentIteration}/${this.maxIterations}`;
                     } else {
                         this.statusElement.textContent = 'Ready to start';
-                    }
                 }
             }
         }
 
         /**
-         * Show notification if enabled
+         * Show notification using the Notification component
          */
         showNotification(message, type = 'info') {
-            if (this.settings.SHOW_NOTIFICATIONS) {
-                // Simple notification using alert as fallback
-                // Since Trusted Types might block advanced notifications too
-                console.log(`[${type.toUpperCase()}] ${message}`);
-                
-                // You could also create a simple toast notification using DOM methods
-                if (type === 'error') {
-                    alert(`Error: ${message}`);
-                }
+            // Always show notifications since we removed the setting
+            // Use the Notification component for proper toast notifications
+            switch (type) {
+                case 'success':
+                    Notification.success(message, {
+                        duration: 3000,
+                        position: 'top-center',
+                        showProgress: true
+                    });
+                    break;
+                case 'warning':
+                    Notification.warning(message, {
+                        duration: 4000,
+                        position: 'top-center',
+                        showProgress: true
+                    });
+                    break;
+                case 'error':
+                    Notification.error(message, {
+                        duration: 5000,
+                        position: 'top-center',
+                        showProgress: true
+                    });
+                    break;
+                case 'info':
+                default:
+                    Notification.info(message, {
+                        duration: 3000,
+                        position: 'top-center',
+                        showProgress: true
+                    });
+                    break;
             }
+            
+            // Also log to console for debugging
+            Logger.info(`[NOTIFICATION ${type.toUpperCase()}] ${message}`);
         }
     }
 

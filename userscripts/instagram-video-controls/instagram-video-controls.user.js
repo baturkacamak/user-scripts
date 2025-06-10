@@ -422,6 +422,283 @@
     }
 
     /**
+     * Debouncer - A utility class for creating debounced and throttled functions
+     *
+     * Provides sophisticated debouncing and throttling with options for immediate/delayed
+     * execution, cancellation, and flushing of pending operations.
+     */
+    class Debouncer {
+      /**
+         * Creates a debounced version of a function that delays invocation until after
+         * a specified wait time has elapsed since the last time the debounced function was called.
+         *
+         * @param {Function} func - The function to debounce.
+         * @param {number} wait - The number of milliseconds to delay.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=false] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new debounced function.
+         */
+      static debounce(func, wait, options = {}) {
+        const {leading = false, trailing = true} = options;
+        let timeout;
+        let lastArgs;
+        let lastThis;
+        let lastCallTime;
+        let result;
+
+        function invokeFunc() {
+          const args = lastArgs;
+          const thisArg = lastThis;
+
+          lastArgs = lastThis = undefined;
+          result = func.apply(thisArg, args);
+          return result;
+        }
+
+        function startTimer(pendingFunc, wait) {
+          return setTimeout(pendingFunc, wait);
+        }
+
+        function cancelTimer(id) {
+          clearTimeout(id);
+        }
+
+        function trailingEdge() {
+          timeout = undefined;
+
+          // Only invoke if we have `lastArgs` which means `func` has been debounced at least once
+          if (trailing && lastArgs) {
+            return invokeFunc();
+          }
+
+          lastArgs = lastThis = undefined;
+          return result;
+        }
+
+        function leadingEdge() {
+          // Reset any `maxWait` timer
+          timeout = startTimer(trailingEdge, wait);
+
+          // Invoke the leading edge
+          return leading ? invokeFunc() : result;
+        }
+
+        function cancel() {
+          if (timeout !== undefined) {
+            cancelTimer(timeout);
+          }
+          lastArgs = lastThis = lastCallTime = undefined;
+          timeout = undefined;
+        }
+
+        function flush() {
+          return timeout === undefined ? result : trailingEdge();
+        }
+
+        function debounced(...args) {
+          const time = Date.now();
+          const isInvoking = shouldInvoke(time);
+
+          lastArgs = args;
+          lastThis = this;
+          lastCallTime = time;
+
+          if (isInvoking) {
+            if (timeout === undefined) {
+              return leadingEdge();
+            }
+            if (isInvoking) {
+              // Handle invocations in a tight loop
+              timeout = startTimer(trailingEdge, wait);
+              return invokeFunc();
+            }
+          }
+          if (timeout === undefined) {
+            timeout = startTimer(trailingEdge, wait);
+          }
+          return result;
+        }
+
+        function shouldInvoke(time) {
+          const timeSinceLastCall = time - (lastCallTime || 0);
+
+          // Either this is the first call, activity has stopped and we're at the
+          // trailing edge, the system time has gone backwards and we're treating
+          // it as the trailing edge, or we've hit the `maxWait` limit
+          return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
+                    (0 > timeSinceLastCall));
+        }
+
+        debounced.cancel = cancel;
+        debounced.flush = flush;
+        return debounced;
+      }
+
+      /**
+         * Creates a throttled function that only invokes func at most once per
+         * every wait milliseconds.
+         *
+         * @param {Function} func - The function to throttle.
+         * @param {number} wait - The number of milliseconds to throttle invocations to.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=true] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new throttled function.
+         */
+      static throttle(func, wait, options = {}) {
+        return this.debounce(func, wait, {
+          leading: false !== options.leading,
+          trailing: false !== options.trailing,
+        });
+      }
+    }
+
+    /**
+     * PubSub - A simple publish/subscribe pattern implementation
+     * Enables components to communicate without direct references
+     */
+    class PubSub {
+        static #events = {};
+
+        /**
+         * Subscribe to an event
+         * @param {string} event - Event name
+         * @param {Function} callback - Callback function
+         * @return {string} Subscription ID
+         */
+        static subscribe(event, callback) {
+            if (!this.#events[event]) {
+                this.#events[event] = [];
+            }
+
+            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            this.#events[event].push({callback, subscriptionId});
+            return subscriptionId;
+        }
+
+        /**
+         * Unsubscribe from an event
+         * @param {string} subscriptionId - Subscription ID
+         * @return {boolean} Success state
+         */
+        static unsubscribe(subscriptionId) {
+            for (const event in this.#events) {
+                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
+                if (index !== -1) {
+                    this.#events[event].splice(index, 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Publish an event
+         * @param {string} event - Event name
+         * @param {any} data - Data to pass to subscribers
+         */
+        static publish(event, data) {
+            if (!this.#events[event]) {
+                return;
+            }
+
+            this.#events[event].forEach(sub => {
+                sub.callback(data);
+            });
+        }
+
+        /**
+         * Clear all subscriptions
+         * @param {string} [event] - Optional event name to clear only specific event
+         */
+        static clear(event) {
+            if (event) {
+                delete this.#events[event];
+            } else {
+                this.#events = {};
+            }
+        }
+    }
+
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    class BaseStrategy {
+      constructor(callback) {
+        this.callback = callback;
+      }
+
+      start() {
+      }
+
+      stop() {
+      }
+    }
+
+    class PollingStrategy extends BaseStrategy {
+      constructor(callback, interval = 500) {
+        super(callback);
+        this.interval = interval;
+        this.lastUrl = location.href;
+      }
+
+      start() {
+        Logger.debug('PollingStrategy started');
+        this.timer = setInterval(() => {
+          const current = location.href;
+          if (current !== this.lastUrl) {
+            Logger.debug(`Polling detected change: ${this.lastUrl} → ${current}`);
+            this.callback(current, this.lastUrl);
+            this.lastUrl = current;
+          }
+        }, this.interval);
+      }
+
+      stop() {
+        clearInterval(this.timer);
+        Logger.debug('PollingStrategy stopped');
+      }
+    }
+
+    /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
@@ -684,113 +961,6 @@
     // export default GMFunctions; // Not currently used this way
 
     /**
-     * PubSub - A simple publish/subscribe pattern implementation
-     * Enables components to communicate without direct references
-     */
-    class PubSub {
-        static #events = {};
-
-        /**
-         * Subscribe to an event
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         * @return {string} Subscription ID
-         */
-        static subscribe(event, callback) {
-            if (!this.#events[event]) {
-                this.#events[event] = [];
-            }
-
-            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            this.#events[event].push({callback, subscriptionId});
-            return subscriptionId;
-        }
-
-        /**
-         * Unsubscribe from an event
-         * @param {string} subscriptionId - Subscription ID
-         * @return {boolean} Success state
-         */
-        static unsubscribe(subscriptionId) {
-            for (const event in this.#events) {
-                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
-                if (index !== -1) {
-                    this.#events[event].splice(index, 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Publish an event
-         * @param {string} event - Event name
-         * @param {any} data - Data to pass to subscribers
-         */
-        static publish(event, data) {
-            if (!this.#events[event]) {
-                return;
-            }
-
-            this.#events[event].forEach(sub => {
-                sub.callback(data);
-            });
-        }
-
-        /**
-         * Clear all subscriptions
-         * @param {string} [event] - Optional event name to clear only specific event
-         */
-        static clear(event) {
-            if (event) {
-                delete this.#events[event];
-            } else {
-                this.#events = {};
-            }
-        }
-    }
-
-    class UrlChangeWatcher {
-      constructor(strategies = [], fireImmediately = true) {
-        this.strategies = strategies;
-        this.fireImmediately = fireImmediately;
-        this.lastUrl = location.href;
-        this.active = false;
-      }
-
-      start() {
-        if (this.active) return;
-        this.active = true;
-        Logger.debug('UrlChangeWatcher (Strategy) started');
-
-        this.strategies.forEach((strategy) =>
-          strategy.start?.(this._handleChange.bind(this)),
-        );
-
-        if (this.fireImmediately) {
-          this._handleChange(location.href, null, true);
-        }
-      }
-
-      stop() {
-        this.active = false;
-        this.strategies.forEach((strategy) => strategy.stop?.());
-        Logger.debug('UrlChangeWatcher (Strategy) stopped');
-      }
-
-      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
-        if (!force && newUrl === this.lastUrl) return;
-        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
-
-        this.lastUrl = newUrl;
-
-        if (PubSub?.publish) {
-          PubSub.publish('urlchange', {newUrl, oldUrl});
-        }
-      }
-    }
-
-    /**
      * DOMObserver - Observes DOM changes and URL changes
      * Uses UrlChangeWatcher for URL change detection with configurable strategies
      */
@@ -1030,7 +1200,8 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          style.innerHTML = `
+          // Use textContent instead of innerHTML for CSP compliance
+          style.textContent = `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -1147,11 +1318,16 @@
          * Update the button content (icon and text).
          */
       updateContent() {
-        this.button.innerHTML = '';
+        // Clear existing content using DOM methods instead of innerHTML
+        while (this.button.firstChild) {
+          this.button.removeChild(this.button.firstChild);
+        }
+        
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          iconSpan.innerHTML = this.icon;
+          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
+          iconSpan.textContent = this.icon;
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');
@@ -3068,7 +3244,7 @@
             this.closeButton = document.createElement('button');
             this.closeButton.type = 'button';
             this.closeButton.className = `${this.baseClass}-close`;
-            this.closeButton.innerHTML = '×';
+            this.closeButton.textContent = '×';
             this.closeButton.setAttribute('aria-label', 'Close');
             this.header.appendChild(this.closeButton);
 
@@ -3079,14 +3255,16 @@
             // Add initial content if provided
             if (this.options.content.html) {
                 if (typeof this.options.content.html === 'string') {
-                    this.content.innerHTML = this.options.content.html;
+                    // For string content, create a text node instead of using innerHTML
+                    this.content.textContent = this.options.content.html;
                 } else if (this.options.content.html instanceof HTMLElement) {
                     this.content.appendChild(this.options.content.html);
                 }
             } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
                 const generatedContent = this.options.content.generator();
                 if (typeof generatedContent === 'string') {
-                    this.content.innerHTML = generatedContent;
+                    // For string content, create a text node instead of using innerHTML
+                    this.content.textContent = generatedContent;
                 } else if (generatedContent instanceof HTMLElement) {
                     this.content.appendChild(generatedContent);
                 }
@@ -3098,7 +3276,8 @@
                 this.footer.className = `${this.baseClass}-footer`;
 
                 if (typeof this.options.footer === 'string') {
-                    this.footer.innerHTML = this.options.footer;
+                    // For string content, create a text node instead of using innerHTML
+                    this.footer.textContent = this.options.footer;
                 } else if (this.options.footer instanceof HTMLElement) {
                     this.footer.appendChild(this.options.footer);
                 }
@@ -3123,7 +3302,7 @@
             this.button = document.createElement('button');
             this.button.type = 'button';
             this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
-            this.button.innerHTML = this.options.buttonIcon;
+            this.button.textContent = this.options.buttonIcon;
             this.button.setAttribute('aria-label', `Open ${this.options.title}`);
 
             // Add to document
@@ -3324,11 +3503,14 @@
             if (!this.content) return;
 
             // Clear existing content
-            this.content.innerHTML = '';
+            while (this.content.firstChild) {
+                this.content.removeChild(this.content.firstChild);
+            }
 
             // Add new content
             if (typeof content === 'string') {
-                this.content.innerHTML = content;
+                // For string content, create a text node instead of using innerHTML
+                this.content.textContent = content;
             } else if (content instanceof HTMLElement) {
                 this.content.appendChild(content);
             }
@@ -3348,11 +3530,11 @@
 
         /**
          * Set button icon
-         * @param {String} iconHtml - HTML string for icon content
+         * @param {String} iconHtml - Text content for icon (no HTML allowed for CSP compliance)
          */
         setButtonIcon(iconHtml) {
             if (this.button) {
-                this.button.innerHTML = iconHtml;
+                this.button.textContent = iconHtml;
                 this.options.buttonIcon = iconHtml;
             }
         }
@@ -3666,7 +3848,8 @@
             if (!document.getElementById(styleId)) {
                 const style = document.createElement('style');
                 style.id = styleId;
-                style.innerHTML = `
+                // Use textContent instead of innerHTML for CSP compliance
+                style.textContent = `
         :root {
           /* Container styling */
           ${Notification.CSS_VAR_PREFIX}container-width: auto;
@@ -3707,7 +3890,7 @@
          * @param {string} [options.message] - The notification message
          * @param {string} [options.type='info'] - Notification type (info, success, warning, error, custom)
          * @param {number} [options.duration=3000] - How long to show the notification (ms)
-         * @param {string} [options.position='bottom-center'] - Position (bottom-center, top-center, top-left, top-right, bottom-left, bottom-right)
+         * @param {string} [options.position='bottom-center'] - Position (top-left, top-center, top-middle, top-right, bottom-left, bottom-center, bottom-middle, bottom-right)
          * @param {boolean} [options.showProgress=true] - Show progress bar
          * @param {boolean} [options.showClose=true] - Show close button
          * @param {Function} [options.onClick] - Callback when notification is clicked
@@ -3917,6 +4100,10 @@
             // Handle abbreviated positions
             if (position === 'top') return 'top-center';
             if (position === 'bottom') return 'bottom-center';
+            
+            // Handle alternative naming
+            if (position === 'top-middle') return 'top-center';
+            if (position === 'bottom-middle') return 'bottom-center';
 
             // Default
             return 'bottom-center';
@@ -3952,32 +4139,36 @@
                 Object.assign(element.style, config.style);
             }
 
-            // Create content structure
-            let content = '';
-
+            // Create content structure using DOM methods instead of innerHTML
+            
             // Add icon if provided
             if (config.icon) {
-                content += `<div class="${Notification.BASE_NOTIFICATION_CLASS}-icon">${config.icon}</div>`;
+                const iconDiv = document.createElement('div');
+                iconDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-icon`;
+                iconDiv.textContent = config.icon; // Use textContent for icons (should be emoji/text)
+                element.appendChild(iconDiv);
             }
 
-            // Add message
-            content += `<div class="${Notification.BASE_NOTIFICATION_CLASS}-content">`;
+            // Add message content
+            const contentDiv = document.createElement('div');
+            contentDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-content`;
             if (config.html) {
-                content += config.message;
+                // For HTML content, we'll just use text content for CSP compliance
+                // This is a security decision - no HTML allowed in notifications
+                contentDiv.textContent = config.message;
             } else {
-                const message = document.createTextNode(config.message);
-                const tempDiv = document.createElement('div');
-                tempDiv.appendChild(message);
-                content += tempDiv.innerHTML;
+                contentDiv.textContent = config.message;
             }
-            content += '</div>';
+            element.appendChild(contentDiv);
 
             // Add close button if needed
             if (config.showClose) {
-                content += `<button class="${Notification.BASE_NOTIFICATION_CLASS}-close" aria-label="Close notification">×</button>`;
+                const closeButton = document.createElement('button');
+                closeButton.className = `${Notification.BASE_NOTIFICATION_CLASS}-close`;
+                closeButton.setAttribute('aria-label', 'Close notification');
+                closeButton.textContent = '×';
+                element.appendChild(closeButton);
             }
-
-            element.innerHTML = content;
 
             // Set up animations
             requestAnimationFrame(() => {
@@ -4965,43 +5156,6 @@
                 alert('Failed to download video using all available methods. You might need to use browser developer tools or specific extensions.');
             }
         }
-    }
-
-    class BaseStrategy {
-      constructor(callback) {
-        this.callback = callback;
-      }
-
-      start() {
-      }
-
-      stop() {
-      }
-    }
-
-    class PollingStrategy extends BaseStrategy {
-      constructor(callback, interval = 500) {
-        super(callback);
-        this.interval = interval;
-        this.lastUrl = location.href;
-      }
-
-      start() {
-        Logger.debug('PollingStrategy started');
-        this.timer = setInterval(() => {
-          const current = location.href;
-          if (current !== this.lastUrl) {
-            Logger.debug(`Polling detected change: ${this.lastUrl} → ${current}`);
-            this.callback(current, this.lastUrl);
-            this.lastUrl = current;
-          }
-        }, this.interval);
-      }
-
-      stop() {
-        clearInterval(this.timer);
-        Logger.debug('PollingStrategy stopped');
-      }
     }
 
     /**
@@ -6916,139 +7070,6 @@
             Logger.warn('Failed to find a media container ancestor.');
             return null;
         }
-    }
-
-    /**
-     * Debouncer - A utility class for creating debounced and throttled functions
-     *
-     * Provides sophisticated debouncing and throttling with options for immediate/delayed
-     * execution, cancellation, and flushing of pending operations.
-     */
-    class Debouncer {
-      /**
-         * Creates a debounced version of a function that delays invocation until after
-         * a specified wait time has elapsed since the last time the debounced function was called.
-         *
-         * @param {Function} func - The function to debounce.
-         * @param {number} wait - The number of milliseconds to delay.
-         * @param {Object} [options] - The options object.
-         * @param {boolean} [options.leading=false] - Specify invoking on the leading edge of the timeout.
-         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
-         * @return {Function} Returns the new debounced function.
-         */
-      static debounce(func, wait, options = {}) {
-        const {leading = false, trailing = true} = options;
-        let timeout;
-        let lastArgs;
-        let lastThis;
-        let lastCallTime;
-        let result;
-
-        function invokeFunc() {
-          const args = lastArgs;
-          const thisArg = lastThis;
-
-          lastArgs = lastThis = undefined;
-          result = func.apply(thisArg, args);
-          return result;
-        }
-
-        function startTimer(pendingFunc, wait) {
-          return setTimeout(pendingFunc, wait);
-        }
-
-        function cancelTimer(id) {
-          clearTimeout(id);
-        }
-
-        function trailingEdge() {
-          timeout = undefined;
-
-          // Only invoke if we have `lastArgs` which means `func` has been debounced at least once
-          if (trailing && lastArgs) {
-            return invokeFunc();
-          }
-
-          lastArgs = lastThis = undefined;
-          return result;
-        }
-
-        function leadingEdge() {
-          // Reset any `maxWait` timer
-          timeout = startTimer(trailingEdge, wait);
-
-          // Invoke the leading edge
-          return leading ? invokeFunc() : result;
-        }
-
-        function cancel() {
-          if (timeout !== undefined) {
-            cancelTimer(timeout);
-          }
-          lastArgs = lastThis = lastCallTime = undefined;
-          timeout = undefined;
-        }
-
-        function flush() {
-          return timeout === undefined ? result : trailingEdge();
-        }
-
-        function debounced(...args) {
-          const time = Date.now();
-          const isInvoking = shouldInvoke(time);
-
-          lastArgs = args;
-          lastThis = this;
-          lastCallTime = time;
-
-          if (isInvoking) {
-            if (timeout === undefined) {
-              return leadingEdge();
-            }
-            if (isInvoking) {
-              // Handle invocations in a tight loop
-              timeout = startTimer(trailingEdge, wait);
-              return invokeFunc();
-            }
-          }
-          if (timeout === undefined) {
-            timeout = startTimer(trailingEdge, wait);
-          }
-          return result;
-        }
-
-        function shouldInvoke(time) {
-          const timeSinceLastCall = time - (lastCallTime || 0);
-
-          // Either this is the first call, activity has stopped and we're at the
-          // trailing edge, the system time has gone backwards and we're treating
-          // it as the trailing edge, or we've hit the `maxWait` limit
-          return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
-                    (0 > timeSinceLastCall));
-        }
-
-        debounced.cancel = cancel;
-        debounced.flush = flush;
-        return debounced;
-      }
-
-      /**
-         * Creates a throttled function that only invokes func at most once per
-         * every wait milliseconds.
-         *
-         * @param {Function} func - The function to throttle.
-         * @param {number} wait - The number of milliseconds to throttle invocations to.
-         * @param {Object} [options] - The options object.
-         * @param {boolean} [options.leading=true] - Specify invoking on the leading edge of the timeout.
-         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
-         * @return {Function} Returns the new throttled function.
-         */
-      static throttle(func, wait, options = {}) {
-        return this.debounce(func, wait, {
-          leading: false !== options.leading,
-          trailing: false !== options.trailing,
-        });
-      }
     }
 
     /**

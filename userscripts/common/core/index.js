@@ -9,6 +9,8 @@ import HTMLUtils from './utils/HTMLUtils.js';
 import StyleManager from './utils/StyleManager.js';
 import Debouncer from './utils/Debouncer.js';
 import PubSub from './utils/PubSub.js';
+import { DataCache } from './utils/DataCache.js';
+import UserInteractionDetector from './utils/UserInteractionDetector.js';
 import UrlChangeWatcher from './utils/UrlChangeWatcher/index.js';
 import PollingStrategy from './utils/UrlChangeWatcher/strategies/PollingStrategy.js';
 import * as GMFunctions from './utils/GMFunctions.js';
@@ -35,6 +37,8 @@ export {
   StyleManager,
   Debouncer,
   PubSub,
+  DataCache,
+  UserInteractionDetector,
   UrlChangeWatcher,
   PollingStrategy,
   GMFunctions,
@@ -61,6 +65,8 @@ export default {
   StyleManager,
   Debouncer,
   PubSub,
+  DataCache,
+  UserInteractionDetector,
   UrlChangeWatcher,
   PollingStrategy,
   TranslationManager,
