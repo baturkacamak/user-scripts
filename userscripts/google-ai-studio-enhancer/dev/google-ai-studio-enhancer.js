@@ -889,13 +889,14 @@ class AIStudioEnhancer {
                 this.stopAutoRun();
                 return;
             }
-            // Small delay after entering prompt
-            await this.delay(200);
+            // Small delay after entering prompt to let Google process the input
+            await this.delay(500);
         }
 
-        const runButton = this.findRunButton();
+        // Wait for run button to become enabled (with retry mechanism)
+        const runButton = await this.waitForRunButton();
         if (!runButton) {
-            this.showNotification('Run button not found', 'error');
+            this.showNotification('Run button not found after waiting', 'error');
             this.stopAutoRun();
             return;
         }
@@ -992,6 +993,39 @@ class AIStudioEnhancer {
     }
 
     /**
+     * Wait for the run button to become available and enabled
+     */
+    async waitForRunButton(maxWaitTime = 10000) {
+        return new Promise((resolve) => {
+            let attempts = 0;
+            const maxAttempts = maxWaitTime / 500; // Check every 500ms
+            
+            const checkForButton = () => {
+                attempts++;
+                const button = this.findRunButton();
+                
+                if (button) {
+                    Logger.debug('Run button found and enabled after', attempts * 500, 'ms');
+                    resolve(button);
+                    return;
+                }
+                
+                if (attempts >= maxAttempts) {
+                    Logger.warn(`Run button not found after ${maxWaitTime}ms`);
+                    resolve(null);
+                    return;
+                }
+                
+                Logger.debug(`Waiting for run button... attempt ${attempts}/${maxAttempts}`);
+                setTimeout(checkForButton, 500);
+            };
+            
+            // Start checking immediately
+            checkForButton();
+        });
+    }
+
+    /**
      * Find the run button on the page
      */
     findRunButton() {
@@ -1055,9 +1089,20 @@ class AIStudioEnhancer {
                 const isStoppable = runButton.classList.contains('stoppable');
                 const isButtonTypeButton = runButton.type === 'button';
                 const isDisabled = runButton.disabled || runButton.classList.contains('disabled');
+                const buttonText = runButton.textContent?.trim();
                 
-                // Response is complete when button is back to normal "Run" state
-                const isComplete = !isStoppable && !isButtonTypeButton && !isDisabled && runButton.type === 'submit';
+                Logger.debug(`Button state check:`, {
+                    isStoppable,
+                    isButtonTypeButton,
+                    isDisabled,
+                    type: runButton.type,
+                    text: buttonText,
+                    classes: Array.from(runButton.classList)
+                });
+                
+                // Response is complete when button changes from "Stop" to "Run" state
+                // Note: Button may be disabled because prompt is empty (that's normal)
+                const isComplete = !isStoppable && !isButtonTypeButton && runButton.type === 'submit';
                 
                 if (isComplete) {
                     Logger.debug('Response completion detected via DOM observer');
@@ -1075,12 +1120,10 @@ class AIStudioEnhancer {
                 
                 mutations.forEach((mutation) => {
                     // Check if the run button or its attributes changed
-                    if (mutation.type === 'attributes' && 
-                        (mutation.attributeName === 'class' || 
-                         mutation.attributeName === 'type' || 
-                         mutation.attributeName === 'disabled')) {
+                    if (mutation.type === 'attributes') {
                         const target = mutation.target;
                         if (target.classList.contains('run-button') || target.getAttribute('aria-label') === 'Run') {
+                            Logger.debug(`Button attribute changed: ${mutation.attributeName} on`, target);
                             shouldCheck = true;
                         }
                     }
@@ -1091,14 +1134,25 @@ class AIStudioEnhancer {
                             if (node.nodeType === Node.ELEMENT_NODE) {
                                 if (node.classList?.contains('run-button') || 
                                     node.querySelector?.('.run-button')) {
+                                    Logger.debug('Run button node added/changed');
                                     shouldCheck = true;
                                 }
                             }
                         });
                     }
+                    
+                    // Also check for text content changes (Stop -> Run)
+                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                        const target = mutation.target;
+                        if (target.closest && target.closest('.run-button')) {
+                            Logger.debug('Button content changed');
+                            shouldCheck = true;
+                        }
+                    }
                 });
                 
                 if (shouldCheck) {
+                    Logger.debug('DOM observer triggered, checking completion...');
                     checkCompletion();
                 }
             });
@@ -1108,8 +1162,11 @@ class AIStudioEnhancer {
                 childList: true,
                 subtree: true,
                 attributes: true,
-                attributeFilter: ['class', 'type', 'disabled', 'aria-label']
+                attributeFilter: ['class', 'type', 'disabled', 'aria-label'],
+                characterData: true // Watch for text changes too
             });
+            
+            Logger.debug('DOM observer started, watching for button changes...');
 
             // Initial check after a short delay to let the button state change
             setTimeout(() => {
@@ -1120,6 +1177,21 @@ class AIStudioEnhancer {
                         cleanup();
                         resolve();
                     }, 120000); // 2 minutes
+                    
+                    // Also set up periodic checking as backup (every 5 seconds)
+                    const intervalId = setInterval(() => {
+                        Logger.debug('Periodic check (backup)...');
+                        if (checkCompletion()) {
+                            clearInterval(intervalId);
+                        }
+                    }, 5000);
+                    
+                    // Store interval ID for cleanup
+                    const originalCleanup = cleanup;
+                    cleanup = () => {
+                        clearInterval(intervalId);
+                        originalCleanup();
+                    };
                 }
             }, 500); // Reduced from 2000ms to 500ms
         });
