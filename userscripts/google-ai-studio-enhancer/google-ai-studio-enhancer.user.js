@@ -225,122 +225,6 @@
     }
 
     /**
-     * HTMLUtils - Utilities for HTML manipulation
-     * Provides functions for escaping HTML, encoding/decoding entities, etc.
-     */
-    class HTMLUtils {
-        /**
-         * Escape special HTML characters to prevent XSS
-         * @param {string} str - The string to escape
-         * @return {string} - The escaped string
-         */
-        static escapeHTML(str) {
-            const escapeMap = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '\'': '&#39;',
-                '"': '&quot;',
-            };
-            return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
-        }
-
-        /**
-         * Escape XML special characters
-         * @param {string} str - The string to escape
-         * @return {string} - The escaped string
-         */
-        static escapeXML(str) {
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&apos;');
-        }
-
-        /**
-         * Convert a plain text string to sanitized HTML
-         * @param {string} text - The text to convert
-         * @return {string} - HTML with line breaks and links
-         */
-        static textToHtml(text) {
-            if (!text) return '';
-
-            // First escape HTML
-            let html = this.escapeHTML(text);
-
-            // Convert line breaks to <br>
-            html = html.replace(/\n/g, '<br>');
-
-            // Convert URLs to links
-            const urlRegex = /(https?:\/\/[^\s]+)/g;
-            html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
-
-            return html;
-        }
-
-        /**
-         * * Wait for a specific element to appear in the DOM.
-         *  * Continues checking using requestAnimationFrame until it appears,
-         *  * a timeout is reached, or the maximum number of attempts is exceeded.
-         *  *
-         *  * @param {string} selector - CSS selector of the target element.
-         *  * @param {number} [timeout=10000] - Maximum time in milliseconds to wait.
-         *  * @param {Document|Element} [root=document] - DOM root to query from.
-         *  * @param {number} [maxRetries=60] - Maximum number of requestAnimationFrame attempts.
-         *  * @returns {Promise<Element>} Resolves with the found element or rejects on timeout.
-         */
-        static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
-            return new Promise((resolve, reject) => {
-                const startTime = Date.now();
-                let attempts = 0;
-
-                function checkElement() {
-                    const element = root.querySelector(selector);
-                    if (element) {
-                        resolve(element);
-                        return;
-                    }
-
-                    if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
-                        reject(new Error(`Timeout waiting for element: ${selector}`));
-                        return;
-                    }
-
-                    attempts++;
-                    requestAnimationFrame(checkElement);
-                }
-
-                checkElement();
-            });
-        }
-
-        static decodeHtmlEntities(encodedString) {
-            if (!encodedString || typeof encodedString !== 'string') return encodedString;
-            const textarea = document.createElement('textarea');
-            textarea.innerHTML = encodedString;
-            return textarea.value;
-        }
-
-        static extractMetaTags(html) {
-            if (!html) return {};
-
-            const metaTags = {};
-            const regex = /<meta\s+(?:property|name)=["']([^"']+)["']\s+content=["']([^"']+)["']/gi;
-
-            let match;
-            while (match = regex.exec(html)) {
-                if (match[1] && match[2]) {
-                    metaTags[match[1]] = this.decodeHtmlEntities(match[2]);
-                }
-            }
-
-            return metaTags;
-        }
-    }
-
-    /**
      * StyleManager - Utility for CSS style management
      * Handles adding and removing styles, theme variables, etc.
      */
@@ -2094,1419 +1978,6 @@
     Checkbox.stylesInitialized = false;
     Checkbox.initStyles();
 
-    /**
-     * SidebarPanel - A reusable UI component for creating a sidebar panel with a trigger button
-     * Similar to Wallapop's help button that shifts the site content
-     */
-
-    /**
-     * A reusable component that creates a toggle button and sidebar panel
-     */
-    class SidebarPanel {
-        // Panel states
-        static PANEL_STATES = {
-            OPENED: 'opened',
-            CLOSED: 'closed'
-        };
-
-        // Panel positions
-        static PANEL_POSITIONS = {
-            RIGHT: 'right',
-            LEFT: 'left'
-        };
-
-        // Panel transitions
-        static PANEL_TRANSITIONS = {
-            SLIDE: 'slide',
-            PUSH: 'push'
-        };
-
-        // GM storage keys
-        static STORAGE_KEYS = {
-            PANEL_STATE: 'sidebar-panel-state',
-            PANEL_SETTINGS: 'sidebar-panel-settings'
-        };
-
-        // PubSub events
-        static EVENTS = {
-            PANEL_OPEN: 'sidebar-panel-open',
-            PANEL_CLOSE: 'sidebar-panel-close',
-            PANEL_TOGGLE: 'sidebar-panel-toggle',
-            PANEL_INITIALIZED: 'sidebar-panel-initialized'
-        };
-
-        /**
-         * Create a new SidebarPanel.
-         * @param {Object} options - Configuration options.
-         * @param {String} options.title - Panel title.
-         * @param {String} [options.id="sidebar-panel"] - Unique ID for the panel.
-         * @param {String} [options.position="right"] - Position of the panel ("right" or "left").
-         * @param {String} [options.transition="slide"] - Transition effect ("slide" or "push").
-         * @param {String} [options.buttonIcon="?"] - HTML content for the toggle button.
-         * @param {Boolean} [options.showButton=true] - Whether to show the toggle button.
-         * @param {String} [options.namespace="userscripts"] - Namespace for CSS classes.
-         * @param {Function} [options.onOpen=null] - Callback when panel opens.
-         * @param {Function} [options.onClose=null] - Callback when panel closes.
-         * @param {Boolean} [options.overlay=true] - Whether to show an overlay behind the panel.
-         * @param {Object} [options.content={}] - Content configuration.
-         * @param {String|HTMLElement} [options.content.html=null] - HTML content for the panel.
-         * @param {Function} [options.content.generator=null] - Function that returns content.
-         * @param {Boolean} [options.rememberState=true] - Whether to remember the panel state.
-         * @param {Object} [options.style={}] - Custom style options.
-         * @param {String} [options.style.width="320px"] - Panel width.
-         * @param {String} [options.style.buttonSize="48px"] - Button size.
-         * @param {String} [options.style.buttonColor="#fff"] - Button text color.
-         * @param {String} [options.style.buttonBg="#625df5"] - Button background color.
-         * @param {String} [options.style.panelBg="#fff"] - Panel background color.
-         */
-        constructor(options = {}) {
-            // Process and store options with defaults
-            this.options = {
-                title: options.title || 'Panel',
-                id: options.id || 'sidebar-panel',
-                position: options.position || SidebarPanel.PANEL_POSITIONS.RIGHT,
-                transition: options.transition || SidebarPanel.PANEL_TRANSITIONS.SLIDE,
-                buttonIcon: options.buttonIcon || '?',
-                showButton: options.showButton !== false,
-                namespace: options.namespace || 'userscripts',
-                onOpen: options.onOpen || null,
-                onClose: options.onClose || null,
-                overlay: options.overlay !== false,
-                content: options.content || {},
-                rememberState: options.rememberState !== false,
-                style: options.style || {}
-            };
-
-            // Setup base class names based on namespace
-            this.baseClass = `${this.options.namespace}-sidebar-panel`;
-            this.cssVarPrefix = `--${this.options.namespace}-sidebar-panel-`;
-
-            // Elements references
-            this.container = null;
-            this.panel = null;
-            this.button = null;
-            this.closeButton = null;
-            this.content = null;
-            this.header = null;
-            this.footer = null;
-            this.overlay = null;
-
-            // Panel state
-            this.state = this.getSavedState() || SidebarPanel.PANEL_STATES.CLOSED;
-
-            // Storage key for this specific panel instance
-            this.storageKey = `${SidebarPanel.STORAGE_KEYS.PANEL_STATE}-${this.options.id}`;
-
-            // Initialize the component
-            this.init();
-        }
-
-        /**
-         * Initialize the styles for the SidebarPanel
-         * @param {String} namespace - Optional namespace to prevent CSS collisions
-         */
-        static initStyles(namespace = 'userscripts') {
-            const baseClass = `${namespace}-sidebar-panel`;
-            const cssVarPrefix = `--${namespace}-sidebar-panel-`;
-
-            StyleManager.addStyles(`
-            /* Base styles for the sidebar panel */
-            .${baseClass}-container {
-                position: fixed;
-                top: 0;
-                height: 100%;
-                z-index: 9998;
-                transition: transform 0.3s ease-in-out;
-            }
-            
-            .${baseClass}-container--right {
-                right: 0;
-                transform: translateX(100%);
-            }
-            
-            .${baseClass}-container--left {
-                left: 0;
-                transform: translateX(-100%);
-            }
-            
-            .${baseClass}-container--opened {
-                transform: translateX(0);
-                box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
-            }
-            
-            .${baseClass} {
-                width: var(${cssVarPrefix}width, 320px);
-                height: 100%;
-                background-color: var(${cssVarPrefix}bg, #fff);
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-                position: relative;
-            }
-            
-            .${baseClass}-header {
-                padding: 16px;
-                background-color: var(${cssVarPrefix}header-bg, #f5f5f5);
-                border-bottom: 1px solid var(${cssVarPrefix}border-color, #eee);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-            
-            .${baseClass}-title {
-                font-weight: bold;
-                font-size: 18px;
-                color: var(${cssVarPrefix}title-color, #333);
-                margin: 0;
-            }
-            
-            .${baseClass}-close {
-                background: none;
-                border: none;
-                cursor: pointer;
-                font-size: 24px;
-                line-height: 24px;
-                padding: 0;
-                width: 24px;
-                height: 24px;
-                color: var(${cssVarPrefix}close-color, #777);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            
-            .${baseClass}-close:hover {
-                color: var(${cssVarPrefix}close-color-hover, #333);
-            }
-            
-            .${baseClass}-content {
-                flex: 1;
-                overflow-y: auto;
-                padding: 16px;
-            }
-            
-            .${baseClass}-footer {
-                padding: 16px;
-                background-color: var(${cssVarPrefix}footer-bg, #f5f5f5);
-                border-top: 1px solid var(${cssVarPrefix}border-color, #eee);
-            }
-            
-            /* Toggle button styles */
-            .${baseClass}-toggle {
-                position: fixed;
-                width: var(${cssVarPrefix}button-size, 48px);
-                height: var(${cssVarPrefix}button-size, 48px);
-                border-radius: 50%;
-                background-color: var(${cssVarPrefix}button-bg, #625df5);
-                color: var(${cssVarPrefix}button-color, #fff);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                z-index: 9999;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-                border: none;
-                outline: none;
-                transition: background-color 0.2s ease, transform 0.2s ease;
-            }
-            
-            .${baseClass}-toggle:hover {
-                background-color: var(${cssVarPrefix}button-bg-hover, #514dc6);
-                transform: scale(1.05);
-            }
-            
-            .${baseClass}-toggle--right {
-                right: 20px;
-                bottom: 20px;
-            }
-            
-            .${baseClass}-toggle--left {
-                left: 20px;
-                bottom: 20px;
-            }
-            
-            /* For push transition effect */
-            body.${baseClass}-push-active--right {
-                transition: margin-left 0.3s ease-in-out;
-            }
-            
-            body.${baseClass}-push-active--right.${baseClass}-push--opened {
-                margin-left: calc(-1 * var(${cssVarPrefix}width, 320px));
-            }
-            
-            body.${baseClass}-push-active--left {
-                transition: margin-right 0.3s ease-in-out;
-            }
-            
-            body.${baseClass}-push-active--left.${baseClass}-push--opened {
-                margin-right: calc(-1 * var(${cssVarPrefix}width, 320px));
-            }
-            
-            /* Overlay for mobile views */
-            .${baseClass}-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(0, 0, 0, 0.5);
-                z-index: 9997;
-                opacity: 0;
-                visibility: hidden;
-                transition: opacity 0.3s ease;
-                pointer-events: none;
-            }
-            
-            .${baseClass}-overlay--visible {
-                opacity: 1;
-                visibility: visible;
-                pointer-events: auto;
-            }
-            
-            /* Responsive styles */
-            @media (max-width: 768px) {
-                .${baseClass} {
-                    width: 85vw;
-                }
-            }
-        `, `${namespace}-sidebar-panel-styles`);
-        }
-
-        /**
-         * Initialize the panel and button
-         */
-        init() {
-            // Initialize styles if not already done
-            SidebarPanel.initStyles(this.options.namespace);
-
-            // Create custom CSS variables for this instance
-            this.applyCustomStyles();
-
-            // Create the panel elements
-            this.createPanel();
-
-            // Create toggle button if needed
-            if (this.options.showButton) {
-                this.createToggleButton();
-            }
-
-            // Create overlay if needed
-            if (this.options.overlay) {
-                this.createOverlay();
-            }
-
-            // Set up events
-            this.setupEvents();
-
-            // Apply saved state if we're remembering state
-            if (this.options.rememberState) {
-                if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
-                    this.open(false); // Open without animation for initial state
-                }
-            }
-
-            // Publish initialization event
-            PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, {
-                id: this.options.id,
-                panel: this
-            });
-
-            Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
-        }
-
-        /**
-         * Apply custom styles from options
-         */
-        applyCustomStyles() {
-            const customStyles = {};
-
-            // Process style options
-            if (this.options.style.width) {
-                customStyles[`${this.cssVarPrefix}width`] = this.options.style.width;
-            }
-            if (this.options.style.buttonSize) {
-                customStyles[`${this.cssVarPrefix}button-size`] = this.options.style.buttonSize;
-            }
-            if (this.options.style.buttonColor) {
-                customStyles[`${this.cssVarPrefix}button-color`] = this.options.style.buttonColor;
-            }
-            if (this.options.style.buttonBg) {
-                customStyles[`${this.cssVarPrefix}button-bg`] = this.options.style.buttonBg;
-            }
-            if (this.options.style.buttonBgHover) {
-                customStyles[`${this.cssVarPrefix}button-bg-hover`] = this.options.style.buttonBgHover;
-            }
-            if (this.options.style.panelBg) {
-                customStyles[`${this.cssVarPrefix}bg`] = this.options.style.panelBg;
-            }
-
-            // Apply the CSS variables using StyleManager
-            if (Object.keys(customStyles).length > 0) {
-                const styleId = `${this.baseClass}-custom-${this.options.id}`;
-                let cssText = `:root {\n`;
-
-                for (const [key, value] of Object.entries(customStyles)) {
-                    cssText += `  ${key}: ${value};\n`;
-                }
-
-                cssText += `}\n`;
-                StyleManager.addStyles(cssText, styleId);
-            }
-        }
-
-        /**
-         * Create the panel element
-         */
-        createPanel() {
-            // Create panel container
-            this.container = document.createElement('div');
-            this.container.id = `${this.baseClass}-${this.options.id}`;
-            this.container.className = `${this.baseClass}-container ${this.baseClass}-container--${this.options.position}`;
-
-            // Create panel
-            this.panel = document.createElement('div');
-            this.panel.className = this.baseClass;
-
-            // Create panel header
-            this.header = document.createElement('div');
-            this.header.className = `${this.baseClass}-header`;
-
-            // Create title
-            const title = document.createElement('h2');
-            title.className = `${this.baseClass}-title`;
-            title.textContent = this.options.title;
-            this.header.appendChild(title);
-
-            // Create close button
-            this.closeButton = document.createElement('button');
-            this.closeButton.type = 'button';
-            this.closeButton.className = `${this.baseClass}-close`;
-            this.closeButton.innerHTML = '×';
-            this.closeButton.setAttribute('aria-label', 'Close');
-            this.header.appendChild(this.closeButton);
-
-            // Create content container
-            this.content = document.createElement('div');
-            this.content.className = `${this.baseClass}-content`;
-
-            // Add initial content if provided
-            if (this.options.content.html) {
-                if (typeof this.options.content.html === 'string') {
-                    this.content.innerHTML = this.options.content.html;
-                } else if (this.options.content.html instanceof HTMLElement) {
-                    this.content.appendChild(this.options.content.html);
-                }
-            } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
-                const generatedContent = this.options.content.generator();
-                if (typeof generatedContent === 'string') {
-                    this.content.innerHTML = generatedContent;
-                } else if (generatedContent instanceof HTMLElement) {
-                    this.content.appendChild(generatedContent);
-                }
-            }
-
-            // Create footer (optional)
-            if (this.options.footer) {
-                this.footer = document.createElement('div');
-                this.footer.className = `${this.baseClass}-footer`;
-
-                if (typeof this.options.footer === 'string') {
-                    this.footer.innerHTML = this.options.footer;
-                } else if (this.options.footer instanceof HTMLElement) {
-                    this.footer.appendChild(this.options.footer);
-                }
-            }
-
-            // Assemble the panel
-            this.panel.appendChild(this.header);
-            this.panel.appendChild(this.content);
-            if (this.footer) {
-                this.panel.appendChild(this.footer);
-            }
-            this.container.appendChild(this.panel);
-
-            // Add to document
-            document.body.appendChild(this.container);
-        }
-
-        /**
-         * Create toggle button
-         */
-        createToggleButton() {
-            this.button = document.createElement('button');
-            this.button.type = 'button';
-            this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
-            this.button.innerHTML = this.options.buttonIcon;
-            this.button.setAttribute('aria-label', `Open ${this.options.title}`);
-
-            // Add to document
-            document.body.appendChild(this.button);
-        }
-
-        /**
-         * Create overlay element
-         */
-        createOverlay() {
-            this.overlay = document.createElement('div');
-            this.overlay.className = `${this.baseClass}-overlay`;
-            document.body.appendChild(this.overlay);
-        }
-
-        /**
-         * Set up event listeners
-         */
-        setupEvents() {
-            // Toggle button click
-            if (this.button) {
-                this.button.addEventListener('click', () => this.toggle());
-            }
-
-            // Close button click
-            if (this.closeButton) {
-                this.closeButton.addEventListener('click', () => this.close());
-            }
-
-            // Overlay click
-            if (this.overlay) {
-                this.overlay.addEventListener('click', () => this.close());
-            }
-
-            // Listen for PubSub events
-            this.subscriptions = [
-                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_OPEN}-${this.options.id}`, () => this.open()),
-                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_CLOSE}-${this.options.id}`, () => this.close()),
-                PubSub.subscribe(`${SidebarPanel.EVENTS.PANEL_TOGGLE}-${this.options.id}`, () => this.toggle())
-            ];
-
-            // ESC key to close
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.state === SidebarPanel.PANEL_STATES.OPENED) {
-                    this.close();
-                }
-            });
-        }
-
-        /**
-         * Toggle panel state
-         */
-        toggle() {
-            if (this.state === SidebarPanel.PANEL_STATES.CLOSED) {
-                this.open();
-            } else {
-                this.close();
-            }
-        }
-
-        /**
-         * Open the panel
-         * @param {Boolean} animate - Whether to animate the opening
-         */
-        open(animate = true) {
-            if (this.state === SidebarPanel.PANEL_STATES.OPENED) return;
-
-            this.state = SidebarPanel.PANEL_STATES.OPENED;
-
-            // Update panel class
-            if (!animate) {
-                this.container.style.transition = 'none';
-                requestAnimationFrame(() => {
-                    this.container.style.transition = '';
-                });
-            }
-
-            this.container.classList.add(`${this.baseClass}-container--opened`);
-
-            // Handle push transition
-            if (this.options.transition === SidebarPanel.PANEL_TRANSITIONS.PUSH) {
-                document.body.classList.add(`${this.baseClass}-push-active--${this.options.position}`);
-                document.body.classList.add(`${this.baseClass}-push--opened`);
-            }
-
-            // Show overlay
-            if (this.overlay) {
-                this.overlay.classList.add(`${this.baseClass}-overlay--visible`);
-            }
-
-            // Save state
-            if (this.options.rememberState) {
-                this.saveState();
-            }
-
-            // Call onOpen callback if provided
-            if (typeof this.options.onOpen === 'function') {
-                this.options.onOpen();
-            }
-
-            // Publish event
-            PubSub.publish(SidebarPanel.EVENTS.PANEL_OPEN, {
-                id: this.options.id,
-                panel: this
-            });
-
-            Logger.debug(`SidebarPanel opened: ${this.options.id}`);
-        }
-
-        /**
-         * Close the panel
-         */
-        close() {
-            if (this.state === SidebarPanel.PANEL_STATES.CLOSED) return;
-
-            this.state = SidebarPanel.PANEL_STATES.CLOSED;
-
-            // Update panel class
-            this.container.classList.remove(`${this.baseClass}-container--opened`);
-
-            // Handle push transition
-            if (this.options.transition === SidebarPanel.PANEL_TRANSITIONS.PUSH) {
-                document.body.classList.remove(`${this.baseClass}-push--opened`);
-                // We keep the active class for transition
-                setTimeout(() => {
-                    if (this.state === SidebarPanel.PANEL_STATES.CLOSED) {
-                        document.body.classList.remove(`${this.baseClass}-push-active--${this.options.position}`);
-                    }
-                }, 300); // Match transition duration
-            }
-
-            // Hide overlay
-            if (this.overlay) {
-                this.overlay.classList.remove(`${this.baseClass}-overlay--visible`);
-            }
-
-            // Save state
-            if (this.options.rememberState) {
-                this.saveState();
-            }
-
-            // Call onClose callback if provided
-            if (typeof this.options.onClose === 'function') {
-                this.options.onClose();
-            }
-
-            // Publish event
-            PubSub.publish(SidebarPanel.EVENTS.PANEL_CLOSE, {
-                id: this.options.id,
-                panel: this
-            });
-
-            Logger.debug(`SidebarPanel closed: ${this.options.id}`);
-        }
-
-        /**
-         * Get saved panel state from GM storage
-         * @return {String|null} Panel state or null if not found
-         */
-        async getSavedState() {
-            if (!this.options.rememberState) return null;
-
-            try {
-                // Use directly imported getValue
-                const savedState = await getValue(this.storageKey, SidebarPanel.PANEL_STATES.CLOSED);
-                // Validate state
-                if (Object.values(SidebarPanel.PANEL_STATES).includes(savedState)) {
-                    Logger.debug('Retrieved saved panel state:', savedState, 'for key:', this.storageKey);
-                    return savedState;
-                }
-                Logger.warn('Invalid saved panel state retrieved:', savedState, 'for key:', this.storageKey);
-            } catch (error) {
-                Logger.error('Error retrieving saved panel state:', error, 'for key:', this.storageKey);
-            }
-            return SidebarPanel.PANEL_STATES.CLOSED; // Default to closed on error or invalid
-        }
-
-        /**
-         * Save the current panel state (opened/closed) if rememberState is enabled.
-         */
-        async saveState() {
-            if (!this.options.rememberState) return;
-
-            try {
-                // Use directly imported setValue
-                await setValue(this.storageKey, this.state);
-                Logger.debug('Saved panel state:', this.state, 'for key:', this.storageKey);
-            } catch (error) {
-                Logger.error('Error saving panel state:', error, 'for key:', this.storageKey);
-            }
-        }
-
-        /**
-         * Set panel content
-         * @param {String|HTMLElement} content - HTML string or element to set as content
-         */
-        setContent(content) {
-            if (!this.content) return;
-
-            // Clear existing content
-            this.content.innerHTML = '';
-
-            // Add new content
-            if (typeof content === 'string') {
-                this.content.innerHTML = content;
-            } else if (content instanceof HTMLElement) {
-                this.content.appendChild(content);
-            }
-        }
-
-        /**
-         * Set panel title
-         * @param {String} title - New title text
-         */
-        setTitle(title) {
-            const titleElement = this.header ? this.header.querySelector(`.${this.baseClass}-title`) : null;
-            if (titleElement) {
-                titleElement.textContent = title;
-                this.options.title = title;
-            }
-        }
-
-        /**
-         * Set button icon
-         * @param {String} iconHtml - HTML string for icon content
-         */
-        setButtonIcon(iconHtml) {
-            if (this.button) {
-                this.button.innerHTML = iconHtml;
-                this.options.buttonIcon = iconHtml;
-            }
-        }
-
-        /**
-         * Destroy the panel and clean up
-         */
-        destroy() {
-            // Remove DOM elements
-            if (this.container && this.container.parentNode) {
-                this.container.parentNode.removeChild(this.container);
-            }
-
-            if (this.button && this.button.parentNode) {
-                this.button.parentNode.removeChild(this.button);
-            }
-
-            if (this.overlay && this.overlay.parentNode) {
-                this.overlay.parentNode.removeChild(this.overlay);
-            }
-
-            // Remove body classes
-            document.body.classList.remove(`${this.baseClass}-push-active--${this.options.position}`);
-            document.body.classList.remove(`${this.baseClass}-push--opened`);
-
-            // Unsubscribe from PubSub events
-            if (this.subscriptions) {
-                this.subscriptions.forEach(subscriptionId => {
-                    PubSub.unsubscribe(subscriptionId);
-                });
-            }
-
-            Logger.debug(`SidebarPanel destroyed: ${this.options.id}`);
-        }
-    }
-
-    /**
-     * Notification - A reusable UI component for toast notifications.
-     * Creates customizable, temporary notifications that appear and disappear automatically.
-     */
-
-    /**
-     * A reusable UI component for creating toast notifications that provide non-intrusive
-     * feedback to users.
-     */
-    class Notification {
-        /**
-         * Storage for the notification container elements by position
-         * @private
-         */
-        static _containers = {};
-        /**
-         * Storage for all active notifications
-         * @private
-         */
-        static _activeNotifications = [];
-        /**
-         * Counter for generating unique notification IDs
-         * @private
-         */
-        static _idCounter = 0;
-        /**
-         * Maximum number of notifications to show per container
-         * @private
-         */
-        static _maxNotificationsPerContainer = 5;
-        /**
-         * Queue for notifications waiting to be shown
-         * @private
-         */
-        static _queue = [];
-
-        /**
-         * Returns the unique base CSS class for the Notification component.
-         * This class is used as the root for all styling and helps prevent CSS collisions.
-         *
-         * @return {string} The base CSS class name for notifications.
-         */
-        static get BASE_NOTIFICATION_CLASS() {
-            return 'userscripts-notification';
-        }
-
-        /**
-         * Returns the CSS variable prefix used for theming the Notification component.
-         * This prefix scopes all custom CSS variables related to the notification.
-         *
-         * @return {string} The CSS variable prefix.
-         */
-        static get CSS_VAR_PREFIX() {
-            return '--userscripts-notification-';
-        }
-
-        /**
-         * Initialize styles for all notifications.
-         * These styles reference the CSS variables with our defined prefix.
-         */
-        static initStyles() {
-            if (Notification.stylesInitialized) return;
-
-            StyleManager.addStyles(`
-      /* Container for all notifications */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container {
-        position: fixed;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        z-index: 9999;
-        pointer-events: none; /* Allow clicking through the container */
-        
-        /* Default positioning at bottom center */
-        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
-        left: 50%;
-        transform: translateX(-50%);
-        
-        /* Container width */
-        width: var(${Notification.CSS_VAR_PREFIX}container-width, auto);
-        max-width: var(${Notification.CSS_VAR_PREFIX}container-max-width, 350px);
-      }
-      
-      /* Position variants */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center {
-        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
-        bottom: auto;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left {
-        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
-        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
-        bottom: auto;
-        transform: none;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
-        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
-        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
-        left: auto;
-        bottom: auto;
-        transform: none;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left {
-        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
-        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
-        transform: none;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
-        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
-        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
-        left: auto;
-        transform: none;
-      }
-      
-      /* Individual notification toast */
-      .${Notification.BASE_NOTIFICATION_CLASS} {
-        position: relative;
-        display: flex;
-        align-items: center;
-        padding: var(${Notification.CSS_VAR_PREFIX}padding, 12px 16px);
-        border-radius: var(${Notification.CSS_VAR_PREFIX}border-radius, 6px);
-        box-shadow: var(${Notification.CSS_VAR_PREFIX}shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
-        color: var(${Notification.CSS_VAR_PREFIX}color, #fff);
-        font-family: var(${Notification.CSS_VAR_PREFIX}font-family, inherit);
-        font-size: var(${Notification.CSS_VAR_PREFIX}font-size, 14px);
-        line-height: var(${Notification.CSS_VAR_PREFIX}line-height, 1.5);
-        opacity: 0;
-        transform: translateY(100%);
-        transition: transform 0.3s ease, opacity 0.3s ease;
-        pointer-events: auto; /* Make the notification clickable */
-        max-width: 100%;
-        box-sizing: border-box;
-        width: 100%;
-        overflow: hidden;
-        
-        /* Progress bar at the bottom */
-        &::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          height: var(${Notification.CSS_VAR_PREFIX}progress-height, 3px);
-          background-color: var(${Notification.CSS_VAR_PREFIX}progress-color, rgba(255, 255, 255, 0.5));
-          width: 100%;
-          transform-origin: left;
-          transform: scaleX(0);
-        }
-      }
-      
-      /* Visible notification */
-      .${Notification.BASE_NOTIFICATION_CLASS}--visible {
-        opacity: 1;
-        transform: translateY(0);
-      }
-      
-      /* Animation for progress bar */
-      .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
-        animation-name: ${Notification.BASE_NOTIFICATION_CLASS}-progress;
-        animation-timing-function: linear;
-        animation-fill-mode: forwards;
-      }
-      
-      @keyframes ${Notification.BASE_NOTIFICATION_CLASS}-progress {
-        from { transform: scaleX(1); }
-        to { transform: scaleX(0); }
-      }
-      
-      /* Close button */
-      .${Notification.BASE_NOTIFICATION_CLASS}-close {
-        background: none;
-        border: none;
-        color: inherit;
-        opacity: 0.7;
-        font-size: 18px;
-        cursor: pointer;
-        padding: 4px;
-        margin-left: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: opacity 0.2s ease;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-close:hover {
-        opacity: 1;
-      }
-      
-      /* Icon area */
-      .${Notification.BASE_NOTIFICATION_CLASS}-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 12px;
-      }
-      
-      /* Content area */
-      .${Notification.BASE_NOTIFICATION_CLASS}-content {
-        flex-grow: 1;
-        word-break: break-word;
-      }
-      
-      /* Types styling */
-      .${Notification.BASE_NOTIFICATION_CLASS}--info {
-        background-color: var(${Notification.CSS_VAR_PREFIX}info-bg, #3498db);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}--success {
-        background-color: var(${Notification.CSS_VAR_PREFIX}success-bg, #2ecc71);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}--warning {
-        background-color: var(${Notification.CSS_VAR_PREFIX}warning-bg, #f39c12);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}--error {
-        background-color: var(${Notification.CSS_VAR_PREFIX}error-bg, #e74c3c);
-      }
-      
-      /* Customizable style */
-      .${Notification.BASE_NOTIFICATION_CLASS}--custom {
-        background-color: var(${Notification.CSS_VAR_PREFIX}custom-bg, #7f8c8d);
-      }
-      
-      /* Animation for top position variants */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS},
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS},
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS} {
-        transform: translateY(-100%);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS}--visible,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS}--visible,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS}--visible {
-        transform: translateY(0);
-      }
-      
-      /* Give slightly different vertical spacing based on position */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
-        flex-direction: column;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-center,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
-        flex-direction: column-reverse;
-      }
-      
-      /* For reduced motion preferences */
-      @media (prefers-reduced-motion: reduce) {
-        .${Notification.BASE_NOTIFICATION_CLASS} {
-          transition: opacity 0.1s ease;
-          transform: translateY(0);
-        }
-        
-        .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
-          animation: none;
-        }
-      }
-    `, 'userscripts-notification-styles');
-
-            Notification.stylesInitialized = true;
-        }
-
-        /**
-         * Injects default color variables for the notification component into the :root.
-         * Users can call this method to automatically set a default color palette.
-         */
-        static useDefaultColors() {
-            const styleId = 'userscripts-notification-default-colors';
-            if (!document.getElementById(styleId)) {
-                const style = document.createElement('style');
-                style.id = styleId;
-                style.innerHTML = `
-        :root {
-          /* Container styling */
-          ${Notification.CSS_VAR_PREFIX}container-width: auto;
-          ${Notification.CSS_VAR_PREFIX}container-max-width: 350px;
-          ${Notification.CSS_VAR_PREFIX}container-bottom: 16px;
-          ${Notification.CSS_VAR_PREFIX}container-top: 16px;
-          ${Notification.CSS_VAR_PREFIX}container-left: 16px;
-          ${Notification.CSS_VAR_PREFIX}container-right: 16px;
-          
-          /* Toast styling */
-          ${Notification.CSS_VAR_PREFIX}font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          ${Notification.CSS_VAR_PREFIX}font-size: 14px;
-          ${Notification.CSS_VAR_PREFIX}line-height: 1.5;
-          ${Notification.CSS_VAR_PREFIX}padding: 12px 16px;
-          ${Notification.CSS_VAR_PREFIX}border-radius: 6px;
-          ${Notification.CSS_VAR_PREFIX}shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          ${Notification.CSS_VAR_PREFIX}color: #ffffff;
-          
-          /* Progress bar */
-          ${Notification.CSS_VAR_PREFIX}progress-height: 3px;
-          ${Notification.CSS_VAR_PREFIX}progress-color: rgba(255, 255, 255, 0.5);
-          
-          /* Toast types */
-          ${Notification.CSS_VAR_PREFIX}info-bg: #3498db;
-          ${Notification.CSS_VAR_PREFIX}success-bg: #2ecc71;
-          ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
-          ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
-          ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
-        }
-      `;
-                document.head.appendChild(style);
-            }
-        }
-
-        /**
-         * Creates and shows a notification.
-         * @param {Object|string} options - Configuration options or message string
-         * @param {string} [options.message] - The notification message
-         * @param {string} [options.type='info'] - Notification type (info, success, warning, error, custom)
-         * @param {number} [options.duration=3000] - How long to show the notification (ms)
-         * @param {string} [options.position='bottom-center'] - Position (bottom-center, top-center, top-left, top-right, bottom-left, bottom-right)
-         * @param {boolean} [options.showProgress=true] - Show progress bar
-         * @param {boolean} [options.showClose=true] - Show close button
-         * @param {Function} [options.onClick] - Callback when notification is clicked
-         * @param {Function} [options.onClose] - Callback when notification closes
-         * @param {string} [options.icon] - HTML for icon to display
-         * @param {string} [options.className] - Additional CSS class
-         * @param {boolean} [options.html=false] - Whether to interpret message as HTML
-         * @param {Object} [options.style] - Custom inline styles for the notification
-         * @return {string} ID of the created notification (can be used to close it)
-         */
-        static show(options) {
-            // Initialize styles if not already done
-            this.initStyles();
-
-            // Allow passing just a message string
-            if (typeof options === 'string') {
-                options = {message: options};
-            }
-
-            // Set defaults
-            const config = {
-                message: '',
-                type: 'info',
-                duration: 3000,
-                position: 'bottom-center',
-                showProgress: true,
-                showClose: true,
-                onClick: null,
-                onClose: null,
-                icon: null,
-                className: '',
-                html: false,
-                style: null,
-                ...options
-            };
-
-            // Generate a unique ID for this notification
-            const id = `${Notification.BASE_NOTIFICATION_CLASS}-${++this._idCounter}`;
-
-            // Check if we're at the limit for the specified position
-            const positionString = this._normalizePosition(config.position);
-            const activeInPosition = this._activeNotifications.filter(n => n.position === positionString).length;
-
-            // If we're at the limit, queue this notification
-            if (activeInPosition >= this._maxNotificationsPerContainer) {
-                this._queue.push({id, ...config});
-                return id;
-            }
-
-            // Create and show the notification
-            this._createNotification(id, config);
-            return id;
-        }
-
-        /**
-         * Convenience method to show an info notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static info(message, options = {}) {
-            return this.show({...options, message, type: 'info'});
-        }
-
-        /**
-         * Convenience method to show a success notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static success(message, options = {}) {
-            return this.show({...options, message, type: 'success'});
-        }
-
-        /**
-         * Convenience method to show a warning notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static warning(message, options = {}) {
-            return this.show({...options, message, type: 'warning'});
-        }
-
-        /**
-         * Convenience method to show an error notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static error(message, options = {}) {
-            return this.show({...options, message, type: 'error'});
-        }
-
-        /**
-         * Close a notification by ID
-         * @param {string} id - The notification ID
-         * @param {boolean} [animate=true] - Whether to animate the closing
-         */
-        static close(id, animate = true) {
-            const element = document.getElementById(id);
-            if (!element) {
-                // Check if it's in the queue
-                const queueIndex = this._queue.findIndex(n => n.id === id);
-                if (queueIndex !== -1) {
-                    this._queue.splice(queueIndex, 1);
-                }
-                return;
-            }
-
-            // Get the notification object
-            const notificationIndex = this._activeNotifications.findIndex(n => n.id === id);
-            if (notificationIndex === -1) return;
-
-            const notification = this._activeNotifications[notificationIndex];
-
-            // Remove from active notifications
-            this._activeNotifications.splice(notificationIndex, 1);
-
-            // If animated, fade out then remove
-            if (animate) {
-                element.classList.remove(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
-                setTimeout(() => {
-                    this._removeNotificationElement(element, notification);
-                }, 300); // Match the transition time in CSS
-            } else {
-                this._removeNotificationElement(element, notification);
-            }
-
-            // Process the queue after removing
-            this._processQueue(notification.position);
-        }
-
-        /**
-         * Close all notifications
-         * @param {string} [position] - Only close notifications in this position
-         * @param {boolean} [animate=true] - Whether to animate the closing
-         */
-        static closeAll(position = null, animate = true) {
-            // Clear the queue
-            if (position) {
-                const normalizedPosition = this._normalizePosition(position);
-                this._queue = this._queue.filter(n => this._normalizePosition(n.position) !== normalizedPosition);
-            } else {
-                this._queue = [];
-            }
-
-            // Close active notifications
-            const notificationsToClose = position
-                ? this._activeNotifications.filter(n => n.position === this._normalizePosition(position))
-                : [...this._activeNotifications];
-
-            notificationsToClose.forEach(notification => {
-                this.close(notification.id, animate);
-            });
-        }
-
-        /**
-         * Set the maximum number of notifications to show per container
-         * @param {number} max - Maximum number of notifications
-         */
-        static setMaxNotifications(max) {
-            if (typeof max === 'number' && max > 0) {
-                this._maxNotificationsPerContainer = max;
-            }
-        }
-
-        /**
-         * Get a container element for a specific position, creating it if it doesn't exist
-         * @param {string} position - The notification position
-         * @return {HTMLElement} The container element
-         * @private
-         */
-        static _getContainer(position) {
-            const positionString = this._normalizePosition(position);
-
-            if (this._containers[positionString]) {
-                return this._containers[positionString];
-            }
-
-            // Create new container
-            const container = document.createElement('div');
-            container.className = `${Notification.BASE_NOTIFICATION_CLASS}-container ${Notification.BASE_NOTIFICATION_CLASS}-container--${positionString}`;
-            document.body.appendChild(container);
-
-            // Store for future use
-            this._containers[positionString] = container;
-            return container;
-        }
-
-        /**
-         * Normalize position string to one of the supported values
-         * @param {string} position - Position string
-         * @return {string} Normalized position string
-         * @private
-         */
-        static _normalizePosition(position) {
-            const validPositions = [
-                'top-center', 'top-left', 'top-right',
-                'bottom-center', 'bottom-left', 'bottom-right'
-            ];
-
-            if (validPositions.includes(position)) {
-                return position;
-            }
-
-            // Handle abbreviated positions
-            if (position === 'top') return 'top-center';
-            if (position === 'bottom') return 'bottom-center';
-
-            // Default
-            return 'bottom-center';
-        }
-
-        /**
-         * Create and show a notification
-         * @param {string} id - The notification ID
-         * @param {Object} config - Notification configuration
-         * @private
-         */
-        static _createNotification(id, config) {
-            const position = this._normalizePosition(config.position);
-            const container = this._getContainer(position);
-
-            // Create the notification element
-            const element = document.createElement('div');
-            element.id = id;
-            element.className = `${Notification.BASE_NOTIFICATION_CLASS} ${Notification.BASE_NOTIFICATION_CLASS}--${config.type}`;
-
-            if (config.showProgress && config.duration > 0) {
-                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--with-progress`);
-                // Set the animation duration for the progress bar
-                element.style.setProperty('--progress-duration', `${config.duration}ms`);
-            }
-
-            if (config.className) {
-                element.classList.add(config.className);
-            }
-
-            // Apply custom styles
-            if (config.style && typeof config.style === 'object') {
-                Object.assign(element.style, config.style);
-            }
-
-            // Create content structure
-            let content = '';
-
-            // Add icon if provided
-            if (config.icon) {
-                content += `<div class="${Notification.BASE_NOTIFICATION_CLASS}-icon">${config.icon}</div>`;
-            }
-
-            // Add message
-            content += `<div class="${Notification.BASE_NOTIFICATION_CLASS}-content">`;
-            if (config.html) {
-                content += config.message;
-            } else {
-                const message = document.createTextNode(config.message);
-                const tempDiv = document.createElement('div');
-                tempDiv.appendChild(message);
-                content += tempDiv.innerHTML;
-            }
-            content += '</div>';
-
-            // Add close button if needed
-            if (config.showClose) {
-                content += `<button class="${Notification.BASE_NOTIFICATION_CLASS}-close" aria-label="Close notification">×</button>`;
-            }
-
-            element.innerHTML = content;
-
-            // Set up animations
-            requestAnimationFrame(() => {
-                container.appendChild(element);
-
-                // Trigger layout/reflow before adding the visible class
-                void element.offsetWidth;
-
-                // Make visible
-                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
-
-                // Set animation for progress bar if applicable
-                const progressBar = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after`);
-                if (progressBar) {
-                    progressBar.style.animationDuration = `${config.duration}ms`;
-                }
-            });
-
-            // Add to active notifications
-            this._activeNotifications.push({
-                id,
-                element,
-                position,
-                config
-            });
-
-            // Set up click handler
-            if (config.onClick) {
-                element.addEventListener('click', event => {
-                    // Only trigger if not clicking the close button
-                    if (!event.target.closest(`.${Notification.BASE_NOTIFICATION_CLASS}-close`)) {
-                        config.onClick(event, id);
-                    }
-                });
-            }
-
-            // Set up close button handler
-            const closeButton = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}-close`);
-            if (closeButton) {
-                closeButton.addEventListener('click', () => this.close(id, true));
-            }
-
-            // Set auto-close timeout if duration > 0
-            if (config.duration > 0) {
-                setTimeout(() => {
-                    // Check if notification still exists before closing
-                    if (document.getElementById(id)) {
-                        this.close(id, true);
-                    }
-                }, config.duration);
-            }
-        }
-
-        /**
-         * Remove a notification element from the DOM
-         * @param {HTMLElement} element - The notification element
-         * @param {Object} notification - The notification object
-         * @private
-         */
-        static _removeNotificationElement(element, notification) {
-            if (!element) return;
-
-            // Call onClose callback if provided
-            if (notification && notification.config && notification.config.onClose) {
-                try {
-                    notification.config.onClose(notification.id);
-                } catch (e) {
-                    Logger.error(e, 'Error in notification onClose callback');
-                }
-            }
-
-            // Remove the element
-            if (element.parentNode) {
-                element.parentNode.removeChild(element);
-            }
-
-            // Check if container is empty and remove it if so
-            const container = this._containers[notification.position];
-            if (container && !container.hasChildNodes()) {
-                if (container.parentNode) {
-                    container.parentNode.removeChild(container);
-                }
-                delete this._containers[notification.position];
-            }
-        }
-
-        /**
-         * Process the notification queue for a specific position
-         * @param {string} position - Position to process
-         * @private
-         */
-        static _processQueue(position) {
-            const normalizedPosition = this._normalizePosition(position);
-
-            // Check how many active notifications we have in this position
-            const activeCount = this._activeNotifications.filter(n => n.position === normalizedPosition).length;
-
-            // Check if we can show more
-            if (activeCount >= this._maxNotificationsPerContainer) return;
-
-            // Find the first queued notification for this position
-            const queueIndex = this._queue.findIndex(n =>
-                this._normalizePosition(n.position) === normalizedPosition
-            );
-
-            if (queueIndex !== -1) {
-                // Remove from queue and show
-                const nextNotification = this._queue.splice(queueIndex, 1)[0];
-                this._createNotification(nextNotification.id, nextNotification);
-            }
-        }
-    }
-
-    // Static property to track if styles have been initialized
-    Notification.stylesInitialized = false;
-
     // Import core components
 
     // Configure logger
@@ -3516,12 +1987,17 @@
     /**
      * Google AI Studio Enhancer
      * Provides response copying and auto-run functionality for Google AI Studio
+     * Uses DOM methods to bypass Trusted Types policy
      */
     class AIStudioEnhancer {
         // Configuration
         static SELECTORS = {
             // Common selectors for AI responses
             RESPONSE_CONTAINERS: [
+                // Google AI Studio specific (most accurate)
+                '.chat-turn-container.model.render',
+                '.chat-turn-container.model',
+                // General selectors
                 '[data-test-id="response-text"]',
                 '.model-response',
                 '.response-content',
@@ -3529,7 +2005,11 @@
                 '.markdown-content',
                 'div[data-message-author-role="model"]',
                 'div[data-message-role="model"]',
-                '[data-message-author-role="assistant"]'
+                '[data-message-author-role="assistant"]',
+                // More specific selectors for Google AI Studio
+                '[data-testid="conversation-turn-content"]',
+                '.conversation-turn-content',
+                '[data-testid="model-response"]'
             ],
             // Common selectors for run buttons
             RUN_BUTTONS: [
@@ -3540,7 +2020,10 @@
                 'button[data-testid*="run"]',
                 'button[aria-label*="Send"]',
                 'button[title*="Send"]',
-                'button[data-testid*="send"]'
+                'button[data-testid*="send"]',
+                // More specific for Google AI Studio
+                'button[data-testid="send-button"]',
+                'button[aria-label*="send message"]'
             ],
             // Loading indicators
             LOADING_INDICATORS: [
@@ -3550,7 +2033,10 @@
                 '.generating',
                 '.thinking',
                 '[aria-label*="loading"]',
-                '[aria-label*="thinking"]'
+                '[aria-label*="thinking"]',
+                // Google AI Studio specific
+                '[data-testid="loading"]',
+                '.mdc-linear-progress'
             ]
         };
 
@@ -3629,7 +2115,7 @@
             // Wait for page to be ready
             await this.waitForPageReady();
 
-            // Create the UI panel
+            // Create the UI panel using DOM methods
             this.createPanel();
 
             // Setup response monitoring
@@ -3657,141 +2143,293 @@
         }
 
         /**
-         * Create the main UI panel
+         * Create the main UI panel using pure DOM methods
          */
         createPanel() {
-            this.panel = new SidebarPanel({
-                title: '🤖 AI Studio Enhancer',
-                position: this.settings.PANEL_POSITION,
-                draggable: true,
-                collapsible: true,
-                width: 320,
-                onPositionChange: (position) => {
-                    this.settings.PANEL_POSITION = position;
-                    this.saveSettings();
-                }
-            });
+            // Create main panel container
+            this.panel = document.createElement('div');
+            this.panel.className = 'ai-studio-enhancer-panel';
+            this.panel.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+        `;
 
-            this.createResponseSection();
-            this.createAutoRunSection();
-            this.createSettingsSection();
+            // Create header
+            const header = document.createElement('div');
+            header.style.cssText = `
+            background: #4285f4;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            cursor: move;
+            user-select: none;
+        `;
+            header.textContent = '🤖 AI Studio Enhancer';
 
-            this.panel.show();
+            // Create content container
+            const content = document.createElement('div');
+            content.style.padding = '16px';
+
+            // Create sections
+            this.createResponseSection(content);
+            this.createAutoRunSection(content);
+            this.createSettingsSection(content);
+
+            // Assemble panel
+            this.panel.appendChild(header);
+            this.panel.appendChild(content);
+
+            // Add to page
+            document.body.appendChild(this.panel);
+
+            // Make draggable
+            this.makeDraggable(header);
+
+            Logger.debug("Panel created using DOM methods");
         }
 
         /**
          * Create the response management section
          */
-        createResponseSection() {
-            const section = this.panel.addSection('📋 Response Management');
+        createResponseSection(container) {
+            const section = document.createElement('div');
+            section.style.marginBottom = '20px';
+
+            // Section title
+            const title = document.createElement('h3');
+            title.textContent = '📋 Response Management';
+            title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
             // Response counter
-            this.responseCountElement = HTMLUtils.createElement('div', {
-                className: 'response-counter',
-                textContent: `Responses collected: ${this.responses.length}`
-            });
+            this.responseCountElement = document.createElement('div');
+            this.responseCountElement.textContent = `Responses collected: ${this.responses.length}`;
+            this.responseCountElement.style.cssText = 'margin-bottom: 10px; color: #666; font-size: 12px;';
+
+            // Copy button
+            const copyButton = document.createElement('button');
+            copyButton.textContent = 'Copy All Responses';
+            copyButton.style.cssText = `
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            width: 100%;
+            margin-bottom: 8px;
+        `;
+            copyButton.addEventListener('click', () => this.copyAllResponses());
+
+            // Clear button
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear Response History';
+            clearButton.style.cssText = `
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            width: 100%;
+        `;
+            clearButton.addEventListener('click', () => this.clearResponses());
+
+            section.appendChild(title);
             section.appendChild(this.responseCountElement);
+            section.appendChild(copyButton);
+            section.appendChild(clearButton);
 
-            // Copy all responses button
-            const copyButton = new Button({
-                text: 'Copy All Responses',
-                icon: '📋',
-                onClick: () => this.copyAllResponses(),
-                variant: 'primary',
-                fullWidth: true
-            });
-            section.appendChild(copyButton.element);
-
-            // Clear responses button
-            const clearButton = new Button({
-                text: 'Clear Response History',
-                icon: '🗑️',
-                onClick: () => this.clearResponses(),
-                variant: 'secondary',
-                fullWidth: true
-            });
-            section.appendChild(clearButton.element);
+            container.appendChild(section);
         }
 
         /**
          * Create the auto-run section
          */
-        createAutoRunSection() {
-            const section = this.panel.addSection('🔄 Auto Runner');
+        createAutoRunSection(container) {
+            const section = document.createElement('div');
+            section.style.marginBottom = '20px';
+
+            // Section title
+            const title = document.createElement('h3');
+            title.textContent = '🔄 Auto Runner';
+            title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
             // Iterations input
-            this.iterationsInput = HTMLUtils.createElement('input', {
-                type: 'number',
-                min: 1,
-                max: 100,
-                value: this.settings.DEFAULT_ITERATIONS,
-                placeholder: 'Number of iterations',
-                style: { width: '100%', marginBottom: '10px', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }
-            });
-            section.appendChild(this.iterationsInput);
+            this.iterationsInput = document.createElement('input');
+            this.iterationsInput.type = 'number';
+            this.iterationsInput.min = '1';
+            this.iterationsInput.max = '100';
+            this.iterationsInput.value = this.settings.DEFAULT_ITERATIONS;
+            this.iterationsInput.placeholder = 'Number of iterations';
+            this.iterationsInput.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+        `;
 
             // Button container
-            const buttonContainer = HTMLUtils.createElement('div', {
-                style: { display: 'flex', gap: '10px', marginBottom: '10px' }
-            });
+            const buttonContainer = document.createElement('div');
+            buttonContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 10px;';
 
             // Start button
-            this.startButton = new Button({
-                text: 'Start Auto Run',
-                icon: '▶️',
-                onClick: () => this.startAutoRun(),
-                variant: 'primary'
-            });
-            buttonContainer.appendChild(this.startButton.element);
+            this.startButton = document.createElement('button');
+            this.startButton.textContent = 'Start Auto Run';
+            this.startButton.style.cssText = `
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            flex: 1;
+        `;
+            this.startButton.addEventListener('click', () => this.startAutoRun());
 
             // Stop button
-            this.stopButton = new Button({
-                text: 'Stop',
-                icon: '⏹️',
-                onClick: () => this.stopAutoRun(),
-                variant: 'danger',
-                disabled: true
-            });
-            buttonContainer.appendChild(this.stopButton.element);
+            this.stopButton = document.createElement('button');
+            this.stopButton.textContent = 'Stop';
+            this.stopButton.disabled = true;
+            this.stopButton.style.cssText = `
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            flex: 1;
+        `;
+            this.stopButton.addEventListener('click', () => this.stopAutoRun());
 
-            section.appendChild(buttonContainer);
+            buttonContainer.appendChild(this.startButton);
+            buttonContainer.appendChild(this.stopButton);
 
             // Status display
-            this.statusElement = HTMLUtils.createElement('div', {
-                className: 'auto-run-status',
-                textContent: 'Ready to start',
-                style: { fontSize: '12px', color: '#666', textAlign: 'center' }
-            });
+            this.statusElement = document.createElement('div');
+            this.statusElement.textContent = 'Ready to start';
+            this.statusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center;';
+
+            section.appendChild(title);
+            section.appendChild(this.iterationsInput);
+            section.appendChild(buttonContainer);
             section.appendChild(this.statusElement);
+
+            container.appendChild(section);
         }
 
         /**
          * Create the settings section
          */
-        createSettingsSection() {
-            const section = this.panel.addSection('⚙️ Settings');
+        createSettingsSection(container) {
+            const section = document.createElement('div');
 
-            // Auto-copy responses setting
-            const autoCopyCheckbox = new Checkbox({
-                label: 'Auto-copy new responses',
-                checked: this.settings.AUTO_COPY_RESPONSES,
-                onChange: (checked) => {
-                    this.settings.AUTO_COPY_RESPONSES = checked;
-                    this.saveSettings();
+            // Section title
+            const title = document.createElement('h3');
+            title.textContent = '⚙️ Settings';
+            title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+
+            // Auto-copy checkbox
+            const autoCopyContainer = document.createElement('label');
+            autoCopyContainer.style.cssText = 'display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;';
+
+            const autoCopyCheckbox = document.createElement('input');
+            autoCopyCheckbox.type = 'checkbox';
+            autoCopyCheckbox.checked = this.settings.AUTO_COPY_RESPONSES;
+            autoCopyCheckbox.style.marginRight = '8px';
+            autoCopyCheckbox.addEventListener('change', (e) => {
+                this.settings.AUTO_COPY_RESPONSES = e.target.checked;
+                this.saveSettings();
+            });
+
+            const autoCopyLabel = document.createElement('span');
+            autoCopyLabel.textContent = 'Auto-copy new responses';
+
+            autoCopyContainer.appendChild(autoCopyCheckbox);
+            autoCopyContainer.appendChild(autoCopyLabel);
+
+            // Notifications checkbox
+            const notifContainer = document.createElement('label');
+            notifContainer.style.cssText = 'display: flex; align-items: center; cursor: pointer;';
+
+            const notifCheckbox = document.createElement('input');
+            notifCheckbox.type = 'checkbox';
+            notifCheckbox.checked = this.settings.SHOW_NOTIFICATIONS;
+            notifCheckbox.style.marginRight = '8px';
+            notifCheckbox.addEventListener('change', (e) => {
+                this.settings.SHOW_NOTIFICATIONS = e.target.checked;
+                this.saveSettings();
+            });
+
+            const notifLabel = document.createElement('span');
+            notifLabel.textContent = 'Show notifications';
+
+            notifContainer.appendChild(notifCheckbox);
+            notifContainer.appendChild(notifLabel);
+
+            section.appendChild(title);
+            section.appendChild(autoCopyContainer);
+            section.appendChild(notifContainer);
+
+            container.appendChild(section);
+        }
+
+        /**
+         * Make panel draggable
+         */
+        makeDraggable(header) {
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            header.addEventListener('mousedown', (e) => {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+                if (e.target === header) {
+                    isDragging = true;
                 }
             });
-            section.appendChild(autoCopyCheckbox.element);
 
-            // Show notifications setting
-            const notificationsCheckbox = new Checkbox({
-                label: 'Show notifications',
-                checked: this.settings.SHOW_NOTIFICATIONS,
-                onChange: (checked) => {
-                    this.settings.SHOW_NOTIFICATIONS = checked;
-                    this.saveSettings();
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    e.preventDefault();
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                    xOffset = currentX;
+                    yOffset = currentY;
+                    this.panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
                 }
             });
-            section.appendChild(notificationsCheckbox.element);
+
+            document.addEventListener('mouseup', () => {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+            });
         }
 
         /**
@@ -3858,10 +2496,105 @@
         }
 
         /**
+         * Clean response text by removing UI elements and metadata
+         */
+        cleanResponseText(text) {
+            if (!text) return '';
+
+            // Common UI elements to remove (case-insensitive)
+            const uiElements = [
+                'edit', 'more_vert', 'thumb_up', 'thumb_down', 'copy', 'share',
+                'delete', 'refresh', 'restart', 'stop', 'play', 'pause',
+                'expand_more', 'expand_less', 'close', 'menu', 'settings',
+                'download', 'upload', 'save', 'favorite', 'star', 'bookmark',
+                'like', 'dislike', 'report', 'flag', 'hide', 'show'
+            ];
+
+            // Split into lines and clean
+            let lines = text.split('\n')
+                .map(line => line.trim())
+                .filter(line => {
+                    // Remove empty lines
+                    if (!line) return false;
+                    
+                    // Remove lines that are just UI elements
+                    const lowerLine = line.toLowerCase();
+                    if (uiElements.includes(lowerLine)) return false;
+                    
+                    // Remove lines with only symbols/dashes
+                    if (/^[-=_\s]+$/.test(line)) return false;
+                    
+                    // Remove very short lines that are likely UI elements
+                    if (line.length <= 3 && !/\w/.test(line)) return false;
+                    
+                    return true;
+                });
+
+            // Remove common patterns at the beginning and end
+            while (lines.length > 0 && this.isUILine(lines[0])) {
+                lines.shift();
+            }
+            while (lines.length > 0 && this.isUILine(lines[lines.length - 1])) {
+                lines.pop();
+            }
+
+            return lines.join('\n').trim();
+        }
+
+        /**
+         * Check if a line is likely a UI element
+         */
+        isUILine(line) {
+            const cleaned = line.toLowerCase().trim();
+            
+            // Common UI patterns
+            const uiPatterns = [
+                /^(edit|copy|share|delete|save|download)$/,
+                /^(thumb_up|thumb_down|more_vert)$/,
+                /^(expand_more|expand_less|close|menu)$/,
+                /^[👍👎❤️⭐🔗📋✏️🗑️]+$/,  // Emoji-only lines
+                /^[\s\-=_]{1,5}$/,          // Short separator lines
+            ];
+
+            return uiPatterns.some(pattern => pattern.test(cleaned));
+        }
+
+        /**
+         * Extract clean text from response element
+         */
+        extractResponseText(element) {
+            // Try to find more specific text content within the response container
+            const textSelectors = [
+                '.response-text',
+                '.message-content',
+                '.content',
+                '.text-content',
+                'p',
+                'div.content',
+                '[data-testid="message-text"]'
+            ];
+
+            // First, try to find specific text content elements
+            for (const selector of textSelectors) {
+                const textElement = element.querySelector(selector);
+                if (textElement) {
+                    const text = textElement.innerText?.trim();
+                    if (text && text.length > 10) {
+                        return this.cleanResponseText(text);
+                    }
+                }
+            }
+
+            // If no specific text element found, use the container but clean it thoroughly
+            const fullText = element.innerText?.trim();
+            return this.cleanResponseText(fullText);
+        }
+
+        /**
          * Add a response to the collection
          */
         addResponse(element) {
-            const text = element.innerText?.trim();
+            const text = this.extractResponseText(element);
             if (text && text.length > 10 && !this.responses.includes(text)) {
                 this.responses.push(text);
                 this.updateResponseCount();
@@ -3892,9 +2625,8 @@
                 return false;
             }
 
-            const content = this.responses.map((response, index) => {
-                return `=== Response ${index + 1} ===\n${response}\n`;
-            }).join('\n');
+            // Format responses - clean output without headers
+            const content = this.responses.join('\n\n---\n\n');
 
             try {
                 GM_setClipboard(content);
@@ -3938,8 +2670,8 @@
             this.maxIterations = iterations;
 
             // Update UI
-            this.startButton.setDisabled(true);
-            this.stopButton.setDisabled(false);
+            this.startButton.disabled = true;
+            this.stopButton.disabled = false;
             this.updateAutoRunStatus();
 
             this.showNotification(`Starting auto runner for ${iterations} iterations`, 'info');
@@ -3956,8 +2688,8 @@
             this.isAutoRunning = false;
             
             // Update UI
-            this.startButton.setDisabled(false);
-            this.stopButton.setDisabled(true);
+            this.startButton.disabled = false;
+            this.stopButton.disabled = true;
             this.updateAutoRunStatus();
 
             this.showNotification(`Auto runner stopped at ${this.currentIteration}/${this.maxIterations}`, 'info');
@@ -4082,11 +2814,14 @@
          */
         showNotification(message, type = 'info') {
             if (this.settings.SHOW_NOTIFICATIONS) {
-                Notification.show(message, {
-                    type: type,
-                    duration: 3000,
-                    position: 'top-right'
-                });
+                // Simple notification using alert as fallback
+                // Since Trusted Types might block advanced notifications too
+                console.log(`[${type.toUpperCase()}] ${message}`);
+                
+                // You could also create a simple toast notification using DOM methods
+                if (type === 'error') {
+                    alert(`Error: ${message}`);
+                }
             }
         }
     }
