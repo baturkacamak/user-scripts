@@ -8,6 +8,7 @@ import {
     Logger,
     Notification,
     PollingStrategy,
+    PubSub,
     SidebarPanel,
     StyleManager,
     UrlChangeWatcher
@@ -121,6 +122,18 @@ class AIStudioEnhancer {
         AUTO_RUN_PROMPT: ''
     };
 
+    // Event names for PubSub communication
+    static EVENTS = {
+        RESPONSE_ADDED: 'ai-studio:response-added',
+        RESPONSES_COPIED: 'ai-studio:responses-copied',
+        CHAT_CHANGED: 'ai-studio:chat-changed',
+        AUTO_RUN_STARTED: 'ai-studio:auto-run-started',
+        AUTO_RUN_STOPPED: 'ai-studio:auto-run-stopped',
+        AUTO_RUN_ITERATION: 'ai-studio:auto-run-iteration',
+        SETTINGS_CHANGED: 'ai-studio:settings-changed',
+        UI_UPDATE_REQUIRED: 'ai-studio:ui-update-required'
+    };
+
     /**
      * Initialize the enhancer
      */
@@ -137,8 +150,14 @@ class AIStudioEnhancer {
         this.copyButton = null;
         this.toggleButton = null;
         this.isInitialLoad = true;
+        
+        // Store subscription IDs for cleanup
+        this.subscriptionIds = [];
 
         Logger.info("Initializing Google AI Studio Enhancer");
+
+        // Setup PubSub event handlers
+        this.setupEventHandlers();
 
         // Create debounced notification function for initial load
         this.debouncedInitialNotification = Debouncer.debounce((count) => {
@@ -154,6 +173,178 @@ class AIStudioEnhancer {
         this.loadSettings().then(() => {
             // Initialize components
             this.init();
+        });
+        
+        // Setup cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            this.cleanup();
+        });
+    }
+
+    /**
+     * Setup PubSub event handlers for event-driven communication
+     */
+    setupEventHandlers() {
+        // Handle response additions
+        this.subscriptionIds.push(
+            PubSub.subscribe(AIStudioEnhancer.EVENTS.RESPONSE_ADDED, (data) => {
+                this.handleResponseAdded(data);
+            })
+        );
+
+        // Handle chat changes
+        this.subscriptionIds.push(
+            PubSub.subscribe(AIStudioEnhancer.EVENTS.CHAT_CHANGED, (data) => {
+                this.handleChatChangedEvent(data);
+            })
+        );
+
+        // Handle UI updates
+        this.subscriptionIds.push(
+            PubSub.subscribe(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, (data) => {
+                this.handleUIUpdate(data);
+            })
+        );
+
+        // Handle auto-run events
+        this.subscriptionIds.push(
+            PubSub.subscribe(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, (data) => {
+                this.handleAutoRunStarted(data);
+            })
+        );
+
+        this.subscriptionIds.push(
+            PubSub.subscribe(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, (data) => {
+                this.handleAutoRunStopped(data);
+            })
+        );
+
+        this.subscriptionIds.push(
+            PubSub.subscribe(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, (data) => {
+                this.handleAutoRunIteration(data);
+            })
+        );
+
+        Logger.debug("PubSub event handlers setup complete");
+    }
+
+    /**
+     * Cleanup PubSub subscriptions
+     */
+    cleanup() {
+        this.subscriptionIds.forEach(id => {
+            PubSub.unsubscribe(id);
+        });
+        this.subscriptionIds = [];
+        Logger.debug("PubSub subscriptions cleaned up");
+    }
+
+    /**
+     * Handle response addition events
+     */
+    handleResponseAdded(data) {
+        // Update UI counter
+        this.updateResponseCount();
+        
+        // Auto-copy new responses
+        this.copyAllResponsesWithSmartNotification();
+        
+        Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}`);
+    }
+
+    /**
+     * Handle chat change events
+     */
+    handleChatChangedEvent(data) {
+        Logger.info(`Chat changed event: ${data.oldChatId} → ${data.newChatId}`);
+        
+        // Clear responses for new chat
+        this.responses = [];
+        
+        // Publish UI update event
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'chat-changed',
+            chatId: data.newChatId 
+        });
+        
+        // Set initial load mode for the new chat
+        this.isInitialLoad = true;
+        
+        // Cancel any pending debounced notifications from the previous chat
+        this.debouncedInitialNotification.cancel();
+        
+        // Collect responses from the new chat after a short delay
+        setTimeout(() => {
+            this.collectExistingResponses();
+            setTimeout(() => {
+                this.isInitialLoad = false;
+                Logger.debug("New chat initial load completed");
+            }, 1000);
+        }, 1000);
+        
+        this.showNotification('Switched to new chat - responses cleared', 'info');
+    }
+
+    /**
+     * Handle UI update events
+     */
+    handleUIUpdate(data) {
+        switch (data.type) {
+            case 'chat-changed':
+                this.updateResponseCount();
+                break;
+            case 'auto-run-status':
+                this.updateAutoRunStatus();
+                break;
+            case 'button-state':
+                this.updateButtonState();
+                break;
+            default:
+                Logger.debug('Unknown UI update type:', data.type);
+        }
+    }
+
+    /**
+     * Handle auto-run started events
+     */
+    handleAutoRunStarted(data) {
+        Logger.info(`Auto-run started event: ${data.iterations} iterations`);
+        this.showNotification(`Starting auto runner for ${data.iterations} iterations`, 'info');
+        
+        // Update UI
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'button-state' 
+        });
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'auto-run-status' 
+        });
+    }
+
+    /**
+     * Handle auto-run stopped events
+     */
+    handleAutoRunStopped(data) {
+        Logger.info(`Auto-run stopped event: ${data.reason || 'user requested'}`);
+        this.showNotification(`Auto runner stopped and reset`, 'info');
+        
+        // Update UI
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'button-state' 
+        });
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'auto-run-status' 
+        });
+    }
+
+    /**
+     * Handle auto-run iteration events
+     */
+    handleAutoRunIteration(data) {
+        Logger.info(`Auto-run iteration event: ${data.current}/${data.total}`);
+        
+        // Update UI
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'auto-run-status' 
         });
     }
 
@@ -567,27 +758,14 @@ class AIStudioEnhancer {
     onChatChanged() {
         Logger.info('Chat changed - clearing responses and collecting new ones');
         
-        // Clear existing responses for the new chat
-        this.responses = [];
-        this.updateResponseCount();
+        // Publish chat change event instead of handling directly
+        PubSub.publish(AIStudioEnhancer.EVENTS.CHAT_CHANGED, {
+            oldChatId: this.previousChatId || null,
+            newChatId: this.currentChatId
+        });
         
-        // Set initial load mode for the new chat
-        this.isInitialLoad = true;
-        
-        // Cancel any pending debounced notifications from the previous chat
-        this.debouncedInitialNotification.cancel();
-        
-        // Collect responses from the new chat after a short delay
-        setTimeout(() => {
-            this.collectExistingResponses();
-            // Mark initial load as complete for the new chat
-            setTimeout(() => {
-                this.isInitialLoad = false;
-                Logger.debug("New chat initial load completed");
-            }, 1000);
-        }, 1000);
-        
-        this.showNotification('Switched to new chat - responses cleared', 'info');
+        // Store previous chat ID for next change
+        this.previousChatId = this.currentChatId;
     }
 
     /**
@@ -755,10 +933,13 @@ class AIStudioEnhancer {
         const text = this.extractResponseText(element);
         if (text && text.length > 10 && !this.responses.includes(text)) {
             this.responses.push(text);
-            this.updateResponseCount();
             
-            // Always auto-copy new responses
-            this.copyAllResponsesWithSmartNotification();
+            // Publish event instead of direct method calls
+            PubSub.publish(AIStudioEnhancer.EVENTS.RESPONSE_ADDED, {
+                text: text,
+                total: this.responses.length,
+                isInitialLoad: this.isInitialLoad
+            });
 
             Logger.debug('New response added:', text.substring(0, 100) + '...');
         }
@@ -878,11 +1059,12 @@ class AIStudioEnhancer {
         this.currentIteration = 0;
         this.maxIterations = iterations;
 
-        // Update UI
-        this.updateButtonState();
-        this.updateAutoRunStatus();
+        // Publish auto-run started event
+        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, {
+            iterations: iterations,
+            timestamp: Date.now()
+        });
 
-        this.showNotification(`Starting auto runner for ${iterations} iterations`, 'info');
         Logger.info(`Starting auto runner for ${iterations} iterations`);
 
         await this.runIteration();
@@ -898,11 +1080,12 @@ class AIStudioEnhancer {
         // Reset iteration count to 0
         this.currentIteration = 0;
         
-        // Update UI
-        this.updateButtonState();
-        this.updateAutoRunStatus();
+        // Publish auto-run stopped event
+        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+            reason: 'user requested',
+            timestamp: Date.now()
+        });
 
-        this.showNotification(`Auto runner stopped and reset`, 'info');
         Logger.info(`Auto runner stopped and reset`);
     }
 
@@ -915,18 +1098,32 @@ class AIStudioEnhancer {
                 // Auto-run completed all iterations
                 this.isAutoRunning = false;
                 this.currentIteration = 0;
-                this.updateButtonState();
-                this.updateAutoRunStatus();
+                
+                // Publish completion event
+                PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                    reason: 'completed',
+                    completedIterations: this.maxIterations,
+                    timestamp: Date.now()
+                });
+                
                 this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
                 Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
             } else {
-            this.stopAutoRun();
+                // Stopped by user or error
+                this.stopAutoRun();
             }
             return;
         }
 
         this.currentIteration++;
-        this.updateAutoRunStatus();
+        
+        // Publish iteration event
+        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, {
+            current: this.currentIteration,
+            total: this.maxIterations,
+            timestamp: Date.now()
+        });
+        
         Logger.info(`Running iteration ${this.currentIteration}/${this.maxIterations}`);
 
         // Enter prompt if specified
