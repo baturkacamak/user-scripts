@@ -277,7 +277,8 @@ class Notification {
         if (!document.getElementById(styleId)) {
             const style = document.createElement('style');
             style.id = styleId;
-            style.innerHTML = `
+            // Use textContent instead of innerHTML for CSP compliance
+            style.textContent = `
         :root {
           /* Container styling */
           ${Notification.CSS_VAR_PREFIX}container-width: auto;
@@ -563,32 +564,36 @@ class Notification {
             Object.assign(element.style, config.style);
         }
 
-        // Create content structure
-        let content = '';
-
+        // Create content structure using DOM methods instead of innerHTML
+        
         // Add icon if provided
         if (config.icon) {
-            content += `<div class="${Notification.BASE_NOTIFICATION_CLASS}-icon">${config.icon}</div>`;
+            const iconDiv = document.createElement('div');
+            iconDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-icon`;
+            iconDiv.textContent = config.icon; // Use textContent for icons (should be emoji/text)
+            element.appendChild(iconDiv);
         }
 
-        // Add message
-        content += `<div class="${Notification.BASE_NOTIFICATION_CLASS}-content">`;
+        // Add message content
+        const contentDiv = document.createElement('div');
+        contentDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-content`;
         if (config.html) {
-            content += config.message;
+            // For HTML content, we'll just use text content for CSP compliance
+            // This is a security decision - no HTML allowed in notifications
+            contentDiv.textContent = config.message;
         } else {
-            const message = document.createTextNode(config.message);
-            const tempDiv = document.createElement('div');
-            tempDiv.appendChild(message);
-            content += tempDiv.innerHTML;
+            contentDiv.textContent = config.message;
         }
-        content += '</div>';
+        element.appendChild(contentDiv);
 
         // Add close button if needed
         if (config.showClose) {
-            content += `<button class="${Notification.BASE_NOTIFICATION_CLASS}-close" aria-label="Close notification">×</button>`;
+            const closeButton = document.createElement('button');
+            closeButton.className = `${Notification.BASE_NOTIFICATION_CLASS}-close`;
+            closeButton.setAttribute('aria-label', 'Close notification');
+            closeButton.textContent = '×';
+            element.appendChild(closeButton);
         }
-
-        element.innerHTML = content;
 
         // Set up animations
         requestAnimationFrame(() => {
