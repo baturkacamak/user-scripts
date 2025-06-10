@@ -1,130 +1,190 @@
 # Google AI Studio Enhancer
 
-A powerful userscript that enhances your Google AI Studio experience with advanced response management and automation features.
+A powerful userscript that enhances Google AI Studio with response copying and auto-run functionality.
 
-## Features
+## 🎯 Features
 
 ### 📋 Response Management
-- **Copy All Responses**: Copy all AI chatbot responses to clipboard with a single click
-- **Response Counter**: Real-time counter showing the number of collected responses
-- **Response History**: Automatic collection and storage of all AI responses during your session
-- **Clear History**: Clear all collected responses when needed
+- **Real-time Response Detection**: Automatically detects and collects AI responses as they appear
+- **One-Click Copy**: Copy all collected responses to clipboard with proper formatting
+- **Auto-copy Option**: Automatically copy new responses as they are generated
+- **Response History**: Maintains a history of all collected responses during your session
+- **Clear History**: Easy cleanup of collected responses
 
 ### 🔄 Auto Runner
-- **Automated Execution**: Automatically click the "Run" button for a specified number of iterations
-- **Customizable Count**: Set any number of iterations (1-100) based on your needs
-- **Smart Detection**: Waits for each response to complete before triggering the next run
-- **Real-time Status**: Shows current progress and iteration count
-- **Stop Control**: Ability to stop the auto-runner at any time
+- **Configurable Iterations**: Set any number of auto-runs (1-100)
+- **Smart Button Detection**: Automatically finds and clicks Run/Send buttons
+- **Completion Detection**: Waits for responses to complete before next iteration
+- **Progress Tracking**: Real-time progress display
+- **Emergency Stop**: Stop auto-run at any time
 
-### 🎨 User Interface
-- **Floating Panel**: Clean, draggable control panel positioned in the top-right corner
-- **Modern Design**: Google Material Design inspired interface
-- **Responsive Controls**: Visual feedback for all actions
-- **Status Updates**: Real-time updates on operation status
+### ⚙️ Settings & Persistence
+- **Persistent Settings**: All preferences saved automatically
+- **Auto-copy Toggle**: Enable/disable automatic response copying
+- **Notifications Control**: Show/hide operation notifications
+- **Draggable Interface**: Moveable panel that remembers position
 
-## Installation
+### 🎨 Professional UI
+- **Clean Design**: Modern, unobtrusive interface
+- **Collapsible Sections**: Organized into manageable sections
+- **Visual Feedback**: Clear status indicators and progress display
+- **Responsive Layout**: Works on different screen sizes
 
-1. Install a userscript manager like [Tampermonkey](https://www.tampermonkey.net/) or [Greasemonkey](https://www.greasespot.net/)
-2. Click on the userscript file: [google-ai-studio-enhancer.user.js](./google-ai-studio-enhancer.user.js)
-3. Your userscript manager should prompt you to install it
-4. Visit [Google AI Studio](https://aistudio.google.com/) and the enhancer will automatically load
+## 🔧 Installation
 
-## Usage
+1. Install a userscript manager:
+   - [Tampermonkey](https://tampermonkey.net/) (Recommended)
+   - [Greasemonkey](https://www.greasespot.net/)
+   - [Violentmonkey](https://violentmonkey.github.io/)
 
-### Copy Responses Feature
-1. Navigate to Google AI Studio and start a conversation with an AI model
-2. The script will automatically detect and collect all AI responses
-3. Click "Copy All Responses" to copy all collected responses to your clipboard
-4. The responses are formatted with clear separators for easy reading
+2. Install the script:
+   - **Production**: [google-ai-studio-enhancer.user.js](google-ai-studio-enhancer.user.js)
+   - **Development**: [google-ai-studio-enhancer.dev.user.js](dev/google-ai-studio-enhancer.dev.user.js)
 
-### Auto Runner Feature
-1. Enter the desired number of iterations in the input field (default: 10)
-2. Click "Start Auto Run" to begin automated execution
-3. The script will:
-   - Click the Run button
-   - Wait for the AI response to complete
+3. Visit [Google AI Studio](https://aistudio.google.com/) and the enhancer will appear on the right side.
+
+## 🚀 Usage
+
+### Response Copying
+1. Navigate to any chat/conversation in Google AI Studio
+2. The script automatically detects and collects AI responses
+3. Click "Copy All Responses" to copy formatted responses to clipboard
+4. Enable "Auto-copy new responses" to automatically copy each new response
+
+### Auto Runner
+1. Enter the number of iterations you want (1-100)
+2. Click "Start Auto Run"
+3. The script will automatically:
+   - Find and click the Run/Send button
+   - Wait for the response to complete
    - Repeat for the specified number of iterations
-4. Monitor progress in the status indicator
-5. Click "Stop" to halt execution at any time
+4. Use "Stop" button to halt the process at any time
 
-## Technical Details
+## 🛠️ Troubleshooting
 
-### Response Detection
-The script uses multiple strategies to detect AI responses:
-- DOM observers for real-time detection
-- Multiple CSS selectors to catch various response formats
-- Content filtering to avoid duplicates
+### Google's Trusted Types Policy
 
-### Auto-Click Logic
-- Intelligent button detection using multiple selectors
-- Response completion detection through loading indicators
-- Timeout protection to prevent infinite waiting
-- Graceful error handling
+Google AI Studio implements **Trusted Types** security policy that blocks direct HTML injection. This userscript has been specifically designed to work around this limitation.
 
-### Performance
-- Minimal performance impact on Google AI Studio
-- Efficient DOM observation and mutation handling
-- Smart debouncing to prevent excessive processing
+**If you see "TrustedHTML assignment" errors:**
 
-## Browser Compatibility
-- Chrome/Chromium (Recommended)
-- Firefox
-- Safari
-- Edge
+✅ **Current Solution (Implemented)**
+- Uses pure DOM methods (`createElement`, `appendChild`)
+- No `innerHTML` or HTML injection
+- Should work on all Google domains
 
-## Permissions Required
-- `GM_setClipboard`: Copy responses to clipboard
-- `GM_addStyle`: Inject custom styles for the UI
-- `GM_getValue`/`GM_setValue`: Store user preferences (future use)
+**Alternative Solutions if issues persist:**
 
-## Troubleshooting
+### **Option A: CSS Injection Method**
+```javascript
+// Pure CSS-based UI (minimal JavaScript)
+const style = document.createElement('style');
+style.textContent = `
+  .ai-enhancer-panel { /* CSS only styling */ }
+`;
+document.head.appendChild(style);
+```
 
-### Script Not Loading
-- Ensure your userscript manager is enabled
-- Check that the script is active for `https://aistudio.google.com/*`
-- Refresh the page after installation
+### **Option B: Shadow DOM Approach**
+```javascript
+// Isolate from Google's policies
+const shadowHost = document.createElement('div');
+const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+// Build UI inside shadow DOM
+```
 
-### Responses Not Detected
-- Try refreshing the page and starting a new conversation
-- Check browser console for any error messages
-- Ensure you're using a supported conversation format
+### **Option C: External Iframe**
+```javascript
+// Load interface in separate context
+const iframe = document.createElement('iframe');
+iframe.src = 'data:text/html,<html>...</html>';
+// Build UI inside iframe
+```
 
-### Auto Runner Issues
-- Verify the Run button is visible and enabled
-- Check that you have a valid conversation context
-- Ensure the iteration count is a positive number
+### **Option D: Browser Extension**
+Convert to a browser extension for maximum privileges:
+- Chrome Extension (Manifest V3)
+- Firefox Add-on
+- Edge Extension
 
-## Contributing
+### **Option E: Bookmarklet Approach**
+```javascript
+// Simple bookmarklet for basic functionality
+javascript:(function(){
+  // Copy responses code here
+})();
+```
 
-This userscript is part of the [UserScripts collection](https://github.com/baturkacamak/userscripts). 
+**Ready-to-use bookmarklet**: [dev/bookmarklet.js](dev/bookmarklet.js)
 
-### Development
-1. Make changes to the source file
-2. Test thoroughly on Google AI Studio
-3. Update version number in the userscript header
-4. Submit pull request with detailed description
+### **Option F: External Tools**
+- Use browser automation tools (Puppeteer, Selenium)
+- External clipboard managers
+- Screen scraping tools
 
-## License
+## 📋 Response Format
 
-MIT License - see [LICENSE](./LICENSE) file for details.
-
-## Version History
-
-### v1.0.0
-- Initial release
-- Copy all AI responses feature
-- Auto-click Run button with custom iteration count
-- Draggable UI panel
-- Real-time status updates
-
-## Support
-
-For issues, feature requests, or questions:
-1. Check the [Issues](https://github.com/baturkacamak/userscripts/issues) page
-2. Create a new issue with detailed description
-3. Include browser version and userscript manager details
+When copying responses, the format is clean and simple:
+```
+[First AI response content here]
 
 ---
 
-**Note**: This userscript is designed to enhance productivity while using Google AI Studio. Please use responsibly and in accordance with Google's terms of service. 
+[Second AI response content here]
+
+---
+
+[Third AI response content here]
+```
+
+## ⚡ Performance
+
+- **Lightweight**: Minimal impact on page performance
+- **Efficient DOM Monitoring**: Uses MutationObserver for real-time detection
+- **Smart Caching**: Avoids duplicate response collection
+- **Optimized Selectors**: Fast element detection
+
+## 🔒 Security & Privacy
+
+- **No Data Transmission**: All data stays local in your browser
+- **No External Requests**: Script operates entirely offline
+- **Trusted Types Compliant**: Uses secure DOM manipulation methods
+- **Minimal Permissions**: Only requests clipboard access
+
+## 🐛 Known Limitations
+
+1. **Google Updates**: Google may change their UI, requiring selector updates
+2. **Rate Limiting**: Google may implement rate limiting for auto-runs
+3. **Browser Variations**: Some features may work differently across browsers
+4. **Mobile Support**: Limited functionality on mobile devices
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Make your changes in the `dev/` directory
+3. Test thoroughly on Google AI Studio
+4. Submit a pull request
+
+## 📝 Development
+
+```bash
+# Build the userscript
+npm run build:google-ai-studio-enhancer
+
+# Watch for changes (development)
+npm run build:google-ai-studio-enhancer -- --watch
+```
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🆙 Version History
+
+- **v1.0.0**: Initial release with DOM-based approach for Trusted Types compliance
+- Core features: Response copying, Auto-run, Settings persistence
+- Trusted Types compatible implementation
+
+---
+
+**Made with ❤️ for the AI community** 

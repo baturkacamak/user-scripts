@@ -6,7 +6,6 @@ import {
     HTMLUtils,
     Logger,
     Notification,
-    SidebarPanel,
     StyleManager
 } from "../../common/core";
 import { getValue, setValue, GM_setClipboard } from "../../common/core/utils/GMFunctions";
@@ -18,12 +17,17 @@ Logger.DEBUG = true;
 /**
  * Google AI Studio Enhancer
  * Provides response copying and auto-run functionality for Google AI Studio
+ * Uses DOM methods to bypass Trusted Types policy
  */
 class AIStudioEnhancer {
     // Configuration
     static SELECTORS = {
         // Common selectors for AI responses
         RESPONSE_CONTAINERS: [
+            // Google AI Studio specific (most accurate)
+            '.chat-turn-container.model.render',
+            '.chat-turn-container.model',
+            // General selectors
             '[data-test-id="response-text"]',
             '.model-response',
             '.response-content',
@@ -31,7 +35,11 @@ class AIStudioEnhancer {
             '.markdown-content',
             'div[data-message-author-role="model"]',
             'div[data-message-role="model"]',
-            '[data-message-author-role="assistant"]'
+            '[data-message-author-role="assistant"]',
+            // More specific selectors for Google AI Studio
+            '[data-testid="conversation-turn-content"]',
+            '.conversation-turn-content',
+            '[data-testid="model-response"]'
         ],
         // Common selectors for run buttons
         RUN_BUTTONS: [
@@ -42,7 +50,10 @@ class AIStudioEnhancer {
             'button[data-testid*="run"]',
             'button[aria-label*="Send"]',
             'button[title*="Send"]',
-            'button[data-testid*="send"]'
+            'button[data-testid*="send"]',
+            // More specific for Google AI Studio
+            'button[data-testid="send-button"]',
+            'button[aria-label*="send message"]'
         ],
         // Loading indicators
         LOADING_INDICATORS: [
@@ -52,7 +63,10 @@ class AIStudioEnhancer {
             '.generating',
             '.thinking',
             '[aria-label*="loading"]',
-            '[aria-label*="thinking"]'
+            '[aria-label*="thinking"]',
+            // Google AI Studio specific
+            '[data-testid="loading"]',
+            '.mdc-linear-progress'
         ]
     };
 
@@ -131,7 +145,7 @@ class AIStudioEnhancer {
         // Wait for page to be ready
         await this.waitForPageReady();
 
-        // Create the UI panel
+        // Create the UI panel using DOM methods
         this.createPanel();
 
         // Setup response monitoring
@@ -159,141 +173,293 @@ class AIStudioEnhancer {
     }
 
     /**
-     * Create the main UI panel
+     * Create the main UI panel using pure DOM methods
      */
     createPanel() {
-        this.panel = new SidebarPanel({
-            title: '🤖 AI Studio Enhancer',
-            position: this.settings.PANEL_POSITION,
-            draggable: true,
-            collapsible: true,
-            width: 320,
-            onPositionChange: (position) => {
-                this.settings.PANEL_POSITION = position;
-                this.saveSettings();
-            }
-        });
+        // Create main panel container
+        this.panel = document.createElement('div');
+        this.panel.className = 'ai-studio-enhancer-panel';
+        this.panel.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+        `;
 
-        this.createResponseSection();
-        this.createAutoRunSection();
-        this.createSettingsSection();
+        // Create header
+        const header = document.createElement('div');
+        header.style.cssText = `
+            background: #4285f4;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            cursor: move;
+            user-select: none;
+        `;
+        header.textContent = '🤖 AI Studio Enhancer';
 
-        this.panel.show();
+        // Create content container
+        const content = document.createElement('div');
+        content.style.padding = '16px';
+
+        // Create sections
+        this.createResponseSection(content);
+        this.createAutoRunSection(content);
+        this.createSettingsSection(content);
+
+        // Assemble panel
+        this.panel.appendChild(header);
+        this.panel.appendChild(content);
+
+        // Add to page
+        document.body.appendChild(this.panel);
+
+        // Make draggable
+        this.makeDraggable(header);
+
+        Logger.debug("Panel created using DOM methods");
     }
 
     /**
      * Create the response management section
      */
-    createResponseSection() {
-        const section = this.panel.addSection('📋 Response Management');
+    createResponseSection(container) {
+        const section = document.createElement('div');
+        section.style.marginBottom = '20px';
+
+        // Section title
+        const title = document.createElement('h3');
+        title.textContent = '📋 Response Management';
+        title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
         // Response counter
-        this.responseCountElement = HTMLUtils.createElement('div', {
-            className: 'response-counter',
-            textContent: `Responses collected: ${this.responses.length}`
-        });
+        this.responseCountElement = document.createElement('div');
+        this.responseCountElement.textContent = `Responses collected: ${this.responses.length}`;
+        this.responseCountElement.style.cssText = 'margin-bottom: 10px; color: #666; font-size: 12px;';
+
+        // Copy button
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Copy All Responses';
+        copyButton.style.cssText = `
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            width: 100%;
+            margin-bottom: 8px;
+        `;
+        copyButton.addEventListener('click', () => this.copyAllResponses());
+
+        // Clear button
+        const clearButton = document.createElement('button');
+        clearButton.textContent = 'Clear Response History';
+        clearButton.style.cssText = `
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            width: 100%;
+        `;
+        clearButton.addEventListener('click', () => this.clearResponses());
+
+        section.appendChild(title);
         section.appendChild(this.responseCountElement);
+        section.appendChild(copyButton);
+        section.appendChild(clearButton);
 
-        // Copy all responses button
-        const copyButton = new Button({
-            text: 'Copy All Responses',
-            icon: '📋',
-            onClick: () => this.copyAllResponses(),
-            variant: 'primary',
-            fullWidth: true
-        });
-        section.appendChild(copyButton.element);
-
-        // Clear responses button
-        const clearButton = new Button({
-            text: 'Clear Response History',
-            icon: '🗑️',
-            onClick: () => this.clearResponses(),
-            variant: 'secondary',
-            fullWidth: true
-        });
-        section.appendChild(clearButton.element);
+        container.appendChild(section);
     }
 
     /**
      * Create the auto-run section
      */
-    createAutoRunSection() {
-        const section = this.panel.addSection('🔄 Auto Runner');
+    createAutoRunSection(container) {
+        const section = document.createElement('div');
+        section.style.marginBottom = '20px';
+
+        // Section title
+        const title = document.createElement('h3');
+        title.textContent = '🔄 Auto Runner';
+        title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
         // Iterations input
-        this.iterationsInput = HTMLUtils.createElement('input', {
-            type: 'number',
-            min: 1,
-            max: 100,
-            value: this.settings.DEFAULT_ITERATIONS,
-            placeholder: 'Number of iterations',
-            style: { width: '100%', marginBottom: '10px', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }
-        });
-        section.appendChild(this.iterationsInput);
+        this.iterationsInput = document.createElement('input');
+        this.iterationsInput.type = 'number';
+        this.iterationsInput.min = '1';
+        this.iterationsInput.max = '100';
+        this.iterationsInput.value = this.settings.DEFAULT_ITERATIONS;
+        this.iterationsInput.placeholder = 'Number of iterations';
+        this.iterationsInput.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+        `;
 
         // Button container
-        const buttonContainer = HTMLUtils.createElement('div', {
-            style: { display: 'flex', gap: '10px', marginBottom: '10px' }
-        });
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = 'display: flex; gap: 8px; margin-bottom: 10px;';
 
         // Start button
-        this.startButton = new Button({
-            text: 'Start Auto Run',
-            icon: '▶️',
-            onClick: () => this.startAutoRun(),
-            variant: 'primary'
-        });
-        buttonContainer.appendChild(this.startButton.element);
+        this.startButton = document.createElement('button');
+        this.startButton.textContent = 'Start Auto Run';
+        this.startButton.style.cssText = `
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            flex: 1;
+        `;
+        this.startButton.addEventListener('click', () => this.startAutoRun());
 
         // Stop button
-        this.stopButton = new Button({
-            text: 'Stop',
-            icon: '⏹️',
-            onClick: () => this.stopAutoRun(),
-            variant: 'danger',
-            disabled: true
-        });
-        buttonContainer.appendChild(this.stopButton.element);
+        this.stopButton = document.createElement('button');
+        this.stopButton.textContent = 'Stop';
+        this.stopButton.disabled = true;
+        this.stopButton.style.cssText = `
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            flex: 1;
+        `;
+        this.stopButton.addEventListener('click', () => this.stopAutoRun());
 
-        section.appendChild(buttonContainer);
+        buttonContainer.appendChild(this.startButton);
+        buttonContainer.appendChild(this.stopButton);
 
         // Status display
-        this.statusElement = HTMLUtils.createElement('div', {
-            className: 'auto-run-status',
-            textContent: 'Ready to start',
-            style: { fontSize: '12px', color: '#666', textAlign: 'center' }
-        });
+        this.statusElement = document.createElement('div');
+        this.statusElement.textContent = 'Ready to start';
+        this.statusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center;';
+
+        section.appendChild(title);
+        section.appendChild(this.iterationsInput);
+        section.appendChild(buttonContainer);
         section.appendChild(this.statusElement);
+
+        container.appendChild(section);
     }
 
     /**
      * Create the settings section
      */
-    createSettingsSection() {
-        const section = this.panel.addSection('⚙️ Settings');
+    createSettingsSection(container) {
+        const section = document.createElement('div');
 
-        // Auto-copy responses setting
-        const autoCopyCheckbox = new Checkbox({
-            label: 'Auto-copy new responses',
-            checked: this.settings.AUTO_COPY_RESPONSES,
-            onChange: (checked) => {
-                this.settings.AUTO_COPY_RESPONSES = checked;
-                this.saveSettings();
+        // Section title
+        const title = document.createElement('h3');
+        title.textContent = '⚙️ Settings';
+        title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+
+        // Auto-copy checkbox
+        const autoCopyContainer = document.createElement('label');
+        autoCopyContainer.style.cssText = 'display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;';
+
+        const autoCopyCheckbox = document.createElement('input');
+        autoCopyCheckbox.type = 'checkbox';
+        autoCopyCheckbox.checked = this.settings.AUTO_COPY_RESPONSES;
+        autoCopyCheckbox.style.marginRight = '8px';
+        autoCopyCheckbox.addEventListener('change', (e) => {
+            this.settings.AUTO_COPY_RESPONSES = e.target.checked;
+            this.saveSettings();
+        });
+
+        const autoCopyLabel = document.createElement('span');
+        autoCopyLabel.textContent = 'Auto-copy new responses';
+
+        autoCopyContainer.appendChild(autoCopyCheckbox);
+        autoCopyContainer.appendChild(autoCopyLabel);
+
+        // Notifications checkbox
+        const notifContainer = document.createElement('label');
+        notifContainer.style.cssText = 'display: flex; align-items: center; cursor: pointer;';
+
+        const notifCheckbox = document.createElement('input');
+        notifCheckbox.type = 'checkbox';
+        notifCheckbox.checked = this.settings.SHOW_NOTIFICATIONS;
+        notifCheckbox.style.marginRight = '8px';
+        notifCheckbox.addEventListener('change', (e) => {
+            this.settings.SHOW_NOTIFICATIONS = e.target.checked;
+            this.saveSettings();
+        });
+
+        const notifLabel = document.createElement('span');
+        notifLabel.textContent = 'Show notifications';
+
+        notifContainer.appendChild(notifCheckbox);
+        notifContainer.appendChild(notifLabel);
+
+        section.appendChild(title);
+        section.appendChild(autoCopyContainer);
+        section.appendChild(notifContainer);
+
+        container.appendChild(section);
+    }
+
+    /**
+     * Make panel draggable
+     */
+    makeDraggable(header) {
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        header.addEventListener('mousedown', (e) => {
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+            if (e.target === header) {
+                isDragging = true;
             }
         });
-        section.appendChild(autoCopyCheckbox.element);
 
-        // Show notifications setting
-        const notificationsCheckbox = new Checkbox({
-            label: 'Show notifications',
-            checked: this.settings.SHOW_NOTIFICATIONS,
-            onChange: (checked) => {
-                this.settings.SHOW_NOTIFICATIONS = checked;
-                this.saveSettings();
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+                xOffset = currentX;
+                yOffset = currentY;
+                this.panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
             }
         });
-        section.appendChild(notificationsCheckbox.element);
+
+        document.addEventListener('mouseup', () => {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        });
     }
 
     /**
@@ -360,10 +526,105 @@ class AIStudioEnhancer {
     }
 
     /**
+     * Clean response text by removing UI elements and metadata
+     */
+    cleanResponseText(text) {
+        if (!text) return '';
+
+        // Common UI elements to remove (case-insensitive)
+        const uiElements = [
+            'edit', 'more_vert', 'thumb_up', 'thumb_down', 'copy', 'share',
+            'delete', 'refresh', 'restart', 'stop', 'play', 'pause',
+            'expand_more', 'expand_less', 'close', 'menu', 'settings',
+            'download', 'upload', 'save', 'favorite', 'star', 'bookmark',
+            'like', 'dislike', 'report', 'flag', 'hide', 'show'
+        ];
+
+        // Split into lines and clean
+        let lines = text.split('\n')
+            .map(line => line.trim())
+            .filter(line => {
+                // Remove empty lines
+                if (!line) return false;
+                
+                // Remove lines that are just UI elements
+                const lowerLine = line.toLowerCase();
+                if (uiElements.includes(lowerLine)) return false;
+                
+                // Remove lines with only symbols/dashes
+                if (/^[-=_\s]+$/.test(line)) return false;
+                
+                // Remove very short lines that are likely UI elements
+                if (line.length <= 3 && !/\w/.test(line)) return false;
+                
+                return true;
+            });
+
+        // Remove common patterns at the beginning and end
+        while (lines.length > 0 && this.isUILine(lines[0])) {
+            lines.shift();
+        }
+        while (lines.length > 0 && this.isUILine(lines[lines.length - 1])) {
+            lines.pop();
+        }
+
+        return lines.join('\n').trim();
+    }
+
+    /**
+     * Check if a line is likely a UI element
+     */
+    isUILine(line) {
+        const cleaned = line.toLowerCase().trim();
+        
+        // Common UI patterns
+        const uiPatterns = [
+            /^(edit|copy|share|delete|save|download)$/,
+            /^(thumb_up|thumb_down|more_vert)$/,
+            /^(expand_more|expand_less|close|menu)$/,
+            /^[👍👎❤️⭐🔗📋✏️🗑️]+$/,  // Emoji-only lines
+            /^[\s\-=_]{1,5}$/,          // Short separator lines
+        ];
+
+        return uiPatterns.some(pattern => pattern.test(cleaned));
+    }
+
+    /**
+     * Extract clean text from response element
+     */
+    extractResponseText(element) {
+        // Try to find more specific text content within the response container
+        const textSelectors = [
+            '.response-text',
+            '.message-content',
+            '.content',
+            '.text-content',
+            'p',
+            'div.content',
+            '[data-testid="message-text"]'
+        ];
+
+        // First, try to find specific text content elements
+        for (const selector of textSelectors) {
+            const textElement = element.querySelector(selector);
+            if (textElement) {
+                const text = textElement.innerText?.trim();
+                if (text && text.length > 10) {
+                    return this.cleanResponseText(text);
+                }
+            }
+        }
+
+        // If no specific text element found, use the container but clean it thoroughly
+        const fullText = element.innerText?.trim();
+        return this.cleanResponseText(fullText);
+    }
+
+    /**
      * Add a response to the collection
      */
     addResponse(element) {
-        const text = element.innerText?.trim();
+        const text = this.extractResponseText(element);
         if (text && text.length > 10 && !this.responses.includes(text)) {
             this.responses.push(text);
             this.updateResponseCount();
@@ -394,9 +655,8 @@ class AIStudioEnhancer {
             return false;
         }
 
-        const content = this.responses.map((response, index) => {
-            return `=== Response ${index + 1} ===\n${response}\n`;
-        }).join('\n');
+        // Format responses - clean output without headers
+        const content = this.responses.join('\n\n---\n\n');
 
         try {
             GM_setClipboard(content);
@@ -440,8 +700,8 @@ class AIStudioEnhancer {
         this.maxIterations = iterations;
 
         // Update UI
-        this.startButton.setDisabled(true);
-        this.stopButton.setDisabled(false);
+        this.startButton.disabled = true;
+        this.stopButton.disabled = false;
         this.updateAutoRunStatus();
 
         this.showNotification(`Starting auto runner for ${iterations} iterations`, 'info');
@@ -458,8 +718,8 @@ class AIStudioEnhancer {
         this.isAutoRunning = false;
         
         // Update UI
-        this.startButton.setDisabled(false);
-        this.stopButton.setDisabled(true);
+        this.startButton.disabled = false;
+        this.stopButton.disabled = true;
         this.updateAutoRunStatus();
 
         this.showNotification(`Auto runner stopped at ${this.currentIteration}/${this.maxIterations}`, 'info');
@@ -584,11 +844,14 @@ class AIStudioEnhancer {
      */
     showNotification(message, type = 'info') {
         if (this.settings.SHOW_NOTIFICATIONS) {
-            Notification.show(message, {
-                type: type,
-                duration: 3000,
-                position: 'top-right'
-            });
+            // Simple notification using alert as fallback
+            // Since Trusted Types might block advanced notifications too
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            
+            // You could also create a simple toast notification using DOM methods
+            if (type === 'error') {
+                alert(`Error: ${message}`);
+            }
         }
     }
 }
