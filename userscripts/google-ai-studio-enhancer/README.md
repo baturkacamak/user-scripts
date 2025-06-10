@@ -12,6 +12,7 @@ A powerful userscript that enhances Google AI Studio with response copying and a
 - **Clear History**: Easy cleanup of collected responses
 
 ### 🔄 Auto Runner
+- **Custom Prompt Input**: Define a prompt to be automatically entered before each run
 - **Configurable Iterations**: Set any number of auto-runs (1-100)
 - **Smart Button Detection**: Automatically finds and clicks Run/Send buttons
 - **Completion Detection**: Waits for responses to complete before next iteration
@@ -52,13 +53,15 @@ A powerful userscript that enhances Google AI Studio with response copying and a
 4. Enable "Auto-copy new responses" to automatically copy each new response
 
 ### Auto Runner
-1. Enter the number of iterations you want (1-100)
-2. Click "Start Auto Run"
-3. The script will automatically:
+1. **Optional**: Enter a prompt in the text area that will be automatically entered before each run
+2. Enter the number of iterations you want (1-100)
+3. Click "Start Auto Run"
+4. The script will automatically:
+   - Enter the specified prompt (if provided)
    - Find and click the Run/Send button
    - Wait for the response to complete
    - Repeat for the specified number of iterations
-4. Use "Stop" button to halt the process at any time
+5. Use "Stop" button to halt the process at any time
 
 ## 🛠️ Troubleshooting
 
@@ -115,7 +118,7 @@ javascript:(function(){
 })();
 ```
 
-**Ready-to-use bookmarklet**: [dev/bookmarklet.js](dev/bookmarklet.js)
+**Ready-to-use bookmarklet**: [dev/libs/bookmarklet.js](dev/libs/bookmarklet.js)
 
 ### **Option F: External Tools**
 - Use browser automation tools (Puppeteer, Selenium)
