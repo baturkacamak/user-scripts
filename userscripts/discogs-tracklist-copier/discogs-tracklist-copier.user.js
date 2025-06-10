@@ -724,7 +724,8 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          style.innerHTML = `
+          // Use textContent instead of innerHTML for CSP compliance
+          style.textContent = `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -841,11 +842,16 @@
          * Update the button content (icon and text).
          */
       updateContent() {
-        this.button.innerHTML = '';
+        // Clear existing content using DOM methods instead of innerHTML
+        while (this.button.firstChild) {
+          this.button.removeChild(this.button.firstChild);
+        }
+        
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          iconSpan.innerHTML = this.icon;
+          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
+          iconSpan.textContent = this.icon;
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');

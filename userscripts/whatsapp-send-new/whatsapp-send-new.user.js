@@ -304,6 +304,113 @@
     }
 
     /**
+     * PubSub - A simple publish/subscribe pattern implementation
+     * Enables components to communicate without direct references
+     */
+    class PubSub {
+        static #events = {};
+
+        /**
+         * Subscribe to an event
+         * @param {string} event - Event name
+         * @param {Function} callback - Callback function
+         * @return {string} Subscription ID
+         */
+        static subscribe(event, callback) {
+            if (!this.#events[event]) {
+                this.#events[event] = [];
+            }
+
+            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            this.#events[event].push({callback, subscriptionId});
+            return subscriptionId;
+        }
+
+        /**
+         * Unsubscribe from an event
+         * @param {string} subscriptionId - Subscription ID
+         * @return {boolean} Success state
+         */
+        static unsubscribe(subscriptionId) {
+            for (const event in this.#events) {
+                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
+                if (index !== -1) {
+                    this.#events[event].splice(index, 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Publish an event
+         * @param {string} event - Event name
+         * @param {any} data - Data to pass to subscribers
+         */
+        static publish(event, data) {
+            if (!this.#events[event]) {
+                return;
+            }
+
+            this.#events[event].forEach(sub => {
+                sub.callback(data);
+            });
+        }
+
+        /**
+         * Clear all subscriptions
+         * @param {string} [event] - Optional event name to clear only specific event
+         */
+        static clear(event) {
+            if (event) {
+                delete this.#events[event];
+            } else {
+                this.#events = {};
+            }
+        }
+    }
+
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
@@ -566,113 +673,6 @@
     // export default GMFunctions; // Not currently used this way
 
     /**
-     * PubSub - A simple publish/subscribe pattern implementation
-     * Enables components to communicate without direct references
-     */
-    class PubSub {
-        static #events = {};
-
-        /**
-         * Subscribe to an event
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         * @return {string} Subscription ID
-         */
-        static subscribe(event, callback) {
-            if (!this.#events[event]) {
-                this.#events[event] = [];
-            }
-
-            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            this.#events[event].push({callback, subscriptionId});
-            return subscriptionId;
-        }
-
-        /**
-         * Unsubscribe from an event
-         * @param {string} subscriptionId - Subscription ID
-         * @return {boolean} Success state
-         */
-        static unsubscribe(subscriptionId) {
-            for (const event in this.#events) {
-                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
-                if (index !== -1) {
-                    this.#events[event].splice(index, 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Publish an event
-         * @param {string} event - Event name
-         * @param {any} data - Data to pass to subscribers
-         */
-        static publish(event, data) {
-            if (!this.#events[event]) {
-                return;
-            }
-
-            this.#events[event].forEach(sub => {
-                sub.callback(data);
-            });
-        }
-
-        /**
-         * Clear all subscriptions
-         * @param {string} [event] - Optional event name to clear only specific event
-         */
-        static clear(event) {
-            if (event) {
-                delete this.#events[event];
-            } else {
-                this.#events = {};
-            }
-        }
-    }
-
-    class UrlChangeWatcher {
-      constructor(strategies = [], fireImmediately = true) {
-        this.strategies = strategies;
-        this.fireImmediately = fireImmediately;
-        this.lastUrl = location.href;
-        this.active = false;
-      }
-
-      start() {
-        if (this.active) return;
-        this.active = true;
-        Logger.debug('UrlChangeWatcher (Strategy) started');
-
-        this.strategies.forEach((strategy) =>
-          strategy.start?.(this._handleChange.bind(this)),
-        );
-
-        if (this.fireImmediately) {
-          this._handleChange(location.href, null, true);
-        }
-      }
-
-      stop() {
-        this.active = false;
-        this.strategies.forEach((strategy) => strategy.stop?.());
-        Logger.debug('UrlChangeWatcher (Strategy) stopped');
-      }
-
-      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
-        if (!force && newUrl === this.lastUrl) return;
-        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
-
-        this.lastUrl = newUrl;
-
-        if (PubSub?.publish) {
-          PubSub.publish('urlchange', {newUrl, oldUrl});
-        }
-      }
-    }
-
-    /**
      * DOMObserver - Observes DOM changes and URL changes
      * Uses UrlChangeWatcher for URL change detection with configurable strategies
      */
@@ -912,7 +912,8 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          style.innerHTML = `
+          // Use textContent instead of innerHTML for CSP compliance
+          style.textContent = `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -1029,11 +1030,16 @@
          * Update the button content (icon and text).
          */
       updateContent() {
-        this.button.innerHTML = '';
+        // Clear existing content using DOM methods instead of innerHTML
+        while (this.button.firstChild) {
+          this.button.removeChild(this.button.firstChild);
+        }
+        
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          iconSpan.innerHTML = this.icon;
+          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
+          iconSpan.textContent = this.icon;
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');

@@ -423,6 +423,73 @@
     }
 
     /**
+     * PubSub - A simple publish/subscribe pattern implementation
+     * Enables components to communicate without direct references
+     */
+    class PubSub {
+        static #events = {};
+
+        /**
+         * Subscribe to an event
+         * @param {string} event - Event name
+         * @param {Function} callback - Callback function
+         * @return {string} Subscription ID
+         */
+        static subscribe(event, callback) {
+            if (!this.#events[event]) {
+                this.#events[event] = [];
+            }
+
+            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            this.#events[event].push({callback, subscriptionId});
+            return subscriptionId;
+        }
+
+        /**
+         * Unsubscribe from an event
+         * @param {string} subscriptionId - Subscription ID
+         * @return {boolean} Success state
+         */
+        static unsubscribe(subscriptionId) {
+            for (const event in this.#events) {
+                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
+                if (index !== -1) {
+                    this.#events[event].splice(index, 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Publish an event
+         * @param {string} event - Event name
+         * @param {any} data - Data to pass to subscribers
+         */
+        static publish(event, data) {
+            if (!this.#events[event]) {
+                return;
+            }
+
+            this.#events[event].forEach(sub => {
+                sub.callback(data);
+            });
+        }
+
+        /**
+         * Clear all subscriptions
+         * @param {string} [event] - Optional event name to clear only specific event
+         */
+        static clear(event) {
+            if (event) {
+                delete this.#events[event];
+            } else {
+                this.#events = {};
+            }
+        }
+    }
+
+    /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
@@ -815,73 +882,6 @@
          */
         static getAvailableLanguages() {
             return {...this.availableLanguages};
-        }
-    }
-
-    /**
-     * PubSub - A simple publish/subscribe pattern implementation
-     * Enables components to communicate without direct references
-     */
-    class PubSub {
-        static #events = {};
-
-        /**
-         * Subscribe to an event
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         * @return {string} Subscription ID
-         */
-        static subscribe(event, callback) {
-            if (!this.#events[event]) {
-                this.#events[event] = [];
-            }
-
-            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            this.#events[event].push({callback, subscriptionId});
-            return subscriptionId;
-        }
-
-        /**
-         * Unsubscribe from an event
-         * @param {string} subscriptionId - Subscription ID
-         * @return {boolean} Success state
-         */
-        static unsubscribe(subscriptionId) {
-            for (const event in this.#events) {
-                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
-                if (index !== -1) {
-                    this.#events[event].splice(index, 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Publish an event
-         * @param {string} event - Event name
-         * @param {any} data - Data to pass to subscribers
-         */
-        static publish(event, data) {
-            if (!this.#events[event]) {
-                return;
-            }
-
-            this.#events[event].forEach(sub => {
-                sub.callback(data);
-            });
-        }
-
-        /**
-         * Clear all subscriptions
-         * @param {string} [event] - Optional event name to clear only specific event
-         */
-        static clear(event) {
-            if (event) {
-                delete this.#events[event];
-            } else {
-                this.#events = {};
-            }
         }
     }
 
@@ -2828,7 +2828,8 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          style.innerHTML = `
+          // Use textContent instead of innerHTML for CSP compliance
+          style.textContent = `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -2945,11 +2946,16 @@
          * Update the button content (icon and text).
          */
       updateContent() {
-        this.button.innerHTML = '';
+        // Clear existing content using DOM methods instead of innerHTML
+        while (this.button.firstChild) {
+          this.button.removeChild(this.button.firstChild);
+        }
+        
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          iconSpan.innerHTML = this.icon;
+          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
+          iconSpan.textContent = this.icon;
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');
@@ -4866,7 +4872,7 @@
             this.closeButton = document.createElement('button');
             this.closeButton.type = 'button';
             this.closeButton.className = `${this.baseClass}-close`;
-            this.closeButton.innerHTML = '×';
+            this.closeButton.textContent = '×';
             this.closeButton.setAttribute('aria-label', 'Close');
             this.header.appendChild(this.closeButton);
 
@@ -4877,14 +4883,16 @@
             // Add initial content if provided
             if (this.options.content.html) {
                 if (typeof this.options.content.html === 'string') {
-                    this.content.innerHTML = this.options.content.html;
+                    // For string content, create a text node instead of using innerHTML
+                    this.content.textContent = this.options.content.html;
                 } else if (this.options.content.html instanceof HTMLElement) {
                     this.content.appendChild(this.options.content.html);
                 }
             } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
                 const generatedContent = this.options.content.generator();
                 if (typeof generatedContent === 'string') {
-                    this.content.innerHTML = generatedContent;
+                    // For string content, create a text node instead of using innerHTML
+                    this.content.textContent = generatedContent;
                 } else if (generatedContent instanceof HTMLElement) {
                     this.content.appendChild(generatedContent);
                 }
@@ -4896,7 +4904,8 @@
                 this.footer.className = `${this.baseClass}-footer`;
 
                 if (typeof this.options.footer === 'string') {
-                    this.footer.innerHTML = this.options.footer;
+                    // For string content, create a text node instead of using innerHTML
+                    this.footer.textContent = this.options.footer;
                 } else if (this.options.footer instanceof HTMLElement) {
                     this.footer.appendChild(this.options.footer);
                 }
@@ -4921,7 +4930,7 @@
             this.button = document.createElement('button');
             this.button.type = 'button';
             this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
-            this.button.innerHTML = this.options.buttonIcon;
+            this.button.textContent = this.options.buttonIcon;
             this.button.setAttribute('aria-label', `Open ${this.options.title}`);
 
             // Add to document
@@ -5122,11 +5131,14 @@
             if (!this.content) return;
 
             // Clear existing content
-            this.content.innerHTML = '';
+            while (this.content.firstChild) {
+                this.content.removeChild(this.content.firstChild);
+            }
 
             // Add new content
             if (typeof content === 'string') {
-                this.content.innerHTML = content;
+                // For string content, create a text node instead of using innerHTML
+                this.content.textContent = content;
             } else if (content instanceof HTMLElement) {
                 this.content.appendChild(content);
             }
@@ -5146,11 +5158,11 @@
 
         /**
          * Set button icon
-         * @param {String} iconHtml - HTML string for icon content
+         * @param {String} iconHtml - Text content for icon (no HTML allowed for CSP compliance)
          */
         setButtonIcon(iconHtml) {
             if (this.button) {
-                this.button.innerHTML = iconHtml;
+                this.button.textContent = iconHtml;
                 this.options.buttonIcon = iconHtml;
             }
         }
