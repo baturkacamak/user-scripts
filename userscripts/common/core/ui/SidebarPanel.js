@@ -389,7 +389,7 @@ class SidebarPanel {
         this.closeButton = document.createElement('button');
         this.closeButton.type = 'button';
         this.closeButton.className = `${this.baseClass}-close`;
-        this.closeButton.innerHTML = '×';
+        this.closeButton.textContent = '×';
         this.closeButton.setAttribute('aria-label', 'Close');
         this.header.appendChild(this.closeButton);
 
@@ -400,14 +400,16 @@ class SidebarPanel {
         // Add initial content if provided
         if (this.options.content.html) {
             if (typeof this.options.content.html === 'string') {
-                this.content.innerHTML = this.options.content.html;
+                // For string content, create a text node instead of using innerHTML
+                this.content.textContent = this.options.content.html;
             } else if (this.options.content.html instanceof HTMLElement) {
                 this.content.appendChild(this.options.content.html);
             }
         } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
             const generatedContent = this.options.content.generator();
             if (typeof generatedContent === 'string') {
-                this.content.innerHTML = generatedContent;
+                // For string content, create a text node instead of using innerHTML
+                this.content.textContent = generatedContent;
             } else if (generatedContent instanceof HTMLElement) {
                 this.content.appendChild(generatedContent);
             }
@@ -419,7 +421,8 @@ class SidebarPanel {
             this.footer.className = `${this.baseClass}-footer`;
 
             if (typeof this.options.footer === 'string') {
-                this.footer.innerHTML = this.options.footer;
+                // For string content, create a text node instead of using innerHTML
+                this.footer.textContent = this.options.footer;
             } else if (this.options.footer instanceof HTMLElement) {
                 this.footer.appendChild(this.options.footer);
             }
@@ -444,7 +447,7 @@ class SidebarPanel {
         this.button = document.createElement('button');
         this.button.type = 'button';
         this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
-        this.button.innerHTML = this.options.buttonIcon;
+        this.button.textContent = this.options.buttonIcon;
         this.button.setAttribute('aria-label', `Open ${this.options.title}`);
 
         // Add to document
@@ -645,11 +648,14 @@ class SidebarPanel {
         if (!this.content) return;
 
         // Clear existing content
-        this.content.innerHTML = '';
+        while (this.content.firstChild) {
+            this.content.removeChild(this.content.firstChild);
+        }
 
         // Add new content
         if (typeof content === 'string') {
-            this.content.innerHTML = content;
+            // For string content, create a text node instead of using innerHTML
+            this.content.textContent = content;
         } else if (content instanceof HTMLElement) {
             this.content.appendChild(content);
         }
@@ -669,11 +675,11 @@ class SidebarPanel {
 
     /**
      * Set button icon
-     * @param {String} iconHtml - HTML string for icon content
+     * @param {String} iconHtml - Text content for icon (no HTML allowed for CSP compliance)
      */
     setButtonIcon(iconHtml) {
         if (this.button) {
-            this.button.innerHTML = iconHtml;
+            this.button.textContent = iconHtml;
             this.options.buttonIcon = iconHtml;
         }
     }
