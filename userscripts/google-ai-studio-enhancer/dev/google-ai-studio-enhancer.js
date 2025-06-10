@@ -43,6 +43,11 @@ class AIStudioEnhancer {
         ],
         // Common selectors for run buttons
         RUN_BUTTONS: [
+            // Google AI Studio specific (most accurate)
+            'button.run-button[aria-label="Run"]:not(.disabled):not([disabled])',
+            'button.run-button[aria-label="Run"]',
+            '.run-button:not(.disabled):not([disabled])',
+            // General selectors
             'button[aria-label*="Run"]',
             'button[title*="Run"]',
             '[data-test-id="run-button"]',
@@ -55,8 +60,34 @@ class AIStudioEnhancer {
             'button[data-testid="send-button"]',
             'button[aria-label*="send message"]'
         ],
+        // Common selectors for prompt input
+        PROMPT_INPUTS: [
+            // Google AI Studio specific (most accurate)
+            'textarea.textarea.gmat-body-medium[placeholder*="Start typing a prompt"]',
+            'textarea.textarea.gmat-body-medium',
+            'textarea[aria-label*="Start typing a prompt"]',
+            // General selectors
+            'textarea[placeholder*="Enter a prompt"]',
+            'textarea[placeholder*="Type a message"]',
+            'textarea[placeholder*="Ask"]',
+            'textarea[aria-label*="prompt"]',
+            'textarea[aria-label*="message"]',
+            'div[contenteditable="true"]',
+            'textarea[data-testid*="prompt"]',
+            'textarea[data-testid*="input"]',
+            // More specific for Google AI Studio
+            'textarea.input-field',
+            'textarea[placeholder*="Enter your prompt"]',
+            '.prompt-textarea textarea',
+            '[data-testid="prompt-textarea"]'
+        ],
         // Loading indicators
         LOADING_INDICATORS: [
+            // Google AI Studio specific (most accurate)
+            'button.run-button.stoppable',
+            '.stoppable-spinner',
+            'button.run-button[type="button"]',
+            // General selectors
             '.loading',
             '.spinner',
             '[data-test-id="loading"]',
@@ -75,7 +106,8 @@ class AIStudioEnhancer {
         DEFAULT_ITERATIONS: 'gaise-default-iterations',
         AUTO_RUN_DELAY: 'gaise-auto-run-delay',
         SHOW_NOTIFICATIONS: 'gaise-show-notifications',
-        PANEL_POSITION: 'gaise-panel-position'
+        PANEL_POSITION: 'gaise-panel-position',
+        AUTO_RUN_PROMPT: 'gaise-auto-run-prompt'
     };
 
     static DEFAULT_SETTINGS = {
@@ -83,7 +115,8 @@ class AIStudioEnhancer {
         DEFAULT_ITERATIONS: 10,
         AUTO_RUN_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
-        PANEL_POSITION: { x: 20, y: 20 }
+        PANEL_POSITION: { x: 20, y: 20 },
+        AUTO_RUN_PROMPT: ''
     };
 
     /**
@@ -298,6 +331,41 @@ class AIStudioEnhancer {
         title.textContent = '🔄 Auto Runner';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
+        // Prompt input
+        this.promptInput = document.createElement('textarea');
+        this.promptInput.value = this.settings.AUTO_RUN_PROMPT;
+        this.promptInput.placeholder = 'Enter prompt to auto-run (optional)';
+        this.promptInput.rows = 3;
+        this.promptInput.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+            resize: vertical;
+            font-family: inherit;
+            color: #333;
+            background: #fff;
+        `;
+        this.promptInput.style.setProperty('color', '#333', 'important');
+        this.promptInput.style.setProperty('background-color', '#fff', 'important');
+        
+        // Add focus and hover effects
+        this.promptInput.addEventListener('focus', () => {
+            this.promptInput.style.borderColor = '#4285f4';
+            this.promptInput.style.boxShadow = '0 0 0 2px rgba(66, 133, 244, 0.2)';
+        });
+        this.promptInput.addEventListener('blur', () => {
+            this.promptInput.style.borderColor = '#ddd';
+            this.promptInput.style.boxShadow = 'none';
+        });
+        this.promptInput.addEventListener('input', () => {
+            this.settings.AUTO_RUN_PROMPT = this.promptInput.value;
+            this.saveSettings();
+        });
+
         // Iterations input
         this.iterationsInput = document.createElement('input');
         this.iterationsInput.type = 'number';
@@ -313,7 +381,21 @@ class AIStudioEnhancer {
             font-size: 14px;
             margin-bottom: 12px;
             box-sizing: border-box;
+            color: #333;
+            background: #fff;
         `;
+        this.iterationsInput.style.setProperty('color', '#333', 'important');
+        this.iterationsInput.style.setProperty('background-color', '#fff', 'important');
+        
+        // Add focus effects
+        this.iterationsInput.addEventListener('focus', () => {
+            this.iterationsInput.style.borderColor = '#4285f4';
+            this.iterationsInput.style.boxShadow = '0 0 0 2px rgba(66, 133, 244, 0.2)';
+        });
+        this.iterationsInput.addEventListener('blur', () => {
+            this.iterationsInput.style.borderColor = '#ddd';
+            this.iterationsInput.style.boxShadow = 'none';
+        });
 
         // Button container
         const buttonContainer = document.createElement('div');
@@ -361,6 +443,7 @@ class AIStudioEnhancer {
         this.statusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center;';
 
         section.appendChild(title);
+        section.appendChild(this.promptInput);
         section.appendChild(this.iterationsInput);
         section.appendChild(buttonContainer);
         section.appendChild(this.statusElement);
@@ -381,38 +464,97 @@ class AIStudioEnhancer {
 
         // Auto-copy checkbox
         const autoCopyContainer = document.createElement('label');
-        autoCopyContainer.style.cssText = 'display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;';
+        autoCopyContainer.style.cssText = `
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 10px; 
+            cursor: pointer;
+            color: #333;
+            font-size: 14px;
+        `;
 
         const autoCopyCheckbox = document.createElement('input');
         autoCopyCheckbox.type = 'checkbox';
         autoCopyCheckbox.checked = this.settings.AUTO_COPY_RESPONSES;
-        autoCopyCheckbox.style.marginRight = '8px';
+        autoCopyCheckbox.style.cssText = `
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        `;
         autoCopyCheckbox.addEventListener('change', (e) => {
             this.settings.AUTO_COPY_RESPONSES = e.target.checked;
             this.saveSettings();
         });
+        
+        // Add hover effects
+        autoCopyContainer.addEventListener('mouseenter', () => {
+            autoCopyContainer.style.backgroundColor = '#f5f5f5';
+            autoCopyContainer.style.borderRadius = '4px';
+            autoCopyContainer.style.padding = '4px';
+            autoCopyContainer.style.margin = '0 -4px 6px -4px';
+        });
+        autoCopyContainer.addEventListener('mouseleave', () => {
+            autoCopyContainer.style.backgroundColor = 'transparent';
+            autoCopyContainer.style.padding = '0';
+            autoCopyContainer.style.margin = '0 0 10px 0';
+        });
 
         const autoCopyLabel = document.createElement('span');
         autoCopyLabel.textContent = 'Auto-copy new responses';
+        autoCopyLabel.style.cssText = `
+            color: #333;
+            font-size: 14px;
+            user-select: none;
+        `;
 
         autoCopyContainer.appendChild(autoCopyCheckbox);
         autoCopyContainer.appendChild(autoCopyLabel);
 
         // Notifications checkbox
         const notifContainer = document.createElement('label');
-        notifContainer.style.cssText = 'display: flex; align-items: center; cursor: pointer;';
+        notifContainer.style.cssText = `
+            display: flex; 
+            align-items: center; 
+            cursor: pointer;
+            color: #333;
+            font-size: 14px;
+        `;
 
         const notifCheckbox = document.createElement('input');
         notifCheckbox.type = 'checkbox';
         notifCheckbox.checked = this.settings.SHOW_NOTIFICATIONS;
-        notifCheckbox.style.marginRight = '8px';
+        notifCheckbox.style.cssText = `
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        `;
         notifCheckbox.addEventListener('change', (e) => {
             this.settings.SHOW_NOTIFICATIONS = e.target.checked;
             this.saveSettings();
         });
+        
+        // Add hover effects
+        notifContainer.addEventListener('mouseenter', () => {
+            notifContainer.style.backgroundColor = '#f5f5f5';
+            notifContainer.style.borderRadius = '4px';
+            notifContainer.style.padding = '4px';
+            notifContainer.style.margin = '0 -4px 0 -4px';
+        });
+        notifContainer.addEventListener('mouseleave', () => {
+            notifContainer.style.backgroundColor = 'transparent';
+            notifContainer.style.padding = '0';
+            notifContainer.style.margin = '0';
+        });
 
         const notifLabel = document.createElement('span');
         notifLabel.textContent = 'Show notifications';
+        notifLabel.style.cssText = `
+            color: #333;
+            font-size: 14px;
+            user-select: none;
+        `;
 
         notifContainer.appendChild(notifCheckbox);
         notifContainer.appendChild(notifLabel);
@@ -739,6 +881,18 @@ class AIStudioEnhancer {
         this.updateAutoRunStatus();
         Logger.info(`Running iteration ${this.currentIteration}/${this.maxIterations}`);
 
+        // Enter prompt if specified
+        if (this.settings.AUTO_RUN_PROMPT.trim()) {
+            const promptEntered = await this.enterPrompt(this.settings.AUTO_RUN_PROMPT);
+            if (!promptEntered) {
+                this.showNotification('Could not enter prompt - prompt input not found', 'error');
+                this.stopAutoRun();
+                return;
+            }
+            // Small delay after entering prompt
+            await this.delay(200);
+        }
+
         const runButton = this.findRunButton();
         if (!runButton) {
             this.showNotification('Run button not found', 'error');
@@ -753,29 +907,116 @@ class AIStudioEnhancer {
         // Wait for response completion
         await this.waitForResponseCompletion();
 
-        // Wait before next iteration
+        // Wait before next iteration (reduced delay for faster execution)
         setTimeout(() => {
             this.runIteration();
-        }, this.settings.AUTO_RUN_DELAY);
+        }, 1000); // Reduced from this.settings.AUTO_RUN_DELAY (2000ms) to 1000ms
+    }
+
+    /**
+     * Find the prompt input field on the page
+     */
+    findPromptInput() {
+        // Try specific selectors first
+        for (const selector of AIStudioEnhancer.SELECTORS.PROMPT_INPUTS) {
+            const input = document.querySelector(selector);
+            if (input && !input.disabled && !input.readOnly) {
+                return input;
+            }
+        }
+
+        // Fallback: search for any visible textarea
+        const textareas = document.querySelectorAll('textarea');
+        for (const textarea of textareas) {
+            if (textarea.offsetParent !== null && !textarea.disabled && !textarea.readOnly) {
+                return textarea;
+            }
+        }
+
+        // Fallback: search for contenteditable divs
+        const editableDivs = document.querySelectorAll('div[contenteditable="true"]');
+        for (const div of editableDivs) {
+            if (div.offsetParent !== null) {
+                return div;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Enter prompt text into the input field
+     */
+    async enterPrompt(promptText) {
+        const promptInput = this.findPromptInput();
+        if (!promptInput) {
+            Logger.warn('Prompt input field not found');
+            return false;
+        }
+
+        try {
+            // Clear existing content
+            if (promptInput.tagName.toLowerCase() === 'textarea' || promptInput.tagName.toLowerCase() === 'input') {
+                // For regular input/textarea elements
+                promptInput.value = '';
+                promptInput.focus();
+                
+                // Simulate typing the prompt
+                promptInput.value = promptText;
+                
+                // Trigger input events
+                promptInput.dispatchEvent(new Event('input', { bubbles: true }));
+                promptInput.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+                // For contenteditable divs
+                promptInput.focus();
+                promptInput.textContent = promptText;
+                
+                // Trigger input events
+                promptInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            Logger.debug('Prompt entered successfully:', promptText.substring(0, 50) + '...');
+            return true;
+        } catch (error) {
+            Logger.error('Error entering prompt:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Create a delay
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
      * Find the run button on the page
      */
     findRunButton() {
-        // Try specific selectors first
+        // First, try Google AI Studio specific selectors (most accurate)
+        const googleRunButton = document.querySelector('button.run-button[aria-label="Run"]');
+        if (googleRunButton && !googleRunButton.disabled && !googleRunButton.classList.contains('disabled') && !googleRunButton.classList.contains('stoppable')) {
+            return googleRunButton;
+        }
+
+        // Try other specific selectors
         for (const selector of AIStudioEnhancer.SELECTORS.RUN_BUTTONS) {
             const button = document.querySelector(selector);
-            if (button && !button.disabled) {
+            if (button && !button.disabled && !button.classList.contains('disabled')) {
                 return button;
             }
         }
 
-        // Fallback: search by text content
+        // Fallback: search by text content (avoiding busy/stoppable buttons)
         const buttons = document.querySelectorAll('button');
         for (const button of buttons) {
             const text = button.textContent?.toLowerCase().trim();
-            if ((text === 'run' || text === 'send' || text.includes('run') || text.includes('send')) && !button.disabled) {
+            if ((text === 'run' || text === 'send' || text.includes('run') || text.includes('send')) && 
+                !button.disabled && 
+                !button.classList.contains('disabled') &&
+                !button.classList.contains('stoppable')) {
                 return button;
             }
         }
@@ -784,41 +1025,103 @@ class AIStudioEnhancer {
     }
 
     /**
-     * Wait for response completion
+     * Wait for response completion using DOM observer (much faster)
      */
     async waitForResponseCompletion() {
         return new Promise((resolve) => {
-            let checks = 0;
-            const maxChecks = 120; // 2 minutes timeout
-
-            const checkCompletion = () => {
-                checks++;
-
-                // Check for loading indicators
-                const isLoading = AIStudioEnhancer.SELECTORS.LOADING_INDICATORS.some(selector =>
-                    document.querySelector(selector) !== null
-                );
-
-                // Check if run button is disabled
-                const runButton = this.findRunButton();
-                const isProcessing = runButton?.disabled;
-
-                if (!isLoading && !isProcessing) {
-                    Logger.debug('Response completion detected');
-                    resolve();
-                    return;
+            let timeoutId;
+            let observer;
+            
+            const cleanup = () => {
+                if (observer) {
+                    observer.disconnect();
                 }
-
-                if (checks >= maxChecks) {
-                    Logger.warn('Response completion timeout');
-                    resolve();
-                    return;
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
                 }
-
-                setTimeout(checkCompletion, 1000);
             };
 
-            setTimeout(checkCompletion, 2000); // Initial delay
+            const checkCompletion = () => {
+                const runButton = document.querySelector('button.run-button[aria-label="Run"]');
+                
+                if (!runButton) {
+                    Logger.warn('Run button not found during completion check');
+                    cleanup();
+                    resolve();
+                    return true;
+                }
+
+                // Check if button is in stoppable/busy state
+                const isStoppable = runButton.classList.contains('stoppable');
+                const isButtonTypeButton = runButton.type === 'button';
+                const isDisabled = runButton.disabled || runButton.classList.contains('disabled');
+                
+                // Response is complete when button is back to normal "Run" state
+                const isComplete = !isStoppable && !isButtonTypeButton && !isDisabled && runButton.type === 'submit';
+                
+                if (isComplete) {
+                    Logger.debug('Response completion detected via DOM observer');
+                    cleanup();
+                    resolve();
+                    return true;
+                }
+                
+                return false;
+            };
+
+            // Set up DOM observer to watch for button changes
+            observer = new MutationObserver((mutations) => {
+                let shouldCheck = false;
+                
+                mutations.forEach((mutation) => {
+                    // Check if the run button or its attributes changed
+                    if (mutation.type === 'attributes' && 
+                        (mutation.attributeName === 'class' || 
+                         mutation.attributeName === 'type' || 
+                         mutation.attributeName === 'disabled')) {
+                        const target = mutation.target;
+                        if (target.classList.contains('run-button') || target.getAttribute('aria-label') === 'Run') {
+                            shouldCheck = true;
+                        }
+                    }
+                    
+                    // Check if new nodes were added that might be the run button
+                    if (mutation.type === 'childList') {
+                        mutation.addedNodes.forEach((node) => {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                if (node.classList?.contains('run-button') || 
+                                    node.querySelector?.('.run-button')) {
+                                    shouldCheck = true;
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                if (shouldCheck) {
+                    checkCompletion();
+                }
+            });
+
+            // Start observing the document for changes
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['class', 'type', 'disabled', 'aria-label']
+            });
+
+            // Initial check after a short delay to let the button state change
+            setTimeout(() => {
+                if (!checkCompletion()) {
+                    // Set a maximum timeout as fallback
+                    timeoutId = setTimeout(() => {
+                        Logger.warn('Response completion timeout (2 minutes)');
+                        cleanup();
+                        resolve();
+                    }, 120000); // 2 minutes
+                }
+            }, 500); // Reduced from 2000ms to 500ms
         });
     }
 
