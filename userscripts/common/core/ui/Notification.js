@@ -319,7 +319,7 @@ class Notification {
      * @param {string} [options.message] - The notification message
      * @param {string} [options.type='info'] - Notification type (info, success, warning, error, custom)
      * @param {number} [options.duration=3000] - How long to show the notification (ms)
-     * @param {string} [options.position='bottom-center'] - Position (bottom-center, top-center, top-left, top-right, bottom-left, bottom-right)
+     * @param {string} [options.position='bottom-center'] - Position (top-left, top-center, top-middle, top-right, bottom-left, bottom-center, bottom-middle, bottom-right)
      * @param {boolean} [options.showProgress=true] - Show progress bar
      * @param {boolean} [options.showClose=true] - Show close button
      * @param {Function} [options.onClick] - Callback when notification is clicked
@@ -529,6 +529,10 @@ class Notification {
         // Handle abbreviated positions
         if (position === 'top') return 'top-center';
         if (position === 'bottom') return 'bottom-center';
+        
+        // Handle alternative naming
+        if (position === 'top-middle') return 'top-center';
+        if (position === 'bottom-middle') return 'bottom-center';
 
         // Default
         return 'bottom-center';
