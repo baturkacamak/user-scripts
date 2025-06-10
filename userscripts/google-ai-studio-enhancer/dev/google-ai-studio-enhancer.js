@@ -2,6 +2,7 @@
 import {
     Button,
     Checkbox,
+    DataCache,
     Debouncer,
     DOMObserver,
     HTMLUtils,
@@ -153,6 +154,9 @@ class AIStudioEnhancer {
         
         // Store subscription IDs for cleanup
         this.subscriptionIds = [];
+        
+        // Initialize cache for persistent response storage
+        this.responseCache = new DataCache(Logger);
 
         Logger.info("Initializing Google AI Studio Enhancer");
 
@@ -240,11 +244,96 @@ class AIStudioEnhancer {
     }
 
     /**
+     * Generate cache key for current chat
+     */
+    getChatCacheKey() {
+        const chatId = this.currentChatId || 'default';
+        return `ai-studio-responses-${chatId}`;
+    }
+
+    /**
+     * Load responses from cache for current chat
+     */
+    loadResponsesFromCache() {
+        const cacheKey = this.getChatCacheKey();
+        const cachedResponses = this.responseCache.get(cacheKey);
+        
+        if (cachedResponses && Array.isArray(cachedResponses)) {
+            this.responses = [...cachedResponses];
+            Logger.debug(`Loaded ${this.responses.length} responses from cache for chat: ${this.currentChatId}`);
+            
+            // Update UI to reflect cached responses
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'chat-changed',
+                chatId: this.currentChatId 
+            });
+            
+            return true;
+        }
+        
+        Logger.debug(`No cached responses found for chat: ${this.currentChatId}`);
+        return false;
+    }
+
+    /**
+     * Save responses to cache for current chat
+     */
+    saveResponsesToCache() {
+        const cacheKey = this.getChatCacheKey();
+        
+        // Save responses with 7 days expiration
+        this.responseCache.set(cacheKey, this.responses, 7);
+        
+        Logger.debug(`Saved ${this.responses.length} responses to cache for chat: ${this.currentChatId}`);
+    }
+
+    /**
+     * Clear cache for current chat
+     */
+    clearChatCache() {
+        const cacheKey = this.getChatCacheKey();
+        this.responseCache.set(cacheKey, [], 7); // Set empty array instead of removing
+        Logger.debug(`Cleared cache for chat: ${this.currentChatId}`);
+    }
+
+    /**
+     * Clear all cached responses
+     */
+    clearAllCache() {
+        // This would require knowing all chat IDs, which is complex
+        // For now, we'll just clear the current chat
+        this.clearChatCache();
+        Logger.info("Cache cleared for current chat");
+    }
+
+    /**
+     * Clear current chat cache and update UI
+     */
+    clearCurrentChatCache() {
+        this.clearChatCache();
+        
+        // Also clear current responses in memory
+        this.responses = [];
+        
+        // Update UI
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'chat-changed',
+            chatId: this.currentChatId 
+        });
+        
+        this.showNotification('Cache cleared for current chat', 'success');
+        Logger.info("Current chat cache cleared via UI");
+    }
+
+    /**
      * Handle response addition events
      */
     handleResponseAdded(data) {
         // Update UI counter
         this.updateResponseCount();
+        
+        // Save to cache
+        this.saveResponsesToCache();
         
         // Auto-copy new responses
         this.copyAllResponsesWithSmartNotification();
@@ -258,14 +347,19 @@ class AIStudioEnhancer {
     handleChatChangedEvent(data) {
         Logger.info(`Chat changed event: ${data.oldChatId} → ${data.newChatId}`);
         
-        // Clear responses for new chat
-        this.responses = [];
+        // Try to load responses from cache for the new chat first
+        const loadedFromCache = this.loadResponsesFromCache();
         
-        // Publish UI update event
-        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
-            type: 'chat-changed',
-            chatId: data.newChatId 
-        });
+        if (!loadedFromCache) {
+            // Clear responses if no cache found
+            this.responses = [];
+            
+            // Publish UI update event
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+                type: 'chat-changed',
+                chatId: data.newChatId 
+            });
+        }
         
         // Set initial load mode for the new chat
         this.isInitialLoad = true;
@@ -282,7 +376,11 @@ class AIStudioEnhancer {
             }, 1000);
         }, 1000);
         
-        this.showNotification('Switched to new chat - responses cleared', 'info');
+        if (loadedFromCache) {
+            this.showNotification(`Switched to chat - loaded ${this.responses.length} cached responses`, 'info');
+        } else {
+            this.showNotification('Switched to new chat - responses cleared', 'info');
+        }
     }
 
     /**
@@ -410,7 +508,14 @@ class AIStudioEnhancer {
         // Setup response monitoring
         this.setupResponseMonitoring();
 
-        // Collect existing responses
+        // Try to load cached responses for current chat first
+        const loadedFromCache = this.loadResponsesFromCache();
+        
+        if (loadedFromCache) {
+            Logger.info(`Loaded ${this.responses.length} cached responses for current chat`);
+        }
+
+        // Collect existing responses (this will merge with cached ones)
         this.collectExistingResponses();
 
         // Mark initial load as complete after a delay to allow for all responses to be collected
@@ -644,19 +749,43 @@ class AIStudioEnhancer {
         title.textContent = '⚙️ Settings';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-        // Placeholder for future settings
-        const placeholder = document.createElement('div');
-        placeholder.textContent = 'No settings available yet';
-        placeholder.style.cssText = `
-            color: #999;
-            font-size: 13px;
-            font-style: italic;
-            text-align: center;
-            padding: 20px;
+        // Cache management subsection
+        const cacheSubsection = document.createElement('div');
+        cacheSubsection.style.marginBottom = '16px';
+
+        const cacheTitle = document.createElement('h4');
+        cacheTitle.textContent = '💾 Cache Management';
+        cacheTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
+
+        // Cache info
+        const cacheInfo = document.createElement('div');
+        cacheInfo.textContent = 'Responses are automatically saved per chat';
+        cacheInfo.style.cssText = `
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
         `;
 
+        // Clear cache button
+        const clearCacheButton = new Button({
+            text: 'Clear Current Chat Cache',
+            theme: 'danger',
+            size: 'small',
+            onClick: () => this.clearCurrentChatCache(),
+            successText: '✅ Cleared!',
+            successDuration: 1500,
+            container: cacheSubsection
+        });
+
+        cacheSubsection.appendChild(cacheTitle);
+        cacheSubsection.appendChild(cacheInfo);
+        // clearCacheButton is automatically appended via container option
+
         section.appendChild(title);
-        section.appendChild(placeholder);
+        section.appendChild(cacheSubsection);
 
         container.appendChild(section);
     }
@@ -821,13 +950,16 @@ class AIStudioEnhancer {
      * Collect existing responses on page
      */
     collectExistingResponses() {
+        const initialResponseCount = this.responses.length;
+        
         AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS.forEach(selector => {
             document.querySelectorAll(selector).forEach(element => {
                 this.addResponse(element);
             });
         });
 
-        Logger.info(`Collected ${this.responses.length} existing responses`);
+        const newResponseCount = this.responses.length - initialResponseCount;
+        Logger.info(`Collected ${newResponseCount} new responses (${this.responses.length} total including cached)`);
         this.updateResponseCount();
     }
 
