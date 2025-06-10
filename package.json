@@ -32,6 +32,7 @@
     "build:instagram-story-anonymity-guard": "node config/build.js --dir userscripts/instagram-story-anonymity-guard",
     "build:googlemaps-image-downloader": "node config/build.js --dir userscripts/googlemaps-image-downloader",
     "build:discogs-tracklist-copier": "node config/build.js --dir userscripts/discogs-tracklist-copier",
-    "build:idealista-house-listing-analyzer": "node config/build.js --dir userscripts/idealista-house-listing-analyzer"
+    "build:idealista-house-listing-analyzer": "node config/build.js --dir userscripts/idealista-house-listing-analyzer",
+    "build:google-ai-studio-enhancer": "node config/build.js --dir userscripts/google-ai-studio-enhancer"
   }
 }

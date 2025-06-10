@@ -3,13 +3,13 @@ import {
     Button,
     Checkbox,
     DOMObserver,
-    GMFunctions,
     HTMLUtils,
     Logger,
     Notification,
     SidebarPanel,
     StyleManager
 } from "../../common/core";
+import { getValue, setValue, GM_setClipboard } from "../../common/core/utils/GMFunctions";
 
 // Configure logger
 Logger.setPrefix("Google AI Studio Enhancer");
@@ -99,7 +99,7 @@ class AIStudioEnhancer {
     async loadSettings() {
         try {
             for (const [settingName, storageKey] of Object.entries(AIStudioEnhancer.SETTINGS_KEYS)) {
-                const savedValue = await GMFunctions.getValue(storageKey, null);
+                const savedValue = await getValue(storageKey, null);
                 if (savedValue !== null) {
                     this.settings[settingName] = savedValue;
                 }
@@ -116,7 +116,7 @@ class AIStudioEnhancer {
     async saveSettings() {
         try {
             for (const [settingName, storageKey] of Object.entries(AIStudioEnhancer.SETTINGS_KEYS)) {
-                await GMFunctions.setValue(storageKey, this.settings[settingName]);
+                await setValue(storageKey, this.settings[settingName]);
             }
             Logger.debug("Settings saved", this.settings);
         } catch (error) {
@@ -399,7 +399,7 @@ class AIStudioEnhancer {
         }).join('\n');
 
         try {
-            await GMFunctions.setClipboard(content);
+            GM_setClipboard(content);
             this.showNotification(`Copied ${this.responses.length} responses to clipboard`, 'success');
             Logger.success(`Copied ${this.responses.length} responses to clipboard`);
             return true;
