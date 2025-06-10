@@ -8,6 +8,9 @@ import Logger from './utils/Logger.js';
 import HTMLUtils from './utils/HTMLUtils.js';
 import StyleManager from './utils/StyleManager.js';
 import Debouncer from './utils/Debouncer.js';
+import PubSub from './utils/PubSub.js';
+import UrlChangeWatcher from './utils/UrlChangeWatcher/index.js';
+import PollingStrategy from './utils/UrlChangeWatcher/strategies/PollingStrategy.js';
 import * as GMFunctions from './utils/GMFunctions.js';
 
 // Internationalization
@@ -31,6 +34,9 @@ export {
   HTMLUtils,
   StyleManager,
   Debouncer,
+  PubSub,
+  UrlChangeWatcher,
+  PollingStrategy,
   GMFunctions,
 
   // Internationalization
@@ -54,6 +60,9 @@ export default {
   HTMLUtils,
   StyleManager,
   Debouncer,
+  PubSub,
+  UrlChangeWatcher,
+  PollingStrategy,
   TranslationManager,
   SectionToggler,
   DOMObserver,
