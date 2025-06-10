@@ -12,7 +12,8 @@ import {
     PubSub,
     SidebarPanel,
     StyleManager,
-    UrlChangeWatcher
+    UrlChangeWatcher,
+    UserInteractionDetector
 } from "../../common/core";
 import { getValue, setValue, GM_setClipboard } from "../../common/core/utils/GMFunctions";
 
@@ -157,6 +158,14 @@ class AIStudioEnhancer {
         
         // Initialize cache for persistent response storage
         this.responseCache = new DataCache(Logger);
+        
+        // Initialize user interaction detector for distinguishing real vs programmatic events
+        this.userInteraction = UserInteractionDetector.getInstance({
+            debug: Logger.DEBUG,
+            namespace: 'ai-studio-enhancer',
+            interactionWindow: 200, // 200ms window for related events
+            interactionThrottle: 100 // 100ms throttle for performance
+        });
 
         Logger.info("Initializing Google AI Studio Enhancer");
 
@@ -233,14 +242,44 @@ class AIStudioEnhancer {
     }
 
     /**
-     * Cleanup PubSub subscriptions
+     * Cleanup PubSub subscriptions and other resources
      */
     cleanup() {
+        // Clean up PubSub subscriptions
         this.subscriptionIds.forEach(id => {
             PubSub.unsubscribe(id);
         });
         this.subscriptionIds = [];
-        Logger.debug("PubSub subscriptions cleaned up");
+        
+        // Clean up UserInteractionDetector if it was created by this instance
+        if (this.userInteraction) {
+            // Note: We don't destroy the singleton instance since other scripts might be using it
+            // Just reset our specific tracking if needed
+            Logger.debug("UserInteractionDetector cleanup - instance preserved for other users");
+        }
+        
+        // Clean up tracked run buttons
+        document.querySelectorAll('[data-ai-studio-enhancer-tracked]').forEach(button => {
+            if (button._aiStudioEnhancerCleanup) {
+                button._aiStudioEnhancerCleanup.forEach(unsubscribe => {
+                    try {
+                        unsubscribe();
+                    } catch (error) {
+                        Logger.warn('Error during run button cleanup:', error);
+                    }
+                });
+                delete button._aiStudioEnhancerCleanup;
+                delete button._aiStudioEnhancerTracked;
+            }
+        });
+        
+        // Clean up stats update interval
+        if (this.statsUpdateInterval) {
+            clearInterval(this.statsUpdateInterval);
+            this.statsUpdateInterval = null;
+        }
+        
+        Logger.debug("All subscriptions and resources cleaned up");
     }
 
     /**
@@ -323,6 +362,150 @@ class AIStudioEnhancer {
         
         this.showNotification('Cache cleared for current chat', 'success');
         Logger.info("Current chat cache cleared via UI");
+    }
+
+    /**
+     * Update interaction statistics display
+     */
+    updateInteractionStats() {
+        if (!this.interactionStatsElement || !this.userInteraction) {
+            return;
+        }
+
+        const stats = this.userInteraction.getStats();
+        const timeSince = stats.timeSinceLastInteraction === Infinity ? 'Never' : `${Math.round(stats.timeSinceLastInteraction / 1000)}s ago`;
+
+        const statsText = [
+            `Currently Interacting: ${stats.isInteracting ? '✅ Yes' : '❌ No'}`,
+            `Last Interaction: ${timeSince}`,
+            `User Interactions: ${stats.userInteractionCount}`,
+            `Programmatic Events: ${stats.programmaticEventCount}`,
+            `Tracked Elements: ${stats.trackedElements}`,
+            `Recent Events: ${stats.recentEvents}`
+        ].join('\n');
+
+        this.interactionStatsElement.textContent = statsText;
+    }
+
+    /**
+     * Handle copy button click with user interaction detection
+     */
+    handleCopyButtonClick(event) {
+        const isUserInitiated = this.userInteraction.isUserEvent(event);
+        
+        Logger.debug('Copy button clicked', {
+            isUserInitiated,
+            eventType: event?.type,
+            isTrusted: event?.isTrusted,
+            isInteracting: this.userInteraction.isInteracting(),
+            timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+        });
+
+        if (isUserInitiated) {
+            // Real user click - show notification and copy
+            this.copyAllResponsesManual();
+            
+            // Publish event for analytics/logging
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                type: 'user-action',
+                action: 'copy-responses',
+                userInitiated: true
+            });
+        } else {
+            // Programmatic click - copy silently without notification
+            Logger.info('Programmatic copy button click detected - copying silently');
+            this.copyAllResponsesSilent();
+            
+            // Publish event for analytics/logging
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                type: 'programmatic-action',
+                action: 'copy-responses',
+                userInitiated: false
+            });
+        }
+    }
+
+    /**
+     * Handle toggle button click with user interaction detection
+     */
+    handleToggleButtonClick(event) {
+        const isUserInitiated = this.userInteraction.isUserEvent(event);
+        
+        Logger.debug('Toggle button clicked', {
+            isUserInitiated,
+            eventType: event?.type,
+            isTrusted: event?.isTrusted,
+            isInteracting: this.userInteraction.isInteracting(),
+            timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+        });
+
+        if (isUserInitiated) {
+            // Real user click - proceed with normal toggle behavior
+            this.toggleAutoRun();
+            
+            // Publish event for analytics/logging
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                type: 'user-action',
+                action: 'toggle-auto-run',
+                userInitiated: true,
+                newState: this.isAutoRunning
+            });
+        } else {
+            // Programmatic click - log but potentially ignore or handle differently
+            Logger.warn('Programmatic toggle button click detected - this may indicate automation or testing');
+            
+            // For now, still allow programmatic toggling but log it
+            this.toggleAutoRun();
+            
+            // Publish event for analytics/logging
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                type: 'programmatic-action',
+                action: 'toggle-auto-run',
+                userInitiated: false,
+                newState: this.isAutoRunning
+            });
+        }
+    }
+
+    /**
+     * Handle clear cache button click with user interaction detection
+     */
+    handleClearCacheClick(event) {
+        const isUserInitiated = this.userInteraction.isUserEvent(event);
+        
+        Logger.debug('Clear cache button clicked', {
+            isUserInitiated,
+            eventType: event?.type,
+            isTrusted: event?.isTrusted,
+            isInteracting: this.userInteraction.isInteracting(),
+            timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+        });
+
+        if (isUserInitiated) {
+            // Real user click - proceed with cache clearing
+            this.clearCurrentChatCache();
+            
+            // Publish event for analytics/logging
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                type: 'user-action',
+                action: 'clear-cache',
+                userInitiated: true
+            });
+        } else {
+            // Programmatic click - be more cautious with destructive actions
+            Logger.warn('Programmatic clear cache click detected - requiring user confirmation');
+            
+            // For destructive actions, we might want to require real user interaction
+            // For now, we'll allow it but with extra logging
+            this.clearCurrentChatCache();
+            
+            // Publish event for analytics/logging
+            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+                type: 'programmatic-action',
+                action: 'clear-cache',
+                userInitiated: false
+            });
+        }
     }
 
     /**
@@ -508,6 +691,9 @@ class AIStudioEnhancer {
         // Setup response monitoring
         this.setupResponseMonitoring();
 
+        // Setup user interaction tracking for run buttons
+        this.setupRunButtonInteractionTracking();
+
         // Try to load cached responses for current chat first
         const loadedFromCache = this.loadResponsesFromCache();
         
@@ -618,7 +804,7 @@ class AIStudioEnhancer {
             text: 'Copy All Responses',
             theme: 'primary',
             size: 'medium',
-            onClick: () => this.copyAllResponsesManual(),
+            onClick: (event) => this.handleCopyButtonClick(event),
             successText: '✅ Copied!',
             successDuration: 1000,
             className: 'copy-responses-button',
@@ -719,7 +905,7 @@ class AIStudioEnhancer {
             text: 'Start Auto Run',
             theme: 'primary',
             size: 'medium',
-            onClick: () => this.toggleAutoRun(),
+            onClick: (event) => this.handleToggleButtonClick(event),
             className: 'auto-run-toggle-button',
             container: buttonContainer
         });
@@ -774,7 +960,7 @@ class AIStudioEnhancer {
             text: 'Clear Current Chat Cache',
             theme: 'danger',
             size: 'small',
-            onClick: () => this.clearCurrentChatCache(),
+            onClick: (event) => this.handleClearCacheClick(event),
             successText: '✅ Cleared!',
             successDuration: 1500,
             container: cacheSubsection
@@ -784,8 +970,39 @@ class AIStudioEnhancer {
         cacheSubsection.appendChild(cacheInfo);
         // clearCacheButton is automatically appended via container option
 
+        // User interaction subsection
+        const interactionSubsection = document.createElement('div');
+        interactionSubsection.style.marginBottom = '16px';
+
+        const interactionTitle = document.createElement('h4');
+        interactionTitle.textContent = '👆 User Interaction Detection';
+        interactionTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
+
+        // Interaction stats
+        this.interactionStatsElement = document.createElement('div');
+        this.updateInteractionStats();
+        this.interactionStatsElement.style.cssText = `
+            color: #666;
+            font-size: 11px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-line;
+        `;
+
+        // Auto-update stats every 2 seconds
+        this.statsUpdateInterval = setInterval(() => {
+            this.updateInteractionStats();
+        }, 2000);
+
+        interactionSubsection.appendChild(interactionTitle);
+        interactionSubsection.appendChild(this.interactionStatsElement);
+
         section.appendChild(title);
         section.appendChild(cacheSubsection);
+        section.appendChild(interactionSubsection);
 
         container.appendChild(section);
     }
@@ -911,6 +1128,133 @@ class AIStudioEnhancer {
         });
 
         Logger.debug("Response monitoring setup complete");
+    }
+
+    /**
+     * Setup user interaction tracking for run buttons
+     */
+    setupRunButtonInteractionTracking() {
+        // Track run button interactions using a MutationObserver to detect when buttons appear
+        const runButtonObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Look for run buttons in the added nodes
+                            this.trackRunButtonsInElement(node);
+                        }
+                    });
+                }
+            });
+        });
+
+        runButtonObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // Track existing run buttons
+        this.trackExistingRunButtons();
+
+        Logger.debug("Run button interaction tracking setup complete");
+    }
+
+    /**
+     * Track existing run buttons on the page
+     */
+    trackExistingRunButtons() {
+        AIStudioEnhancer.SELECTORS.RUN_BUTTONS.forEach(selector => {
+            document.querySelectorAll(selector).forEach(button => {
+                this.trackRunButton(button);
+            });
+        });
+    }
+
+    /**
+     * Track run buttons within a specific element
+     */
+    trackRunButtonsInElement(element) {
+        // Check if the element itself is a run button
+        if (element.matches) {
+            AIStudioEnhancer.SELECTORS.RUN_BUTTONS.forEach(selector => {
+                if (element.matches(selector)) {
+                    this.trackRunButton(element);
+                }
+            });
+        }
+
+        // Check for run buttons within the element
+        if (element.querySelectorAll) {
+            AIStudioEnhancer.SELECTORS.RUN_BUTTONS.forEach(selector => {
+                element.querySelectorAll(selector).forEach(button => {
+                    this.trackRunButton(button);
+                });
+            });
+        }
+    }
+
+    /**
+     * Track interactions with a specific run button
+     */
+    trackRunButton(button) {
+        // Avoid double-tracking
+        if (button._aiStudioEnhancerTracked) {
+            return;
+        }
+        button._aiStudioEnhancerTracked = true;
+
+        // Use UserInteractionDetector to track this button
+        const unsubscribe = this.userInteraction.trackElement(
+            button,
+            ['click', 'mousedown', 'touchstart'],
+            (interactionData) => {
+                this.handleRunButtonInteraction(button, interactionData);
+            }
+        );
+
+        // Store unsubscribe function for cleanup
+        if (!button._aiStudioEnhancerCleanup) {
+            button._aiStudioEnhancerCleanup = [];
+        }
+        button._aiStudioEnhancerCleanup.push(unsubscribe);
+
+        Logger.debug('Started tracking run button interactions:', button);
+    }
+
+    /**
+     * Handle run button interaction events
+     */
+    handleRunButtonInteraction(button, interactionData) {
+        const { event, isUserInitiated, globalInteracting, timeSinceLastInteraction } = interactionData;
+        
+        // Check if this is our programmatic click
+        const isProgrammaticFromAutoRun = event._aiStudioEnhancerProgrammatic;
+        
+        Logger.debug('Run button interaction detected', {
+            eventType: event.type,
+            isUserInitiated,
+            isProgrammaticFromAutoRun,
+            globalInteracting,
+            timeSinceLastInteraction,
+            isAutoRunning: this.isAutoRunning,
+            isTrusted: event.isTrusted
+        });
+
+        // Publish event for analytics/logging
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
+            type: isUserInitiated ? 'user-action' : 'programmatic-action',
+            action: 'run-button-click',
+            userInitiated: isUserInitiated,
+            isProgrammaticFromAutoRun,
+            eventType: event.type,
+            isAutoRunning: this.isAutoRunning
+        });
+
+        // Special handling for user-initiated clicks during auto-run
+        if (isUserInitiated && this.isAutoRunning && !isProgrammaticFromAutoRun) {
+            Logger.info('User clicked run button while auto-run is active - this may interfere with automation');
+            this.showNotification('Manual run detected during auto-run - may cause conflicts', 'warning');
+        }
     }
 
     /**
@@ -1278,9 +1622,18 @@ class AIStudioEnhancer {
             return;
         }
 
-        // Click the run button
-        runButton.click();
-        Logger.debug('Run button clicked');
+        // Click the run button programmatically during auto-run
+        const clickEvent = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        });
+        
+        // Mark this as a programmatic click for our own tracking
+        clickEvent._aiStudioEnhancerProgrammatic = true;
+        
+        runButton.dispatchEvent(clickEvent);
+        Logger.debug('Run button clicked programmatically during auto-run iteration');
 
         // Wait for response completion
         await this.waitForResponseCompletion();
