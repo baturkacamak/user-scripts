@@ -104,6 +104,11 @@ for easier management and clearer descriptions here.*
 
 ### 🛠️ Productivity & Tools
 
+- **[Google AI Studio Enhancer](./userscripts/google-ai-studio-enhancer#readme)**
+    - *Description*: Advanced Google AI Studio enhancement with real-time response copying, intelligent auto-runner with custom prompts, and professional UI. Designed to work around Google's Trusted Types policy.
+    - *Install*: [➡️ Direct Install](https://github.com/baturkacamak/user-scripts/raw/master/userscripts/google-ai-studio-enhancer/google-ai-studio-enhancer.user.js)
+    - *Source*: [📄 View Source Code](./userscripts/google-ai-studio-enhancer/)
+    - *Features*: Real-time response detection, auto-runner with custom prompts, smart text cleaning, DOM observer-based completion detection
 - **[ChatGPT Themes Prompter Enhanced (Story Grow)](./userscripts/story-grow#readme)**
     - *Description*: Automatically inputs a random theme-based prompt into chat.openai.com and follows up with image
       generation prompts.
