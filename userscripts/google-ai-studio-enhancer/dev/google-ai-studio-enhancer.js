@@ -6,6 +6,7 @@ import {
     HTMLUtils,
     Logger,
     Notification,
+    SidebarPanel,
     StyleManager
 } from "../../common/core";
 import { getValue, setValue, GM_setClipboard } from "../../common/core/utils/GMFunctions";
@@ -128,7 +129,7 @@ class AIStudioEnhancer {
         this.responseObserver = null;
         this.chatObserver = null;
         this.settings = { ...AIStudioEnhancer.DEFAULT_SETTINGS };
-        this.panel = null;
+        this.sidebarPanel = null;
         this.currentChatId = null;
 
         Logger.info("Initializing Google AI Studio Enhancer");
@@ -178,8 +179,11 @@ class AIStudioEnhancer {
         // Wait for page to be ready
         await this.waitForPageReady();
 
-        // Create the UI panel using DOM methods
-        this.createPanel();
+        // Initialize styles
+        SidebarPanel.initStyles();
+
+        // Create the UI panel using SidebarPanel component
+        this.createSidebarPanel();
 
         // Setup chat monitoring to detect chat switches
         this.setupChatMonitoring();
@@ -209,59 +213,47 @@ class AIStudioEnhancer {
     }
 
     /**
-     * Create the main UI panel using pure DOM methods
+     * Create the main UI panel using SidebarPanel component
      */
-    createPanel() {
-        // Create main panel container
-        this.panel = document.createElement('div');
-        this.panel.className = 'ai-studio-enhancer-panel';
-        this.panel.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 320px;
-            background: #ffffff;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            z-index: 10000;
+    createSidebarPanel() {
+        this.sidebarPanel = new SidebarPanel({
+            title: '🤖 AI Studio Enhancer',
+            id: 'ai-studio-enhancer-panel',
+            position: 'right',
+            transition: 'slide',
+            buttonIcon: '🤖',
+            content: {
+                generator: () => this.createPanelContent()
+            },
+            style: {
+                width: '380px',
+                buttonSize: '48px',
+                buttonColor: '#fff',
+                buttonBg: '#4285f4',
+                panelBg: '#fff'
+            },
+            rememberState: true
+        });
+
+        Logger.debug("SidebarPanel created");
+    }
+
+    /**
+     * Create the content for the sidebar panel
+     */
+    createPanelContent() {
+        const content = document.createElement('div');
+        content.style.cssText = `
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 14px;
         `;
-
-        // Create header
-        const header = document.createElement('div');
-        header.style.cssText = `
-            background: #4285f4;
-            color: white;
-            padding: 12px 16px;
-            border-radius: 8px 8px 0 0;
-            font-weight: 600;
-            cursor: move;
-            user-select: none;
-        `;
-        header.textContent = '🤖 AI Studio Enhancer';
-
-        // Create content container
-        const content = document.createElement('div');
-        content.style.padding = '16px';
 
         // Create sections
         this.createResponseSection(content);
         this.createAutoRunSection(content);
         this.createSettingsSection(content);
 
-        // Assemble panel
-        this.panel.appendChild(header);
-        this.panel.appendChild(content);
-
-        // Add to page
-        document.body.appendChild(this.panel);
-
-        // Make draggable
-        this.makeDraggable(header);
-
-        Logger.debug("Panel created using DOM methods");
+        return content;
     }
 
     /**
@@ -294,30 +286,12 @@ class AIStudioEnhancer {
             font-size: 14px;
             font-weight: 500;
             width: 100%;
-            margin-bottom: 8px;
         `;
         copyButton.addEventListener('click', () => this.copyAllResponses());
-
-        // Clear button
-        const clearButton = document.createElement('button');
-        clearButton.textContent = 'Clear Chat Responses';
-        clearButton.style.cssText = `
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            width: 100%;
-        `;
-        clearButton.addEventListener('click', () => this.clearResponses());
 
         section.appendChild(title);
         section.appendChild(this.responseCountElement);
         section.appendChild(copyButton);
-        section.appendChild(clearButton);
 
         container.appendChild(section);
     }
@@ -447,111 +421,24 @@ class AIStudioEnhancer {
         title.textContent = '⚙️ Settings';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-        // Info text about auto-copy
-        const autoCopyInfo = document.createElement('div');
-        autoCopyInfo.textContent = '✅ Auto-copy new responses (always enabled)';
-        autoCopyInfo.style.cssText = `
-            color: #666;
+        // Placeholder for future settings
+        const placeholder = document.createElement('div');
+        placeholder.textContent = 'No settings available yet';
+        placeholder.style.cssText = `
+            color: #999;
             font-size: 13px;
-            margin-bottom: 10px;
-            padding: 8px;
-            background: #f8f9fa;
-            border-radius: 4px;
-            border-left: 3px solid #4285f4;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
         `;
-
-        // Notifications checkbox
-        const notifContainer = document.createElement('label');
-        notifContainer.style.cssText = `
-            display: flex; 
-            align-items: center; 
-            cursor: pointer;
-            color: #333;
-            font-size: 14px;
-        `;
-
-        const notifCheckbox = document.createElement('input');
-        notifCheckbox.type = 'checkbox';
-        notifCheckbox.checked = this.settings.SHOW_NOTIFICATIONS;
-        notifCheckbox.style.cssText = `
-            margin-right: 8px;
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-        `;
-        notifCheckbox.addEventListener('change', (e) => {
-            this.settings.SHOW_NOTIFICATIONS = e.target.checked;
-            this.saveSettings();
-        });
-        
-        // Add hover effects
-        notifContainer.addEventListener('mouseenter', () => {
-            notifContainer.style.backgroundColor = '#f5f5f5';
-            notifContainer.style.borderRadius = '4px';
-            notifContainer.style.padding = '4px';
-            notifContainer.style.margin = '0 -4px 0 -4px';
-        });
-        notifContainer.addEventListener('mouseleave', () => {
-            notifContainer.style.backgroundColor = 'transparent';
-            notifContainer.style.padding = '0';
-            notifContainer.style.margin = '0';
-        });
-
-        const notifLabel = document.createElement('span');
-        notifLabel.textContent = 'Show notifications';
-        notifLabel.style.cssText = `
-            color: #333;
-            font-size: 14px;
-            user-select: none;
-        `;
-
-        notifContainer.appendChild(notifCheckbox);
-        notifContainer.appendChild(notifLabel);
 
         section.appendChild(title);
-        section.appendChild(autoCopyInfo);
-        section.appendChild(notifContainer);
+        section.appendChild(placeholder);
 
         container.appendChild(section);
     }
 
-    /**
-     * Make panel draggable
-     */
-    makeDraggable(header) {
-        let isDragging = false;
-        let currentX;
-        let currentY;
-        let initialX;
-        let initialY;
-        let xOffset = 0;
-        let yOffset = 0;
 
-        header.addEventListener('mousedown', (e) => {
-            initialX = e.clientX - xOffset;
-            initialY = e.clientY - yOffset;
-            if (e.target === header) {
-                isDragging = true;
-            }
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                e.preventDefault();
-                currentX = e.clientX - initialX;
-                currentY = e.clientY - initialY;
-                xOffset = currentX;
-                yOffset = currentY;
-                this.panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            initialX = currentX;
-            initialY = currentY;
-            isDragging = false;
-        });
-    }
 
     /**
      * Setup chat monitoring to detect when user switches between chats
