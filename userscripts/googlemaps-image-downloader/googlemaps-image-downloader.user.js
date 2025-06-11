@@ -425,6 +425,88 @@
     }
 
     /**
+     * DOMObserver - Observes DOM changes and URL changes
+     * Uses UrlChangeWatcher for URL change detection with configurable strategies
+     */
+    class DOMObserver {
+      /**
+         * Wait for elements matching a selector
+         * @param {string} selector - CSS selector to wait for
+         * @param {number} timeout - Timeout in milliseconds
+         * @return {Promise<NodeList>} - Promise resolving to found elements
+         */
+      static waitForElements(selector, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+
+          function checkElements() {
+            const elements = document.querySelectorAll(selector);
+            if (0 < elements.length) {
+              resolve(elements);
+              return;
+            }
+
+            if (Date.now() - startTime > timeout) {
+              reject(new Error(`Timeout waiting for elements: ${selector}`));
+              return;
+            }
+
+            requestAnimationFrame(checkElements);
+          }
+
+          checkElements();
+        });
+      }
+      /**
+         * Create a new DOMObserver
+         * @param {Function} onMutation - Callback for handling mutations
+         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
+         */
+      constructor(onMutation, urlChangeStrategies = []) {
+        this.observer = new MutationObserver(this.handleMutations.bind(this));
+        this.lastUrl = location.href;
+        this.onMutation = onMutation;
+
+        // Initialize URL change watcher with provided strategies
+        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
+      }
+
+
+      /**
+         * Start observing DOM changes and URL changes
+         * @param {HTMLElement} target - Element to observe (defaults to document.body)
+         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
+         */
+      observe(target = document.body, config = {childList: true, subtree: true}) {
+        this.observer.observe(target, config);
+
+        // Start URL change watcher
+        this.urlChangeWatcher.start();
+      }
+
+      /**
+         * Stop observing DOM changes and URL changes
+         */
+      disconnect() {
+        this.observer.disconnect();
+
+        // Stop URL change watcher
+        this.urlChangeWatcher.stop();
+      }
+
+      /**
+         * Handle mutations
+         * @param {MutationRecord[]} mutations - Array of mutation records
+         * @private
+         */
+      handleMutations(mutations) {
+        if (this.onMutation) {
+          this.onMutation(mutations);
+        }
+      }
+    }
+
+    /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
@@ -685,88 +767,6 @@
 
     // For potential direct class usage if ever needed, though current pattern is to use the initialized functions.
     // export default GMFunctions; // Not currently used this way
-
-    /**
-     * DOMObserver - Observes DOM changes and URL changes
-     * Uses UrlChangeWatcher for URL change detection with configurable strategies
-     */
-    class DOMObserver {
-      /**
-         * Wait for elements matching a selector
-         * @param {string} selector - CSS selector to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @return {Promise<NodeList>} - Promise resolving to found elements
-         */
-      static waitForElements(selector, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-
-          function checkElements() {
-            const elements = document.querySelectorAll(selector);
-            if (0 < elements.length) {
-              resolve(elements);
-              return;
-            }
-
-            if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selector}`));
-              return;
-            }
-
-            requestAnimationFrame(checkElements);
-          }
-
-          checkElements();
-        });
-      }
-      /**
-         * Create a new DOMObserver
-         * @param {Function} onMutation - Callback for handling mutations
-         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
-         */
-      constructor(onMutation, urlChangeStrategies = []) {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-        this.onMutation = onMutation;
-
-        // Initialize URL change watcher with provided strategies
-        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
-      }
-
-
-      /**
-         * Start observing DOM changes and URL changes
-         * @param {HTMLElement} target - Element to observe (defaults to document.body)
-         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
-         */
-      observe(target = document.body, config = {childList: true, subtree: true}) {
-        this.observer.observe(target, config);
-
-        // Start URL change watcher
-        this.urlChangeWatcher.start();
-      }
-
-      /**
-         * Stop observing DOM changes and URL changes
-         */
-      disconnect() {
-        this.observer.disconnect();
-
-        // Stop URL change watcher
-        this.urlChangeWatcher.stop();
-      }
-
-      /**
-         * Handle mutations
-         * @param {MutationRecord[]} mutations - Array of mutation records
-         * @private
-         */
-      handleMutations(mutations) {
-        if (this.onMutation) {
-          this.onMutation(mutations);
-        }
-      }
-    }
 
     /**
      * Button - A reusable UI component for buttons.

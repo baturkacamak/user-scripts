@@ -2,9 +2,9 @@ import Debouncer from './Debouncer.js';
 import HTMLUtils from './HTMLUtils.js';
 import Logger from './Logger.js';
 import PubSub from './PubSub.js';
-import Notification from './Notification.js';
+import Notification from '../ui/Notification.js';
 import UserInteractionDetector from './UserInteractionDetector.js';
-import DOMObserver from './DOMObserver.js';
+import DOMObserver from '../ui/DOMObserver.js';
 
 /**
  * AutoRunner - Generic automated task execution system
