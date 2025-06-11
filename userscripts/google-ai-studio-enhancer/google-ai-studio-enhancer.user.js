@@ -5679,16 +5679,18 @@
         handleToggleButtonClick(event) {
             const isUserInitiated = this.userInteraction.isUserEvent(event);
             
-            Logger.debug('Toggle button clicked', {
+            Logger.warn('Toggle button clicked! Current auto-run state:', this.isAutoRunning, {
                 isUserInitiated,
                 eventType: event?.type,
                 isTrusted: event?.isTrusted,
                 isInteracting: this.userInteraction.isInteracting(),
-                timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+                timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction(),
+                stackTrace: new Error().stack
             });
 
             if (isUserInitiated) {
                 // Real user click - proceed with normal toggle behavior
+                Logger.warn('User-initiated toggle detected');
                 this.toggleAutoRun();
                 
                 // Publish event for analytics/logging
@@ -5700,17 +5702,17 @@
                 });
             } else {
                 // Programmatic click - log but potentially ignore or handle differently
-                Logger.warn('Programmatic toggle button click detected - this may indicate automation or testing');
+                Logger.warn('Programmatic toggle button click detected - IGNORING to prevent unwanted stops');
                 
-                // For now, still allow programmatic toggling but log it
-                this.toggleAutoRun();
+                // DON'T call toggleAutoRun for programmatic clicks
+                // this.toggleAutoRun();
                 
                 // Publish event for analytics/logging
                 PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
                     type: 'programmatic-action',
-                    action: 'toggle-auto-run',
+                    action: 'toggle-auto-run-ignored',
                     userInitiated: false,
-                    newState: this.isAutoRunning
+                    currentState: this.isAutoRunning
                 });
             }
         }
@@ -6790,6 +6792,9 @@
          * Stop auto-run process
          */
         stopAutoRun() {
+            // Add debugging to see what's calling this method
+            Logger.warn('stopAutoRun called! Stack trace:', new Error().stack);
+            
             this.isAutoRunning = false;
             
             // Reset iteration count to 0
@@ -6808,25 +6813,26 @@
          * Run a single iteration
          */
         async runIteration() {
-            if (!this.isAutoRunning || this.currentIteration >= this.maxIterations) {
-                if (this.currentIteration >= this.maxIterations) {
-                    // Auto-run completed all iterations
-                    this.isAutoRunning = false;
-                    this.currentIteration = 0;
-                    
-                    // Publish completion event
-                    PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
-                        reason: 'completed',
-                        completedIterations: this.maxIterations,
-                        timestamp: Date.now()
-                    });
-                    
-                    this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
-                    Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
-                } else {
-                    // Stopped by user or error
-                this.stopAutoRun();
-                }
+            // Only stop if explicitly stopped by user or if all iterations completed
+            if (!this.isAutoRunning) {
+                Logger.info('Auto-run stopped by user');
+                return;
+            }
+
+            if (this.currentIteration >= this.maxIterations) {
+                // Auto-run completed all iterations
+                this.isAutoRunning = false;
+                this.currentIteration = 0;
+                
+                // Publish completion event
+                PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                    reason: 'completed',
+                    completedIterations: this.maxIterations,
+                    timestamp: Date.now()
+                });
+                
+                this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
+                Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
                 return;
             }
 
@@ -6846,19 +6852,22 @@
             if (currentPrompt) {
                 const promptEntered = await this.enterPrompt(currentPrompt);
                 if (!promptEntered) {
-                    this.showNotification('Could not enter prompt - prompt input not found', 'error');
-                    this.stopAutoRun();
-                    return;
+                    Logger.warn('Could not enter prompt - prompt input not found, continuing anyway');
+                    // Don't stop auto-run, just continue without prompt
+                } else {
+                    // Small delay after entering prompt to let Google process the input
+                    await this.delay(500);
                 }
-                // Small delay after entering prompt to let Google process the input
-                await this.delay(500);
             }
 
             // Wait for run button to become enabled (with retry mechanism)
             const runButton = await this.waitForRunButton();
             if (!runButton) {
-                this.showNotification('Run button not found after waiting', 'error');
-                this.stopAutoRun();
+                Logger.warn('Run button not found after waiting, retrying in next iteration');
+                // Don't stop auto-run, just retry in next iteration
+                setTimeout(() => {
+                    this.runIteration();
+                }, 2000); // Longer delay when retrying
                 return;
             }
 
@@ -7032,10 +7041,8 @@
             return new Promise((resolve) => {
                 let timeoutId;
                 let observer;
-                let hasSeenStoppableState = false;
-                let responseStartTime = Date.now();
                 
-                let cleanup = () => {
+                const cleanup = () => {
                     if (observer) {
                         observer.disconnect();
                     }
@@ -7059,13 +7066,6 @@
                     const isButtonTypeButton = runButton.type === 'button';
                     const isDisabled = runButton.disabled || runButton.classList.contains('disabled');
                     const buttonText = runButton.textContent?.trim();
-                    const currentTime = Date.now();
-                    const timeElapsed = currentTime - responseStartTime;
-                    
-                    // Track if we've seen the button in a stoppable state (indicating generation started)
-                    if (isStoppable) {
-                        hasSeenStoppableState = true;
-                    }
                     
                     Logger.debug(`Button state check:`, {
                         isStoppable,
@@ -7073,21 +7073,12 @@
                         isDisabled,
                         type: runButton.type,
                         text: buttonText,
-                        classes: Array.from(runButton.classList),
-                        hasSeenStoppableState,
-                        timeElapsed
+                        classes: Array.from(runButton.classList)
                     });
                     
-                    // Response is complete when:
-                    // 1. We've seen the stoppable state (generation started)
-                    // 2. Button is no longer stoppable
-                    // 3. Button type is submit (ready for next run)
-                    // 4. At least 2 seconds have passed to avoid false positives
-                    const isComplete = hasSeenStoppableState && 
-                                     !isStoppable && 
-                                     !isButtonTypeButton && 
-                                     runButton.type === 'submit' &&
-                                     timeElapsed >= 2000;
+                    // Response is complete when button changes from "Stop" to "Run" state
+                    // Note: Button may be disabled because prompt is empty (that's normal)
+                    const isComplete = !isStoppable && !isButtonTypeButton && runButton.type === 'submit';
                     
                     if (isComplete) {
                         Logger.debug('Response completion detected via DOM observer');
@@ -7153,27 +7144,32 @@
                 
                 Logger.debug('DOM observer started, watching for button changes...');
 
-                // Set a maximum timeout as fallback
-                timeoutId = setTimeout(() => {
-                    Logger.warn('Response completion timeout (2 minutes)');
-                    cleanup();
-                    resolve();
-                }, 120000); // 2 minutes
-                
-                // Set up periodic checking as backup (every 3 seconds)
-                const intervalId = setInterval(() => {
-                    Logger.debug('Periodic check (backup)...');
-                    if (checkCompletion()) {
-                        clearInterval(intervalId);
+                // Initial check after a short delay to let the button state change
+                setTimeout(() => {
+                    if (!checkCompletion()) {
+                        // Set a maximum timeout as fallback
+                        timeoutId = setTimeout(() => {
+                            Logger.warn('Response completion timeout (2 minutes)');
+                            cleanup();
+                            resolve();
+                        }, 120000); // 2 minutes
+                        
+                        // Also set up periodic checking as backup (every 5 seconds)
+                        const intervalId = setInterval(() => {
+                            Logger.debug('Periodic check (backup)...');
+                            if (checkCompletion()) {
+                                clearInterval(intervalId);
+                            }
+                        }, 5000);
+                        
+                        // Store interval ID for cleanup
+                        const originalCleanup = cleanup;
+                        cleanup = () => {
+                            clearInterval(intervalId);
+                            originalCleanup();
+                        };
                     }
-                }, 3000);
-                
-                // Store interval ID for cleanup
-                const originalCleanup = cleanup;
-                cleanup = () => {
-                    clearInterval(intervalId);
-                    originalCleanup();
-                };
+                }, 500); // Reduced from 2000ms to 500ms
             });
         }
 
