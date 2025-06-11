@@ -115,7 +115,8 @@ class AIStudioEnhancer {
         AUTO_RUN_DELAY: 'gaise-auto-run-delay',
         SHOW_NOTIFICATIONS: 'gaise-show-notifications',
         PANEL_POSITION: 'gaise-panel-position',
-        AUTO_RUN_PROMPT: 'gaise-auto-run-prompt'
+        AUTO_RUN_PROMPT: 'gaise-auto-run-prompt',
+        AUTO_COPY_RESPONSES: 'gaise-auto-copy-responses'
     };
 
     static DEFAULT_SETTINGS = {
@@ -123,7 +124,8 @@ class AIStudioEnhancer {
         AUTO_RUN_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
         PANEL_POSITION: { x: 20, y: 20 },
-        AUTO_RUN_PROMPT: ''
+        AUTO_RUN_PROMPT: '',
+        AUTO_COPY_RESPONSES: false
     };
 
     // Event names for PubSub communication
@@ -290,6 +292,11 @@ class AIStudioEnhancer {
         if (this.iterationsInput) {
             this.iterationsInput.destroy();
             this.iterationsInput = null;
+        }
+        
+        if (this.autoCopyCheckbox) {
+            this.autoCopyCheckbox.destroy();
+            this.autoCopyCheckbox = null;
         }
         
         Logger.debug("All subscriptions and resources cleaned up");
@@ -533,10 +540,12 @@ class AIStudioEnhancer {
         // Save to cache
         this.saveResponsesToCache();
         
-        // Auto-copy new responses
-        this.copyAllResponsesWithSmartNotification();
+        // Auto-copy new responses only if enabled
+        if (this.settings.AUTO_COPY_RESPONSES) {
+            this.copyAllResponsesWithSmartNotification();
+        }
         
-        Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}`);
+        Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}, Auto-copy: ${this.settings.AUTO_COPY_RESPONSES}`);
     }
 
     /**
@@ -686,6 +695,8 @@ class AIStudioEnhancer {
         SidebarPanel.initStyles();
         Button.initStyles();
         Button.useDefaultColors();
+        Checkbox.initStyles();
+        Checkbox.useDefaultColors();
         Notification.initStyles();
         Notification.useDefaultColors();
         Input.initStyles();
@@ -972,6 +983,29 @@ class AIStudioEnhancer {
         cacheSubsection.appendChild(cacheInfo);
         // clearCacheButton is automatically appended via container option
 
+        // Auto-copy subsection
+        const autoCopySubsection = document.createElement('div');
+        autoCopySubsection.style.marginBottom = '16px';
+
+        const autoCopyTitle = document.createElement('h4');
+        autoCopyTitle.textContent = '📋 Auto-Copy Settings';
+        autoCopyTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
+
+        // Auto-copy checkbox
+        this.autoCopyCheckbox = new Checkbox({
+            checked: this.settings.AUTO_COPY_RESPONSES,
+            label: 'Automatically copy responses to clipboard',
+            onChange: (event, checkbox) => {
+                this.settings.AUTO_COPY_RESPONSES = checkbox.isChecked();
+                this.saveSettings();
+                Logger.debug('Auto-copy setting changed:', this.settings.AUTO_COPY_RESPONSES);
+            },
+            container: autoCopySubsection
+        });
+
+        autoCopySubsection.appendChild(autoCopyTitle);
+        // autoCopyCheckbox is automatically appended via container option
+
         // User interaction subsection
         const interactionSubsection = document.createElement('div');
         interactionSubsection.style.marginBottom = '16px';
@@ -1004,6 +1038,7 @@ class AIStudioEnhancer {
 
         section.appendChild(title);
         section.appendChild(cacheSubsection);
+        section.appendChild(autoCopySubsection);
         section.appendChild(interactionSubsection);
 
         container.appendChild(section);
