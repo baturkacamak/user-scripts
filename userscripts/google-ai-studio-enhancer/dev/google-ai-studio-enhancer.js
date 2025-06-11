@@ -1,9 +1,12 @@
 // Import core components
 import {
+    AutoRunner,
     Button,
+    ContentCollector,
     DataCache,
     Debouncer,
     DOMObserver,
+    FormStatePersistence,
     HTMLUtils,
     Input,
     Logger,
@@ -168,12 +171,52 @@ class AIStudioEnhancer {
             interactionThrottle: 100 // 100ms throttle for performance
         });
 
+        // Initialize ContentCollector for sophisticated response collection
+        this.contentCollector = new ContentCollector({
+            name: 'AI-Studio-Responses',
+            selectors: AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS,
+            contentExtractor: this.extractResponseText.bind(this),
+            contentCleaner: this.cleanResponseText.bind(this),
+            contentValidator: (content, existing) => content && content.length > 10,
+            deduplicate: true,
+            enableNotifications: false, // We'll handle notifications ourselves
+            enablePersistence: true,
+            cacheKey: () => this.getChatCacheKey(),
+            highlightCollected: false
+        });
+
+        // Initialize AutoRunner for sophisticated auto-run functionality
+        this.autoRunner = null; // Will be created when needed
+
+        // Initialize FormStatePersistence for automatic form state saving
+        this.formPersistence = new FormStatePersistence({
+            namespace: 'ai-studio-enhancer',
+            getValue: getValue,
+            setValue: setValue,
+            enableNotifications: false,
+            enableInteractionDetection: true,
+            fields: {
+                autoRunPrompt: {
+                    selector: '.auto-run-prompt-textarea textarea',
+                    type: 'text',
+                    defaultValue: ''
+                },
+                autoRunIterations: {
+                    selector: '.auto-run-iterations-input input',
+                    type: 'number',
+                    defaultValue: 10,
+                    validator: (value) => {
+                        const num = parseInt(value, 10);
+                        return !isNaN(num) && num >= 1 && num <= 100;
+                    }
+                }
+            }
+        });
+
         Logger.info("Initializing Google AI Studio Enhancer");
 
         // Setup PubSub event handlers
         this.setupEventHandlers();
-
-
 
         // Initialize URL change watcher for chat monitoring
         this.urlWatcher = new UrlChangeWatcher([
@@ -287,6 +330,22 @@ class AIStudioEnhancer {
             this.iterationsInput.destroy();
             this.iterationsInput = null;
         }
+
+        // Clean up new core components
+        if (this.contentCollector) {
+            this.contentCollector.stopMonitoring();
+            this.contentCollector = null;
+        }
+
+        if (this.autoRunner) {
+            this.autoRunner.stop('cleanup');
+            this.autoRunner = null;
+        }
+
+        if (this.formPersistence) {
+            this.formPersistence.destroy();
+            this.formPersistence = null;
+        }
         
         Logger.debug("All subscriptions and resources cleaned up");
     }
@@ -360,8 +419,11 @@ class AIStudioEnhancer {
     clearCurrentChatCache() {
         this.clearChatCache();
         
-        // Also clear current responses in memory
+        // Also clear current responses in memory and ContentCollector
         this.responses = [];
+        if (this.contentCollector) {
+            this.contentCollector.clearContent();
+        }
         
         // Update UI
         PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
@@ -702,21 +764,14 @@ class AIStudioEnhancer {
         // Setup chat monitoring to detect chat switches
         this.setupChatMonitoring();
 
-        // Setup response monitoring
-        this.setupResponseMonitoring();
+        // Initialize ContentCollector for response monitoring
+        this.initializeContentCollector();
+
+        // Initialize FormStatePersistence for automatic form state saving
+        this.initializeFormPersistence();
 
         // Setup user interaction tracking for run buttons
         this.setupRunButtonInteractionTracking();
-
-        // Try to load cached responses for current chat first
-        const loadedFromCache = this.loadResponsesFromCache();
-        
-        if (loadedFromCache) {
-            Logger.info(`Loaded ${this.responses.length} cached responses for current chat`);
-        }
-
-        // Collect existing responses (this will merge with cached ones)
-        this.collectExistingResponses();
 
         // Mark initial load as complete after a delay to allow for all responses to be collected
         setTimeout(() => {
@@ -999,8 +1054,6 @@ class AIStudioEnhancer {
         container.appendChild(section);
     }
 
-
-
     /**
      * Handle URL changes detected by UrlChangeWatcher
      */
@@ -1011,6 +1064,57 @@ class AIStudioEnhancer {
             this.currentChatId = newChatId;
             this.onChatChanged();
         }
+    }
+
+    /**
+     * Initialize ContentCollector for sophisticated response monitoring
+     */
+    async initializeContentCollector() {
+        // Setup event subscriptions for ContentCollector
+        this.subscriptionIds.push(
+            PubSub.subscribe(ContentCollector.EVENTS.CONTENT_ADDED, (data) => {
+                // Update our local responses array to maintain compatibility
+                this.responses = this.contentCollector.getContent();
+                
+                // Handle the new content addition
+                this.handleResponseAdded({
+                    text: data.content,
+                    total: data.totalItems,
+                    isInitialLoad: this.isInitialLoad
+                });
+            })
+        );
+
+        this.subscriptionIds.push(
+            PubSub.subscribe(ContentCollector.EVENTS.COLLECTION_UPDATED, (data) => {
+                // Update response count in UI
+                this.updateResponseCount();
+                Logger.debug(`ContentCollector updated: ${data.newItems} new, ${data.totalItems} total`);
+            })
+        );
+
+        // Start monitoring for responses
+        this.contentCollector.startMonitoring();
+        
+        // Update our responses array from ContentCollector
+        this.responses = this.contentCollector.getContent();
+        
+        Logger.info("ContentCollector initialized and monitoring started");
+    }
+
+    /**
+     * Initialize FormStatePersistence for automatic form state saving
+     */
+    async initializeFormPersistence() {
+        // Wait for form elements to be available
+        setTimeout(async () => {
+            try {
+                await this.formPersistence.initialize();
+                Logger.info("FormStatePersistence initialized successfully");
+            } catch (error) {
+                Logger.warn("FormStatePersistence initialization failed:", error);
+            }
+        }, 1000); // Delay to ensure form elements are created
     }
 
     /**
@@ -1106,21 +1210,7 @@ class AIStudioEnhancer {
         this.previousChatId = this.currentChatId;
     }
 
-    /**
-     * Setup response monitoring using DOM observer
-     */
-    setupResponseMonitoring() {
-        this.responseObserver = new DOMObserver((mutations) => {
-            this.handleDOMChanges(mutations);
-        });
 
-        this.responseObserver.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        Logger.debug("Response monitoring setup complete");
-    }
 
     /**
      * Setup user interaction tracking for run buttons
@@ -1249,55 +1339,7 @@ class AIStudioEnhancer {
         }
     }
 
-    /**
-     * Handle DOM changes to detect new responses
-     */
-    handleDOMChanges(mutations) {
-        for (const mutation of mutations) {
-            if (mutation.type === 'childList') {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        this.scanForNewResponses(node);
-                    }
-                }
-            }
-        }
-    }
 
-    /**
-     * Scan element for new AI responses
-     */
-    scanForNewResponses(element) {
-        AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS.forEach(selector => {
-            // Check if the element itself matches
-            if (element.matches && element.matches(selector)) {
-                this.addResponse(element);
-            }
-            // Check children
-            if (element.querySelectorAll) {
-                element.querySelectorAll(selector).forEach(el => {
-                    this.addResponse(el);
-                });
-            }
-        });
-    }
-
-    /**
-     * Collect existing responses on page
-     */
-    collectExistingResponses() {
-        const initialResponseCount = this.responses.length;
-        
-        AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS.forEach(selector => {
-            document.querySelectorAll(selector).forEach(element => {
-                this.addResponse(element);
-            });
-        });
-
-        const newResponseCount = this.responses.length - initialResponseCount;
-        Logger.info(`Collected ${newResponseCount} new responses (${this.responses.length} total including cached)`);
-        this.updateResponseCount();
-    }
 
     /**
      * Clean response text by removing UI elements and metadata
@@ -1394,41 +1436,25 @@ class AIStudioEnhancer {
         return this.cleanResponseText(fullText);
     }
 
-    /**
-     * Add a response to the collection
-     */
-    addResponse(element) {
-        const text = this.extractResponseText(element);
-        if (text && text.length > 10 && !this.responses.includes(text)) {
-            this.responses.push(text);
-            
-            // Publish event instead of direct method calls
-            PubSub.publish(AIStudioEnhancer.EVENTS.RESPONSE_ADDED, {
-                text: text,
-                total: this.responses.length,
-                isInitialLoad: this.isInitialLoad
-            });
-
-            Logger.debug('New response added:', text.substring(0, 100) + '...');
-        }
-    }
-
 
 
     /**
      * Copy all responses to clipboard without showing notifications
      */
     async copyAllResponsesSilent() {
-        if (this.responses.length === 0) {
+        // Get responses from ContentCollector if available, fallback to local array
+        const responses = this.contentCollector ? this.contentCollector.getContent() : this.responses;
+        
+        if (responses.length === 0) {
             return false;
         }
 
         // Format responses - clean output without headers
-        const content = this.responses.join('\n\n---\n\n');
+        const content = responses.join('\n\n---\n\n');
 
         try {
             GM_setClipboard(content);
-            Logger.success(`Copied ${this.responses.length} responses to clipboard`);
+            Logger.success(`Copied ${responses.length} responses to clipboard`);
             return true;
         } catch (error) {
             Logger.error('Failed to copy responses:', error);
@@ -1441,7 +1467,9 @@ class AIStudioEnhancer {
      */
     updateResponseCount() {
         if (this.responseCountElement) {
-            this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
+            // Get count from ContentCollector if available, fallback to local array
+            const count = this.contentCollector ? this.contentCollector.getContent().length : this.responses.length;
+            this.responseCountElement.textContent = `Current chat responses: ${count}`;
         }
     }
 
@@ -1449,14 +1477,17 @@ class AIStudioEnhancer {
      * Manual copy button handler - always shows notifications
      */
     async copyAllResponsesManual() {
-        if (this.responses.length === 0) {
+        // Get responses from ContentCollector if available, fallback to local array
+        const responses = this.contentCollector ? this.contentCollector.getContent() : this.responses;
+        
+        if (responses.length === 0) {
             this.showNotification('No responses found to copy', 'warning');
             return false;
         }
 
         const success = await this.copyAllResponsesSilent();
         if (success) {
-            this.showNotification(`Copied ${this.responses.length} responses to clipboard`, 'success');
+            this.showNotification(`Copied ${responses.length} responses to clipboard`, 'success');
         } else {
             this.showNotification('Failed to copy responses', 'error');
         }
@@ -1475,6 +1506,9 @@ class AIStudioEnhancer {
      */
     clearResponses() {
         this.responses = [];
+        if (this.contentCollector) {
+            this.contentCollector.clearContent();
+        }
         this.updateResponseCount();
         this.showNotification('Chat responses cleared', 'info');
         Logger.info('Chat responses cleared');
@@ -1492,7 +1526,7 @@ class AIStudioEnhancer {
     }
 
     /**
-     * Start auto-run process
+     * Start auto-run process using AutoRunner
      */
     async startAutoRun() {
         if (this.isAutoRunning) {
@@ -1512,19 +1546,80 @@ class AIStudioEnhancer {
             return false;
         }
 
-        this.isAutoRunning = true;
-        this.currentIteration = 0;
-        this.maxIterations = iterations;
-
-        // Publish auto-run started event
-        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, {
-            iterations: iterations,
-            timestamp: Date.now()
+        // Create AutoRunner instance
+        this.autoRunner = new AutoRunner({
+            name: 'AI-Studio-AutoRun',
+            maxIterations: iterations,
+            delay: 1000, // 1 second between iterations
+            taskFunction: async (iteration, results) => {
+                return await this.executeAutoRunIteration(iteration, results);
+            },
+            enableNotifications: true,
+            enableInteractionDetection: true,
+            onProgress: (current, total, result, results) => {
+                this.currentIteration = current;
+                this.maxIterations = total;
+                PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, {
+                    current,
+                    total,
+                    timestamp: Date.now()
+                });
+            },
+            onError: (error, iteration) => {
+                Logger.error(`Auto-run iteration ${iteration} failed:`, error);
+                this.showNotification(`Auto-run iteration ${iteration} failed: ${error.message}`, 'error');
+            }
         });
 
-        Logger.info(`Starting auto runner for ${iterations} iterations`);
+        // Subscribe to AutoRunner events
+        this.subscriptionIds.push(
+            PubSub.subscribe(AutoRunner.EVENTS.STARTED, (data) => {
+                if (data.name === 'AI-Studio-AutoRun') {
+                    this.isAutoRunning = true;
+                    PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, {
+                        iterations: data.maxIterations,
+                        timestamp: data.timestamp
+                    });
+                }
+            })
+        );
 
-        await this.runIteration();
+        this.subscriptionIds.push(
+            PubSub.subscribe(AutoRunner.EVENTS.STOPPED, (data) => {
+                if (data.name === 'AI-Studio-AutoRun') {
+                    this.isAutoRunning = false;
+                    this.currentIteration = 0;
+                    PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                        reason: data.reason,
+                        timestamp: data.timestamp
+                    });
+                }
+            })
+        );
+
+        this.subscriptionIds.push(
+            PubSub.subscribe(AutoRunner.EVENTS.COMPLETED, (data) => {
+                if (data.name === 'AI-Studio-AutoRun') {
+                    this.isAutoRunning = false;
+                    this.currentIteration = 0;
+                    PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                        reason: 'completed',
+                        timestamp: data.timestamp
+                    });
+                }
+            })
+        );
+
+        // Start the AutoRunner
+        this.isAutoRunning = true;
+        const started = await this.autoRunner.start();
+        
+        if (!started) {
+            this.isAutoRunning = false;
+            this.showNotification('Failed to start auto runner', 'error');
+            return false;
+        }
+
         return true;
     }
 
@@ -1535,57 +1630,27 @@ class AIStudioEnhancer {
         // Add debugging to see what's calling this method
         Logger.warn('stopAutoRun called! Stack trace:', new Error().stack);
         
-        this.isAutoRunning = false;
-        
-        // Reset iteration count to 0
-        this.currentIteration = 0;
-        
-        // Publish auto-run stopped event
-        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
-            reason: 'user requested',
-            timestamp: Date.now()
-        });
-
-        Logger.info(`Auto runner stopped and reset`);
-    }
-
-    /**
-     * Run a single iteration
-     */
-    async runIteration() {
-        // Only stop if explicitly stopped by user or if all iterations completed
-        if (!this.isAutoRunning) {
-            Logger.info('Auto-run stopped by user');
-            return;
-        }
-
-        if (this.currentIteration >= this.maxIterations) {
-            // Auto-run completed all iterations
+        if (this.autoRunner) {
+            this.autoRunner.stop('user requested');
+        } else {
+            // Fallback for direct calls
             this.isAutoRunning = false;
             this.currentIteration = 0;
             
-            // Publish completion event
             PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
-                reason: 'completed',
-                completedIterations: this.maxIterations,
+                reason: 'user requested',
                 timestamp: Date.now()
             });
-            
-            this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
-            Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
-            return;
-        }
 
-        this.currentIteration++;
-        
-        // Publish iteration event
-        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, {
-            current: this.currentIteration,
-            total: this.maxIterations,
-            timestamp: Date.now()
-        });
-        
-        Logger.info(`Running iteration ${this.currentIteration}/${this.maxIterations}`);
+            Logger.info(`Auto runner stopped and reset`);
+        }
+    }
+
+    /**
+     * Execute a single auto-run iteration (used by AutoRunner)
+     */
+    async executeAutoRunIteration(iteration, results) {
+        Logger.info(`Executing auto-run iteration ${iteration}`);
 
         // Enter prompt if specified
         const currentPrompt = this.promptTextArea.getValue().trim();
@@ -1593,7 +1658,6 @@ class AIStudioEnhancer {
             const promptEntered = await this.enterPrompt(currentPrompt);
             if (!promptEntered) {
                 Logger.warn('Could not enter prompt - prompt input not found, continuing anyway');
-                // Don't stop auto-run, just continue without prompt
             } else {
                 // Small delay after entering prompt to let Google process the input
                 await this.delay(500);
@@ -1603,12 +1667,7 @@ class AIStudioEnhancer {
         // Wait for run button to become enabled (with retry mechanism)
         const runButton = await this.waitForRunButton();
         if (!runButton) {
-            Logger.warn('Run button not found after waiting, retrying in next iteration');
-            // Don't stop auto-run, just retry in next iteration
-            setTimeout(() => {
-                this.runIteration();
-            }, 2000); // Longer delay when retrying
-            return;
+            throw new Error('Run button not found after waiting');
         }
 
         // Click the run button programmatically during auto-run
@@ -1626,11 +1685,15 @@ class AIStudioEnhancer {
         // Wait for response completion
         await this.waitForResponseCompletion();
 
-        // Wait before next iteration (reduced delay for faster execution)
-        setTimeout(() => {
-            this.runIteration();
-        }, 1000); // Reduced from this.settings.AUTO_RUN_DELAY (2000ms) to 1000ms
+        return {
+            iteration,
+            timestamp: Date.now(),
+            promptUsed: currentPrompt,
+            success: true
+        };
     }
+
+
 
     /**
      * Find the prompt input field on the page

@@ -1306,6 +1306,2163 @@
     }
 
     /**
+     * Notification - A reusable UI component for toast notifications.
+     * Creates customizable, temporary notifications that appear and disappear automatically.
+     */
+
+    /**
+     * A reusable UI component for creating toast notifications that provide non-intrusive
+     * feedback to users.
+     */
+    class Notification {
+        /**
+         * Storage for the notification container elements by position
+         * @private
+         */
+        static _containers = {};
+        /**
+         * Storage for all active notifications
+         * @private
+         */
+        static _activeNotifications = [];
+        /**
+         * Counter for generating unique notification IDs
+         * @private
+         */
+        static _idCounter = 0;
+        /**
+         * Maximum number of notifications to show per container
+         * @private
+         */
+        static _maxNotificationsPerContainer = 5;
+        /**
+         * Queue for notifications waiting to be shown
+         * @private
+         */
+        static _queue = [];
+
+        /**
+         * Returns the unique base CSS class for the Notification component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for notifications.
+         */
+        static get BASE_NOTIFICATION_CLASS() {
+            return 'userscripts-notification';
+        }
+
+        /**
+         * Returns the CSS variable prefix used for theming the Notification component.
+         * This prefix scopes all custom CSS variables related to the notification.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+        static get CSS_VAR_PREFIX() {
+            return '--userscripts-notification-';
+        }
+
+        /**
+         * Initialize styles for all notifications.
+         * These styles reference the CSS variables with our defined prefix.
+         */
+        static initStyles() {
+            if (Notification.stylesInitialized) return;
+
+            StyleManager.addStyles(`
+      /* Container for all notifications */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container {
+        position: fixed;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 9999;
+        pointer-events: none; /* Allow clicking through the container */
+        
+        /* Default positioning at bottom center */
+        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
+        left: 50%;
+        transform: translateX(-50%);
+        
+        /* Container width */
+        width: var(${Notification.CSS_VAR_PREFIX}container-width, auto);
+        max-width: var(${Notification.CSS_VAR_PREFIX}container-max-width, 350px);
+      }
+      
+      /* Position variants */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center {
+        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
+        bottom: auto;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left {
+        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
+        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
+        bottom: auto;
+        transform: none;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
+        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
+        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
+        left: auto;
+        bottom: auto;
+        transform: none;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left {
+        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
+        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
+        transform: none;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
+        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
+        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
+        left: auto;
+        transform: none;
+      }
+      
+      /* Individual notification toast */
+      .${Notification.BASE_NOTIFICATION_CLASS} {
+        position: relative;
+        display: flex;
+        align-items: center;
+        padding: var(${Notification.CSS_VAR_PREFIX}padding, 12px 16px);
+        border-radius: var(${Notification.CSS_VAR_PREFIX}border-radius, 6px);
+        box-shadow: var(${Notification.CSS_VAR_PREFIX}shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
+        color: var(${Notification.CSS_VAR_PREFIX}color, #fff);
+        font-family: var(${Notification.CSS_VAR_PREFIX}font-family, inherit);
+        font-size: var(${Notification.CSS_VAR_PREFIX}font-size, 14px);
+        line-height: var(${Notification.CSS_VAR_PREFIX}line-height, 1.5);
+        opacity: 0;
+        transform: translateY(100%);
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        pointer-events: auto; /* Make the notification clickable */
+        max-width: 100%;
+        box-sizing: border-box;
+        width: 100%;
+        overflow: hidden;
+        
+        /* Progress bar at the bottom */
+        &::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          height: var(${Notification.CSS_VAR_PREFIX}progress-height, 3px);
+          background-color: var(${Notification.CSS_VAR_PREFIX}progress-color, rgba(255, 255, 255, 0.5));
+          width: 100%;
+          transform-origin: left;
+          transform: scaleX(0);
+        }
+      }
+      
+      /* Visible notification */
+      .${Notification.BASE_NOTIFICATION_CLASS}--visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      
+      /* Animation for progress bar */
+      .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
+        animation-name: ${Notification.BASE_NOTIFICATION_CLASS}-progress;
+        animation-timing-function: linear;
+        animation-fill-mode: forwards;
+      }
+      
+      @keyframes ${Notification.BASE_NOTIFICATION_CLASS}-progress {
+        from { transform: scaleX(1); }
+        to { transform: scaleX(0); }
+      }
+      
+      /* Close button */
+      .${Notification.BASE_NOTIFICATION_CLASS}-close {
+        background: none;
+        border: none;
+        color: inherit;
+        opacity: 0.7;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 4px;
+        margin-left: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.2s ease;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-close:hover {
+        opacity: 1;
+      }
+      
+      /* Icon area */
+      .${Notification.BASE_NOTIFICATION_CLASS}-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+      }
+      
+      /* Content area */
+      .${Notification.BASE_NOTIFICATION_CLASS}-content {
+        flex-grow: 1;
+        word-break: break-word;
+      }
+      
+      /* Types styling */
+      .${Notification.BASE_NOTIFICATION_CLASS}--info {
+        background-color: var(${Notification.CSS_VAR_PREFIX}info-bg, #3498db);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}--success {
+        background-color: var(${Notification.CSS_VAR_PREFIX}success-bg, #2ecc71);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}--warning {
+        background-color: var(${Notification.CSS_VAR_PREFIX}warning-bg, #f39c12);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}--error {
+        background-color: var(${Notification.CSS_VAR_PREFIX}error-bg, #e74c3c);
+      }
+      
+      /* Customizable style */
+      .${Notification.BASE_NOTIFICATION_CLASS}--custom {
+        background-color: var(${Notification.CSS_VAR_PREFIX}custom-bg, #7f8c8d);
+      }
+      
+      /* Animation for top position variants */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS},
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS},
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS} {
+        transform: translateY(-100%);
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS}--visible,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS}--visible,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS}--visible {
+        transform: translateY(0);
+      }
+      
+      /* Give slightly different vertical spacing based on position */
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
+        flex-direction: column;
+      }
+      
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-center,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left,
+      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
+        flex-direction: column-reverse;
+      }
+      
+      /* For reduced motion preferences */
+      @media (prefers-reduced-motion: reduce) {
+        .${Notification.BASE_NOTIFICATION_CLASS} {
+          transition: opacity 0.1s ease;
+          transform: translateY(0);
+        }
+        
+        .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
+          animation: none;
+        }
+      }
+    `, 'userscripts-notification-styles');
+
+            Notification.stylesInitialized = true;
+        }
+
+        /**
+         * Injects default color variables for the notification component into the :root.
+         * Users can call this method to automatically set a default color palette.
+         */
+        static useDefaultColors() {
+            const styleId = 'userscripts-notification-default-colors';
+            if (!document.getElementById(styleId)) {
+                const style = document.createElement('style');
+                style.id = styleId;
+                // Use textContent instead of innerHTML for CSP compliance
+                style.textContent = `
+        :root {
+          /* Container styling */
+          ${Notification.CSS_VAR_PREFIX}container-width: auto;
+          ${Notification.CSS_VAR_PREFIX}container-max-width: 350px;
+          ${Notification.CSS_VAR_PREFIX}container-bottom: 16px;
+          ${Notification.CSS_VAR_PREFIX}container-top: 16px;
+          ${Notification.CSS_VAR_PREFIX}container-left: 16px;
+          ${Notification.CSS_VAR_PREFIX}container-right: 16px;
+          
+          /* Toast styling */
+          ${Notification.CSS_VAR_PREFIX}font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          ${Notification.CSS_VAR_PREFIX}font-size: 14px;
+          ${Notification.CSS_VAR_PREFIX}line-height: 1.5;
+          ${Notification.CSS_VAR_PREFIX}padding: 12px 16px;
+          ${Notification.CSS_VAR_PREFIX}border-radius: 6px;
+          ${Notification.CSS_VAR_PREFIX}shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          ${Notification.CSS_VAR_PREFIX}color: #ffffff;
+          
+          /* Progress bar */
+          ${Notification.CSS_VAR_PREFIX}progress-height: 3px;
+          ${Notification.CSS_VAR_PREFIX}progress-color: rgba(255, 255, 255, 0.5);
+          
+          /* Toast types */
+          ${Notification.CSS_VAR_PREFIX}info-bg: #3498db;
+          ${Notification.CSS_VAR_PREFIX}success-bg: #2ecc71;
+          ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
+          ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
+          ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
+        }
+      `;
+                document.head.appendChild(style);
+            }
+        }
+
+        /**
+         * Creates and shows a notification.
+         * @param {Object|string} options - Configuration options or message string
+         * @param {string} [options.message] - The notification message
+         * @param {string} [options.type='info'] - Notification type (info, success, warning, error, custom)
+         * @param {number} [options.duration=3000] - How long to show the notification (ms)
+         * @param {string} [options.position='bottom-center'] - Position (top-left, top-center, top-middle, top-right, bottom-left, bottom-center, bottom-middle, bottom-right)
+         * @param {boolean} [options.showProgress=true] - Show progress bar
+         * @param {boolean} [options.showClose=true] - Show close button
+         * @param {Function} [options.onClick] - Callback when notification is clicked
+         * @param {Function} [options.onClose] - Callback when notification closes
+         * @param {string} [options.icon] - HTML for icon to display
+         * @param {string} [options.className] - Additional CSS class
+         * @param {boolean} [options.html=false] - Whether to interpret message as HTML
+         * @param {Object} [options.style] - Custom inline styles for the notification
+         * @return {string} ID of the created notification (can be used to close it)
+         */
+        static show(options) {
+            // Initialize styles if not already done
+            this.initStyles();
+
+            // Allow passing just a message string
+            if (typeof options === 'string') {
+                options = {message: options};
+            }
+
+            // Set defaults
+            const config = {
+                message: '',
+                type: 'info',
+                duration: 3000,
+                position: 'bottom-center',
+                showProgress: true,
+                showClose: true,
+                onClick: null,
+                onClose: null,
+                icon: null,
+                className: '',
+                html: false,
+                style: null,
+                ...options
+            };
+
+            // Generate a unique ID for this notification
+            const id = `${Notification.BASE_NOTIFICATION_CLASS}-${++this._idCounter}`;
+
+            // Check if we're at the limit for the specified position
+            const positionString = this._normalizePosition(config.position);
+            const activeInPosition = this._activeNotifications.filter(n => n.position === positionString).length;
+
+            // If we're at the limit, queue this notification
+            if (activeInPosition >= this._maxNotificationsPerContainer) {
+                this._queue.push({id, ...config});
+                return id;
+            }
+
+            // Create and show the notification
+            this._createNotification(id, config);
+            return id;
+        }
+
+        /**
+         * Convenience method to show an info notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static info(message, options = {}) {
+            return this.show({...options, message, type: 'info'});
+        }
+
+        /**
+         * Convenience method to show a success notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static success(message, options = {}) {
+            return this.show({...options, message, type: 'success'});
+        }
+
+        /**
+         * Convenience method to show a warning notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static warning(message, options = {}) {
+            return this.show({...options, message, type: 'warning'});
+        }
+
+        /**
+         * Convenience method to show an error notification
+         * @param {string} message - The message to display
+         * @param {Object} [options] - Additional options
+         * @return {string} Notification ID
+         */
+        static error(message, options = {}) {
+            return this.show({...options, message, type: 'error'});
+        }
+
+        /**
+         * Close a notification by ID
+         * @param {string} id - The notification ID
+         * @param {boolean} [animate=true] - Whether to animate the closing
+         */
+        static close(id, animate = true) {
+            const element = document.getElementById(id);
+            if (!element) {
+                // Check if it's in the queue
+                const queueIndex = this._queue.findIndex(n => n.id === id);
+                if (queueIndex !== -1) {
+                    this._queue.splice(queueIndex, 1);
+                }
+                return;
+            }
+
+            // Get the notification object
+            const notificationIndex = this._activeNotifications.findIndex(n => n.id === id);
+            if (notificationIndex === -1) return;
+
+            const notification = this._activeNotifications[notificationIndex];
+
+            // Remove from active notifications
+            this._activeNotifications.splice(notificationIndex, 1);
+
+            // If animated, fade out then remove
+            if (animate) {
+                element.classList.remove(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
+                setTimeout(() => {
+                    this._removeNotificationElement(element, notification);
+                }, 300); // Match the transition time in CSS
+            } else {
+                this._removeNotificationElement(element, notification);
+            }
+
+            // Process the queue after removing
+            this._processQueue(notification.position);
+        }
+
+        /**
+         * Close all notifications
+         * @param {string} [position] - Only close notifications in this position
+         * @param {boolean} [animate=true] - Whether to animate the closing
+         */
+        static closeAll(position = null, animate = true) {
+            // Clear the queue
+            if (position) {
+                const normalizedPosition = this._normalizePosition(position);
+                this._queue = this._queue.filter(n => this._normalizePosition(n.position) !== normalizedPosition);
+            } else {
+                this._queue = [];
+            }
+
+            // Close active notifications
+            const notificationsToClose = position
+                ? this._activeNotifications.filter(n => n.position === this._normalizePosition(position))
+                : [...this._activeNotifications];
+
+            notificationsToClose.forEach(notification => {
+                this.close(notification.id, animate);
+            });
+        }
+
+        /**
+         * Set the maximum number of notifications to show per container
+         * @param {number} max - Maximum number of notifications
+         */
+        static setMaxNotifications(max) {
+            if (typeof max === 'number' && max > 0) {
+                this._maxNotificationsPerContainer = max;
+            }
+        }
+
+        /**
+         * Get a container element for a specific position, creating it if it doesn't exist
+         * @param {string} position - The notification position
+         * @return {HTMLElement} The container element
+         * @private
+         */
+        static _getContainer(position) {
+            const positionString = this._normalizePosition(position);
+
+            if (this._containers[positionString]) {
+                return this._containers[positionString];
+            }
+
+            // Create new container
+            const container = document.createElement('div');
+            container.className = `${Notification.BASE_NOTIFICATION_CLASS}-container ${Notification.BASE_NOTIFICATION_CLASS}-container--${positionString}`;
+            document.body.appendChild(container);
+
+            // Store for future use
+            this._containers[positionString] = container;
+            return container;
+        }
+
+        /**
+         * Normalize position string to one of the supported values
+         * @param {string} position - Position string
+         * @return {string} Normalized position string
+         * @private
+         */
+        static _normalizePosition(position) {
+            const validPositions = [
+                'top-center', 'top-left', 'top-right',
+                'bottom-center', 'bottom-left', 'bottom-right'
+            ];
+
+            if (validPositions.includes(position)) {
+                return position;
+            }
+
+            // Handle abbreviated positions
+            if (position === 'top') return 'top-center';
+            if (position === 'bottom') return 'bottom-center';
+            
+            // Handle alternative naming
+            if (position === 'top-middle') return 'top-center';
+            if (position === 'bottom-middle') return 'bottom-center';
+
+            // Default
+            return 'bottom-center';
+        }
+
+        /**
+         * Create and show a notification
+         * @param {string} id - The notification ID
+         * @param {Object} config - Notification configuration
+         * @private
+         */
+        static _createNotification(id, config) {
+            const position = this._normalizePosition(config.position);
+            const container = this._getContainer(position);
+
+            // Create the notification element
+            const element = document.createElement('div');
+            element.id = id;
+            element.className = `${Notification.BASE_NOTIFICATION_CLASS} ${Notification.BASE_NOTIFICATION_CLASS}--${config.type}`;
+
+            if (config.showProgress && config.duration > 0) {
+                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--with-progress`);
+                // Set the animation duration for the progress bar
+                element.style.setProperty('--progress-duration', `${config.duration}ms`);
+            }
+
+            if (config.className) {
+                element.classList.add(config.className);
+            }
+
+            // Apply custom styles
+            if (config.style && typeof config.style === 'object') {
+                Object.assign(element.style, config.style);
+            }
+
+            // Create content structure using DOM methods instead of innerHTML
+            
+            // Add icon if provided
+            if (config.icon) {
+                const iconDiv = document.createElement('div');
+                iconDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-icon`;
+                iconDiv.textContent = config.icon; // Use textContent for icons (should be emoji/text)
+                element.appendChild(iconDiv);
+            }
+
+            // Add message content
+            const contentDiv = document.createElement('div');
+            contentDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-content`;
+            if (config.html) {
+                // For HTML content, we'll just use text content for CSP compliance
+                // This is a security decision - no HTML allowed in notifications
+                contentDiv.textContent = config.message;
+            } else {
+                contentDiv.textContent = config.message;
+            }
+            element.appendChild(contentDiv);
+
+            // Add close button if needed
+            if (config.showClose) {
+                const closeButton = document.createElement('button');
+                closeButton.className = `${Notification.BASE_NOTIFICATION_CLASS}-close`;
+                closeButton.setAttribute('aria-label', 'Close notification');
+                closeButton.textContent = '×';
+                element.appendChild(closeButton);
+            }
+
+            // Set up animations
+            requestAnimationFrame(() => {
+                container.appendChild(element);
+
+                // Trigger layout/reflow before adding the visible class
+                void element.offsetWidth;
+
+                // Make visible
+                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
+
+                // Set animation for progress bar if applicable
+                const progressBar = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after`);
+                if (progressBar) {
+                    progressBar.style.animationDuration = `${config.duration}ms`;
+                }
+            });
+
+            // Add to active notifications
+            this._activeNotifications.push({
+                id,
+                element,
+                position,
+                config
+            });
+
+            // Set up click handler
+            if (config.onClick) {
+                element.addEventListener('click', event => {
+                    // Only trigger if not clicking the close button
+                    if (!event.target.closest(`.${Notification.BASE_NOTIFICATION_CLASS}-close`)) {
+                        config.onClick(event, id);
+                    }
+                });
+            }
+
+            // Set up close button handler
+            const closeButton = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}-close`);
+            if (closeButton) {
+                closeButton.addEventListener('click', () => this.close(id, true));
+            }
+
+            // Set auto-close timeout if duration > 0
+            if (config.duration > 0) {
+                setTimeout(() => {
+                    // Check if notification still exists before closing
+                    if (document.getElementById(id)) {
+                        this.close(id, true);
+                    }
+                }, config.duration);
+            }
+        }
+
+        /**
+         * Remove a notification element from the DOM
+         * @param {HTMLElement} element - The notification element
+         * @param {Object} notification - The notification object
+         * @private
+         */
+        static _removeNotificationElement(element, notification) {
+            if (!element) return;
+
+            // Call onClose callback if provided
+            if (notification && notification.config && notification.config.onClose) {
+                try {
+                    notification.config.onClose(notification.id);
+                } catch (e) {
+                    Logger.error(e, 'Error in notification onClose callback');
+                }
+            }
+
+            // Remove the element
+            if (element.parentNode) {
+                element.parentNode.removeChild(element);
+            }
+
+            // Check if container is empty and remove it if so
+            const container = this._containers[notification.position];
+            if (container && !container.hasChildNodes()) {
+                if (container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+                delete this._containers[notification.position];
+            }
+        }
+
+        /**
+         * Process the notification queue for a specific position
+         * @param {string} position - Position to process
+         * @private
+         */
+        static _processQueue(position) {
+            const normalizedPosition = this._normalizePosition(position);
+
+            // Check how many active notifications we have in this position
+            const activeCount = this._activeNotifications.filter(n => n.position === normalizedPosition).length;
+
+            // Check if we can show more
+            if (activeCount >= this._maxNotificationsPerContainer) return;
+
+            // Find the first queued notification for this position
+            const queueIndex = this._queue.findIndex(n =>
+                this._normalizePosition(n.position) === normalizedPosition
+            );
+
+            if (queueIndex !== -1) {
+                // Remove from queue and show
+                const nextNotification = this._queue.splice(queueIndex, 1)[0];
+                this._createNotification(nextNotification.id, nextNotification);
+            }
+        }
+    }
+
+    // Static property to track if styles have been initialized
+    Notification.stylesInitialized = false;
+
+    /**
+     * DOMObserver - Observes DOM changes and URL changes
+     * Uses UrlChangeWatcher for URL change detection with configurable strategies
+     */
+    class DOMObserver {
+      /**
+         * Wait for elements matching a selector
+         * @param {string} selector - CSS selector to wait for
+         * @param {number} timeout - Timeout in milliseconds
+         * @return {Promise<NodeList>} - Promise resolving to found elements
+         */
+      static waitForElements(selector, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+
+          function checkElements() {
+            const elements = document.querySelectorAll(selector);
+            if (0 < elements.length) {
+              resolve(elements);
+              return;
+            }
+
+            if (Date.now() - startTime > timeout) {
+              reject(new Error(`Timeout waiting for elements: ${selector}`));
+              return;
+            }
+
+            requestAnimationFrame(checkElements);
+          }
+
+          checkElements();
+        });
+      }
+      /**
+         * Create a new DOMObserver
+         * @param {Function} onMutation - Callback for handling mutations
+         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
+         */
+      constructor(onMutation, urlChangeStrategies = []) {
+        this.observer = new MutationObserver(this.handleMutations.bind(this));
+        this.lastUrl = location.href;
+        this.onMutation = onMutation;
+
+        // Initialize URL change watcher with provided strategies
+        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
+      }
+
+
+      /**
+         * Start observing DOM changes and URL changes
+         * @param {HTMLElement} target - Element to observe (defaults to document.body)
+         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
+         */
+      observe(target = document.body, config = {childList: true, subtree: true}) {
+        this.observer.observe(target, config);
+
+        // Start URL change watcher
+        this.urlChangeWatcher.start();
+      }
+
+      /**
+         * Stop observing DOM changes and URL changes
+         */
+      disconnect() {
+        this.observer.disconnect();
+
+        // Stop URL change watcher
+        this.urlChangeWatcher.stop();
+      }
+
+      /**
+         * Handle mutations
+         * @param {MutationRecord[]} mutations - Array of mutation records
+         * @private
+         */
+      handleMutations(mutations) {
+        if (this.onMutation) {
+          this.onMutation(mutations);
+        }
+      }
+    }
+
+    /**
+     * AutoRunner - Generic automated task execution system
+     * Provides configurable task iteration with delays, progress tracking, and stop conditions
+     */
+    class AutoRunner {
+        static EVENTS = {
+            STARTED: 'autorunner:started',
+            STOPPED: 'autorunner:stopped', 
+            ITERATION: 'autorunner:iteration',
+            COMPLETED: 'autorunner:completed',
+            ERROR: 'autorunner:error'
+        };
+
+        /**
+         * @param {Object} options Configuration options
+         * @param {Function} options.taskFunction - Function to execute each iteration (can be async)
+         * @param {number} options.maxIterations - Maximum number of iterations
+         * @param {number} options.delay - Delay between iterations in milliseconds
+         * @param {Function} options.shouldContinue - Optional function to check if should continue
+         * @param {Function} options.onProgress - Optional progress callback
+         * @param {Function} options.onError - Optional error handler
+         * @param {Object} options.pubsub - Optional PubSub instance for events
+         * @param {Object} options.logger - Optional logger instance
+         * @param {string} options.name - Optional name for this runner (for logging)
+         */
+        constructor(options) {
+            this.taskFunction = options.taskFunction;
+            this.maxIterations = options.maxIterations || 1;
+            this.delay = options.delay || 1000;
+            this.shouldContinue = options.shouldContinue || (() => true);
+            this.onProgress = options.onProgress || (() => {});
+            this.onError = options.onError || ((error) => Logger.error('AutoRunner error:', error));
+            this.name = options.name || 'AutoRunner';
+            
+            // Optional user interaction detection
+            this.enableInteractionDetection = options.enableInteractionDetection || false;
+            this.userInteraction = this.enableInteractionDetection ? 
+                UserInteractionDetector.getInstance({
+                    namespace: `autorunner-${this.name}`,
+                    debug: Logger.DEBUG
+                }) : null;
+                
+            // Optional notifications
+            this.enableNotifications = options.enableNotifications || false;
+
+            this.isRunning = false;
+            this.currentIteration = 0;
+            this.startTime = null;
+            this.results = [];
+        }
+
+        /**
+         * Start the auto runner
+         */
+        async start() {
+            if (this.isRunning) {
+                Logger.warn(`[${this.name}] AutoRunner is already running`);
+                return false;
+            }
+
+            this.isRunning = true;
+            this.currentIteration = 0;
+            this.startTime = Date.now();
+            this.results = [];
+
+            Logger.info(`[${this.name}] Starting for ${this.maxIterations} iterations`);
+            
+            // Show notification if enabled
+            if (this.enableNotifications) {
+                Notification.info(`Starting ${this.name} for ${this.maxIterations} iterations`, {
+                    duration: 3000,
+                    position: 'top-right'
+                });
+            }
+            
+            this.publishEvent(AutoRunner.EVENTS.STARTED, {
+                maxIterations: this.maxIterations,
+                name: this.name,
+                timestamp: this.startTime
+            });
+
+            await this.runIteration();
+            return true;
+        }
+
+        /**
+         * Stop the auto runner
+         */
+        stop(reason = 'user requested') {
+            if (!this.isRunning) {
+                Logger.warn(`[${this.name}] AutoRunner is not currently running`);
+                return false;
+            }
+
+            this.isRunning = false;
+            const duration = Date.now() - this.startTime;
+
+            Logger.info(`[${this.name}] stopped: ${reason} (completed ${this.currentIteration}/${this.maxIterations} iterations in ${duration}ms)`);
+            this.publishEvent(AutoRunner.EVENTS.STOPPED, {
+                reason,
+                completedIterations: this.currentIteration,
+                totalIterations: this.maxIterations,
+                duration,
+                results: this.results,
+                name: this.name,
+                timestamp: Date.now()
+            });
+
+            return true;
+        }
+
+        /**
+         * Run a single iteration
+         */
+        async runIteration() {
+            if (!this.isRunning) {
+                return;
+            }
+
+            // Check if we've completed all iterations
+            if (this.currentIteration >= this.maxIterations) {
+                this.isRunning = false;
+                const duration = Date.now() - this.startTime;
+
+                Logger.info(`[${this.name}] completed all ${this.maxIterations} iterations in ${duration}ms`);
+                
+                // Show completion notification if enabled
+                if (this.enableNotifications) {
+                    Notification.success(`${this.name} completed all ${this.maxIterations} iterations in ${(duration/1000).toFixed(1)}s`, {
+                        duration: 5000,
+                        position: 'top-right'
+                    });
+                }
+                
+                this.publishEvent(AutoRunner.EVENTS.COMPLETED, {
+                    completedIterations: this.currentIteration,
+                    totalIterations: this.maxIterations,
+                    duration,
+                    results: this.results,
+                    name: this.name,
+                    timestamp: Date.now()
+                });
+
+                return;
+            }
+
+            // Check custom continue condition
+            if (!this.shouldContinue(this.currentIteration, this.results)) {
+                this.stop('custom condition failed');
+                return;
+            }
+
+            this.currentIteration++;
+            
+            Logger.debug(`[${this.name}] Running iteration ${this.currentIteration}/${this.maxIterations}`);
+            this.publishEvent(AutoRunner.EVENTS.ITERATION, {
+                current: this.currentIteration,
+                total: this.maxIterations,
+                name: this.name,
+                timestamp: Date.now()
+            });
+
+            try {
+                // Execute the task function
+                const result = await this.taskFunction(this.currentIteration, this.results);
+                this.results.push(result);
+
+                // Call progress callback
+                this.onProgress(this.currentIteration, this.maxIterations, result, this.results);
+
+                // Schedule next iteration if still running
+                if (this.isRunning) {
+                    setTimeout(() => {
+                        this.runIteration();
+                    }, this.delay);
+                }
+
+            } catch (error) {
+                Logger.error(`[${this.name}] Error in iteration ${this.currentIteration}:`, error);
+                this.publishEvent(AutoRunner.EVENTS.ERROR, {
+                    error: error.message,
+                    iteration: this.currentIteration,
+                    name: this.name,
+                    timestamp: Date.now()
+                });
+
+                this.onError(error, this.currentIteration);
+
+                // Continue to next iteration after error (unless stopped)
+                if (this.isRunning) {
+                    setTimeout(() => {
+                        this.runIteration();
+                    }, this.delay);
+                }
+            }
+        }
+
+        /**
+         * Get current status
+         */
+        getStatus() {
+            return {
+                isRunning: this.isRunning,
+                currentIteration: this.currentIteration,
+                maxIterations: this.maxIterations,
+                progress: this.maxIterations > 0 ? (this.currentIteration / this.maxIterations) * 100 : 0,
+                duration: this.startTime ? Date.now() - this.startTime : 0,
+                results: this.results,
+                name: this.name
+            };
+        }
+
+        /**
+         * Update configuration while running
+         */
+        updateConfig(options) {
+            if (options.delay !== undefined) this.delay = options.delay;
+            if (options.maxIterations !== undefined) this.maxIterations = options.maxIterations;
+            if (options.shouldContinue !== undefined) this.shouldContinue = options.shouldContinue;
+            
+            Logger.debug(`[${this.name}] Configuration updated:`, options);
+        }
+
+        /**
+         * Wait for element using HTMLUtils before starting task
+         */
+        async waitForElement(selector, timeout = 5000) {
+            try {
+                return await HTMLUtils.waitForElement(selector, timeout);
+            } catch (error) {
+                Logger.warn(`[${this.name}] Element not found: ${selector}`, error);
+                return null;
+            }
+        }
+
+        /**
+         * Create debounced function using core Debouncer
+         */
+        createDebouncedTask(func, delay) {
+            return Debouncer.debounce(func, delay);
+        }
+
+        /**
+         * Publish event using core PubSub
+         */
+        publishEvent(eventName, data) {
+            PubSub.publish(eventName, data);
+        }
+
+        /**
+         * Check if user is currently interacting and pause if needed
+         */
+        async checkUserInteraction() {
+            if (!this.userInteraction) return true;
+            
+            const isInteracting = this.userInteraction.isInteracting();
+            if (isInteracting) {
+                Logger.debug(`[${this.name}] User interaction detected, pausing iteration`);
+                
+                if (this.enableNotifications) {
+                    Notification.warning('Auto-run paused - user interaction detected', {
+                        duration: 2000,
+                        position: 'top-right'
+                    });
+                }
+                
+                // Wait for user to stop interacting
+                while (this.userInteraction.isInteracting() && this.isRunning) {
+                    await this.delay(500);
+                }
+                
+                // Additional pause after user stops interacting
+                if (this.isRunning) {
+                    await this.delay(1000);
+                    Logger.debug(`[${this.name}] Resuming after user interaction ended`);
+                }
+            }
+            
+            return this.isRunning;
+        }
+
+        /**
+         * Enhanced run iteration with interaction detection
+         */
+        async runIterationWithInteractionCheck() {
+            // Check for user interaction before proceeding
+            const shouldContinue = await this.checkUserInteraction();
+            if (!shouldContinue) return;
+            
+            // Run normal iteration
+            await this.runIteration();
+        }
+
+        /**
+         * Static factory method for simple use cases
+         */
+        static async run(taskFunction, iterations, delay = 1000, options = {}) {
+            const runner = new AutoRunner({
+                taskFunction,
+                maxIterations: iterations,
+                delay,
+                ...options
+            });
+
+            await runner.start();
+            return runner;
+        }
+    }
+
+    /**
+     * ContentCollector - Generic content collection and cleaning system
+     * Automatically detects and collects content from dynamic web pages
+     */
+    class ContentCollector {
+        static EVENTS = {
+            CONTENT_ADDED: 'contentcollector:content-added',
+            CONTENT_CLEARED: 'contentcollector:content-cleared',
+            COLLECTION_UPDATED: 'contentcollector:collection-updated'
+        };
+
+        /**
+         * @param {Object} options Configuration options
+         * @param {Array<string>} options.selectors - CSS selectors for content containers
+         * @param {Function} options.contentExtractor - Function to extract text from elements
+         * @param {Function} options.contentCleaner - Function to clean extracted content
+         * @param {Function} options.contentValidator - Function to validate content before adding
+         * @param {boolean} options.deduplicate - Whether to remove duplicates (default: true)
+         * @param {Object} options.observer - DOMObserver instance for monitoring changes
+         * @param {Object} options.pubsub - Optional PubSub instance for events
+         * @param {Object} options.logger - Optional logger instance
+         * @param {string} options.name - Optional name for this collector
+         */
+        constructor(options) {
+            this.selectors = options.selectors || [];
+            this.contentExtractor = options.contentExtractor || this.defaultContentExtractor.bind(this);
+            this.contentCleaner = options.contentCleaner || this.defaultContentCleaner.bind(this);
+            this.contentValidator = options.contentValidator || this.defaultContentValidator.bind(this);
+            this.deduplicate = options.deduplicate !== false;
+            this.name = options.name || 'ContentCollector';
+            
+            // Use core DOMObserver instead of custom observer
+            this.observer = new DOMObserver((mutations) => {
+                this.handleMutations(mutations);
+            });
+            
+            // Optional notifications
+            this.enableNotifications = options.enableNotifications || false;
+
+            this.content = [];
+            this.seenElements = new WeakSet();
+            this.isMonitoring = false;
+            
+            // Use DataCache for persistent storage if enabled
+            this.enablePersistence = options.enablePersistence || false;
+            this.cache = this.enablePersistence ? new DataCache(Logger) : null;
+            this.cacheKey = options.cacheKey || `content-collector-${this.name}`;
+            
+            // Use StyleManager for highlighting collected elements
+            this.highlightCollected = options.highlightCollected || false;
+            if (this.highlightCollected) {
+                this.initializeHighlightStyles();
+            }
+        }
+
+        /**
+         * Start monitoring for new content
+         */
+        startMonitoring() {
+            if (this.isMonitoring) {
+                Logger.warn(`[${this.name}] Already monitoring for content`);
+                return;
+            }
+
+            this.isMonitoring = true;
+            Logger.info(`[${this.name}] Starting content monitoring with ${this.selectors.length} selectors`);
+
+            // Collect existing content
+            this.collectExistingContent();
+
+            // Setup DOM observer if provided
+            if (this.observer) {
+                this.observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        }
+
+        /**
+         * Stop monitoring for new content
+         */
+        stopMonitoring() {
+            if (!this.isMonitoring) {
+                Logger.warn(`[${this.name}] Not currently monitoring`);
+                return;
+            }
+
+            this.isMonitoring = false;
+            Logger.info(`[${this.name}] Stopped content monitoring`);
+
+            if (this.observer && typeof this.observer.disconnect === 'function') {
+                this.observer.disconnect();
+            }
+        }
+
+        /**
+         * Collect existing content on page
+         */
+        collectExistingContent() {
+            const initialCount = this.content.length;
+
+            this.selectors.forEach(selector => {
+                try {
+                    document.querySelectorAll(selector).forEach(element => {
+                        this.processElement(element);
+                    });
+                } catch (error) {
+                    Logger.error(`[${this.name}] Error with selector "${selector}":`, error);
+                }
+            });
+
+            const newCount = this.content.length - initialCount;
+            Logger.info(`[${this.name}] Collected ${newCount} new content items (${this.content.length} total)`);
+
+            // Show notification if enabled and content was found
+            if (this.enableNotifications && newCount > 0) {
+                Notification.success(`Collected ${newCount} new content items`, {
+                    duration: 3000,
+                    position: 'top-right'
+                });
+            }
+
+            this.publishEvent(ContentCollector.EVENTS.COLLECTION_UPDATED, {
+                newItems: newCount,
+                totalItems: this.content.length,
+                name: this.name
+            });
+        }
+
+        /**
+         * Process a single element for content extraction
+         */
+        async processElement(element) {
+            // Skip if already processed
+            if (this.seenElements.has(element)) {
+                return;
+            }
+
+            this.seenElements.add(element);
+
+            try {
+                // Extract content using the configured extractor
+                const rawContent = this.contentExtractor(element);
+                if (!rawContent) {
+                    return;
+                }
+
+                // Clean the content
+                const cleanedContent = this.contentCleaner(rawContent);
+                if (!cleanedContent) {
+                    return;
+                }
+
+                // Validate the content
+                if (!this.contentValidator(cleanedContent, this.content)) {
+                    return;
+                }
+
+                // Check for duplicates if enabled
+                if (this.deduplicate && this.content.includes(cleanedContent)) {
+                    return;
+                }
+
+                // Add to collection
+                this.content.push(cleanedContent);
+
+                // Highlight the element if enabled
+                this.highlightElement(element);
+
+                // Save to cache if persistence is enabled
+                if (this.enablePersistence) {
+                    await this.saveToCache();
+                }
+
+                Logger.debug(`[${this.name}] Added content: ${cleanedContent.substring(0, 100)}...`);
+                this.publishEvent(ContentCollector.EVENTS.CONTENT_ADDED, {
+                    content: cleanedContent,
+                    totalItems: this.content.length,
+                    name: this.name
+                });
+
+            } catch (error) {
+                Logger.error(`[${this.name}] Error processing element:`, error);
+            }
+        }
+
+        /**
+         * Handle DOM mutations for new content detection
+         */
+        handleMutations(mutations) {
+            if (!this.isMonitoring) {
+                return;
+            }
+
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            this.scanForNewContent(node);
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Scan element for new content using configured selectors
+         */
+        scanForNewContent(element) {
+            this.selectors.forEach(selector => {
+                try {
+                    // Check if the element itself matches
+                    if (element.matches && element.matches(selector)) {
+                        this.processElement(element);
+                    }
+
+                    // Check children
+                    if (element.querySelectorAll) {
+                        element.querySelectorAll(selector).forEach(el => {
+                            this.processElement(el);
+                        });
+                    }
+                } catch (error) {
+                    Logger.error(`[${this.name}] Error scanning with selector "${selector}":`, error);
+                }
+            });
+        }
+
+        /**
+         * Default content extractor - uses innerText
+         */
+        defaultContentExtractor(element) {
+            return element.innerText?.trim() || '';
+        }
+
+        /**
+         * Default content cleaner - removes common UI elements
+         */
+        defaultContentCleaner(text) {
+            if (!text) return '';
+
+            // Common UI elements to remove
+            const uiElements = [
+                'edit', 'more_vert', 'thumb_up', 'thumb_down', 'copy', 'share',
+                'delete', 'refresh', 'restart', 'stop', 'play', 'pause',
+                'expand_more', 'expand_less', 'close', 'menu', 'settings',
+                'download', 'upload', 'save', 'favorite', 'star', 'bookmark'
+            ];
+
+            // Split into lines and clean
+            let lines = text.split('\n')
+                .map(line => line.trim())
+                .filter(line => {
+                    if (!line) return false;
+                    
+                    const lowerLine = line.toLowerCase();
+                    if (uiElements.includes(lowerLine)) return false;
+                    
+                    if (/^[-=_\s]+$/.test(line)) return false;
+                    if (line.length <= 3 && !/\w/.test(line)) return false;
+                    
+                    return true;
+                });
+
+            // Remove UI patterns at beginning and end
+            while (lines.length > 0 && this.isUILine(lines[0])) {
+                lines.shift();
+            }
+            while (lines.length > 0 && this.isUILine(lines[lines.length - 1])) {
+                lines.pop();
+            }
+
+            return lines.join('\n').trim();
+        }
+
+        /**
+         * Check if a line is likely a UI element
+         */
+        isUILine(line) {
+            const cleaned = line.toLowerCase().trim();
+            
+            const uiPatterns = [
+                /^(edit|copy|share|delete|save|download)$/,
+                /^(thumb_up|thumb_down|more_vert)$/,
+                /^[👍👎❤️⭐🔗📋✏️🗑️]+$/,
+                /^[\s\-=_]{1,5}$/
+            ];
+
+            return uiPatterns.some(pattern => pattern.test(cleaned));
+        }
+
+        /**
+         * Default content validator - checks minimum length
+         */
+        defaultContentValidator(content, existingContent) {
+            return content && content.length > 10;
+        }
+
+        /**
+         * Get all collected content
+         */
+        getContent() {
+            return [...this.content];
+        }
+
+        /**
+         * Get content formatted as string
+         */
+        getFormattedContent(separator = '\n\n---\n\n') {
+            return this.content.join(separator);
+        }
+
+        /**
+         * Clear all collected content
+         */
+        clearContent() {
+            const clearedCount = this.content.length;
+            this.content = [];
+            this.seenElements = new WeakSet();
+
+            Logger.info(`[${this.name}] Cleared ${clearedCount} content items`);
+            this.publishEvent(ContentCollector.EVENTS.CONTENT_CLEARED, {
+                clearedCount,
+                name: this.name
+            });
+        }
+
+        /**
+         * Get collection statistics
+         */
+        getStats() {
+            return {
+                totalItems: this.content.length,
+                isMonitoring: this.isMonitoring,
+                selectors: this.selectors.length,
+                name: this.name
+            };
+        }
+
+        /**
+         * Add custom selector
+         */
+        addSelector(selector) {
+            if (!this.selectors.includes(selector)) {
+                this.selectors.push(selector);
+                Logger.debug(`[${this.name}] Added selector: ${selector}`);
+            }
+        }
+
+        /**
+         * Initialize highlight styles using StyleManager
+         */
+        initializeHighlightStyles() {
+            StyleManager.addStyles(`
+            .content-collector-highlighted {
+                outline: 2px solid #4CAF50 !important;
+                background-color: rgba(76, 175, 80, 0.1) !important;
+                transition: all 0.3s ease !important;
+            }
+            .content-collector-highlighted::after {
+                content: "✓ Collected";
+                position: absolute;
+                top: -20px;
+                right: 0;
+                background: #4CAF50;
+                color: white;
+                padding: 2px 6px;
+                font-size: 10px;
+                border-radius: 3px;
+                z-index: 10000;
+            }
+        `, `content-collector-styles-${this.name}`);
+        }
+
+        /**
+         * Load content from cache using DataCache
+         */
+        async loadFromCache() {
+            if (!this.cache) return false;
+            
+            try {
+                const cachedContent = this.cache.get(this.cacheKey);
+                if (cachedContent && Array.isArray(cachedContent)) {
+                    this.content = [...cachedContent];
+                    Logger.info(`[${this.name}] Loaded ${this.content.length} items from cache`);
+                    return true;
+                }
+            } catch (error) {
+                Logger.error(`[${this.name}] Error loading from cache:`, error);
+            }
+            return false;
+        }
+
+        /**
+         * Save content to cache using DataCache
+         */
+        async saveToCache() {
+            if (!this.cache) return;
+            
+            try {
+                this.cache.set(this.cacheKey, this.content, 7); // 7 days expiration
+                Logger.debug(`[${this.name}] Saved ${this.content.length} items to cache`);
+            } catch (error) {
+                Logger.error(`[${this.name}] Error saving to cache:`, error);
+            }
+        }
+
+        /**
+         * Wait for elements using HTMLUtils
+         */
+        async waitForContent(timeout = 10000) {
+            for (const selector of this.selectors) {
+                try {
+                    const element = await HTMLUtils.waitForElement(selector, timeout);
+                    if (element) {
+                        Logger.debug(`[${this.name}] Found content with selector: ${selector}`);
+                        return element;
+                    }
+                } catch (error) {
+                    Logger.debug(`[${this.name}] No content found for selector: ${selector}`);
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Highlight collected element using StyleManager
+         */
+        highlightElement(element) {
+            if (this.highlightCollected && element) {
+                element.classList.add('content-collector-highlighted');
+                // Remove highlight after 3 seconds
+                setTimeout(() => {
+                    element.classList.remove('content-collector-highlighted');
+                }, 3000);
+            }
+        }
+
+        /**
+         * Remove selector
+         */
+        removeSelector(selector) {
+            const index = this.selectors.indexOf(selector);
+            if (index > -1) {
+                this.selectors.splice(index, 1);
+                Logger.debug(`[${this.name}] Removed selector: ${selector}`);
+            }
+        }
+
+        /**
+         * Publish event using core PubSub
+         */
+        publishEvent(eventName, data) {
+            PubSub.publish(eventName, data);
+        }
+
+
+    }
+
+    /**
+     * FormStatePersistence - Generic form state persistence system
+     * Automatically saves and restores form values using GM storage
+     */
+    class FormStatePersistence {
+        static EVENTS = {
+            STATE_SAVED: 'formstate:state-saved',
+            STATE_LOADED: 'formstate:state-loaded',
+            STATE_CLEARED: 'formstate:state-cleared',
+            FIELD_CHANGED: 'formstate:field-changed'
+        };
+
+        /**
+         * @param {Object} options Configuration options
+         * @param {string} options.namespace - Namespace for storage keys
+         * @param {Object} options.fields - Field configurations {fieldName: {selector, type, defaultValue, validator}}
+         * @param {Function} options.getValue - Function to get values from GM storage
+         * @param {Function} options.setValue - Function to set values in GM storage
+         * @param {boolean} options.autoSave - Whether to auto-save on change (default: true)
+         * @param {number} options.debounceDelay - Debounce delay for auto-save (default: 500ms)
+         * @param {Object} options.pubsub - Optional PubSub instance for events
+         * @param {Object} options.logger - Optional logger instance
+         * @param {string} options.name - Optional name for this persistence manager
+         */
+        constructor(options) {
+            this.namespace = options.namespace || 'form-state';
+            this.fields = options.fields || {};
+            this.getValue = options.getValue;
+            this.setValue = options.setValue;
+            this.autoSave = options.autoSave !== false;
+            this.debounceDelay = options.debounceDelay || 500;
+            this.name = options.name || 'FormStatePersistence';
+            
+            // Optional user interaction detection for distinguishing user vs auto-save
+            this.enableInteractionDetection = options.enableInteractionDetection || false;
+            this.userInteraction = this.enableInteractionDetection ? 
+                UserInteractionDetector.getInstance({
+                    namespace: `formstate-${this.name}`,
+                    debug: Logger.DEBUG
+                }) : null;
+                
+            // Optional notifications
+            this.enableNotifications = options.enableNotifications || false;
+            
+            // Optional periodic save using PollingStrategy
+            this.enablePeriodicSave = options.enablePeriodicSave || false;
+            this.periodicSaveInterval = options.periodicSaveInterval || 30000; // 30 seconds
+            this.pollingStrategy = null;
+
+            this.fieldElements = new Map();
+            this.fieldValues = new Map();
+            this.saveTimeouts = new Map();
+            this.isInitialized = false;
+            
+            // Use core Debouncer for save operations
+            this.debouncedSave = Debouncer.debounce(this.performSave.bind(this), this.debounceDelay);
+            
+            // Use DataCache for backup storage
+            this.enableBackup = options.enableBackup || false;
+            this.backupCache = this.enableBackup ? new DataCache(Logger) : null;
+
+            // Import Debouncer if available
+            this.Debouncer = options.Debouncer;
+        }
+
+        /**
+         * Initialize the form state persistence
+         */
+        async initialize() {
+            if (this.isInitialized) {
+                this.log('warn', 'Already initialized');
+                return;
+            }
+
+            Logger.info(`[${this.name}] Initializing form state persistence with ${Object.keys(this.fields).length} fields`);
+
+            // Find and cache field elements
+            this.findFieldElements();
+
+            // Load saved state
+            await this.loadState();
+
+            // Setup auto-save listeners
+            if (this.autoSave) {
+                this.setupAutoSave();
+            }
+
+            this.isInitialized = true;
+            Logger.info(`[${this.name}] Form state persistence initialized`);
+            
+            // Start periodic save if enabled
+            if (this.enablePeriodicSave) {
+                this.pollingStrategy = new PollingStrategy(() => {
+                    this.saveState();
+                }, this.periodicSaveInterval);
+                this.pollingStrategy.start();
+            }
+            
+            // Show initialization notification if enabled
+            if (this.enableNotifications) {
+                Notification.success(`Form state persistence initialized for ${Object.keys(this.fields).length} fields`, {
+                    duration: 3000,
+                    position: 'bottom-right'
+                });
+            }
+        }
+
+        /**
+         * Find and cache field elements
+         */
+        findFieldElements() {
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const element = document.querySelector(config.selector);
+                    if (element) {
+                        this.fieldElements.set(fieldName, element);
+                        this.log('debug', `Found field element: ${fieldName}`);
+                    } else {
+                        this.log('warn', `Field element not found: ${fieldName} (${config.selector})`);
+                    }
+                } catch (error) {
+                    Logger.error(`[${this.name}] Error finding field ${fieldName}:`, error);
+                }
+            }
+        }
+
+        /**
+         * Load saved state from storage
+         */
+        async loadState() {
+            if (!this.getValue) {
+                this.log('warn', 'No getValue function provided, cannot load state');
+                return;
+            }
+
+            let loadedCount = 0;
+
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const storageKey = this.getStorageKey(fieldName);
+                    const savedValue = await this.getValue(storageKey, config.defaultValue);
+                    
+                    if (savedValue !== null && savedValue !== undefined) {
+                        this.fieldValues.set(fieldName, savedValue);
+                        await this.setFieldValue(fieldName, savedValue);
+                        loadedCount++;
+                        this.log('debug', `Loaded field ${fieldName}:`, savedValue);
+                    }
+                } catch (error) {
+                    this.log('error', `Error loading field ${fieldName}:`, error);
+                }
+            }
+
+            this.log('info', `Loaded ${loadedCount} field values from storage`);
+            this.publishEvent(FormStatePersistence.EVENTS.STATE_LOADED, {
+                loadedCount,
+                totalFields: Object.keys(this.fields).length,
+                name: this.name
+            });
+        }
+
+        /**
+         * Save current state to storage
+         */
+        async saveState() {
+            if (!this.setValue) {
+                this.log('warn', 'No setValue function provided, cannot save state');
+                return;
+            }
+
+            let savedCount = 0;
+
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const currentValue = await this.getFieldValue(fieldName);
+                    
+                    if (currentValue !== null && currentValue !== undefined) {
+                        // Validate value if validator provided
+                        if (config.validator && !config.validator(currentValue)) {
+                            this.log('warn', `Validation failed for field ${fieldName}, not saving`);
+                            continue;
+                        }
+
+                        const storageKey = this.getStorageKey(fieldName);
+                        await this.setValue(storageKey, currentValue);
+                        this.fieldValues.set(fieldName, currentValue);
+                        savedCount++;
+                        this.log('debug', `Saved field ${fieldName}:`, currentValue);
+                    }
+                } catch (error) {
+                    this.log('error', `Error saving field ${fieldName}:`, error);
+                }
+            }
+
+            this.log('info', `Saved ${savedCount} field values to storage`);
+            this.publishEvent(FormStatePersistence.EVENTS.STATE_SAVED, {
+                savedCount,
+                totalFields: Object.keys(this.fields).length,
+                name: this.name
+            });
+        }
+
+        /**
+         * Get current value of a field
+         */
+        async getFieldValue(fieldName) {
+            const element = this.fieldElements.get(fieldName);
+            const config = this.fields[fieldName];
+            
+            if (!element || !config) {
+                return null;
+            }
+
+            try {
+                switch (config.type) {
+                    case 'text':
+                    case 'textarea':
+                    case 'number':
+                    case 'email':
+                    case 'url':
+                        return element.value;
+                    
+                    case 'checkbox':
+                        return element.checked;
+                    
+                    case 'radio':
+                        const radioGroup = document.querySelectorAll(`[name="${element.name}"]`);
+                        for (const radio of radioGroup) {
+                            if (radio.checked) {
+                                return radio.value;
+                            }
+                        }
+                        return null;
+                    
+                    case 'select':
+                        return element.value;
+                    
+                    case 'select-multiple':
+                        return Array.from(element.selectedOptions).map(option => option.value);
+                    
+                    case 'contenteditable':
+                        return element.textContent || element.innerText;
+                    
+                    default:
+                        return element.value;
+                }
+            } catch (error) {
+                this.log('error', `Error getting value for field ${fieldName}:`, error);
+                return null;
+            }
+        }
+
+        /**
+         * Set value of a field
+         */
+        async setFieldValue(fieldName, value) {
+            const element = this.fieldElements.get(fieldName);
+            const config = this.fields[fieldName];
+            
+            if (!element || !config) {
+                return false;
+            }
+
+            try {
+                switch (config.type) {
+                    case 'text':
+                    case 'textarea':
+                    case 'number':
+                    case 'email':
+                    case 'url':
+                        element.value = value;
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        break;
+                    
+                    case 'checkbox':
+                        element.checked = Boolean(value);
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        break;
+                    
+                    case 'radio':
+                        const radioGroup = document.querySelectorAll(`[name="${element.name}"]`);
+                        for (const radio of radioGroup) {
+                            if (radio.value === value) {
+                                radio.checked = true;
+                                radio.dispatchEvent(new Event('change', { bubbles: true }));
+                                break;
+                            }
+                        }
+                        break;
+                    
+                    case 'select':
+                        element.value = value;
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        break;
+                    
+                    case 'select-multiple':
+                        if (Array.isArray(value)) {
+                            for (const option of element.options) {
+                                option.selected = value.includes(option.value);
+                            }
+                            element.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        break;
+                    
+                    case 'contenteditable':
+                        element.textContent = value;
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        break;
+                    
+                    default:
+                        element.value = value;
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                
+                return true;
+            } catch (error) {
+                this.log('error', `Error setting value for field ${fieldName}:`, error);
+                return false;
+            }
+        }
+
+        /**
+         * Setup auto-save listeners
+         */
+        setupAutoSave() {
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                const element = this.fieldElements.get(fieldName);
+                if (!element) continue;
+
+                const eventTypes = this.getFieldEventTypes(config.type);
+                
+                for (const eventType of eventTypes) {
+                    element.addEventListener(eventType, () => {
+                        this.scheduleFieldSave(fieldName);
+                    });
+                }
+            }
+
+            this.log('debug', 'Auto-save listeners setup complete');
+        }
+
+        /**
+         * Get appropriate event types for field type
+         */
+        getFieldEventTypes(fieldType) {
+            switch (fieldType) {
+                case 'text':
+                case 'textarea':
+                case 'number':
+                case 'email':
+                case 'url':
+                case 'contenteditable':
+                    return ['input', 'blur'];
+                
+                case 'checkbox':
+                case 'radio':
+                case 'select':
+                case 'select-multiple':
+                    return ['change'];
+                
+                default:
+                    return ['input', 'change'];
+            }
+        }
+
+        /**
+         * Schedule debounced save for a specific field using core Debouncer
+         */
+        scheduleFieldSave(fieldName) {
+            // Use the debounced save function
+            this.debouncedSave();
+        }
+
+        /**
+         * Perform the actual save operation (used by debouncer)
+         */
+        async performSave() {
+            await this.saveState();
+            
+            // Create backup if enabled
+            if (this.enableBackup && this.backupCache) {
+                const currentValues = this.getCurrentValues();
+                this.backupCache.set(`${this.namespace}-backup`, currentValues, 30); // 30 days
+            }
+        }
+
+        /**
+         * Wait for form elements using HTMLUtils
+         */
+        async waitForFormElements(timeout = 5000) {
+            const foundElements = new Map();
+            
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const element = await HTMLUtils.waitForElement(config.selector, timeout);
+                    if (element) {
+                        foundElements.set(fieldName, element);
+                        this.log('debug', `Found form element: ${fieldName}`);
+                    }
+                } catch (error) {
+                    this.log('warn', `Form element not found: ${fieldName} (${config.selector})`);
+                }
+            }
+            
+            return foundElements;
+        }
+
+        /**
+         * Restore from backup using DataCache
+         */
+        async restoreFromBackup() {
+            if (!this.enableBackup || !this.backupCache) {
+                return false;
+            }
+            
+            try {
+                const backup = this.backupCache.get(`${this.namespace}-backup`);
+                if (backup) {
+                    for (const [fieldName, value] of Object.entries(backup)) {
+                        if (this.fields[fieldName]) {
+                            await this.setFieldValue(fieldName, value);
+                            this.fieldValues.set(fieldName, value);
+                        }
+                    }
+                    this.log('info', 'Restored form data from backup');
+                    return true;
+                }
+            } catch (error) {
+                this.log('error', 'Error restoring from backup:', error);
+            }
+            
+            return false;
+        }
+
+        /**
+         * Save a specific field
+         */
+        async saveField(fieldName) {
+            if (!this.setValue) {
+                return;
+            }
+
+            try {
+                const currentValue = await this.getFieldValue(fieldName);
+                const config = this.fields[fieldName];
+                
+                if (currentValue !== null && currentValue !== undefined) {
+                    // Validate value if validator provided
+                    if (config.validator && !config.validator(currentValue)) {
+                        this.log('warn', `Validation failed for field ${fieldName}, not saving`);
+                        return;
+                    }
+
+                    const storageKey = this.getStorageKey(fieldName);
+                    await this.setValue(storageKey, currentValue);
+                    this.fieldValues.set(fieldName, currentValue);
+                    
+                    this.log('debug', `Auto-saved field ${fieldName}:`, currentValue);
+                    this.publishEvent(FormStatePersistence.EVENTS.FIELD_CHANGED, {
+                        fieldName,
+                        value: currentValue,
+                        name: this.name
+                    });
+                }
+            } catch (error) {
+                this.log('error', `Error auto-saving field ${fieldName}:`, error);
+            }
+        }
+
+        /**
+         * Clear saved state for all fields
+         */
+        async clearState() {
+            if (!this.setValue) {
+                this.log('warn', 'No setValue function provided, cannot clear state');
+                return;
+            }
+
+            let clearedCount = 0;
+
+            for (const fieldName of Object.keys(this.fields)) {
+                try {
+                    const storageKey = this.getStorageKey(fieldName);
+                    await this.setValue(storageKey, null);
+                    this.fieldValues.delete(fieldName);
+                    clearedCount++;
+                } catch (error) {
+                    this.log('error', `Error clearing field ${fieldName}:`, error);
+                }
+            }
+
+            this.log('info', `Cleared ${clearedCount} field values from storage`);
+            this.publishEvent(FormStatePersistence.EVENTS.STATE_CLEARED, {
+                clearedCount,
+                name: this.name
+            });
+        }
+
+        /**
+         * Get storage key for a field
+         */
+        getStorageKey(fieldName) {
+            return `${this.namespace}-${fieldName}`;
+        }
+
+        /**
+         * Add a new field to persistence
+         */
+        addField(fieldName, config) {
+            this.fields[fieldName] = config;
+            
+            // Find the element
+            try {
+                const element = document.querySelector(config.selector);
+                if (element) {
+                    this.fieldElements.set(fieldName, element);
+                    
+                    // Setup auto-save if enabled
+                    if (this.autoSave) {
+                        const eventTypes = this.getFieldEventTypes(config.type);
+                        for (const eventType of eventTypes) {
+                            element.addEventListener(eventType, () => {
+                                this.scheduleFieldSave(fieldName);
+                            });
+                        }
+                    }
+                    
+                    this.log('debug', `Added field: ${fieldName}`);
+                }
+            } catch (error) {
+                this.log('error', `Error adding field ${fieldName}:`, error);
+            }
+        }
+
+        /**
+         * Remove a field from persistence
+         */
+        removeField(fieldName) {
+            delete this.fields[fieldName];
+            this.fieldElements.delete(fieldName);
+            this.fieldValues.delete(fieldName);
+            
+            // Clear any pending save
+            if (this.saveTimeouts.has(fieldName)) {
+                clearTimeout(this.saveTimeouts.get(fieldName));
+                this.saveTimeouts.delete(fieldName);
+            }
+            
+            this.log('debug', `Removed field: ${fieldName}`);
+        }
+
+        /**
+         * Get current field values
+         */
+        getCurrentValues() {
+            const values = {};
+            for (const fieldName of Object.keys(this.fields)) {
+                values[fieldName] = this.fieldValues.get(fieldName);
+            }
+            return values;
+        }
+
+        /**
+         * Publish event using core PubSub
+         */
+        publishEvent(eventName, data) {
+            PubSub.publish(eventName, data);
+        }
+
+
+
+        /**
+         * Cleanup resources
+         */
+        destroy() {
+            // Clear all pending timeouts
+            for (const timeoutId of this.saveTimeouts.values()) {
+                clearTimeout(timeoutId);
+            }
+            this.saveTimeouts.clear();
+
+            // Clear maps
+            this.fieldElements.clear();
+            this.fieldValues.clear();
+
+            this.isInitialized = false;
+            Logger.info(`[${this.name}] Form state persistence destroyed`);
+        }
+    }
+
+    /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
@@ -1566,88 +3723,6 @@
 
     // For potential direct class usage if ever needed, though current pattern is to use the initialized functions.
     // export default GMFunctions; // Not currently used this way
-
-    /**
-     * DOMObserver - Observes DOM changes and URL changes
-     * Uses UrlChangeWatcher for URL change detection with configurable strategies
-     */
-    class DOMObserver {
-      /**
-         * Wait for elements matching a selector
-         * @param {string} selector - CSS selector to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @return {Promise<NodeList>} - Promise resolving to found elements
-         */
-      static waitForElements(selector, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-
-          function checkElements() {
-            const elements = document.querySelectorAll(selector);
-            if (0 < elements.length) {
-              resolve(elements);
-              return;
-            }
-
-            if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selector}`));
-              return;
-            }
-
-            requestAnimationFrame(checkElements);
-          }
-
-          checkElements();
-        });
-      }
-      /**
-         * Create a new DOMObserver
-         * @param {Function} onMutation - Callback for handling mutations
-         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
-         */
-      constructor(onMutation, urlChangeStrategies = []) {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-        this.onMutation = onMutation;
-
-        // Initialize URL change watcher with provided strategies
-        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
-      }
-
-
-      /**
-         * Start observing DOM changes and URL changes
-         * @param {HTMLElement} target - Element to observe (defaults to document.body)
-         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
-         */
-      observe(target = document.body, config = {childList: true, subtree: true}) {
-        this.observer.observe(target, config);
-
-        // Start URL change watcher
-        this.urlChangeWatcher.start();
-      }
-
-      /**
-         * Stop observing DOM changes and URL changes
-         */
-      disconnect() {
-        this.observer.disconnect();
-
-        // Stop URL change watcher
-        this.urlChangeWatcher.stop();
-      }
-
-      /**
-         * Handle mutations
-         * @param {MutationRecord[]} mutations - Array of mutation records
-         * @private
-         */
-      handleMutations(mutations) {
-        if (this.onMutation) {
-          this.onMutation(mutations);
-        }
-      }
-    }
 
     /**
      * Button - A reusable UI component for buttons.
@@ -3592,720 +5667,6 @@
     }
 
     /**
-     * Notification - A reusable UI component for toast notifications.
-     * Creates customizable, temporary notifications that appear and disappear automatically.
-     */
-
-    /**
-     * A reusable UI component for creating toast notifications that provide non-intrusive
-     * feedback to users.
-     */
-    class Notification {
-        /**
-         * Storage for the notification container elements by position
-         * @private
-         */
-        static _containers = {};
-        /**
-         * Storage for all active notifications
-         * @private
-         */
-        static _activeNotifications = [];
-        /**
-         * Counter for generating unique notification IDs
-         * @private
-         */
-        static _idCounter = 0;
-        /**
-         * Maximum number of notifications to show per container
-         * @private
-         */
-        static _maxNotificationsPerContainer = 5;
-        /**
-         * Queue for notifications waiting to be shown
-         * @private
-         */
-        static _queue = [];
-
-        /**
-         * Returns the unique base CSS class for the Notification component.
-         * This class is used as the root for all styling and helps prevent CSS collisions.
-         *
-         * @return {string} The base CSS class name for notifications.
-         */
-        static get BASE_NOTIFICATION_CLASS() {
-            return 'userscripts-notification';
-        }
-
-        /**
-         * Returns the CSS variable prefix used for theming the Notification component.
-         * This prefix scopes all custom CSS variables related to the notification.
-         *
-         * @return {string} The CSS variable prefix.
-         */
-        static get CSS_VAR_PREFIX() {
-            return '--userscripts-notification-';
-        }
-
-        /**
-         * Initialize styles for all notifications.
-         * These styles reference the CSS variables with our defined prefix.
-         */
-        static initStyles() {
-            if (Notification.stylesInitialized) return;
-
-            StyleManager.addStyles(`
-      /* Container for all notifications */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container {
-        position: fixed;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        z-index: 9999;
-        pointer-events: none; /* Allow clicking through the container */
-        
-        /* Default positioning at bottom center */
-        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
-        left: 50%;
-        transform: translateX(-50%);
-        
-        /* Container width */
-        width: var(${Notification.CSS_VAR_PREFIX}container-width, auto);
-        max-width: var(${Notification.CSS_VAR_PREFIX}container-max-width, 350px);
-      }
-      
-      /* Position variants */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center {
-        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
-        bottom: auto;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left {
-        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
-        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
-        bottom: auto;
-        transform: none;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
-        top: var(${Notification.CSS_VAR_PREFIX}container-top, 16px);
-        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
-        left: auto;
-        bottom: auto;
-        transform: none;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left {
-        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
-        left: var(${Notification.CSS_VAR_PREFIX}container-left, 16px);
-        transform: none;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
-        bottom: var(${Notification.CSS_VAR_PREFIX}container-bottom, 16px);
-        right: var(${Notification.CSS_VAR_PREFIX}container-right, 16px);
-        left: auto;
-        transform: none;
-      }
-      
-      /* Individual notification toast */
-      .${Notification.BASE_NOTIFICATION_CLASS} {
-        position: relative;
-        display: flex;
-        align-items: center;
-        padding: var(${Notification.CSS_VAR_PREFIX}padding, 12px 16px);
-        border-radius: var(${Notification.CSS_VAR_PREFIX}border-radius, 6px);
-        box-shadow: var(${Notification.CSS_VAR_PREFIX}shadow, 0 4px 12px rgba(0, 0, 0, 0.15));
-        color: var(${Notification.CSS_VAR_PREFIX}color, #fff);
-        font-family: var(${Notification.CSS_VAR_PREFIX}font-family, inherit);
-        font-size: var(${Notification.CSS_VAR_PREFIX}font-size, 14px);
-        line-height: var(${Notification.CSS_VAR_PREFIX}line-height, 1.5);
-        opacity: 0;
-        transform: translateY(100%);
-        transition: transform 0.3s ease, opacity 0.3s ease;
-        pointer-events: auto; /* Make the notification clickable */
-        max-width: 100%;
-        box-sizing: border-box;
-        width: 100%;
-        overflow: hidden;
-        
-        /* Progress bar at the bottom */
-        &::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          height: var(${Notification.CSS_VAR_PREFIX}progress-height, 3px);
-          background-color: var(${Notification.CSS_VAR_PREFIX}progress-color, rgba(255, 255, 255, 0.5));
-          width: 100%;
-          transform-origin: left;
-          transform: scaleX(0);
-        }
-      }
-      
-      /* Visible notification */
-      .${Notification.BASE_NOTIFICATION_CLASS}--visible {
-        opacity: 1;
-        transform: translateY(0);
-      }
-      
-      /* Animation for progress bar */
-      .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
-        animation-name: ${Notification.BASE_NOTIFICATION_CLASS}-progress;
-        animation-timing-function: linear;
-        animation-fill-mode: forwards;
-      }
-      
-      @keyframes ${Notification.BASE_NOTIFICATION_CLASS}-progress {
-        from { transform: scaleX(1); }
-        to { transform: scaleX(0); }
-      }
-      
-      /* Close button */
-      .${Notification.BASE_NOTIFICATION_CLASS}-close {
-        background: none;
-        border: none;
-        color: inherit;
-        opacity: 0.7;
-        font-size: 18px;
-        cursor: pointer;
-        padding: 4px;
-        margin-left: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: opacity 0.2s ease;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-close:hover {
-        opacity: 1;
-      }
-      
-      /* Icon area */
-      .${Notification.BASE_NOTIFICATION_CLASS}-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 12px;
-      }
-      
-      /* Content area */
-      .${Notification.BASE_NOTIFICATION_CLASS}-content {
-        flex-grow: 1;
-        word-break: break-word;
-      }
-      
-      /* Types styling */
-      .${Notification.BASE_NOTIFICATION_CLASS}--info {
-        background-color: var(${Notification.CSS_VAR_PREFIX}info-bg, #3498db);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}--success {
-        background-color: var(${Notification.CSS_VAR_PREFIX}success-bg, #2ecc71);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}--warning {
-        background-color: var(${Notification.CSS_VAR_PREFIX}warning-bg, #f39c12);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}--error {
-        background-color: var(${Notification.CSS_VAR_PREFIX}error-bg, #e74c3c);
-      }
-      
-      /* Customizable style */
-      .${Notification.BASE_NOTIFICATION_CLASS}--custom {
-        background-color: var(${Notification.CSS_VAR_PREFIX}custom-bg, #7f8c8d);
-      }
-      
-      /* Animation for top position variants */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS},
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS},
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS} {
-        transform: translateY(-100%);
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center .${Notification.BASE_NOTIFICATION_CLASS}--visible,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left .${Notification.BASE_NOTIFICATION_CLASS}--visible,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right .${Notification.BASE_NOTIFICATION_CLASS}--visible {
-        transform: translateY(0);
-      }
-      
-      /* Give slightly different vertical spacing based on position */
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-center,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-left,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--top-right {
-        flex-direction: column;
-      }
-      
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-center,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-left,
-      .${Notification.BASE_NOTIFICATION_CLASS}-container--bottom-right {
-        flex-direction: column-reverse;
-      }
-      
-      /* For reduced motion preferences */
-      @media (prefers-reduced-motion: reduce) {
-        .${Notification.BASE_NOTIFICATION_CLASS} {
-          transition: opacity 0.1s ease;
-          transform: translateY(0);
-        }
-        
-        .${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after {
-          animation: none;
-        }
-      }
-    `, 'userscripts-notification-styles');
-
-            Notification.stylesInitialized = true;
-        }
-
-        /**
-         * Injects default color variables for the notification component into the :root.
-         * Users can call this method to automatically set a default color palette.
-         */
-        static useDefaultColors() {
-            const styleId = 'userscripts-notification-default-colors';
-            if (!document.getElementById(styleId)) {
-                const style = document.createElement('style');
-                style.id = styleId;
-                // Use textContent instead of innerHTML for CSP compliance
-                style.textContent = `
-        :root {
-          /* Container styling */
-          ${Notification.CSS_VAR_PREFIX}container-width: auto;
-          ${Notification.CSS_VAR_PREFIX}container-max-width: 350px;
-          ${Notification.CSS_VAR_PREFIX}container-bottom: 16px;
-          ${Notification.CSS_VAR_PREFIX}container-top: 16px;
-          ${Notification.CSS_VAR_PREFIX}container-left: 16px;
-          ${Notification.CSS_VAR_PREFIX}container-right: 16px;
-          
-          /* Toast styling */
-          ${Notification.CSS_VAR_PREFIX}font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          ${Notification.CSS_VAR_PREFIX}font-size: 14px;
-          ${Notification.CSS_VAR_PREFIX}line-height: 1.5;
-          ${Notification.CSS_VAR_PREFIX}padding: 12px 16px;
-          ${Notification.CSS_VAR_PREFIX}border-radius: 6px;
-          ${Notification.CSS_VAR_PREFIX}shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          ${Notification.CSS_VAR_PREFIX}color: #ffffff;
-          
-          /* Progress bar */
-          ${Notification.CSS_VAR_PREFIX}progress-height: 3px;
-          ${Notification.CSS_VAR_PREFIX}progress-color: rgba(255, 255, 255, 0.5);
-          
-          /* Toast types */
-          ${Notification.CSS_VAR_PREFIX}info-bg: #3498db;
-          ${Notification.CSS_VAR_PREFIX}success-bg: #2ecc71;
-          ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
-          ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
-          ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
-        }
-      `;
-                document.head.appendChild(style);
-            }
-        }
-
-        /**
-         * Creates and shows a notification.
-         * @param {Object|string} options - Configuration options or message string
-         * @param {string} [options.message] - The notification message
-         * @param {string} [options.type='info'] - Notification type (info, success, warning, error, custom)
-         * @param {number} [options.duration=3000] - How long to show the notification (ms)
-         * @param {string} [options.position='bottom-center'] - Position (top-left, top-center, top-middle, top-right, bottom-left, bottom-center, bottom-middle, bottom-right)
-         * @param {boolean} [options.showProgress=true] - Show progress bar
-         * @param {boolean} [options.showClose=true] - Show close button
-         * @param {Function} [options.onClick] - Callback when notification is clicked
-         * @param {Function} [options.onClose] - Callback when notification closes
-         * @param {string} [options.icon] - HTML for icon to display
-         * @param {string} [options.className] - Additional CSS class
-         * @param {boolean} [options.html=false] - Whether to interpret message as HTML
-         * @param {Object} [options.style] - Custom inline styles for the notification
-         * @return {string} ID of the created notification (can be used to close it)
-         */
-        static show(options) {
-            // Initialize styles if not already done
-            this.initStyles();
-
-            // Allow passing just a message string
-            if (typeof options === 'string') {
-                options = {message: options};
-            }
-
-            // Set defaults
-            const config = {
-                message: '',
-                type: 'info',
-                duration: 3000,
-                position: 'bottom-center',
-                showProgress: true,
-                showClose: true,
-                onClick: null,
-                onClose: null,
-                icon: null,
-                className: '',
-                html: false,
-                style: null,
-                ...options
-            };
-
-            // Generate a unique ID for this notification
-            const id = `${Notification.BASE_NOTIFICATION_CLASS}-${++this._idCounter}`;
-
-            // Check if we're at the limit for the specified position
-            const positionString = this._normalizePosition(config.position);
-            const activeInPosition = this._activeNotifications.filter(n => n.position === positionString).length;
-
-            // If we're at the limit, queue this notification
-            if (activeInPosition >= this._maxNotificationsPerContainer) {
-                this._queue.push({id, ...config});
-                return id;
-            }
-
-            // Create and show the notification
-            this._createNotification(id, config);
-            return id;
-        }
-
-        /**
-         * Convenience method to show an info notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static info(message, options = {}) {
-            return this.show({...options, message, type: 'info'});
-        }
-
-        /**
-         * Convenience method to show a success notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static success(message, options = {}) {
-            return this.show({...options, message, type: 'success'});
-        }
-
-        /**
-         * Convenience method to show a warning notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static warning(message, options = {}) {
-            return this.show({...options, message, type: 'warning'});
-        }
-
-        /**
-         * Convenience method to show an error notification
-         * @param {string} message - The message to display
-         * @param {Object} [options] - Additional options
-         * @return {string} Notification ID
-         */
-        static error(message, options = {}) {
-            return this.show({...options, message, type: 'error'});
-        }
-
-        /**
-         * Close a notification by ID
-         * @param {string} id - The notification ID
-         * @param {boolean} [animate=true] - Whether to animate the closing
-         */
-        static close(id, animate = true) {
-            const element = document.getElementById(id);
-            if (!element) {
-                // Check if it's in the queue
-                const queueIndex = this._queue.findIndex(n => n.id === id);
-                if (queueIndex !== -1) {
-                    this._queue.splice(queueIndex, 1);
-                }
-                return;
-            }
-
-            // Get the notification object
-            const notificationIndex = this._activeNotifications.findIndex(n => n.id === id);
-            if (notificationIndex === -1) return;
-
-            const notification = this._activeNotifications[notificationIndex];
-
-            // Remove from active notifications
-            this._activeNotifications.splice(notificationIndex, 1);
-
-            // If animated, fade out then remove
-            if (animate) {
-                element.classList.remove(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
-                setTimeout(() => {
-                    this._removeNotificationElement(element, notification);
-                }, 300); // Match the transition time in CSS
-            } else {
-                this._removeNotificationElement(element, notification);
-            }
-
-            // Process the queue after removing
-            this._processQueue(notification.position);
-        }
-
-        /**
-         * Close all notifications
-         * @param {string} [position] - Only close notifications in this position
-         * @param {boolean} [animate=true] - Whether to animate the closing
-         */
-        static closeAll(position = null, animate = true) {
-            // Clear the queue
-            if (position) {
-                const normalizedPosition = this._normalizePosition(position);
-                this._queue = this._queue.filter(n => this._normalizePosition(n.position) !== normalizedPosition);
-            } else {
-                this._queue = [];
-            }
-
-            // Close active notifications
-            const notificationsToClose = position
-                ? this._activeNotifications.filter(n => n.position === this._normalizePosition(position))
-                : [...this._activeNotifications];
-
-            notificationsToClose.forEach(notification => {
-                this.close(notification.id, animate);
-            });
-        }
-
-        /**
-         * Set the maximum number of notifications to show per container
-         * @param {number} max - Maximum number of notifications
-         */
-        static setMaxNotifications(max) {
-            if (typeof max === 'number' && max > 0) {
-                this._maxNotificationsPerContainer = max;
-            }
-        }
-
-        /**
-         * Get a container element for a specific position, creating it if it doesn't exist
-         * @param {string} position - The notification position
-         * @return {HTMLElement} The container element
-         * @private
-         */
-        static _getContainer(position) {
-            const positionString = this._normalizePosition(position);
-
-            if (this._containers[positionString]) {
-                return this._containers[positionString];
-            }
-
-            // Create new container
-            const container = document.createElement('div');
-            container.className = `${Notification.BASE_NOTIFICATION_CLASS}-container ${Notification.BASE_NOTIFICATION_CLASS}-container--${positionString}`;
-            document.body.appendChild(container);
-
-            // Store for future use
-            this._containers[positionString] = container;
-            return container;
-        }
-
-        /**
-         * Normalize position string to one of the supported values
-         * @param {string} position - Position string
-         * @return {string} Normalized position string
-         * @private
-         */
-        static _normalizePosition(position) {
-            const validPositions = [
-                'top-center', 'top-left', 'top-right',
-                'bottom-center', 'bottom-left', 'bottom-right'
-            ];
-
-            if (validPositions.includes(position)) {
-                return position;
-            }
-
-            // Handle abbreviated positions
-            if (position === 'top') return 'top-center';
-            if (position === 'bottom') return 'bottom-center';
-            
-            // Handle alternative naming
-            if (position === 'top-middle') return 'top-center';
-            if (position === 'bottom-middle') return 'bottom-center';
-
-            // Default
-            return 'bottom-center';
-        }
-
-        /**
-         * Create and show a notification
-         * @param {string} id - The notification ID
-         * @param {Object} config - Notification configuration
-         * @private
-         */
-        static _createNotification(id, config) {
-            const position = this._normalizePosition(config.position);
-            const container = this._getContainer(position);
-
-            // Create the notification element
-            const element = document.createElement('div');
-            element.id = id;
-            element.className = `${Notification.BASE_NOTIFICATION_CLASS} ${Notification.BASE_NOTIFICATION_CLASS}--${config.type}`;
-
-            if (config.showProgress && config.duration > 0) {
-                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--with-progress`);
-                // Set the animation duration for the progress bar
-                element.style.setProperty('--progress-duration', `${config.duration}ms`);
-            }
-
-            if (config.className) {
-                element.classList.add(config.className);
-            }
-
-            // Apply custom styles
-            if (config.style && typeof config.style === 'object') {
-                Object.assign(element.style, config.style);
-            }
-
-            // Create content structure using DOM methods instead of innerHTML
-            
-            // Add icon if provided
-            if (config.icon) {
-                const iconDiv = document.createElement('div');
-                iconDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-icon`;
-                iconDiv.textContent = config.icon; // Use textContent for icons (should be emoji/text)
-                element.appendChild(iconDiv);
-            }
-
-            // Add message content
-            const contentDiv = document.createElement('div');
-            contentDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-content`;
-            if (config.html) {
-                // For HTML content, we'll just use text content for CSP compliance
-                // This is a security decision - no HTML allowed in notifications
-                contentDiv.textContent = config.message;
-            } else {
-                contentDiv.textContent = config.message;
-            }
-            element.appendChild(contentDiv);
-
-            // Add close button if needed
-            if (config.showClose) {
-                const closeButton = document.createElement('button');
-                closeButton.className = `${Notification.BASE_NOTIFICATION_CLASS}-close`;
-                closeButton.setAttribute('aria-label', 'Close notification');
-                closeButton.textContent = '×';
-                element.appendChild(closeButton);
-            }
-
-            // Set up animations
-            requestAnimationFrame(() => {
-                container.appendChild(element);
-
-                // Trigger layout/reflow before adding the visible class
-                void element.offsetWidth;
-
-                // Make visible
-                element.classList.add(`${Notification.BASE_NOTIFICATION_CLASS}--visible`);
-
-                // Set animation for progress bar if applicable
-                const progressBar = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}--with-progress::after`);
-                if (progressBar) {
-                    progressBar.style.animationDuration = `${config.duration}ms`;
-                }
-            });
-
-            // Add to active notifications
-            this._activeNotifications.push({
-                id,
-                element,
-                position,
-                config
-            });
-
-            // Set up click handler
-            if (config.onClick) {
-                element.addEventListener('click', event => {
-                    // Only trigger if not clicking the close button
-                    if (!event.target.closest(`.${Notification.BASE_NOTIFICATION_CLASS}-close`)) {
-                        config.onClick(event, id);
-                    }
-                });
-            }
-
-            // Set up close button handler
-            const closeButton = element.querySelector(`.${Notification.BASE_NOTIFICATION_CLASS}-close`);
-            if (closeButton) {
-                closeButton.addEventListener('click', () => this.close(id, true));
-            }
-
-            // Set auto-close timeout if duration > 0
-            if (config.duration > 0) {
-                setTimeout(() => {
-                    // Check if notification still exists before closing
-                    if (document.getElementById(id)) {
-                        this.close(id, true);
-                    }
-                }, config.duration);
-            }
-        }
-
-        /**
-         * Remove a notification element from the DOM
-         * @param {HTMLElement} element - The notification element
-         * @param {Object} notification - The notification object
-         * @private
-         */
-        static _removeNotificationElement(element, notification) {
-            if (!element) return;
-
-            // Call onClose callback if provided
-            if (notification && notification.config && notification.config.onClose) {
-                try {
-                    notification.config.onClose(notification.id);
-                } catch (e) {
-                    Logger.error(e, 'Error in notification onClose callback');
-                }
-            }
-
-            // Remove the element
-            if (element.parentNode) {
-                element.parentNode.removeChild(element);
-            }
-
-            // Check if container is empty and remove it if so
-            const container = this._containers[notification.position];
-            if (container && !container.hasChildNodes()) {
-                if (container.parentNode) {
-                    container.parentNode.removeChild(container);
-                }
-                delete this._containers[notification.position];
-            }
-        }
-
-        /**
-         * Process the notification queue for a specific position
-         * @param {string} position - Position to process
-         * @private
-         */
-        static _processQueue(position) {
-            const normalizedPosition = this._normalizePosition(position);
-
-            // Check how many active notifications we have in this position
-            const activeCount = this._activeNotifications.filter(n => n.position === normalizedPosition).length;
-
-            // Check if we can show more
-            if (activeCount >= this._maxNotificationsPerContainer) return;
-
-            // Find the first queued notification for this position
-            const queueIndex = this._queue.findIndex(n =>
-                this._normalizePosition(n.position) === normalizedPosition
-            );
-
-            if (queueIndex !== -1) {
-                // Remove from queue and show
-                const nextNotification = this._queue.splice(queueIndex, 1)[0];
-                this._createNotification(nextNotification.id, nextNotification);
-            }
-        }
-    }
-
-    // Static property to track if styles have been initialized
-    Notification.stylesInitialized = false;
-
-    /**
      * Input - A reusable input field component with theming and validation
      * Provides consistent styling and behavior across userscripts
      */
@@ -5404,15 +6765,52 @@
                 interactionThrottle: 100 // 100ms throttle for performance
             });
 
+            // Initialize ContentCollector for sophisticated response collection
+            this.contentCollector = new ContentCollector({
+                name: 'AI-Studio-Responses',
+                selectors: AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS,
+                contentExtractor: this.extractResponseText.bind(this),
+                contentCleaner: this.cleanResponseText.bind(this),
+                contentValidator: (content, existing) => content && content.length > 10,
+                deduplicate: true,
+                enableNotifications: false, // We'll handle notifications ourselves
+                enablePersistence: true,
+                cacheKey: () => this.getChatCacheKey(),
+                highlightCollected: false
+            });
+
+            // Initialize AutoRunner for sophisticated auto-run functionality
+            this.autoRunner = null; // Will be created when needed
+
+            // Initialize FormStatePersistence for automatic form state saving
+            this.formPersistence = new FormStatePersistence({
+                namespace: 'ai-studio-enhancer',
+                getValue: getValue,
+                setValue: setValue,
+                enableNotifications: false,
+                enableInteractionDetection: true,
+                fields: {
+                    autoRunPrompt: {
+                        selector: '.auto-run-prompt-textarea textarea',
+                        type: 'text',
+                        defaultValue: ''
+                    },
+                    autoRunIterations: {
+                        selector: '.auto-run-iterations-input input',
+                        type: 'number',
+                        defaultValue: 10,
+                        validator: (value) => {
+                            const num = parseInt(value, 10);
+                            return !isNaN(num) && num >= 1 && num <= 100;
+                        }
+                    }
+                }
+            });
+
             Logger.info("Initializing Google AI Studio Enhancer");
 
             // Setup PubSub event handlers
             this.setupEventHandlers();
-
-            // Create debounced notification function for initial load
-            this.debouncedInitialNotification = Debouncer.debounce((count) => {
-                this.showNotification(`Collected ${count} responses from current chat`, 'info');
-            }, 1000);
 
             // Initialize URL change watcher for chat monitoring
             this.urlWatcher = new UrlChangeWatcher([
@@ -5526,6 +6924,22 @@
                 this.iterationsInput.destroy();
                 this.iterationsInput = null;
             }
+
+            // Clean up new core components
+            if (this.contentCollector) {
+                this.contentCollector.stopMonitoring();
+                this.contentCollector = null;
+            }
+
+            if (this.autoRunner) {
+                this.autoRunner.stop('cleanup');
+                this.autoRunner = null;
+            }
+
+            if (this.formPersistence) {
+                this.formPersistence.destroy();
+                this.formPersistence = null;
+            }
             
             Logger.debug("All subscriptions and resources cleaned up");
         }
@@ -5599,8 +7013,11 @@
         clearCurrentChatCache() {
             this.clearChatCache();
             
-            // Also clear current responses in memory
+            // Also clear current responses in memory and ContentCollector
             this.responses = [];
+            if (this.contentCollector) {
+                this.contentCollector.clearContent();
+            }
             
             // Update UI
             PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
@@ -5768,9 +7185,6 @@
             // Save to cache
             this.saveResponsesToCache();
             
-            // Auto-copy new responses
-            this.copyAllResponsesWithSmartNotification();
-            
             Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}`);
         }
 
@@ -5796,9 +7210,6 @@
             
             // Set initial load mode for the new chat
             this.isInitialLoad = true;
-            
-            // Cancel any pending debounced notifications from the previous chat
-            this.debouncedInitialNotification.cancel();
             
             // Collect responses from the new chat after a short delay
             setTimeout(() => {
@@ -5945,21 +7356,14 @@
             // Setup chat monitoring to detect chat switches
             this.setupChatMonitoring();
 
-            // Setup response monitoring
-            this.setupResponseMonitoring();
+            // Initialize ContentCollector for response monitoring
+            this.initializeContentCollector();
+
+            // Initialize FormStatePersistence for automatic form state saving
+            this.initializeFormPersistence();
 
             // Setup user interaction tracking for run buttons
             this.setupRunButtonInteractionTracking();
-
-            // Try to load cached responses for current chat first
-            const loadedFromCache = this.loadResponsesFromCache();
-            
-            if (loadedFromCache) {
-                Logger.info(`Loaded ${this.responses.length} cached responses for current chat`);
-            }
-
-            // Collect existing responses (this will merge with cached ones)
-            this.collectExistingResponses();
 
             // Mark initial load as complete after a delay to allow for all responses to be collected
             setTimeout(() => {
@@ -6242,8 +7646,6 @@
             container.appendChild(section);
         }
 
-
-
         /**
          * Handle URL changes detected by UrlChangeWatcher
          */
@@ -6254,6 +7656,57 @@
                 this.currentChatId = newChatId;
                 this.onChatChanged();
             }
+        }
+
+        /**
+         * Initialize ContentCollector for sophisticated response monitoring
+         */
+        async initializeContentCollector() {
+            // Setup event subscriptions for ContentCollector
+            this.subscriptionIds.push(
+                PubSub.subscribe(ContentCollector.EVENTS.CONTENT_ADDED, (data) => {
+                    // Update our local responses array to maintain compatibility
+                    this.responses = this.contentCollector.getContent();
+                    
+                    // Handle the new content addition
+                    this.handleResponseAdded({
+                        text: data.content,
+                        total: data.totalItems,
+                        isInitialLoad: this.isInitialLoad
+                    });
+                })
+            );
+
+            this.subscriptionIds.push(
+                PubSub.subscribe(ContentCollector.EVENTS.COLLECTION_UPDATED, (data) => {
+                    // Update response count in UI
+                    this.updateResponseCount();
+                    Logger.debug(`ContentCollector updated: ${data.newItems} new, ${data.totalItems} total`);
+                })
+            );
+
+            // Start monitoring for responses
+            this.contentCollector.startMonitoring();
+            
+            // Update our responses array from ContentCollector
+            this.responses = this.contentCollector.getContent();
+            
+            Logger.info("ContentCollector initialized and monitoring started");
+        }
+
+        /**
+         * Initialize FormStatePersistence for automatic form state saving
+         */
+        async initializeFormPersistence() {
+            // Wait for form elements to be available
+            setTimeout(async () => {
+                try {
+                    await this.formPersistence.initialize();
+                    Logger.info("FormStatePersistence initialized successfully");
+                } catch (error) {
+                    Logger.warn("FormStatePersistence initialization failed:", error);
+                }
+            }, 1000); // Delay to ensure form elements are created
         }
 
         /**
@@ -6349,21 +7802,7 @@
             this.previousChatId = this.currentChatId;
         }
 
-        /**
-         * Setup response monitoring using DOM observer
-         */
-        setupResponseMonitoring() {
-            this.responseObserver = new DOMObserver((mutations) => {
-                this.handleDOMChanges(mutations);
-            });
 
-            this.responseObserver.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-
-            Logger.debug("Response monitoring setup complete");
-        }
 
         /**
          * Setup user interaction tracking for run buttons
@@ -6492,55 +7931,7 @@
             }
         }
 
-        /**
-         * Handle DOM changes to detect new responses
-         */
-        handleDOMChanges(mutations) {
-            for (const mutation of mutations) {
-                if (mutation.type === 'childList') {
-                    for (const node of mutation.addedNodes) {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            this.scanForNewResponses(node);
-                        }
-                    }
-                }
-            }
-        }
 
-        /**
-         * Scan element for new AI responses
-         */
-        scanForNewResponses(element) {
-            AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS.forEach(selector => {
-                // Check if the element itself matches
-                if (element.matches && element.matches(selector)) {
-                    this.addResponse(element);
-                }
-                // Check children
-                if (element.querySelectorAll) {
-                    element.querySelectorAll(selector).forEach(el => {
-                        this.addResponse(el);
-                    });
-                }
-            });
-        }
-
-        /**
-         * Collect existing responses on page
-         */
-        collectExistingResponses() {
-            const initialResponseCount = this.responses.length;
-            
-            AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS.forEach(selector => {
-                document.querySelectorAll(selector).forEach(element => {
-                    this.addResponse(element);
-                });
-            });
-
-            const newResponseCount = this.responses.length - initialResponseCount;
-            Logger.info(`Collected ${newResponseCount} new responses (${this.responses.length} total including cached)`);
-            this.updateResponseCount();
-        }
 
         /**
          * Clean response text by removing UI elements and metadata
@@ -6637,58 +8028,25 @@
             return this.cleanResponseText(fullText);
         }
 
-        /**
-         * Add a response to the collection
-         */
-        addResponse(element) {
-            const text = this.extractResponseText(element);
-            if (text && text.length > 10 && !this.responses.includes(text)) {
-                this.responses.push(text);
-                
-                // Publish event instead of direct method calls
-                PubSub.publish(AIStudioEnhancer.EVENTS.RESPONSE_ADDED, {
-                    text: text,
-                    total: this.responses.length,
-                    isInitialLoad: this.isInitialLoad
-                });
 
-                Logger.debug('New response added:', text.substring(0, 100) + '...');
-            }
-        }
-
-        /**
-         * Copy responses with intelligent notification handling
-         */
-        async copyAllResponsesWithSmartNotification() {
-            // Always copy to clipboard
-            const success = await this.copyAllResponsesSilent();
-            
-            if (!success) return;
-
-            // Handle notifications smartly
-            if (this.isInitialLoad) {
-                // During initial load, use debounced notification
-                this.debouncedInitialNotification(this.responses.length);
-            } else {
-                // After initial load, show immediate notifications for new responses
-                this.showNotification(`New response copied! Total: ${this.responses.length}`, 'success');
-            }
-        }
 
         /**
          * Copy all responses to clipboard without showing notifications
          */
         async copyAllResponsesSilent() {
-            if (this.responses.length === 0) {
+            // Get responses from ContentCollector if available, fallback to local array
+            const responses = this.contentCollector ? this.contentCollector.getContent() : this.responses;
+            
+            if (responses.length === 0) {
                 return false;
             }
 
             // Format responses - clean output without headers
-            const content = this.responses.join('\n\n---\n\n');
+            const content = responses.join('\n\n---\n\n');
 
             try {
                 GM_setClipboard(content);
-                Logger.success(`Copied ${this.responses.length} responses to clipboard`);
+                Logger.success(`Copied ${responses.length} responses to clipboard`);
                 return true;
             } catch (error) {
                 Logger.error('Failed to copy responses:', error);
@@ -6701,7 +8059,9 @@
          */
         updateResponseCount() {
             if (this.responseCountElement) {
-                this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
+                // Get count from ContentCollector if available, fallback to local array
+                const count = this.contentCollector ? this.contentCollector.getContent().length : this.responses.length;
+                this.responseCountElement.textContent = `Current chat responses: ${count}`;
             }
         }
 
@@ -6709,14 +8069,17 @@
          * Manual copy button handler - always shows notifications
          */
         async copyAllResponsesManual() {
-            if (this.responses.length === 0) {
+            // Get responses from ContentCollector if available, fallback to local array
+            const responses = this.contentCollector ? this.contentCollector.getContent() : this.responses;
+            
+            if (responses.length === 0) {
                 this.showNotification('No responses found to copy', 'warning');
                 return false;
             }
 
             const success = await this.copyAllResponsesSilent();
             if (success) {
-                this.showNotification(`Copied ${this.responses.length} responses to clipboard`, 'success');
+                this.showNotification(`Copied ${responses.length} responses to clipboard`, 'success');
             } else {
                 this.showNotification('Failed to copy responses', 'error');
             }
@@ -6735,6 +8098,9 @@
          */
         clearResponses() {
             this.responses = [];
+            if (this.contentCollector) {
+                this.contentCollector.clearContent();
+            }
             this.updateResponseCount();
             this.showNotification('Chat responses cleared', 'info');
             Logger.info('Chat responses cleared');
@@ -6752,7 +8118,7 @@
         }
 
         /**
-         * Start auto-run process
+         * Start auto-run process using AutoRunner
          */
         async startAutoRun() {
             if (this.isAutoRunning) {
@@ -6772,19 +8138,80 @@
                 return false;
             }
 
-            this.isAutoRunning = true;
-            this.currentIteration = 0;
-            this.maxIterations = iterations;
-
-            // Publish auto-run started event
-            PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, {
-                iterations: iterations,
-                timestamp: Date.now()
+            // Create AutoRunner instance
+            this.autoRunner = new AutoRunner({
+                name: 'AI-Studio-AutoRun',
+                maxIterations: iterations,
+                delay: 1000, // 1 second between iterations
+                taskFunction: async (iteration, results) => {
+                    return await this.executeAutoRunIteration(iteration, results);
+                },
+                enableNotifications: true,
+                enableInteractionDetection: true,
+                onProgress: (current, total, result, results) => {
+                    this.currentIteration = current;
+                    this.maxIterations = total;
+                    PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, {
+                        current,
+                        total,
+                        timestamp: Date.now()
+                    });
+                },
+                onError: (error, iteration) => {
+                    Logger.error(`Auto-run iteration ${iteration} failed:`, error);
+                    this.showNotification(`Auto-run iteration ${iteration} failed: ${error.message}`, 'error');
+                }
             });
 
-            Logger.info(`Starting auto runner for ${iterations} iterations`);
+            // Subscribe to AutoRunner events
+            this.subscriptionIds.push(
+                PubSub.subscribe(AutoRunner.EVENTS.STARTED, (data) => {
+                    if (data.name === 'AI-Studio-AutoRun') {
+                        this.isAutoRunning = true;
+                        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STARTED, {
+                            iterations: data.maxIterations,
+                            timestamp: data.timestamp
+                        });
+                    }
+                })
+            );
 
-            await this.runIteration();
+            this.subscriptionIds.push(
+                PubSub.subscribe(AutoRunner.EVENTS.STOPPED, (data) => {
+                    if (data.name === 'AI-Studio-AutoRun') {
+                        this.isAutoRunning = false;
+                        this.currentIteration = 0;
+                        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                            reason: data.reason,
+                            timestamp: data.timestamp
+                        });
+                    }
+                })
+            );
+
+            this.subscriptionIds.push(
+                PubSub.subscribe(AutoRunner.EVENTS.COMPLETED, (data) => {
+                    if (data.name === 'AI-Studio-AutoRun') {
+                        this.isAutoRunning = false;
+                        this.currentIteration = 0;
+                        PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
+                            reason: 'completed',
+                            timestamp: data.timestamp
+                        });
+                    }
+                })
+            );
+
+            // Start the AutoRunner
+            this.isAutoRunning = true;
+            const started = await this.autoRunner.start();
+            
+            if (!started) {
+                this.isAutoRunning = false;
+                this.showNotification('Failed to start auto runner', 'error');
+                return false;
+            }
+
             return true;
         }
 
@@ -6795,57 +8222,27 @@
             // Add debugging to see what's calling this method
             Logger.warn('stopAutoRun called! Stack trace:', new Error().stack);
             
-            this.isAutoRunning = false;
-            
-            // Reset iteration count to 0
-            this.currentIteration = 0;
-            
-            // Publish auto-run stopped event
-            PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
-                reason: 'user requested',
-                timestamp: Date.now()
-            });
-
-            Logger.info(`Auto runner stopped and reset`);
-        }
-
-        /**
-         * Run a single iteration
-         */
-        async runIteration() {
-            // Only stop if explicitly stopped by user or if all iterations completed
-            if (!this.isAutoRunning) {
-                Logger.info('Auto-run stopped by user');
-                return;
-            }
-
-            if (this.currentIteration >= this.maxIterations) {
-                // Auto-run completed all iterations
+            if (this.autoRunner) {
+                this.autoRunner.stop('user requested');
+            } else {
+                // Fallback for direct calls
                 this.isAutoRunning = false;
                 this.currentIteration = 0;
                 
-                // Publish completion event
                 PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_STOPPED, {
-                    reason: 'completed',
-                    completedIterations: this.maxIterations,
+                    reason: 'user requested',
                     timestamp: Date.now()
                 });
-                
-                this.showNotification(`Auto runner completed ${this.maxIterations} iterations`, 'success');
-                Logger.info(`Auto runner completed ${this.maxIterations} iterations`);
-                return;
-            }
 
-            this.currentIteration++;
-            
-            // Publish iteration event
-            PubSub.publish(AIStudioEnhancer.EVENTS.AUTO_RUN_ITERATION, {
-                current: this.currentIteration,
-                total: this.maxIterations,
-                timestamp: Date.now()
-            });
-            
-            Logger.info(`Running iteration ${this.currentIteration}/${this.maxIterations}`);
+                Logger.info(`Auto runner stopped and reset`);
+            }
+        }
+
+        /**
+         * Execute a single auto-run iteration (used by AutoRunner)
+         */
+        async executeAutoRunIteration(iteration, results) {
+            Logger.info(`Executing auto-run iteration ${iteration}`);
 
             // Enter prompt if specified
             const currentPrompt = this.promptTextArea.getValue().trim();
@@ -6853,7 +8250,6 @@
                 const promptEntered = await this.enterPrompt(currentPrompt);
                 if (!promptEntered) {
                     Logger.warn('Could not enter prompt - prompt input not found, continuing anyway');
-                    // Don't stop auto-run, just continue without prompt
                 } else {
                     // Small delay after entering prompt to let Google process the input
                     await this.delay(500);
@@ -6863,12 +8259,7 @@
             // Wait for run button to become enabled (with retry mechanism)
             const runButton = await this.waitForRunButton();
             if (!runButton) {
-                Logger.warn('Run button not found after waiting, retrying in next iteration');
-                // Don't stop auto-run, just retry in next iteration
-                setTimeout(() => {
-                    this.runIteration();
-                }, 2000); // Longer delay when retrying
-                return;
+                throw new Error('Run button not found after waiting');
             }
 
             // Click the run button programmatically during auto-run
@@ -6886,11 +8277,15 @@
             // Wait for response completion
             await this.waitForResponseCompletion();
 
-            // Wait before next iteration (reduced delay for faster execution)
-            setTimeout(() => {
-                this.runIteration();
-            }, 1000); // Reduced from this.settings.AUTO_RUN_DELAY (2000ms) to 1000ms
+            return {
+                iteration,
+                timestamp: Date.now(),
+                promptUsed: currentPrompt,
+                success: true
+            };
         }
+
+
 
         /**
          * Find the prompt input field on the page

@@ -3,9 +3,9 @@ import { DataCache } from './DataCache.js';
 import StyleManager from './StyleManager.js';
 import Logger from './Logger.js';
 import PubSub from './PubSub.js';
-import Notification from './Notification.js';
+import Notification from '../ui/Notification.js';
 import UserInteractionDetector from './UserInteractionDetector.js';
-import DOMObserver from './DOMObserver.js';
+import DOMObserver from '../ui/DOMObserver.js';
 
 /**
  * ContentCollector - Generic content collection and cleaning system

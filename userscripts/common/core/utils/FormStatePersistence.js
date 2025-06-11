@@ -3,9 +3,9 @@ import HTMLUtils from './HTMLUtils.js';
 import { DataCache } from './DataCache.js';
 import Logger from './Logger.js';
 import PubSub from './PubSub.js';
-import Notification from './Notification.js';
+import Notification from '../ui/Notification.js';
 import UserInteractionDetector from './UserInteractionDetector.js';
-import PollingStrategy from './PollingStrategy.js';
+import PollingStrategy from './UrlChangeWatcher/strategies/PollingStrategy.js';
 
 /**
  * FormStatePersistence - Generic form state persistence system
