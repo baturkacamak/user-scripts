@@ -7032,8 +7032,10 @@
             return new Promise((resolve) => {
                 let timeoutId;
                 let observer;
+                let hasSeenStoppableState = false;
+                let responseStartTime = Date.now();
                 
-                const cleanup = () => {
+                let cleanup = () => {
                     if (observer) {
                         observer.disconnect();
                     }
@@ -7057,6 +7059,13 @@
                     const isButtonTypeButton = runButton.type === 'button';
                     const isDisabled = runButton.disabled || runButton.classList.contains('disabled');
                     const buttonText = runButton.textContent?.trim();
+                    const currentTime = Date.now();
+                    const timeElapsed = currentTime - responseStartTime;
+                    
+                    // Track if we've seen the button in a stoppable state (indicating generation started)
+                    if (isStoppable) {
+                        hasSeenStoppableState = true;
+                    }
                     
                     Logger.debug(`Button state check:`, {
                         isStoppable,
@@ -7064,12 +7073,21 @@
                         isDisabled,
                         type: runButton.type,
                         text: buttonText,
-                        classes: Array.from(runButton.classList)
+                        classes: Array.from(runButton.classList),
+                        hasSeenStoppableState,
+                        timeElapsed
                     });
                     
-                    // Response is complete when button changes from "Stop" to "Run" state
-                    // Note: Button may be disabled because prompt is empty (that's normal)
-                    const isComplete = !isStoppable && !isButtonTypeButton && runButton.type === 'submit';
+                    // Response is complete when:
+                    // 1. We've seen the stoppable state (generation started)
+                    // 2. Button is no longer stoppable
+                    // 3. Button type is submit (ready for next run)
+                    // 4. At least 2 seconds have passed to avoid false positives
+                    const isComplete = hasSeenStoppableState && 
+                                     !isStoppable && 
+                                     !isButtonTypeButton && 
+                                     runButton.type === 'submit' &&
+                                     timeElapsed >= 2000;
                     
                     if (isComplete) {
                         Logger.debug('Response completion detected via DOM observer');
@@ -7135,32 +7153,27 @@
                 
                 Logger.debug('DOM observer started, watching for button changes...');
 
-                // Initial check after a short delay to let the button state change
-                setTimeout(() => {
-                    if (!checkCompletion()) {
-                        // Set a maximum timeout as fallback
-                        timeoutId = setTimeout(() => {
-                            Logger.warn('Response completion timeout (2 minutes)');
-                            cleanup();
-                            resolve();
-                        }, 120000); // 2 minutes
-                        
-                        // Also set up periodic checking as backup (every 5 seconds)
-                        const intervalId = setInterval(() => {
-                            Logger.debug('Periodic check (backup)...');
-                            if (checkCompletion()) {
-                                clearInterval(intervalId);
-                            }
-                        }, 5000);
-                        
-                        // Store interval ID for cleanup
-                        const originalCleanup = cleanup;
-                        cleanup = () => {
-                            clearInterval(intervalId);
-                            originalCleanup();
-                        };
+                // Set a maximum timeout as fallback
+                timeoutId = setTimeout(() => {
+                    Logger.warn('Response completion timeout (2 minutes)');
+                    cleanup();
+                    resolve();
+                }, 120000); // 2 minutes
+                
+                // Set up periodic checking as backup (every 3 seconds)
+                const intervalId = setInterval(() => {
+                    Logger.debug('Periodic check (backup)...');
+                    if (checkCompletion()) {
+                        clearInterval(intervalId);
                     }
-                }, 500); // Reduced from 2000ms to 500ms
+                }, 3000);
+                
+                // Store interval ID for cleanup
+                const originalCleanup = cleanup;
+                cleanup = () => {
+                    clearInterval(intervalId);
+                    originalCleanup();
+                };
             });
         }
 
