@@ -1,7 +1,6 @@
 // Import core components
 import {
     Button,
-    Checkbox,
     DataCache,
     Debouncer,
     DOMObserver,
@@ -115,8 +114,7 @@ class AIStudioEnhancer {
         AUTO_RUN_DELAY: 'gaise-auto-run-delay',
         SHOW_NOTIFICATIONS: 'gaise-show-notifications',
         PANEL_POSITION: 'gaise-panel-position',
-        AUTO_RUN_PROMPT: 'gaise-auto-run-prompt',
-        AUTO_COPY_RESPONSES: 'gaise-auto-copy-responses'
+        AUTO_RUN_PROMPT: 'gaise-auto-run-prompt'
     };
 
     static DEFAULT_SETTINGS = {
@@ -124,8 +122,7 @@ class AIStudioEnhancer {
         AUTO_RUN_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
         PANEL_POSITION: { x: 20, y: 20 },
-        AUTO_RUN_PROMPT: '',
-        AUTO_COPY_RESPONSES: false
+        AUTO_RUN_PROMPT: ''
     };
 
     // Event names for PubSub communication
@@ -176,10 +173,7 @@ class AIStudioEnhancer {
         // Setup PubSub event handlers
         this.setupEventHandlers();
 
-        // Create debounced notification function for initial load
-        this.debouncedInitialNotification = Debouncer.debounce((count) => {
-            this.showNotification(`Collected ${count} responses from current chat`, 'info');
-        }, 1000);
+
 
         // Initialize URL change watcher for chat monitoring
         this.urlWatcher = new UrlChangeWatcher([
@@ -292,11 +286,6 @@ class AIStudioEnhancer {
         if (this.iterationsInput) {
             this.iterationsInput.destroy();
             this.iterationsInput = null;
-        }
-        
-        if (this.autoCopyCheckbox) {
-            this.autoCopyCheckbox.destroy();
-            this.autoCopyCheckbox = null;
         }
         
         Logger.debug("All subscriptions and resources cleaned up");
@@ -540,12 +529,7 @@ class AIStudioEnhancer {
         // Save to cache
         this.saveResponsesToCache();
         
-        // Auto-copy new responses only if enabled
-        if (this.settings.AUTO_COPY_RESPONSES) {
-            this.copyAllResponsesWithSmartNotification();
-        }
-        
-        Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}, Auto-copy: ${this.settings.AUTO_COPY_RESPONSES}`);
+        Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}`);
     }
 
     /**
@@ -570,9 +554,6 @@ class AIStudioEnhancer {
         
         // Set initial load mode for the new chat
         this.isInitialLoad = true;
-        
-        // Cancel any pending debounced notifications from the previous chat
-        this.debouncedInitialNotification.cancel();
         
         // Collect responses from the new chat after a short delay
         setTimeout(() => {
@@ -695,8 +676,6 @@ class AIStudioEnhancer {
         SidebarPanel.initStyles();
         Button.initStyles();
         Button.useDefaultColors();
-        Checkbox.initStyles();
-        Checkbox.useDefaultColors();
         Notification.initStyles();
         Notification.useDefaultColors();
         Input.initStyles();
@@ -983,29 +962,6 @@ class AIStudioEnhancer {
         cacheSubsection.appendChild(cacheInfo);
         // clearCacheButton is automatically appended via container option
 
-        // Auto-copy subsection
-        const autoCopySubsection = document.createElement('div');
-        autoCopySubsection.style.marginBottom = '16px';
-
-        const autoCopyTitle = document.createElement('h4');
-        autoCopyTitle.textContent = '📋 Auto-Copy Settings';
-        autoCopyTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
-
-        // Auto-copy checkbox
-        this.autoCopyCheckbox = new Checkbox({
-            checked: this.settings.AUTO_COPY_RESPONSES,
-            label: 'Automatically copy responses to clipboard',
-            onChange: (event, checkbox) => {
-                this.settings.AUTO_COPY_RESPONSES = checkbox.isChecked();
-                this.saveSettings();
-                Logger.debug('Auto-copy setting changed:', this.settings.AUTO_COPY_RESPONSES);
-            },
-            container: autoCopySubsection
-        });
-
-        autoCopySubsection.appendChild(autoCopyTitle);
-        // autoCopyCheckbox is automatically appended via container option
-
         // User interaction subsection
         const interactionSubsection = document.createElement('div');
         interactionSubsection.style.marginBottom = '16px';
@@ -1038,7 +994,6 @@ class AIStudioEnhancer {
 
         section.appendChild(title);
         section.appendChild(cacheSubsection);
-        section.appendChild(autoCopySubsection);
         section.appendChild(interactionSubsection);
 
         container.appendChild(section);
@@ -1458,24 +1413,7 @@ class AIStudioEnhancer {
         }
     }
 
-    /**
-     * Copy responses with intelligent notification handling
-     */
-    async copyAllResponsesWithSmartNotification() {
-        // Always copy to clipboard
-        const success = await this.copyAllResponsesSilent();
-        
-        if (!success) return;
 
-        // Handle notifications smartly
-        if (this.isInitialLoad) {
-            // During initial load, use debounced notification
-            this.debouncedInitialNotification(this.responses.length);
-        } else {
-            // After initial load, show immediate notifications for new responses
-            this.showNotification(`New response copied! Total: ${this.responses.length}`, 'success');
-        }
-    }
 
     /**
      * Copy all responses to clipboard without showing notifications
