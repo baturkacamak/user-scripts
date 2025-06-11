@@ -13,6 +13,9 @@ import { DataCache } from './utils/DataCache.js';
 import UserInteractionDetector from './utils/UserInteractionDetector.js';
 import UrlChangeWatcher from './utils/UrlChangeWatcher/index.js';
 import PollingStrategy from './utils/UrlChangeWatcher/strategies/PollingStrategy.js';
+import AutoRunner from './utils/AutoRunner.js';
+import ContentCollector from './utils/ContentCollector.js';
+import FormStatePersistence from './utils/FormStatePersistence.js';
 import * as GMFunctions from './utils/GMFunctions.js';
 
 // Internationalization
@@ -43,6 +46,9 @@ export {
   UserInteractionDetector,
   UrlChangeWatcher,
   PollingStrategy,
+  AutoRunner,
+  ContentCollector,
+  FormStatePersistence,
   GMFunctions,
 
   // Internationalization
@@ -73,6 +79,9 @@ export default {
   UserInteractionDetector,
   UrlChangeWatcher,
   PollingStrategy,
+  AutoRunner,
+  ContentCollector,
+  FormStatePersistence,
   TranslationManager,
   SectionToggler,
   DOMObserver,
