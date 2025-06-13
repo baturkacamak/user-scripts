@@ -5705,13 +5705,13 @@
             .${Input.BASE_INPUT_CLASS}-field {
                 width: 100%;
                 padding: 8px 12px;
-                border: 1px solid #ddd;
+                border: 1px solid #e0e0e0;
                 border-radius: 4px;
                 font-size: 14px;
                 box-sizing: border-box;
                 transition: all 0.2s ease;
                 background: #fff;
-                color: #333;
+                color: #222;
                 outline: none;
             }
 
@@ -5721,14 +5721,14 @@
             }
 
             .${Input.BASE_INPUT_CLASS}-field:disabled {
-                background: #f5f5f5;
-                color: #999;
+                background: #f0f0f0;
+                color: #888;
                 cursor: not-allowed;
             }
 
             .${Input.BASE_INPUT_CLASS}-field::placeholder {
-                color: #999;
-                opacity: 1;
+                color: #222;
+                opacity: 0.7;
             }
 
             /* Themes */
@@ -6133,13 +6133,13 @@
             .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 width: 100%;
                 padding: 8px 12px;
-                border: 1px solid #ddd;
+                border: 1px solid #e0e0e0;
                 border-radius: 4px;
                 font-size: 14px;
                 box-sizing: border-box;
                 transition: all 0.2s ease;
                 background: #fff;
-                color: #333;
+                color: #222;
                 outline: none;
                 resize: vertical;
                 font-family: inherit;
@@ -6153,15 +6153,15 @@
             }
 
             .${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
-                background: #f5f5f5;
-                color: #999;
+                background: #f0f0f0;
+                color: #888;
                 cursor: not-allowed;
                 resize: none;
             }
 
             .${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
-                color: #999;
-                opacity: 1;
+                color: #222;
+                opacity: 0.7;
             }
 
             /* Themes */
