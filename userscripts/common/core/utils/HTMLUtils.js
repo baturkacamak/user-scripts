@@ -114,4 +114,49 @@ class HTMLUtils {
     }
 }
 
+/**
+ * MouseEventUtils - Utility for creating mouse events with fallbacks
+ * Usage:
+ *   const evt = MouseEventUtils.createClickEvent({bubbles: true, cancelable: true, programmatic: true});
+ *   element.dispatchEvent(evt);
+ */
+export class MouseEventUtils {
+    /**
+     * Create a click MouseEvent with fallbacks for older browsers
+     * @param {Object} options - MouseEventInit options + {programmatic: boolean}
+     * @returns {MouseEvent}
+     */
+    static createClickEvent(options = {}) {
+        const { programmatic, ...eventOptions } = options;
+        let event;
+        try {
+            event = new MouseEvent('click', eventOptions);
+        } catch (e) {
+            // Fallback for older browsers
+            event = document.createEvent('MouseEvents');
+            event.initMouseEvent(
+                'click',
+                eventOptions.bubbles || false,
+                eventOptions.cancelable || false,
+                window,
+                eventOptions.detail || 1,
+                eventOptions.screenX || 0,
+                eventOptions.screenY || 0,
+                eventOptions.clientX || 0,
+                eventOptions.clientY || 0,
+                eventOptions.ctrlKey || false,
+                eventOptions.altKey || false,
+                eventOptions.shiftKey || false,
+                eventOptions.metaKey || false,
+                eventOptions.button || 0,
+                eventOptions.relatedTarget || null
+            );
+        }
+        if (programmatic) {
+            event._programmatic = true;
+        }
+        return event;
+    }
+}
+
 export default HTMLUtils;
