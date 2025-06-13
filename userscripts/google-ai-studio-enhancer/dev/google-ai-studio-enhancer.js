@@ -20,6 +20,7 @@ import {
     UserInteractionDetector
 } from "../../common/core";
 import { getValue, setValue, GM_setClipboard } from "../../common/core/utils/GMFunctions";
+import { MouseEventUtils } from '../../common/core/utils/HTMLUtils.js';
 
 // Configure logger
 Logger.setPrefix("Google AI Studio Enhancer");
@@ -1210,8 +1211,6 @@ class AIStudioEnhancer {
         this.previousChatId = this.currentChatId;
     }
 
-
-
     /**
      * Setup user interaction tracking for run buttons
      */
@@ -1339,8 +1338,6 @@ class AIStudioEnhancer {
         }
     }
 
-
-
     /**
      * Clean response text by removing UI elements and metadata
      */
@@ -1435,8 +1432,6 @@ class AIStudioEnhancer {
         const fullText = element.innerText?.trim();
         return this.cleanResponseText(fullText);
     }
-
-
 
     /**
      * Copy all responses to clipboard without showing notifications
@@ -1671,14 +1666,11 @@ class AIStudioEnhancer {
         }
 
         // Click the run button programmatically during auto-run
-        const clickEvent = new MouseEvent('click', {
+        const clickEvent = MouseEventUtils.createClickEvent({
             bubbles: true,
-            cancelable: true
+            cancelable: true,
+            programmatic: true
         });
-        
-        // Mark this as a programmatic click for our own tracking
-        clickEvent._aiStudioEnhancerProgrammatic = true;
-        
         runButton.dispatchEvent(clickEvent);
         Logger.debug('Run button clicked programmatically during auto-run iteration');
 
@@ -1692,8 +1684,6 @@ class AIStudioEnhancer {
             success: true
         };
     }
-
-
 
     /**
      * Find the prompt input field on the page
