@@ -18,10 +18,10 @@ class DOMObserver {
 
       function checkElements() {
         for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector);
+        const elements = document.querySelectorAll(selector);
           if (elements.length > 0) {
-            resolve(elements);
-            return;
+          resolve(elements);
+          return;
           }
         }
 
