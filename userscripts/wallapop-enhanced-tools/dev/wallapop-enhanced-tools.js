@@ -16,10 +16,6 @@ import {
 import {translations} from "./src/i18n/translations.js";
 import {addStyles} from "./src/ui/styles.js";
 
-// GMFunctions are now available as a namespace from the core import.
-// The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
-// const GM = GMFunctions.initialize();
-
 const SELECTORS = {
     ITEM_CARDS: [
         'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',

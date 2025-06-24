@@ -6,6 +6,7 @@ import StyleManager from '../utils/StyleManager.js';
 import {getValue, setValue} from '../utils/GMFunctions.js';
 import PubSub from '../utils/PubSub.js';
 import Logger from '../utils/Logger.js';
+import HTMLUtils from '../utils/HTMLUtils.js';
 
 /**
  * A reusable component that creates a toggle button and sidebar panel
@@ -447,7 +448,7 @@ class SidebarPanel {
         this.button = document.createElement('button');
         this.button.type = 'button';
         this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
-        this.button.textContent = this.options.buttonIcon;
+        HTMLUtils.setHTMLSafely(this.button, this.options.buttonIcon);
         this.button.setAttribute('aria-label', `Open ${this.options.title}`);
 
         // Add to document
