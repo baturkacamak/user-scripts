@@ -6,24 +6,27 @@ import UrlChangeWatcher from '../utils/UrlChangeWatcher';
  */
 class DOMObserver {
   /**
-     * Wait for elements matching a selector
-     * @param {string} selector - CSS selector to wait for
+     * Wait for elements matching a selector or any of multiple selectors
+     * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
      * @param {number} timeout - Timeout in milliseconds
      * @return {Promise<NodeList>} - Promise resolving to found elements
      */
-  static waitForElements(selector, timeout = 10000) {
+  static waitForElements(selectorOrSelectors, timeout = 10000) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
+      const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
 
       function checkElements() {
-        const elements = document.querySelectorAll(selector);
-        if (0 < elements.length) {
-          resolve(elements);
-          return;
+        for (const selector of selectors) {
+          const elements = document.querySelectorAll(selector);
+          if (elements.length > 0) {
+            resolve(elements);
+            return;
+          }
         }
 
         if (Date.now() - startTime > timeout) {
-          reject(new Error(`Timeout waiting for elements: ${selector}`));
+          reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
           return;
         }
 

@@ -12,6 +12,7 @@ import {
     Checkbox,
     SectionToggler,
     SidebarPanel,
+    DOMObserver,
 } from "../../common/core";
 import {translations} from "./src/i18n/translations.js";
 import {addStyles} from "./src/ui/styles.js";
@@ -19,6 +20,7 @@ import {addStyles} from "./src/ui/styles.js";
 const SELECTORS = {
     ITEM_CARDS: [
         'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
+        'a[class*="item-card_ItemCard--vertical"]',
         '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]',
         '[tslitemroute]',
         '[class^="feed_Feed__item__"] a[href^="/item/"]',
@@ -464,57 +466,7 @@ class ListingManager {
     }
 }
 
-class DOMObserver {
-    constructor() {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-    }
 
-    observe() {
-        this.observer.observe(document.body, {childList: true, subtree: true});
-        window.addEventListener('popstate', this.handleUrlChange.bind(this));
-        Logger.debug("MutationObserver and popstate listener set up");
-    }
-
-    handleMutations(mutations) {
-        for (let mutation of mutations) {
-            if (mutation.type === 'childList') {
-                const addedNodes = Array.from(mutation.addedNodes);
-                const hasNewItemCards = addedNodes.some(node =>
-                    node.nodeType === Node.ELEMENT_NODE &&
-                    SELECTORS.ITEM_CARDS.some(selector =>
-                        node.matches(selector) || node.querySelector(selector)
-                    )
-                );
-                if (hasNewItemCards) {
-                    Logger.debug("New ItemCards detected, adding expand buttons");
-                    ListingManager.addExpandButtonsToListings();
-
-                    // Apply all filters to new listings
-                    ControlPanel.applyFilters();
-                }
-            }
-        }
-        this.checkUrlChange();
-    }
-
-    handleUrlChange() {
-        Logger.debug("Handling URL change");
-        setTimeout(() => {
-            ListingManager.addExpandButtonsToListings();
-            // Apply all filters after URL change, including reserved filter
-            ControlPanel.applyFilters();
-        }, 1000); // Delay to allow for dynamic content to load
-    }
-
-    checkUrlChange() {
-        if (this.lastUrl !== location.href) {
-            Logger.debug("URL changed:", location.href);
-            this.lastUrl = location.href;
-            this.handleUrlChange();
-        }
-    }
-}
 
 /**
  * FormatOption - A reusable component for format selection with conditional options
@@ -705,40 +657,33 @@ class WallapopExpandDescription {
         // Create unified control panel
         ControlPanel.createControlPanel();
 
-        await this.waitForElements(SELECTORS.ITEM_CARDS);
+        await DOMObserver.waitForElements(SELECTORS.ITEM_CARDS);
         ListingManager.addExpandButtonsToListings();
 
         // Apply filters to initial listings
         ControlPanel.applyFilters();
 
-        new DOMObserver().observe();
-    }
+        const domObserver = new DOMObserver((mutations) => {
+            for (let mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    const addedNodes = Array.from(mutation.addedNodes);
+                    const hasNewItemCards = addedNodes.some(node =>
+                        node.nodeType === Node.ELEMENT_NODE &&
+                        SELECTORS.ITEM_CARDS.some(selector =>
+                            node.matches(selector) || node.querySelector(selector)
+                        )
+                    );
+                    if (hasNewItemCards) {
+                        Logger.debug("New ItemCards detected, adding expand buttons");
+                        ListingManager.addExpandButtonsToListings();
 
-    static waitForElements(selectors, timeout = 10000) {
-        Logger.debug("Waiting for elements:", selectors);
-        return new Promise((resolve, reject) => {
-            const startTime = Date.now();
-
-            function checkElements() {
-                for (const selector of selectors) {
-                    const elements = document.querySelectorAll(selector);
-                    if (elements.length > 0) {
-                        Logger.debug("Elements found:", selector, elements.length);
-                        resolve(elements);
-                        return;
+                        // Apply all filters to new listings
+                        ControlPanel.applyFilters();
                     }
                 }
-
-                if (Date.now() - startTime > timeout) {
-                    Logger.debug("Timeout waiting for elements");
-                    reject(new Error(`Timeout waiting for elements`));
-                } else {
-                    requestAnimationFrame(checkElements);
-                }
             }
-
-            checkElements();
         });
+        domObserver.observe();
     }
 }
 
