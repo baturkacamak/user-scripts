@@ -228,6 +228,165 @@
     }
 
     /**
+     * HTMLUtils - Utilities for HTML manipulation
+     * Provides functions for escaping HTML, encoding/decoding entities, etc.
+     */
+    class HTMLUtils {
+        /**
+         * Escape special HTML characters to prevent XSS
+         * @param {string} str - The string to escape
+         * @return {string} - The escaped string
+         */
+        static escapeHTML(str) {
+            const escapeMap = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '\'': '&#39;',
+                '"': '&quot;',
+            };
+            return str.replace(/[&<>'"]/g, (tag) => escapeMap[tag] || tag);
+        }
+
+        /**
+         * Escape XML special characters
+         * @param {string} str - The string to escape
+         * @return {string} - The escaped string
+         */
+        static escapeXML(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        /**
+         * Convert a plain text string to sanitized HTML
+         * @param {string} text - The text to convert
+         * @return {string} - HTML with line breaks and links
+         */
+        static textToHtml(text) {
+            if (!text) return '';
+
+            // First escape HTML
+            let html = this.escapeHTML(text);
+
+            // Convert line breaks to <br>
+            html = html.replace(/\n/g, '<br>');
+
+            // Convert URLs to links
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            html = html.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+
+            return html;
+        }
+
+        /**
+         * * Wait for a specific element to appear in the DOM.
+         *  * Continues checking using requestAnimationFrame until it appears,
+         *  * a timeout is reached, or the maximum number of attempts is exceeded.
+         *  *
+         *  * @param {string} selector - CSS selector of the target element.
+         *  * @param {number} [timeout=10000] - Maximum time in milliseconds to wait.
+         *  * @param {Document|Element} [root=document] - DOM root to query from.
+         *  * @param {number} [maxRetries=60] - Maximum number of requestAnimationFrame attempts.
+         *  * @returns {Promise<Element>} Resolves with the found element or rejects on timeout.
+         */
+        static waitForElement(selector, timeout = 10000, root = document, maxRetries = 60) {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+                let attempts = 0;
+
+                function checkElement() {
+                    const element = root.querySelector(selector);
+                    if (element) {
+                        resolve(element);
+                        return;
+                    }
+
+                    if ((Date.now() - startTime > timeout) || (attempts >= maxRetries)) {
+                        reject(new Error(`Timeout waiting for element: ${selector}`));
+                        return;
+                    }
+
+                    attempts++;
+                    requestAnimationFrame(checkElement);
+                }
+
+                checkElement();
+            });
+        }
+
+        static decodeHtmlEntities(encodedString) {
+            if (!encodedString || typeof encodedString !== 'string') return encodedString;
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = encodedString;
+            return textarea.value;
+        }
+
+        static extractMetaTags(html) {
+            if (!html) return {};
+
+            const metaTags = {};
+            const regex = /<meta\s+(?:property|name)=["']([^"']+)["']\s+content=["']([^"']+)["']/gi;
+
+            let match;
+            while (match = regex.exec(html)) {
+                if (match[1] && match[2]) {
+                    metaTags[match[1]] = this.decodeHtmlEntities(match[2]);
+                }
+            }
+
+            return metaTags;
+        }
+
+        /**
+         * Safely set HTML content with CSP fallback
+         * @param {HTMLElement} element - The element to set content on
+         * @param {String} html - HTML content to set
+         * @param {String} fallbackText - Text to use if HTML fails (optional)
+         * @return {boolean} True if HTML was set successfully, false if fallback was used
+         */
+        static setHTMLSafely(element, html, fallbackText = null) {
+            if (!element) return false;
+            
+            try {
+                // Try to use innerHTML first
+                element.innerHTML = html;
+                return true;
+            } catch (error) {
+                // Fallback to textContent if innerHTML fails due to CSP
+                const fallback = fallbackText || html;
+                element.textContent = fallback;
+                return false;
+            }
+        }
+
+        /**
+         * Create an element with HTML content safely
+         * @param {String} tagName - HTML tag name
+         * @param {String} html - HTML content
+         * @param {Object} attributes - Element attributes
+         * @return {HTMLElement} The created element
+         */
+        static createElementWithHTML(tagName, html, attributes = {}) {
+            const element = document.createElement(tagName);
+            
+            // Set attributes
+            Object.keys(attributes).forEach(key => {
+                element.setAttribute(key, attributes[key]);
+            });
+            
+            // Set content safely
+            this.setHTMLSafely(element, html);
+            
+            return element;
+        }
+    }
+
+    /**
      * StyleManager - Utility for CSS style management
      * Handles adding and removing styles, theme variables, etc.
      */
@@ -430,24 +589,27 @@
      */
     class DOMObserver {
       /**
-         * Wait for elements matching a selector
-         * @param {string} selector - CSS selector to wait for
+         * Wait for elements matching a selector or any of multiple selectors
+         * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
          * @param {number} timeout - Timeout in milliseconds
          * @return {Promise<NodeList>} - Promise resolving to found elements
          */
-      static waitForElements(selector, timeout = 10000) {
+      static waitForElements(selectorOrSelectors, timeout = 10000) {
         return new Promise((resolve, reject) => {
           const startTime = Date.now();
+          const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
 
           function checkElements() {
+            for (const selector of selectors) {
             const elements = document.querySelectorAll(selector);
-            if (0 < elements.length) {
+              if (elements.length > 0) {
               resolve(elements);
               return;
+              }
             }
 
             if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selector}`));
+              reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
               return;
             }
 
@@ -926,8 +1088,7 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          // Use textContent instead of innerHTML for CSP compliance
-          style.textContent = `
+          HTMLUtils.setHTMLSafely(style, `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -963,7 +1124,7 @@
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
-      `;
+      `);
           document.head.appendChild(style);
         }
       }
@@ -1052,8 +1213,7 @@
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
-          iconSpan.textContent = this.icon;
+          HTMLUtils.setHTMLSafely(iconSpan, this.icon);
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');
