@@ -748,6 +748,7 @@ class ControlPanel {
     static filterInputElement = null;
     static blockedTermsListElement = null;
     static sidebarPanel = null;
+    static panelStateCache = {}; // Add cache for panel state
     static exportFormats = {
         // Text-based formats
         text: {
@@ -2809,6 +2810,7 @@ class ControlPanel {
     static async savePanelState(key, value) { // Made async
         try {
             await GMFunctions.setValue(key, value); // Use await and GMFunctions.setValue
+            this.panelStateCache[key] = value; // Update cache
             Logger.debug('Panel state saved', {key, value});
         } catch (error) {
             Logger.error('Error saving panel state:', error, {key});
@@ -2819,9 +2821,14 @@ class ControlPanel {
      * Load a specific panel state from localStorage
      */
     static async loadPanelState(key, defaultValue) { // Made async
+        if (this.panelStateCache.hasOwnProperty(key)) {
+            Logger.debug('Panel state loaded (from cache)', {key, value: this.panelStateCache[key]});
+            return this.panelStateCache[key];
+        }
         try {
             const value = await GMFunctions.getValue(key, defaultValue); // Use await and GMFunctions.getValue
             Logger.debug('Panel state loaded', {key, value});
+            this.panelStateCache[key] = value; // Cache it
             return value;
         } catch (error) {
             Logger.error('Error loading panel state:', error, {key});
