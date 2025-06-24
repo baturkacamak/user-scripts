@@ -3,6 +3,7 @@
  * Creates customizable, accessible buttons with various states and callbacks.
  */
 import StyleManager from '../utils/StyleManager.js';
+import HTMLUtils from '../utils/HTMLUtils.js';
 
 /**
  * A reusable UI component for creating accessible, customizable buttons.
@@ -157,8 +158,7 @@ class Button {
     if (!document.getElementById(styleId)) {
       const style = document.createElement('style');
       style.id = styleId;
-      // Use textContent instead of innerHTML for CSP compliance
-      style.textContent = `
+      HTMLUtils.setHTMLSafely(style, `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -194,7 +194,7 @@ class Button {
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
-      `;
+      `);
       document.head.appendChild(style);
     }
   }
@@ -283,8 +283,7 @@ class Button {
     if (this.icon) {
       const iconSpan = document.createElement('span');
       iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-      // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
-      iconSpan.textContent = this.icon;
+      HTMLUtils.setHTMLSafely(iconSpan, this.icon);
       this.button.appendChild(iconSpan);
     }
     this.textElement = document.createElement('span');
