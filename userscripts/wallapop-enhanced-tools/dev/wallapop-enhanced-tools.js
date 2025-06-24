@@ -20,6 +20,7 @@ const SELECTORS = {
     ITEM_CARDS: [
         'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
         '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]',
+        '[tslitemroute]',
         '[class^="feed_Feed__item__"] a[href^="/item/"]',
     ],
     ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description__"]',
@@ -28,7 +29,37 @@ const SELECTORS = {
     CONTROL_PANEL: '.control-panel',
     FILTER_INPUT: '.filter-input',
     FILTER_APPLY: '.filter-apply',
-    BLOCKED_TERMS_LIST: '.blocked-terms-list'
+    BLOCKED_TERMS_LIST: '.blocked-terms-list',
+    // Delivery method selectors and indicators
+    DELIVERY_METHOD: {
+        BADGES: {
+            SHIPPING: [
+                '.wallapop-badge--shippingAvailable',
+                '[class*="wallapop-badge"][class*="shippingAvailable"]'
+            ],
+            INPERSON: [
+                '.wallapop-badge--faceToFace',
+                '[class*="wallapop-badge"][class*="faceToFace"]'
+            ]
+        },
+        ICONS: {
+            SHIPPING: [
+                'walla-icon[class*="shipping"]'
+            ],
+            INPERSON: [
+                'walla-icon[class*="faceToFace"]'
+            ]
+        },
+        TEXT: {
+            SHIPPING: [
+                'Envío disponible'
+            ],
+            INPERSON: [
+                'Sólo venta en persona',
+                'Solo venta en persona'
+            ]
+        }
+    }
 };
 
 // Find the CSS styles section in the script
@@ -1808,31 +1839,22 @@ class ControlPanel {
     static getDeliveryMethod(listing) {
         // Function to search within shadow DOM
         const queryShadowDOM = (element, selector) => {
-            // Check if the element itself matches
             if (element.matches && element.matches(selector)) {
                 return element;
             }
-
-            // Check normal children first
             const found = element.querySelector(selector);
             if (found) return found;
-
-            // Then check shadow roots
             const shadowRoot = element.shadowRoot;
             if (shadowRoot) {
                 const foundInShadow = shadowRoot.querySelector(selector);
                 if (foundInShadow) return foundInShadow;
             }
-
-            // Finally check all child elements recursively for shadow roots
             for (const child of element.children) {
                 const foundInChild = queryShadowDOM(child, selector);
                 if (foundInChild) return foundInChild;
             }
-
             return null;
         };
-
         // Look for shadow roots and badge elements within them
         const shadowRoots = [];
         const findShadowRoots = (element) => {
@@ -1842,24 +1864,17 @@ class ControlPanel {
             Array.from(element.children).forEach(findShadowRoots);
         };
         findShadowRoots(listing);
-
         // Check for shipping badge in shadow DOM
-        const hasShippingBadge = shadowRoots.some(root =>
-            root.querySelector('.wallapop-badge--shippingAvailable') !== null ||
-            root.querySelector('[class*="wallapop-badge"][class*="shippingAvailable"]') !== null
+        const hasShippingBadge = SELECTORS.DELIVERY_METHOD.BADGES.SHIPPING.some(sel =>
+            shadowRoots.some(root => root.querySelector(sel) !== null)
         );
-
         // Check for in-person badge in shadow DOM
-        const hasInPersonBadge = shadowRoots.some(root =>
-            root.querySelector('.wallapop-badge--faceToFace') !== null ||
-            root.querySelector('[class*="wallapop-badge"][class*="faceToFace"]') !== null
+        const hasInPersonBadge = SELECTORS.DELIVERY_METHOD.BADGES.INPERSON.some(sel =>
+            shadowRoots.some(root => root.querySelector(sel) !== null)
         );
-
         // Text fallback as a last resort
-        const shippingText = listing.textContent.includes('Envío disponible');
-        const inPersonText = listing.textContent.includes('Sólo venta en persona') ||
-            listing.textContent.includes('Solo venta en persona');
-
+        const shippingText = SELECTORS.DELIVERY_METHOD.TEXT.SHIPPING.some(txt => listing.textContent.includes(txt));
+        const inPersonText = SELECTORS.DELIVERY_METHOD.TEXT.INPERSON.some(txt => listing.textContent.includes(txt));
         // Determine delivery method
         if (hasShippingBadge || (!hasInPersonBadge && shippingText)) {
             return 'shipping';
@@ -1868,19 +1883,17 @@ class ControlPanel {
         } else {
             // Add additional fallback based on HTML structure
             // Check if there's an icon that might indicate shipping or in-person
-            const hasShippingIcon = shadowRoots.some(root =>
-                root.querySelector('walla-icon[class*="shipping"]') !== null
+            const hasShippingIcon = SELECTORS.DELIVERY_METHOD.ICONS.SHIPPING.some(sel =>
+                shadowRoots.some(root => root.querySelector(sel) !== null)
             );
-            const hasInPersonIcon = shadowRoots.some(root =>
-                root.querySelector('walla-icon[class*="faceToFace"]') !== null
+            const hasInPersonIcon = SELECTORS.DELIVERY_METHOD.ICONS.INPERSON.some(sel =>
+                shadowRoots.some(root => root.querySelector(sel) !== null)
             );
-
             if (hasShippingIcon) {
                 return 'shipping';
             } else if (hasInPersonIcon) {
                 return 'inperson';
             }
-
             Logger.debug("Unknown delivery method for listing:", listing);
             return 'unknown';
         }
