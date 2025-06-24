@@ -952,9 +952,9 @@ class ControlPanel {
     /**
      * Create a new "Expand All" section in the control panel
      */
-    static createExpandAllSection(container) {
+    static async createExpandAllSection(container) {
         // Load saved state
-        const isExpanded = this.loadPanelState('isExpandAllSectionExpanded', true);
+        const isExpanded = await this.loadPanelState('isExpandAllSectionExpanded', true);
 
         this.togglers.expandAll = new SectionToggler({
             container,
@@ -964,7 +964,7 @@ class ControlPanel {
             onToggle: (state) => {
                 this.savePanelState('isExpandAllSectionExpanded', state);
             },
-            contentCreator: (content) => {
+            contentCreator: async (content) => {
                 // Create the expand all button
                 const expandAllButton = this.createButton(
                     TranslationManager.getText('expandAllVisible'),
@@ -988,7 +988,7 @@ class ControlPanel {
                 delayContainer.style.marginTop = '10px';
 
                 // Get saved delay value
-                const savedDelay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
+                const savedDelay = parseInt(await this.loadPanelState('expandAllDelay', '1000'));
 
                 // Create the slider with the Slider component
                 this.delaySlider = new Slider({
@@ -1000,7 +1000,7 @@ class ControlPanel {
                     label: TranslationManager.getText('delayBetweenRequests'),
                     theme: 'primary',
                     valueSuffix: 'ms',
-                    onChange: (value) => {
+                    onChange: async (value) => {
                         this.savePanelState('expandAllDelay', value.toString());
                     }
                 });
@@ -1036,7 +1036,7 @@ class ControlPanel {
         }
 
         // Get the delay setting from the slider
-        const delay = this.delaySlider ? this.delaySlider.getValue() : parseInt(this.loadPanelState('expandAllDelay', '1000'));
+        const delay = this.delaySlider ? this.delaySlider.getValue() : parseInt(await this.loadPanelState('expandAllDelay', '1000'));
 
         // Get expand button and disable it
         const expandAllButton = document.querySelector('.expand-all-button');
@@ -1702,7 +1702,7 @@ class ControlPanel {
     /**
      * JavaScript implementation for select box delivery method filter
      */
-    static createDeliveryMethodSection(container) {
+    static async createDeliveryMethodSection(container) {
         // Load saved state
         const isExpanded = this.loadPanelState('isDeliveryMethodSectionExpanded', true);
 
@@ -1714,24 +1714,24 @@ class ControlPanel {
             onToggle: (state) => {
                 this.savePanelState('isDeliveryMethodSectionExpanded', state);
             },
-            contentCreator: (content) => {
+            contentCreator: async (content) => {
                 // Create select element
                 new SelectBox({
                     items: [
                         {
                             value: 'all',
                             label: TranslationManager.getText('showAll'),
-                            selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'all'
+                            selected: await this.loadPanelState('deliveryMethodFilter', 'shipping') === 'all'
                         },
                         {
                             value: 'shipping',
                             label: TranslationManager.getText('showOnlyShipping'),
-                            selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'shipping'
+                            selected: await this.loadPanelState('deliveryMethodFilter', 'shipping') === 'shipping'
                         },
                         {
                             value: 'inperson',
                             label: TranslationManager.getText('showOnlyInPerson'),
-                            selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'inperson'
+                            selected: await this.loadPanelState('deliveryMethodFilter', 'shipping') === 'inperson'
                         }
                     ],
                     name: 'delivery-method',
@@ -1754,14 +1754,14 @@ class ControlPanel {
     /**
      * Apply delivery method filter
      */
-    static applyDeliveryMethodFilter() {
+    static async applyDeliveryMethodFilter() {
         Logger.debug("Applying delivery method filter");
 
         const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
         const allListings = document.querySelectorAll(allSelectors);
 
         // Get current filter value
-        const filterValue = this.loadPanelState('deliveryMethodFilter', 'shipping');
+        const filterValue = await this.loadPanelState('deliveryMethodFilter', 'shipping');
 
         if (filterValue === 'all') {
             // Show all listings (that aren't hidden by other filters)
@@ -2383,9 +2383,9 @@ class ControlPanel {
     /**
      * Create the language section using Button component with CSS styling
      */
-    static createLanguageSection(container) {
+    static async createLanguageSection(container) {
         // Load saved state
-        const isExpanded = this.loadPanelState('isLanguageSectionExpanded', true);
+        const isExpanded = await this.loadPanelState('isLanguageSectionExpanded', true);
 
         this.togglers.language = new SectionToggler({
             container,
@@ -2634,10 +2634,10 @@ class ControlPanel {
 
         let hiddenCount = 0;
 
-        allListings.forEach(listing => {
+        allListings.forEach(async listing => {
             const hideByKeyword = this.shouldHideListing(listing);
             const hideByDelivery = this.shouldHideByDeliveryMethod(listing);
-            const hideByReserved = this.loadPanelState('hideReservedListings', true) &&
+            const hideByReserved = await this.loadPanelState('hideReservedListings', true) &&
                 this.isReservedListing(listing);
 
             if (hideByKeyword || hideByDelivery || hideByReserved) {
@@ -2662,11 +2662,11 @@ class ControlPanel {
     /**
      * Update the count of hidden reserved listings
      */
-    static updateReservedStatusCount() {
+    static async updateReservedStatusCount() {
         if (!this.reservedStatusElement) return;
 
         // Only count if the filter is active
-        if (!this.loadPanelState('hideReservedListings', true)) {
+        if (!(await this.loadPanelState('hideReservedListings', true))) {
             this.reservedStatusElement.textContent = '';
             return;
         }
