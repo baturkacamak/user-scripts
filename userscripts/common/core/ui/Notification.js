@@ -4,6 +4,7 @@
  */
 import StyleManager from '../utils/StyleManager.js';
 import Logger from '../utils/Logger.js';
+import HTMLUtils from '../utils/HTMLUtils.js';
 
 /**
  * A reusable UI component for creating toast notifications that provide non-intrusive
@@ -277,8 +278,7 @@ class Notification {
         if (!document.getElementById(styleId)) {
             const style = document.createElement('style');
             style.id = styleId;
-            // Use textContent instead of innerHTML for CSP compliance
-            style.textContent = `
+            HTMLUtils.setHTMLSafely(style, `
         :root {
           /* Container styling */
           ${Notification.CSS_VAR_PREFIX}container-width: auto;
@@ -308,7 +308,7 @@ class Notification {
           ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
           ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
         }
-      `;
+      `);
             document.head.appendChild(style);
         }
     }
@@ -574,20 +574,14 @@ class Notification {
         if (config.icon) {
             const iconDiv = document.createElement('div');
             iconDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-icon`;
-            iconDiv.textContent = config.icon; // Use textContent for icons (should be emoji/text)
+            HTMLUtils.setHTMLSafely(iconDiv, config.icon);
             element.appendChild(iconDiv);
         }
 
         // Add message content
         const contentDiv = document.createElement('div');
         contentDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-content`;
-        if (config.html) {
-            // For HTML content, we'll just use text content for CSP compliance
-            // This is a security decision - no HTML allowed in notifications
-            contentDiv.textContent = config.message;
-        } else {
-            contentDiv.textContent = config.message;
-        }
+        HTMLUtils.setHTMLSafely(contentDiv, config.message);
         element.appendChild(contentDiv);
 
         // Add close button if needed
@@ -595,7 +589,7 @@ class Notification {
             const closeButton = document.createElement('button');
             closeButton.className = `${Notification.BASE_NOTIFICATION_CLASS}-close`;
             closeButton.setAttribute('aria-label', 'Close notification');
-            closeButton.textContent = '×';
+            HTMLUtils.setHTMLSafely(closeButton, '×');
             element.appendChild(closeButton);
         }
 

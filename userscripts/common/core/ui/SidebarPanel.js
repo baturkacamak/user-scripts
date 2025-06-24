@@ -390,7 +390,7 @@ class SidebarPanel {
         this.closeButton = document.createElement('button');
         this.closeButton.type = 'button';
         this.closeButton.className = `${this.baseClass}-close`;
-        this.closeButton.textContent = '×';
+        HTMLUtils.setHTMLSafely(this.closeButton, '×');
         this.closeButton.setAttribute('aria-label', 'Close');
         this.header.appendChild(this.closeButton);
 
@@ -401,16 +401,14 @@ class SidebarPanel {
         // Add initial content if provided
         if (this.options.content.html) {
             if (typeof this.options.content.html === 'string') {
-                // For string content, create a text node instead of using innerHTML
-                this.content.textContent = this.options.content.html;
+                HTMLUtils.setHTMLSafely(this.content, this.options.content.html);
             } else if (this.options.content.html instanceof HTMLElement) {
                 this.content.appendChild(this.options.content.html);
             }
         } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
             const generatedContent = this.options.content.generator();
             if (typeof generatedContent === 'string') {
-                // For string content, create a text node instead of using innerHTML
-                this.content.textContent = generatedContent;
+                HTMLUtils.setHTMLSafely(this.content, generatedContent);
             } else if (generatedContent instanceof HTMLElement) {
                 this.content.appendChild(generatedContent);
             }
@@ -420,10 +418,8 @@ class SidebarPanel {
         if (this.options.footer) {
             this.footer = document.createElement('div');
             this.footer.className = `${this.baseClass}-footer`;
-
             if (typeof this.options.footer === 'string') {
-                // For string content, create a text node instead of using innerHTML
-                this.footer.textContent = this.options.footer;
+                HTMLUtils.setHTMLSafely(this.footer, this.options.footer);
             } else if (this.options.footer instanceof HTMLElement) {
                 this.footer.appendChild(this.options.footer);
             }
@@ -655,8 +651,7 @@ class SidebarPanel {
 
         // Add new content
         if (typeof content === 'string') {
-            // For string content, create a text node instead of using innerHTML
-            this.content.textContent = content;
+            HTMLUtils.setHTMLSafely(this.content, content);
         } else if (content instanceof HTMLElement) {
             this.content.appendChild(content);
         }
@@ -680,7 +675,7 @@ class SidebarPanel {
      */
     setButtonIcon(iconHtml) {
         if (this.button) {
-            this.button.textContent = iconHtml;
+            HTMLUtils.setHTMLSafely(this.button, iconHtml);
             this.options.buttonIcon = iconHtml;
         }
     }
