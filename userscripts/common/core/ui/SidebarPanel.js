@@ -251,25 +251,23 @@ class SidebarPanel {
                 margin-right: calc(-1 * var(${cssVarPrefix}width, 320px));
             }
             
-            /* Overlay for mobile views */
+            /* Overlay for slide transition */
             .${baseClass}-overlay {
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background-color: rgba(0, 0, 0, 0.5);
+                background: rgba(0, 0, 0, 0.5);
                 z-index: 9997;
                 opacity: 0;
                 visibility: hidden;
-                transition: opacity 0.3s ease;
-                pointer-events: none;
+                transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
             }
             
             .${baseClass}-overlay--visible {
                 opacity: 1;
                 visibility: visible;
-                pointer-events: auto;
             }
             
             /* Responsive styles */
@@ -282,44 +280,37 @@ class SidebarPanel {
     }
 
     /**
-     * Initialize the panel and button
+     * Initialize the panel
      */
-    init() {
-        // Initialize styles if not already done
-        SidebarPanel.initStyles(this.options.namespace);
+    async init() {
+        // Ensure styles are initialized only once
+        if (!document.head.dataset.sidebarPanelStylesInitialized) {
+            SidebarPanel.initStyles(this.options.namespace);
+            document.head.dataset.sidebarPanelStylesInitialized = 'true';
+        }
 
-        // Create custom CSS variables for this instance
+        // Apply any custom styles from options
         this.applyCustomStyles();
 
-        // Create the panel elements
-        this.createPanel();
-
-        // Create toggle button if needed
+        // Create UI elements
+        await this.createPanel();
         if (this.options.showButton) {
             this.createToggleButton();
         }
-
-        // Create overlay if needed
-        if (this.options.overlay) {
+        if (this.options.overlay && this.options.transition === 'slide') {
             this.createOverlay();
         }
 
-        // Set up events
+        // Setup event listeners
         this.setupEvents();
 
-        // Apply saved state if we're remembering state
-        if (this.options.rememberState) {
-            if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
-                this.open(false); // Open without animation for initial state
-            }
+        // Set initial state without animation
+        if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
+            this.open(false);
         }
 
-        // Publish initialization event
-        PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, {
-            id: this.options.id,
-            panel: this
-        });
-
+        // Publish initialized event
+        PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, this);
         Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
     }
 
@@ -364,77 +355,58 @@ class SidebarPanel {
     }
 
     /**
-     * Create the panel element
+     * Creates and configures the main panel element
      */
-    createPanel() {
-        // Create panel container
+    async createPanel() {
         this.container = document.createElement('div');
-        this.container.id = `${this.baseClass}-${this.options.id}`;
+        this.container.id = this.options.id;
         this.container.className = `${this.baseClass}-container ${this.baseClass}-container--${this.options.position}`;
 
-        // Create panel
         this.panel = document.createElement('div');
         this.panel.className = this.baseClass;
 
-        // Create panel header
+        // Create header with title and close button
         this.header = document.createElement('div');
         this.header.className = `${this.baseClass}-header`;
 
-        // Create title
-        const title = document.createElement('h2');
-        title.className = `${this.baseClass}-title`;
-        title.textContent = this.options.title;
-        this.header.appendChild(title);
+        const titleElement = document.createElement('h2');
+        titleElement.className = `${this.baseClass}-title`;
+        titleElement.textContent = this.options.title;
 
-        // Create close button
         this.closeButton = document.createElement('button');
-        this.closeButton.type = 'button';
         this.closeButton.className = `${this.baseClass}-close`;
-        HTMLUtils.setHTMLSafely(this.closeButton, '×');
-        this.closeButton.setAttribute('aria-label', 'Close');
+        this.closeButton.innerHTML = '×';
+        this.closeButton.setAttribute('aria-label', 'Close panel');
+
+        this.header.appendChild(titleElement);
         this.header.appendChild(this.closeButton);
 
-        // Create content container
+        // Create content area
         this.content = document.createElement('div');
         this.content.className = `${this.baseClass}-content`;
 
-        // Add initial content if provided
-        if (this.options.content.html) {
-            if (typeof this.options.content.html === 'string') {
-                HTMLUtils.setHTMLSafely(this.content, this.options.content.html);
-            } else if (this.options.content.html instanceof HTMLElement) {
-                this.content.appendChild(this.options.content.html);
-            }
-        } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
-            const generatedContent = this.options.content.generator();
-            if (typeof generatedContent === 'string') {
-                HTMLUtils.setHTMLSafely(this.content, generatedContent);
-            } else if (generatedContent instanceof HTMLElement) {
-                this.content.appendChild(generatedContent);
-            }
-        }
+        // Populate content
+        await this.setContent(this.options.content);
 
-        // Create footer (optional)
-        if (this.options.footer) {
+        // Create footer if provided
+        if (this.options.content.footer) {
             this.footer = document.createElement('div');
             this.footer.className = `${this.baseClass}-footer`;
-            if (typeof this.options.footer === 'string') {
-                HTMLUtils.setHTMLSafely(this.footer, this.options.footer);
-            } else if (this.options.footer instanceof HTMLElement) {
-                this.footer.appendChild(this.options.footer);
-            }
+            this.footer.innerHTML = this.options.content.footer;
         }
 
-        // Assemble the panel
+        // Assemble panel
         this.panel.appendChild(this.header);
         this.panel.appendChild(this.content);
         if (this.footer) {
             this.panel.appendChild(this.footer);
         }
+
         this.container.appendChild(this.panel);
 
-        // Add to document
+        // Add panel to the DOM
         document.body.appendChild(this.container);
+        Logger.debug('Panel created and added to DOM');
     }
 
     /**
@@ -638,23 +610,30 @@ class SidebarPanel {
     }
 
     /**
-     * Set panel content
-     * @param {String|HTMLElement} content - HTML string or element to set as content
+     * @param {Object} contentConfig - Content configuration object
      */
-    setContent(content) {
-        if (!this.content) return;
-
+    async setContent(contentConfig) {
         // Clear existing content
-        while (this.content.firstChild) {
-            this.content.removeChild(this.content.firstChild);
-        }
+        this.content.innerHTML = '';
 
-        // Add new content
-        if (typeof content === 'string') {
-            HTMLUtils.setHTMLSafely(this.content, content);
-        } else if (content instanceof HTMLElement) {
-            this.content.appendChild(content);
+        if (contentConfig.html) {
+            // If HTML string is provided
+            this.content.innerHTML = contentConfig.html;
+        } else if (contentConfig.generator) {
+            // If a generator function is provided
+            const generatedContent = contentConfig.generator();
+
+            // Check if the result is a Promise
+            if (generatedContent instanceof Promise) {
+                // Wait for the promise to resolve
+                const resolvedContent = await generatedContent;
+                this.content.appendChild(resolvedContent);
+            } else {
+                // If it's a regular element
+                this.content.appendChild(generatedContent);
+            }
         }
+        Logger.debug('Panel content updated');
     }
 
     /**

@@ -338,6 +338,49 @@
 
             return metaTags;
         }
+
+        /**
+         * Safely set HTML content with CSP fallback
+         * @param {HTMLElement} element - The element to set content on
+         * @param {String} html - HTML content to set
+         * @param {String} fallbackText - Text to use if HTML fails (optional)
+         * @return {boolean} True if HTML was set successfully, false if fallback was used
+         */
+        static setHTMLSafely(element, html, fallbackText = null) {
+            if (!element) return false;
+            
+            try {
+                // Try to use innerHTML first
+                element.innerHTML = html;
+                return true;
+            } catch (error) {
+                // Fallback to textContent if innerHTML fails due to CSP
+                const fallback = fallbackText || html;
+                element.textContent = fallback;
+                return false;
+            }
+        }
+
+        /**
+         * Create an element with HTML content safely
+         * @param {String} tagName - HTML tag name
+         * @param {String} html - HTML content
+         * @param {Object} attributes - Element attributes
+         * @return {HTMLElement} The created element
+         */
+        static createElementWithHTML(tagName, html, attributes = {}) {
+            const element = document.createElement(tagName);
+            
+            // Set attributes
+            Object.keys(attributes).forEach(key => {
+                element.setAttribute(key, attributes[key]);
+            });
+            
+            // Set content safely
+            this.setHTMLSafely(element, html);
+            
+            return element;
+        }
     }
 
     /**
@@ -984,8 +1027,7 @@
             if (!document.getElementById(styleId)) {
                 const style = document.createElement('style');
                 style.id = styleId;
-                // Use textContent instead of innerHTML for CSP compliance
-                style.textContent = `
+                HTMLUtils.setHTMLSafely(style, `
         :root {
           /* Container styling */
           ${Notification.CSS_VAR_PREFIX}container-width: auto;
@@ -1015,7 +1057,7 @@
           ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
           ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
         }
-      `;
+      `);
                 document.head.appendChild(style);
             }
         }
@@ -1281,20 +1323,14 @@
             if (config.icon) {
                 const iconDiv = document.createElement('div');
                 iconDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-icon`;
-                iconDiv.textContent = config.icon; // Use textContent for icons (should be emoji/text)
+                HTMLUtils.setHTMLSafely(iconDiv, config.icon);
                 element.appendChild(iconDiv);
             }
 
             // Add message content
             const contentDiv = document.createElement('div');
             contentDiv.className = `${Notification.BASE_NOTIFICATION_CLASS}-content`;
-            if (config.html) {
-                // For HTML content, we'll just use text content for CSP compliance
-                // This is a security decision - no HTML allowed in notifications
-                contentDiv.textContent = config.message;
-            } else {
-                contentDiv.textContent = config.message;
-            }
+            HTMLUtils.setHTMLSafely(contentDiv, config.message);
             element.appendChild(contentDiv);
 
             // Add close button if needed
@@ -1302,7 +1338,7 @@
                 const closeButton = document.createElement('button');
                 closeButton.className = `${Notification.BASE_NOTIFICATION_CLASS}-close`;
                 closeButton.setAttribute('aria-label', 'Close notification');
-                closeButton.textContent = '×';
+                HTMLUtils.setHTMLSafely(closeButton, '×');
                 element.appendChild(closeButton);
             }
 
@@ -1427,24 +1463,27 @@
      */
     class DOMObserver {
       /**
-         * Wait for elements matching a selector
-         * @param {string} selector - CSS selector to wait for
+         * Wait for elements matching a selector or any of multiple selectors
+         * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
          * @param {number} timeout - Timeout in milliseconds
          * @return {Promise<NodeList>} - Promise resolving to found elements
          */
-      static waitForElements(selector, timeout = 10000) {
+      static waitForElements(selectorOrSelectors, timeout = 10000) {
         return new Promise((resolve, reject) => {
           const startTime = Date.now();
+          const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
 
           function checkElements() {
+            for (const selector of selectors) {
             const elements = document.querySelectorAll(selector);
-            if (0 < elements.length) {
+              if (elements.length > 0) {
               resolve(elements);
               return;
+              }
             }
 
             if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selector}`));
+              reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
               return;
             }
 
@@ -1923,8 +1962,7 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          // Use textContent instead of innerHTML for CSP compliance
-          style.textContent = `
+          HTMLUtils.setHTMLSafely(style, `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -1960,7 +1998,7 @@
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
-      `;
+      `);
           document.head.appendChild(style);
         }
       }
@@ -2049,8 +2087,7 @@
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
-          iconSpan.textContent = this.icon;
+          HTMLUtils.setHTMLSafely(iconSpan, this.icon);
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');
@@ -3828,25 +3865,23 @@
                 margin-right: calc(-1 * var(${cssVarPrefix}width, 320px));
             }
             
-            /* Overlay for mobile views */
+            /* Overlay for slide transition */
             .${baseClass}-overlay {
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background-color: rgba(0, 0, 0, 0.5);
+                background: rgba(0, 0, 0, 0.5);
                 z-index: 9997;
                 opacity: 0;
                 visibility: hidden;
-                transition: opacity 0.3s ease;
-                pointer-events: none;
+                transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
             }
             
             .${baseClass}-overlay--visible {
                 opacity: 1;
                 visibility: visible;
-                pointer-events: auto;
             }
             
             /* Responsive styles */
@@ -3859,44 +3894,37 @@
         }
 
         /**
-         * Initialize the panel and button
+         * Initialize the panel
          */
-        init() {
-            // Initialize styles if not already done
-            SidebarPanel.initStyles(this.options.namespace);
+        async init() {
+            // Ensure styles are initialized only once
+            if (!document.head.dataset.sidebarPanelStylesInitialized) {
+                SidebarPanel.initStyles(this.options.namespace);
+                document.head.dataset.sidebarPanelStylesInitialized = 'true';
+            }
 
-            // Create custom CSS variables for this instance
+            // Apply any custom styles from options
             this.applyCustomStyles();
 
-            // Create the panel elements
-            this.createPanel();
-
-            // Create toggle button if needed
+            // Create UI elements
+            await this.createPanel();
             if (this.options.showButton) {
                 this.createToggleButton();
             }
-
-            // Create overlay if needed
-            if (this.options.overlay) {
+            if (this.options.overlay && this.options.transition === 'slide') {
                 this.createOverlay();
             }
 
-            // Set up events
+            // Setup event listeners
             this.setupEvents();
 
-            // Apply saved state if we're remembering state
-            if (this.options.rememberState) {
-                if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
-                    this.open(false); // Open without animation for initial state
-                }
+            // Set initial state without animation
+            if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                this.open(false);
             }
 
-            // Publish initialization event
-            PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, {
-                id: this.options.id,
-                panel: this
-            });
-
+            // Publish initialized event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, this);
             Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
         }
 
@@ -3941,81 +3969,58 @@
         }
 
         /**
-         * Create the panel element
+         * Creates and configures the main panel element
          */
-        createPanel() {
-            // Create panel container
+        async createPanel() {
             this.container = document.createElement('div');
-            this.container.id = `${this.baseClass}-${this.options.id}`;
+            this.container.id = this.options.id;
             this.container.className = `${this.baseClass}-container ${this.baseClass}-container--${this.options.position}`;
 
-            // Create panel
             this.panel = document.createElement('div');
             this.panel.className = this.baseClass;
 
-            // Create panel header
+            // Create header with title and close button
             this.header = document.createElement('div');
             this.header.className = `${this.baseClass}-header`;
 
-            // Create title
-            const title = document.createElement('h2');
-            title.className = `${this.baseClass}-title`;
-            title.textContent = this.options.title;
-            this.header.appendChild(title);
+            const titleElement = document.createElement('h2');
+            titleElement.className = `${this.baseClass}-title`;
+            titleElement.textContent = this.options.title;
 
-            // Create close button
             this.closeButton = document.createElement('button');
-            this.closeButton.type = 'button';
             this.closeButton.className = `${this.baseClass}-close`;
-            this.closeButton.textContent = '×';
-            this.closeButton.setAttribute('aria-label', 'Close');
+            this.closeButton.innerHTML = '×';
+            this.closeButton.setAttribute('aria-label', 'Close panel');
+
+            this.header.appendChild(titleElement);
             this.header.appendChild(this.closeButton);
 
-            // Create content container
+            // Create content area
             this.content = document.createElement('div');
             this.content.className = `${this.baseClass}-content`;
 
-            // Add initial content if provided
-            if (this.options.content.html) {
-                if (typeof this.options.content.html === 'string') {
-                    // For string content, create a text node instead of using innerHTML
-                    this.content.textContent = this.options.content.html;
-                } else if (this.options.content.html instanceof HTMLElement) {
-                    this.content.appendChild(this.options.content.html);
-                }
-            } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
-                const generatedContent = this.options.content.generator();
-                if (typeof generatedContent === 'string') {
-                    // For string content, create a text node instead of using innerHTML
-                    this.content.textContent = generatedContent;
-                } else if (generatedContent instanceof HTMLElement) {
-                    this.content.appendChild(generatedContent);
-                }
-            }
+            // Populate content
+            await this.setContent(this.options.content);
 
-            // Create footer (optional)
-            if (this.options.footer) {
+            // Create footer if provided
+            if (this.options.content.footer) {
                 this.footer = document.createElement('div');
                 this.footer.className = `${this.baseClass}-footer`;
-
-                if (typeof this.options.footer === 'string') {
-                    // For string content, create a text node instead of using innerHTML
-                    this.footer.textContent = this.options.footer;
-                } else if (this.options.footer instanceof HTMLElement) {
-                    this.footer.appendChild(this.options.footer);
-                }
+                this.footer.innerHTML = this.options.content.footer;
             }
 
-            // Assemble the panel
+            // Assemble panel
             this.panel.appendChild(this.header);
             this.panel.appendChild(this.content);
             if (this.footer) {
                 this.panel.appendChild(this.footer);
             }
+
             this.container.appendChild(this.panel);
 
-            // Add to document
+            // Add panel to the DOM
             document.body.appendChild(this.container);
+            Logger.debug('Panel created and added to DOM');
         }
 
         /**
@@ -4025,7 +4030,7 @@
             this.button = document.createElement('button');
             this.button.type = 'button';
             this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
-            this.button.textContent = this.options.buttonIcon;
+            HTMLUtils.setHTMLSafely(this.button, this.options.buttonIcon);
             this.button.setAttribute('aria-label', `Open ${this.options.title}`);
 
             // Add to document
@@ -4219,24 +4224,30 @@
         }
 
         /**
-         * Set panel content
-         * @param {String|HTMLElement} content - HTML string or element to set as content
+         * @param {Object} contentConfig - Content configuration object
          */
-        setContent(content) {
-            if (!this.content) return;
-
+        async setContent(contentConfig) {
             // Clear existing content
-            while (this.content.firstChild) {
-                this.content.removeChild(this.content.firstChild);
-            }
+            this.content.innerHTML = '';
 
-            // Add new content
-            if (typeof content === 'string') {
-                // For string content, create a text node instead of using innerHTML
-                this.content.textContent = content;
-            } else if (content instanceof HTMLElement) {
-                this.content.appendChild(content);
+            if (contentConfig.html) {
+                // If HTML string is provided
+                this.content.innerHTML = contentConfig.html;
+            } else if (contentConfig.generator) {
+                // If a generator function is provided
+                const generatedContent = contentConfig.generator();
+
+                // Check if the result is a Promise
+                if (generatedContent instanceof Promise) {
+                    // Wait for the promise to resolve
+                    const resolvedContent = await generatedContent;
+                    this.content.appendChild(resolvedContent);
+                } else {
+                    // If it's a regular element
+                    this.content.appendChild(generatedContent);
+                }
             }
+            Logger.debug('Panel content updated');
         }
 
         /**
@@ -4257,7 +4268,7 @@
          */
         setButtonIcon(iconHtml) {
             if (this.button) {
-                this.button.textContent = iconHtml;
+                HTMLUtils.setHTMLSafely(this.button, iconHtml);
                 this.options.buttonIcon = iconHtml;
             }
         }

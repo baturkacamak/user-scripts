@@ -661,9 +661,9 @@ class WallapopExpandDescription {
         ListingManager.addExpandButtonsToListings();
 
         // Apply filters to initial listings
-        ControlPanel.applyFilters();
+        await ControlPanel.applyFilters();
 
-        const domObserver = new DOMObserver((mutations) => {
+        const domObserver = new DOMObserver(async (mutations) => {
             for (let mutation of mutations) {
                 if (mutation.type === 'childList') {
                     const addedNodes = Array.from(mutation.addedNodes);
@@ -678,7 +678,7 @@ class WallapopExpandDescription {
                         ListingManager.addExpandButtonsToListings();
 
                         // Apply all filters to new listings
-                        ControlPanel.applyFilters();
+                        await ControlPanel.applyFilters();
                     }
                 }
             }
@@ -938,8 +938,8 @@ class ControlPanel {
             customClassName: 'expand-all',
             title: TranslationManager.getText('expandAllDescriptions'),
             isExpanded,
-            onToggle: (state) => {
-                this.savePanelState('isExpandAllSectionExpanded', state);
+            onToggle: async (state) => {
+                await this.savePanelState('isExpandAllSectionExpanded', state);
             },
             contentCreator: async (content) => {
                 // Create the expand all button
@@ -1147,18 +1147,18 @@ class ControlPanel {
     /**
      * Create the reserved listings section
      */
-    static createReservedListingsSection(container) {
+    static async createReservedListingsSection(container) {
         // Load saved state
-        const isExpanded = this.loadPanelState('isReservedListingsSectionExpanded', true);
-        const hideReserved = this.loadPanelState('hideReservedListings', true); // Default to true - hide reserved listings
+        const isExpanded = await this.loadPanelState('isReservedListingsSectionExpanded', true);
+        const hideReserved = await this.loadPanelState('hideReservedListings', true); // Default to true - hide reserved listings
 
         this.togglers.reservedListings = new SectionToggler({
             container,
             sectionClass: 'reserved-listings',
             title: TranslationManager.getText('reservedListingsFilter'),
             isExpanded,
-            onToggle: (state) => {
-                this.savePanelState('isReservedListingsSectionExpanded', state);
+            onToggle: async (state) => {
+                await this.savePanelState('isReservedListingsSectionExpanded', state);
             },
             contentCreator: (content) => {
                 // Create a checkbox control using the Checkbox component
@@ -1170,10 +1170,10 @@ class ControlPanel {
                     label: TranslationManager.getText('hideReservedListings'),
                     checked: hideReserved,
                     container: hideReservedContainer,
-                    onChange: (e) => {
+                    onChange: async (e) => {
                         const isChecked = e.target.checked;
-                        this.savePanelState('hideReservedListings', isChecked);
-                        this.applyReservedFilter();
+                        await this.savePanelState('hideReservedListings', isChecked);
+                        await this.applyReservedFilter();
                     }
                 });
 
@@ -1199,29 +1199,29 @@ class ControlPanel {
     /**
      * Apply filter to hide reserved listings
      */
-    static applyReservedFilter() {
+    static async applyReservedFilter() {
         Logger.debug("Applying reserved listings filter");
 
         const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
         const allListings = document.querySelectorAll(allSelectors);
 
         // Get filter setting
-        const hideReserved = this.loadPanelState('hideReservedListings', true);
+        const hideReserved = await this.loadPanelState('hideReservedListings', true);
 
         if (!hideReserved) {
             // If filter is disabled, show any listings that were hidden by this filter
             // but respect other filters
-            allListings.forEach(listing => {
+            for (const listing of allListings) {
                 if (listing.dataset.reservedHidden === 'true') {
                     delete listing.dataset.reservedHidden;
 
                     // Only show if not hidden by other filters
                     if (!this.shouldHideListing(listing) &&
-                        !this.shouldHideByDeliveryMethod(listing)) {
+                        !await this.shouldHideByDeliveryMethod(listing)) {
                         this.showListing(listing);
                     }
                 }
-            });
+            }
 
             // Update status text
             if (this.reservedStatusElement) {
@@ -1234,14 +1234,14 @@ class ControlPanel {
         // Apply the filter to hide reserved listings
         let hiddenCount = 0;
 
-        allListings.forEach(listing => {
+        for (const listing of allListings) {
             if (this.isReservedListing(listing)) {
                 // Mark as hidden specifically by this filter
                 listing.dataset.reservedHidden = 'true';
                 this.hideListing(listing);
                 hiddenCount++;
             }
-        });
+        }
 
         // Update status text
         if (this.reservedStatusElement) {
@@ -1291,8 +1291,8 @@ class ControlPanel {
      * Modified method to check if a listing should be hidden by delivery method
      * Separated from the main filter to make it easier to combine filters
      */
-    static shouldHideByDeliveryMethod(listing) {
-        const filterValue = this.loadPanelState('deliveryMethodFilter', 'all');
+    static async shouldHideByDeliveryMethod(listing) {
+        const filterValue = await this.loadPanelState('deliveryMethodFilter', 'all');
         if (filterValue === 'all') return false;
 
         const deliveryMethod = this.getDeliveryMethod(listing);
@@ -1303,17 +1303,17 @@ class ControlPanel {
     /**
      * Create the filter section
      */
-    static createFilterSection(container) {
+    static async createFilterSection(container) {
         // Load saved state
-        const isExpanded = this.loadPanelState('isFilterSectionExpanded', true);
+        const isExpanded = await this.loadPanelState('isFilterSectionExpanded', true);
 
         this.togglers.filter = new SectionToggler({
             container,
             sectionClass: 'filter',
             title: TranslationManager.getText('filterUnwantedWords'),
             isExpanded,
-            onToggle: (state) => {
-                this.savePanelState('isFilterSectionExpanded', state);
+            onToggle: async (state) => {
+                await this.savePanelState('isFilterSectionExpanded', state);
             },
             contentCreator: (content) => {
                 // Filter input
@@ -1324,7 +1324,7 @@ class ControlPanel {
                 // Add enter key listener
                 this.filterInputElement.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
-                        this.addBlockedTerm();
+                        (async () => await this.addBlockedTerm())();
                     }
                 });
 
@@ -1334,7 +1334,7 @@ class ControlPanel {
                 const applyButton = this.createButton(
                     TranslationManager.getText('addAndApply'),
                     'panel-button filter-apply',
-                    () => this.addBlockedTerm()
+                    async () => await this.addBlockedTerm()
                 );
                 content.appendChild(applyButton);
 
@@ -1399,9 +1399,9 @@ class ControlPanel {
     /**
      * Create the copy section
      */
-    static createCopySection(container) {
+    static async createCopySection(container) {
         // Load saved state
-        const isExpanded = this.loadPanelState('isCopySectionExpanded', true);
+        const isExpanded = await this.loadPanelState('isCopySectionExpanded', true);
 
         // Load the last selected format
         let lastSelectedFormat = this.loadExportFormat();
@@ -1411,8 +1411,8 @@ class ControlPanel {
             sectionClass: 'export',
             title: TranslationManager.getText('exportDescriptions'),
             isExpanded,
-            onToggle: (state) => {
-                this.savePanelState('isCopySectionExpanded', state);
+            onToggle: async (state) => {
+                await this.savePanelState('isCopySectionExpanded', state);
             },
             contentCreator: (content) => {
                 // Convert export formats to SelectBox items format
@@ -1681,7 +1681,7 @@ class ControlPanel {
      */
     static async createDeliveryMethodSection(container) {
         // Load saved state
-        const isExpanded = this.loadPanelState('isDeliveryMethodSectionExpanded', true);
+        const isExpanded = await this.loadPanelState('isDeliveryMethodSectionExpanded', true);
 
         this.togglers.deliveryMethod = new SectionToggler({
             container,
@@ -1714,9 +1714,9 @@ class ControlPanel {
                     name: 'delivery-method',
                     id: 'delivery-method-select',
                     container: content, // the container passed to the contentCreator callback
-                    onChange: (value, event) => {
-                        this.savePanelState('deliveryMethodFilter', value);
-                        this.applyDeliveryMethodFilter();
+                    onChange: async (value, event) => {
+                        await this.savePanelState('deliveryMethodFilter', value);
+                        await this.applyDeliveryMethodFilter();
                     },
                     theme: 'default', // or set a different theme if needed
                     size: 'medium',
@@ -1752,7 +1752,7 @@ class ControlPanel {
 
         let hiddenCount = 0;
 
-        allListings.forEach(listing => {
+        for (const listing of allListings) {
             // First check if it should be hidden by the keyword filter
             if (this.shouldHideListing(listing)) {
                 this.hideListing(listing);
@@ -1772,7 +1772,7 @@ class ControlPanel {
             } else {
                 this.showListing(listing);
             }
-        });
+        }
 
         Logger.debug(`Delivery method filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
     }
@@ -2351,8 +2351,8 @@ class ControlPanel {
             sectionClass: 'language',
             title: TranslationManager.getText('languageSettings'),
             isExpanded,
-            onToggle: (state) => {
-                this.savePanelState('isLanguageSectionExpanded', state);
+            onToggle: async (state) => {
+                await this.savePanelState('isLanguageSectionExpanded', state);
             },
             contentCreator: (content) => {
                 // Create language selector
@@ -2405,7 +2405,7 @@ class ControlPanel {
     /**
      * Create the main control panel
      */
-    static createControlPanel() {
+    static async createControlPanel() {
         // Initialize the sidebar panel instead of draggable container
         this.sidebarPanel = new SidebarPanel({
             id: 'wallapop-tools-panel',
@@ -2416,17 +2416,17 @@ class ControlPanel {
             namespace: 'wallapop-enhanced',
             rememberState: true,
             content: {
-                generator: () => {
+                generator: async () => {
                     // Create content container
                     const contentContainer = document.createElement('div');
 
                     // Create sections
-                    this.createExpandAllSection(contentContainer);
-                    this.createFilterSection(contentContainer);
-                    this.createDeliveryMethodSection(contentContainer);
-                    this.createReservedListingsSection(contentContainer);
-                    this.createCopySection(contentContainer);
-                    this.createLanguageSection(contentContainer);
+                    await this.createExpandAllSection(contentContainer);
+                    await this.createFilterSection(contentContainer);
+                    await this.createDeliveryMethodSection(contentContainer);
+                    await this.createReservedListingsSection(contentContainer);
+                    await this.createCopySection(contentContainer);
+                    await this.createLanguageSection(contentContainer);
 
                     return contentContainer;
                 }
@@ -2566,7 +2566,7 @@ class ControlPanel {
             removeButton.title = TranslationManager.getText('remove');
             removeButton.addEventListener('click', () => {
                 termItem.classList.add('fadeOutAnimation');
-                setTimeout(() => this.removeBlockedTerm(term), 300);
+                setTimeout(async () => await this.removeBlockedTerm(term), 300);
             });
             termItem.appendChild(removeButton);
 
@@ -2585,7 +2585,7 @@ class ControlPanel {
      * Apply all filters including keywords, delivery method, and reserved status
      * Modified to include the reserved filter
      */
-    static applyFilters() {
+    static async applyFilters() {
         Logger.debug("Applying all filters to listings");
 
         const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
@@ -2593,9 +2593,9 @@ class ControlPanel {
 
         let hiddenCount = 0;
 
-        allListings.forEach(async listing => {
+        for (const listing of allListings) {
             const hideByKeyword = this.shouldHideListing(listing);
-            const hideByDelivery = this.shouldHideByDeliveryMethod(listing);
+            const hideByDelivery = await this.shouldHideByDeliveryMethod(listing);
             const hideByReserved = await this.loadPanelState('hideReservedListings', true) &&
                 this.isReservedListing(listing);
 
@@ -2610,7 +2610,7 @@ class ControlPanel {
             } else {
                 this.showListing(listing);
             }
-        });
+        }
 
         Logger.debug(`All filters applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
 
@@ -2716,7 +2716,7 @@ class ControlPanel {
     /**
      * Add a blocked term from the input field
      */
-    static addBlockedTerm() {
+    static async addBlockedTerm() {
         const term = this.filterInputElement.value.trim().toLowerCase();
 
         if (term && !this.blockedTerms.includes(term)) {
@@ -2726,7 +2726,7 @@ class ControlPanel {
             this.filterInputElement.value = '';
 
             // Re-apply filters to all listings
-            this.applyFilters();
+            await this.applyFilters();
 
             Logger.debug("Blocked term added:", term);
         }
@@ -2735,7 +2735,7 @@ class ControlPanel {
     /**
      * Remove a blocked term
      */
-    static removeBlockedTerm(term) {
+    static async removeBlockedTerm(term) {
         const index = this.blockedTerms.indexOf(term);
         if (index > -1) {
             this.blockedTerms.splice(index, 1);
@@ -2743,7 +2743,7 @@ class ControlPanel {
             this.updateBlockedTermsList();
 
             // Re-apply filters to all listings
-            this.applyFilters();
+            await this.applyFilters();
 
             Logger.debug("Blocked term removed:", term);
         }

@@ -340,6 +340,49 @@
 
             return metaTags;
         }
+
+        /**
+         * Safely set HTML content with CSP fallback
+         * @param {HTMLElement} element - The element to set content on
+         * @param {String} html - HTML content to set
+         * @param {String} fallbackText - Text to use if HTML fails (optional)
+         * @return {boolean} True if HTML was set successfully, false if fallback was used
+         */
+        static setHTMLSafely(element, html, fallbackText = null) {
+            if (!element) return false;
+            
+            try {
+                // Try to use innerHTML first
+                element.innerHTML = html;
+                return true;
+            } catch (error) {
+                // Fallback to textContent if innerHTML fails due to CSP
+                const fallback = fallbackText || html;
+                element.textContent = fallback;
+                return false;
+            }
+        }
+
+        /**
+         * Create an element with HTML content safely
+         * @param {String} tagName - HTML tag name
+         * @param {String} html - HTML content
+         * @param {Object} attributes - Element attributes
+         * @return {HTMLElement} The created element
+         */
+        static createElementWithHTML(tagName, html, attributes = {}) {
+            const element = document.createElement(tagName);
+            
+            // Set attributes
+            Object.keys(attributes).forEach(key => {
+                element.setAttribute(key, attributes[key]);
+            });
+            
+            // Set content safely
+            this.setHTMLSafely(element, html);
+            
+            return element;
+        }
     }
 
     /**
@@ -852,8 +895,7 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          // Use textContent instead of innerHTML for CSP compliance
-          style.textContent = `
+          HTMLUtils.setHTMLSafely(style, `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -889,7 +931,7 @@
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
-      `;
+      `);
           document.head.appendChild(style);
         }
       }
@@ -978,8 +1020,7 @@
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
-          iconSpan.textContent = this.icon;
+          HTMLUtils.setHTMLSafely(iconSpan, this.icon);
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');

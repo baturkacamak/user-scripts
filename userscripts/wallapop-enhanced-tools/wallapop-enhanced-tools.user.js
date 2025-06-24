@@ -339,6 +339,49 @@
 
             return metaTags;
         }
+
+        /**
+         * Safely set HTML content with CSP fallback
+         * @param {HTMLElement} element - The element to set content on
+         * @param {String} html - HTML content to set
+         * @param {String} fallbackText - Text to use if HTML fails (optional)
+         * @return {boolean} True if HTML was set successfully, false if fallback was used
+         */
+        static setHTMLSafely(element, html, fallbackText = null) {
+            if (!element) return false;
+            
+            try {
+                // Try to use innerHTML first
+                element.innerHTML = html;
+                return true;
+            } catch (error) {
+                // Fallback to textContent if innerHTML fails due to CSP
+                const fallback = fallbackText || html;
+                element.textContent = fallback;
+                return false;
+            }
+        }
+
+        /**
+         * Create an element with HTML content safely
+         * @param {String} tagName - HTML tag name
+         * @param {String} html - HTML content
+         * @param {Object} attributes - Element attributes
+         * @return {HTMLElement} The created element
+         */
+        static createElementWithHTML(tagName, html, attributes = {}) {
+            const element = document.createElement(tagName);
+            
+            // Set attributes
+            Object.keys(attributes).forEach(key => {
+                element.setAttribute(key, attributes[key]);
+            });
+            
+            // Set content safely
+            this.setHTMLSafely(element, html);
+            
+            return element;
+        }
     }
 
     /**
@@ -496,6 +539,131 @@
                 this.#events = {};
             }
         }
+    }
+
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    /**
+     * DOMObserver - Observes DOM changes and URL changes
+     * Uses UrlChangeWatcher for URL change detection with configurable strategies
+     */
+    class DOMObserver {
+      /**
+         * Wait for elements matching a selector or any of multiple selectors
+         * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
+         * @param {number} timeout - Timeout in milliseconds
+         * @return {Promise<NodeList>} - Promise resolving to found elements
+         */
+      static waitForElements(selectorOrSelectors, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+          const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
+
+          function checkElements() {
+            for (const selector of selectors) {
+            const elements = document.querySelectorAll(selector);
+              if (elements.length > 0) {
+              resolve(elements);
+              return;
+              }
+            }
+
+            if (Date.now() - startTime > timeout) {
+              reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
+              return;
+            }
+
+            requestAnimationFrame(checkElements);
+          }
+
+          checkElements();
+        });
+      }
+      /**
+         * Create a new DOMObserver
+         * @param {Function} onMutation - Callback for handling mutations
+         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
+         */
+      constructor(onMutation, urlChangeStrategies = []) {
+        this.observer = new MutationObserver(this.handleMutations.bind(this));
+        this.lastUrl = location.href;
+        this.onMutation = onMutation;
+
+        // Initialize URL change watcher with provided strategies
+        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
+      }
+
+
+      /**
+         * Start observing DOM changes and URL changes
+         * @param {HTMLElement} target - Element to observe (defaults to document.body)
+         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
+         */
+      observe(target = document.body, config = {childList: true, subtree: true}) {
+        this.observer.observe(target, config);
+
+        // Start URL change watcher
+        this.urlChangeWatcher.start();
+      }
+
+      /**
+         * Stop observing DOM changes and URL changes
+         */
+      disconnect() {
+        this.observer.disconnect();
+
+        // Stop URL change watcher
+        this.urlChangeWatcher.stop();
+      }
+
+      /**
+         * Handle mutations
+         * @param {MutationRecord[]} mutations - Array of mutation records
+         * @private
+         */
+      handleMutations(mutations) {
+        if (this.onMutation) {
+          this.onMutation(mutations);
+        }
+      }
     }
 
     /**
@@ -2837,8 +3005,7 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          // Use textContent instead of innerHTML for CSP compliance
-          style.textContent = `
+          HTMLUtils.setHTMLSafely(style, `
         :root {
           ${Button.CSS_VAR_PREFIX}bg-default: #f3f4f6;
           ${Button.CSS_VAR_PREFIX}color-default: #374151;
@@ -2874,7 +3041,7 @@
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
-      `;
+      `);
           document.head.appendChild(style);
         }
       }
@@ -2963,8 +3130,7 @@
         if (this.icon) {
           const iconSpan = document.createElement('span');
           iconSpan.className = `${Button.BASE_BUTTON_CLASS}__icon`;
-          // Use textContent instead of innerHTML for CSP compliance (icons should be text/emoji)
-          iconSpan.textContent = this.icon;
+          HTMLUtils.setHTMLSafely(iconSpan, this.icon);
           this.button.appendChild(iconSpan);
         }
         this.textElement = document.createElement('span');
@@ -4742,25 +4908,23 @@
                 margin-right: calc(-1 * var(${cssVarPrefix}width, 320px));
             }
             
-            /* Overlay for mobile views */
+            /* Overlay for slide transition */
             .${baseClass}-overlay {
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background-color: rgba(0, 0, 0, 0.5);
+                background: rgba(0, 0, 0, 0.5);
                 z-index: 9997;
                 opacity: 0;
                 visibility: hidden;
-                transition: opacity 0.3s ease;
-                pointer-events: none;
+                transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
             }
             
             .${baseClass}-overlay--visible {
                 opacity: 1;
                 visibility: visible;
-                pointer-events: auto;
             }
             
             /* Responsive styles */
@@ -4773,44 +4937,37 @@
         }
 
         /**
-         * Initialize the panel and button
+         * Initialize the panel
          */
-        init() {
-            // Initialize styles if not already done
-            SidebarPanel.initStyles(this.options.namespace);
+        async init() {
+            // Ensure styles are initialized only once
+            if (!document.head.dataset.sidebarPanelStylesInitialized) {
+                SidebarPanel.initStyles(this.options.namespace);
+                document.head.dataset.sidebarPanelStylesInitialized = 'true';
+            }
 
-            // Create custom CSS variables for this instance
+            // Apply any custom styles from options
             this.applyCustomStyles();
 
-            // Create the panel elements
-            this.createPanel();
-
-            // Create toggle button if needed
+            // Create UI elements
+            await this.createPanel();
             if (this.options.showButton) {
                 this.createToggleButton();
             }
-
-            // Create overlay if needed
-            if (this.options.overlay) {
+            if (this.options.overlay && this.options.transition === 'slide') {
                 this.createOverlay();
             }
 
-            // Set up events
+            // Setup event listeners
             this.setupEvents();
 
-            // Apply saved state if we're remembering state
-            if (this.options.rememberState) {
-                if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
-                    this.open(false); // Open without animation for initial state
-                }
+            // Set initial state without animation
+            if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                this.open(false);
             }
 
-            // Publish initialization event
-            PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, {
-                id: this.options.id,
-                panel: this
-            });
-
+            // Publish initialized event
+            PubSub.publish(SidebarPanel.EVENTS.PANEL_INITIALIZED, this);
             Logger.debug(`SidebarPanel initialized: ${this.options.id}`);
         }
 
@@ -4855,81 +5012,58 @@
         }
 
         /**
-         * Create the panel element
+         * Creates and configures the main panel element
          */
-        createPanel() {
-            // Create panel container
+        async createPanel() {
             this.container = document.createElement('div');
-            this.container.id = `${this.baseClass}-${this.options.id}`;
+            this.container.id = this.options.id;
             this.container.className = `${this.baseClass}-container ${this.baseClass}-container--${this.options.position}`;
 
-            // Create panel
             this.panel = document.createElement('div');
             this.panel.className = this.baseClass;
 
-            // Create panel header
+            // Create header with title and close button
             this.header = document.createElement('div');
             this.header.className = `${this.baseClass}-header`;
 
-            // Create title
-            const title = document.createElement('h2');
-            title.className = `${this.baseClass}-title`;
-            title.textContent = this.options.title;
-            this.header.appendChild(title);
+            const titleElement = document.createElement('h2');
+            titleElement.className = `${this.baseClass}-title`;
+            titleElement.textContent = this.options.title;
 
-            // Create close button
             this.closeButton = document.createElement('button');
-            this.closeButton.type = 'button';
             this.closeButton.className = `${this.baseClass}-close`;
-            this.closeButton.textContent = '×';
-            this.closeButton.setAttribute('aria-label', 'Close');
+            this.closeButton.innerHTML = '×';
+            this.closeButton.setAttribute('aria-label', 'Close panel');
+
+            this.header.appendChild(titleElement);
             this.header.appendChild(this.closeButton);
 
-            // Create content container
+            // Create content area
             this.content = document.createElement('div');
             this.content.className = `${this.baseClass}-content`;
 
-            // Add initial content if provided
-            if (this.options.content.html) {
-                if (typeof this.options.content.html === 'string') {
-                    // For string content, create a text node instead of using innerHTML
-                    this.content.textContent = this.options.content.html;
-                } else if (this.options.content.html instanceof HTMLElement) {
-                    this.content.appendChild(this.options.content.html);
-                }
-            } else if (this.options.content.generator && typeof this.options.content.generator === 'function') {
-                const generatedContent = this.options.content.generator();
-                if (typeof generatedContent === 'string') {
-                    // For string content, create a text node instead of using innerHTML
-                    this.content.textContent = generatedContent;
-                } else if (generatedContent instanceof HTMLElement) {
-                    this.content.appendChild(generatedContent);
-                }
-            }
+            // Populate content
+            await this.setContent(this.options.content);
 
-            // Create footer (optional)
-            if (this.options.footer) {
+            // Create footer if provided
+            if (this.options.content.footer) {
                 this.footer = document.createElement('div');
                 this.footer.className = `${this.baseClass}-footer`;
-
-                if (typeof this.options.footer === 'string') {
-                    // For string content, create a text node instead of using innerHTML
-                    this.footer.textContent = this.options.footer;
-                } else if (this.options.footer instanceof HTMLElement) {
-                    this.footer.appendChild(this.options.footer);
-                }
+                this.footer.innerHTML = this.options.content.footer;
             }
 
-            // Assemble the panel
+            // Assemble panel
             this.panel.appendChild(this.header);
             this.panel.appendChild(this.content);
             if (this.footer) {
                 this.panel.appendChild(this.footer);
             }
+
             this.container.appendChild(this.panel);
 
-            // Add to document
+            // Add panel to the DOM
             document.body.appendChild(this.container);
+            Logger.debug('Panel created and added to DOM');
         }
 
         /**
@@ -4939,7 +5073,7 @@
             this.button = document.createElement('button');
             this.button.type = 'button';
             this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
-            this.button.textContent = this.options.buttonIcon;
+            HTMLUtils.setHTMLSafely(this.button, this.options.buttonIcon);
             this.button.setAttribute('aria-label', `Open ${this.options.title}`);
 
             // Add to document
@@ -5133,24 +5267,30 @@
         }
 
         /**
-         * Set panel content
-         * @param {String|HTMLElement} content - HTML string or element to set as content
+         * @param {Object} contentConfig - Content configuration object
          */
-        setContent(content) {
-            if (!this.content) return;
-
+        async setContent(contentConfig) {
             // Clear existing content
-            while (this.content.firstChild) {
-                this.content.removeChild(this.content.firstChild);
-            }
+            this.content.innerHTML = '';
 
-            // Add new content
-            if (typeof content === 'string') {
-                // For string content, create a text node instead of using innerHTML
-                this.content.textContent = content;
-            } else if (content instanceof HTMLElement) {
-                this.content.appendChild(content);
+            if (contentConfig.html) {
+                // If HTML string is provided
+                this.content.innerHTML = contentConfig.html;
+            } else if (contentConfig.generator) {
+                // If a generator function is provided
+                const generatedContent = contentConfig.generator();
+
+                // Check if the result is a Promise
+                if (generatedContent instanceof Promise) {
+                    // Wait for the promise to resolve
+                    const resolvedContent = await generatedContent;
+                    this.content.appendChild(resolvedContent);
+                } else {
+                    // If it's a regular element
+                    this.content.appendChild(generatedContent);
+                }
             }
+            Logger.debug('Panel content updated');
         }
 
         /**
@@ -5171,7 +5311,7 @@
          */
         setButtonIcon(iconHtml) {
             if (this.button) {
-                this.button.textContent = iconHtml;
+                HTMLUtils.setHTMLSafely(this.button, iconHtml);
                 this.options.buttonIcon = iconHtml;
             }
         }
@@ -6140,14 +6280,12 @@
 
     // GM function fallbacks for direct browser execution
 
-    // GMFunctions are now available as a namespace from the core import.
-    // The initialize() call is no longer needed here as GMFunctions.js self-initializes its fallbacks.
-    // const GM = GMFunctions.initialize();
-
     const SELECTORS = {
         ITEM_CARDS: [
             'a.ItemCardList__item[href^="https://es.wallapop.com/item/"]',
+            'a[class*="item-card_ItemCard--vertical"]',
             '[class^="experimentator-layout-slider_ExperimentatorSliderLayout__item"] a[href^="/item/"]',
+            '[tslitemroute]',
             '[class^="feed_Feed__item__"] a[href^="/item/"]',
         ],
         ITEM_DESCRIPTION: '[class^="item-detail_ItemDetail__description__"]',
@@ -6156,7 +6294,37 @@
         CONTROL_PANEL: '.control-panel',
         FILTER_INPUT: '.filter-input',
         FILTER_APPLY: '.filter-apply',
-        BLOCKED_TERMS_LIST: '.blocked-terms-list'
+        BLOCKED_TERMS_LIST: '.blocked-terms-list',
+        // Delivery method selectors and indicators
+        DELIVERY_METHOD: {
+            BADGES: {
+                SHIPPING: [
+                    '.wallapop-badge--shippingAvailable',
+                    '[class*="wallapop-badge"][class*="shippingAvailable"]'
+                ],
+                INPERSON: [
+                    '.wallapop-badge--faceToFace',
+                    '[class*="wallapop-badge"][class*="faceToFace"]'
+                ]
+            },
+            ICONS: {
+                SHIPPING: [
+                    'walla-icon[class*="shipping"]'
+                ],
+                INPERSON: [
+                    'walla-icon[class*="faceToFace"]'
+                ]
+            },
+            TEXT: {
+                SHIPPING: [
+                    'Envío disponible'
+                ],
+                INPERSON: [
+                    'Sólo venta en persona',
+                    'Solo venta en persona'
+                ]
+            }
+        }
     };
 
     // Find the CSS styles section in the script
@@ -6559,57 +6727,7 @@
         }
     }
 
-    class DOMObserver {
-        constructor() {
-            this.observer = new MutationObserver(this.handleMutations.bind(this));
-            this.lastUrl = location.href;
-        }
 
-        observe() {
-            this.observer.observe(document.body, {childList: true, subtree: true});
-            window.addEventListener('popstate', this.handleUrlChange.bind(this));
-            Logger.debug("MutationObserver and popstate listener set up");
-        }
-
-        handleMutations(mutations) {
-            for (let mutation of mutations) {
-                if (mutation.type === 'childList') {
-                    const addedNodes = Array.from(mutation.addedNodes);
-                    const hasNewItemCards = addedNodes.some(node =>
-                        node.nodeType === Node.ELEMENT_NODE &&
-                        SELECTORS.ITEM_CARDS.some(selector =>
-                            node.matches(selector) || node.querySelector(selector)
-                        )
-                    );
-                    if (hasNewItemCards) {
-                        Logger.debug("New ItemCards detected, adding expand buttons");
-                        ListingManager.addExpandButtonsToListings();
-
-                        // Apply all filters to new listings
-                        ControlPanel.applyFilters();
-                    }
-                }
-            }
-            this.checkUrlChange();
-        }
-
-        handleUrlChange() {
-            Logger.debug("Handling URL change");
-            setTimeout(() => {
-                ListingManager.addExpandButtonsToListings();
-                // Apply all filters after URL change, including reserved filter
-                ControlPanel.applyFilters();
-            }, 1000); // Delay to allow for dynamic content to load
-        }
-
-        checkUrlChange() {
-            if (this.lastUrl !== location.href) {
-                Logger.debug("URL changed:", location.href);
-                this.lastUrl = location.href;
-                this.handleUrlChange();
-            }
-        }
-    }
 
     /**
      * FormatOption - A reusable component for format selection with conditional options
@@ -6800,40 +6918,33 @@
             // Create unified control panel
             ControlPanel.createControlPanel();
 
-            await this.waitForElements(SELECTORS.ITEM_CARDS);
+            await DOMObserver.waitForElements(SELECTORS.ITEM_CARDS);
             ListingManager.addExpandButtonsToListings();
 
             // Apply filters to initial listings
-            ControlPanel.applyFilters();
+            await ControlPanel.applyFilters();
 
-            new DOMObserver().observe();
-        }
+            const domObserver = new DOMObserver(async (mutations) => {
+                for (let mutation of mutations) {
+                    if (mutation.type === 'childList') {
+                        const addedNodes = Array.from(mutation.addedNodes);
+                        const hasNewItemCards = addedNodes.some(node =>
+                            node.nodeType === Node.ELEMENT_NODE &&
+                            SELECTORS.ITEM_CARDS.some(selector =>
+                                node.matches(selector) || node.querySelector(selector)
+                            )
+                        );
+                        if (hasNewItemCards) {
+                            Logger.debug("New ItemCards detected, adding expand buttons");
+                            ListingManager.addExpandButtonsToListings();
 
-        static waitForElements(selectors, timeout = 10000) {
-            Logger.debug("Waiting for elements:", selectors);
-            return new Promise((resolve, reject) => {
-                const startTime = Date.now();
-
-                function checkElements() {
-                    for (const selector of selectors) {
-                        const elements = document.querySelectorAll(selector);
-                        if (elements.length > 0) {
-                            Logger.debug("Elements found:", selector, elements.length);
-                            resolve(elements);
-                            return;
+                            // Apply all filters to new listings
+                            await ControlPanel.applyFilters();
                         }
                     }
-
-                    if (Date.now() - startTime > timeout) {
-                        Logger.debug("Timeout waiting for elements");
-                        reject(new Error(`Timeout waiting for elements`));
-                    } else {
-                        requestAnimationFrame(checkElements);
-                    }
                 }
-
-                checkElements();
             });
+            domObserver.observe();
         }
     }
 
@@ -6843,6 +6954,7 @@
         static filterInputElement = null;
         static blockedTermsListElement = null;
         static sidebarPanel = null;
+        static panelStateCache = {}; // Add cache for panel state
         static exportFormats = {
             // Text-based formats
             text: {
@@ -7078,19 +7190,19 @@
         /**
          * Create a new "Expand All" section in the control panel
          */
-        static createExpandAllSection(container) {
+        static async createExpandAllSection(container) {
             // Load saved state
-            const isExpanded = this.loadPanelState('isExpandAllSectionExpanded', true);
+            const isExpanded = await this.loadPanelState('isExpandAllSectionExpanded', true);
 
             this.togglers.expandAll = new SectionToggler({
                 container,
                 customClassName: 'expand-all',
                 title: TranslationManager.getText('expandAllDescriptions'),
                 isExpanded,
-                onToggle: (state) => {
-                    this.savePanelState('isExpandAllSectionExpanded', state);
+                onToggle: async (state) => {
+                    await this.savePanelState('isExpandAllSectionExpanded', state);
                 },
-                contentCreator: (content) => {
+                contentCreator: async (content) => {
                     // Create the expand all button
                     const expandAllButton = this.createButton(
                         TranslationManager.getText('expandAllVisible'),
@@ -7114,7 +7226,7 @@
                     delayContainer.style.marginTop = '10px';
 
                     // Get saved delay value
-                    const savedDelay = parseInt(this.loadPanelState('expandAllDelay', '1000'));
+                    const savedDelay = parseInt(await this.loadPanelState('expandAllDelay', '1000'));
 
                     // Create the slider with the Slider component
                     this.delaySlider = new Slider({
@@ -7126,7 +7238,7 @@
                         label: TranslationManager.getText('delayBetweenRequests'),
                         theme: 'primary',
                         valueSuffix: 'ms',
-                        onChange: (value) => {
+                        onChange: async (value) => {
                             this.savePanelState('expandAllDelay', value.toString());
                         }
                     });
@@ -7162,7 +7274,7 @@
             }
 
             // Get the delay setting from the slider
-            const delay = this.delaySlider ? this.delaySlider.getValue() : parseInt(this.loadPanelState('expandAllDelay', '1000'));
+            const delay = this.delaySlider ? this.delaySlider.getValue() : parseInt(await this.loadPanelState('expandAllDelay', '1000'));
 
             // Get expand button and disable it
             const expandAllButton = document.querySelector('.expand-all-button');
@@ -7296,18 +7408,18 @@
         /**
          * Create the reserved listings section
          */
-        static createReservedListingsSection(container) {
+        static async createReservedListingsSection(container) {
             // Load saved state
-            const isExpanded = this.loadPanelState('isReservedListingsSectionExpanded', true);
-            const hideReserved = this.loadPanelState('hideReservedListings', true); // Default to true - hide reserved listings
+            const isExpanded = await this.loadPanelState('isReservedListingsSectionExpanded', true);
+            const hideReserved = await this.loadPanelState('hideReservedListings', true); // Default to true - hide reserved listings
 
             this.togglers.reservedListings = new SectionToggler({
                 container,
                 sectionClass: 'reserved-listings',
                 title: TranslationManager.getText('reservedListingsFilter'),
                 isExpanded,
-                onToggle: (state) => {
-                    this.savePanelState('isReservedListingsSectionExpanded', state);
+                onToggle: async (state) => {
+                    await this.savePanelState('isReservedListingsSectionExpanded', state);
                 },
                 contentCreator: (content) => {
                     // Create a checkbox control using the Checkbox component
@@ -7319,10 +7431,10 @@
                         label: TranslationManager.getText('hideReservedListings'),
                         checked: hideReserved,
                         container: hideReservedContainer,
-                        onChange: (e) => {
+                        onChange: async (e) => {
                             const isChecked = e.target.checked;
-                            this.savePanelState('hideReservedListings', isChecked);
-                            this.applyReservedFilter();
+                            await this.savePanelState('hideReservedListings', isChecked);
+                            await this.applyReservedFilter();
                         }
                     });
 
@@ -7348,29 +7460,29 @@
         /**
          * Apply filter to hide reserved listings
          */
-        static applyReservedFilter() {
+        static async applyReservedFilter() {
             Logger.debug("Applying reserved listings filter");
 
             const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
             const allListings = document.querySelectorAll(allSelectors);
 
             // Get filter setting
-            const hideReserved = this.loadPanelState('hideReservedListings', true);
+            const hideReserved = await this.loadPanelState('hideReservedListings', true);
 
             if (!hideReserved) {
                 // If filter is disabled, show any listings that were hidden by this filter
                 // but respect other filters
-                allListings.forEach(listing => {
+                for (const listing of allListings) {
                     if (listing.dataset.reservedHidden === 'true') {
                         delete listing.dataset.reservedHidden;
 
                         // Only show if not hidden by other filters
                         if (!this.shouldHideListing(listing) &&
-                            !this.shouldHideByDeliveryMethod(listing)) {
+                            !await this.shouldHideByDeliveryMethod(listing)) {
                             this.showListing(listing);
                         }
                     }
-                });
+                }
 
                 // Update status text
                 if (this.reservedStatusElement) {
@@ -7383,14 +7495,14 @@
             // Apply the filter to hide reserved listings
             let hiddenCount = 0;
 
-            allListings.forEach(listing => {
+            for (const listing of allListings) {
                 if (this.isReservedListing(listing)) {
                     // Mark as hidden specifically by this filter
                     listing.dataset.reservedHidden = 'true';
                     this.hideListing(listing);
                     hiddenCount++;
                 }
-            });
+            }
 
             // Update status text
             if (this.reservedStatusElement) {
@@ -7440,8 +7552,8 @@
          * Modified method to check if a listing should be hidden by delivery method
          * Separated from the main filter to make it easier to combine filters
          */
-        static shouldHideByDeliveryMethod(listing) {
-            const filterValue = this.loadPanelState('deliveryMethodFilter', 'all');
+        static async shouldHideByDeliveryMethod(listing) {
+            const filterValue = await this.loadPanelState('deliveryMethodFilter', 'all');
             if (filterValue === 'all') return false;
 
             const deliveryMethod = this.getDeliveryMethod(listing);
@@ -7452,17 +7564,17 @@
         /**
          * Create the filter section
          */
-        static createFilterSection(container) {
+        static async createFilterSection(container) {
             // Load saved state
-            const isExpanded = this.loadPanelState('isFilterSectionExpanded', true);
+            const isExpanded = await this.loadPanelState('isFilterSectionExpanded', true);
 
             this.togglers.filter = new SectionToggler({
                 container,
                 sectionClass: 'filter',
                 title: TranslationManager.getText('filterUnwantedWords'),
                 isExpanded,
-                onToggle: (state) => {
-                    this.savePanelState('isFilterSectionExpanded', state);
+                onToggle: async (state) => {
+                    await this.savePanelState('isFilterSectionExpanded', state);
                 },
                 contentCreator: (content) => {
                     // Filter input
@@ -7473,7 +7585,7 @@
                     // Add enter key listener
                     this.filterInputElement.addEventListener('keypress', (e) => {
                         if (e.key === 'Enter') {
-                            this.addBlockedTerm();
+                            (async () => await this.addBlockedTerm())();
                         }
                     });
 
@@ -7483,7 +7595,7 @@
                     const applyButton = this.createButton(
                         TranslationManager.getText('addAndApply'),
                         'panel-button filter-apply',
-                        () => this.addBlockedTerm()
+                        async () => await this.addBlockedTerm()
                     );
                     content.appendChild(applyButton);
 
@@ -7548,9 +7660,9 @@
         /**
          * Create the copy section
          */
-        static createCopySection(container) {
+        static async createCopySection(container) {
             // Load saved state
-            const isExpanded = this.loadPanelState('isCopySectionExpanded', true);
+            const isExpanded = await this.loadPanelState('isCopySectionExpanded', true);
 
             // Load the last selected format
             let lastSelectedFormat = this.loadExportFormat();
@@ -7560,8 +7672,8 @@
                 sectionClass: 'export',
                 title: TranslationManager.getText('exportDescriptions'),
                 isExpanded,
-                onToggle: (state) => {
-                    this.savePanelState('isCopySectionExpanded', state);
+                onToggle: async (state) => {
+                    await this.savePanelState('isCopySectionExpanded', state);
                 },
                 contentCreator: (content) => {
                     // Convert export formats to SelectBox items format
@@ -7828,9 +7940,9 @@
         /**
          * JavaScript implementation for select box delivery method filter
          */
-        static createDeliveryMethodSection(container) {
+        static async createDeliveryMethodSection(container) {
             // Load saved state
-            const isExpanded = this.loadPanelState('isDeliveryMethodSectionExpanded', true);
+            const isExpanded = await this.loadPanelState('isDeliveryMethodSectionExpanded', true);
 
             this.togglers.deliveryMethod = new SectionToggler({
                 container,
@@ -7840,32 +7952,32 @@
                 onToggle: (state) => {
                     this.savePanelState('isDeliveryMethodSectionExpanded', state);
                 },
-                contentCreator: (content) => {
+                contentCreator: async (content) => {
                     // Create select element
                     new SelectBox({
                         items: [
                             {
                                 value: 'all',
                                 label: TranslationManager.getText('showAll'),
-                                selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'all'
+                                selected: await this.loadPanelState('deliveryMethodFilter', 'shipping') === 'all'
                             },
                             {
                                 value: 'shipping',
                                 label: TranslationManager.getText('showOnlyShipping'),
-                                selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'shipping'
+                                selected: await this.loadPanelState('deliveryMethodFilter', 'shipping') === 'shipping'
                             },
                             {
                                 value: 'inperson',
                                 label: TranslationManager.getText('showOnlyInPerson'),
-                                selected: this.loadPanelState('deliveryMethodFilter', 'shipping') === 'inperson'
+                                selected: await this.loadPanelState('deliveryMethodFilter', 'shipping') === 'inperson'
                             }
                         ],
                         name: 'delivery-method',
                         id: 'delivery-method-select',
                         container: content, // the container passed to the contentCreator callback
-                        onChange: (value, event) => {
-                            this.savePanelState('deliveryMethodFilter', value);
-                            this.applyDeliveryMethodFilter();
+                        onChange: async (value, event) => {
+                            await this.savePanelState('deliveryMethodFilter', value);
+                            await this.applyDeliveryMethodFilter();
                         },
                         theme: 'default', // or set a different theme if needed
                         size: 'medium',
@@ -7880,14 +7992,14 @@
         /**
          * Apply delivery method filter
          */
-        static applyDeliveryMethodFilter() {
+        static async applyDeliveryMethodFilter() {
             Logger.debug("Applying delivery method filter");
 
             const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
             const allListings = document.querySelectorAll(allSelectors);
 
             // Get current filter value
-            const filterValue = this.loadPanelState('deliveryMethodFilter', 'shipping');
+            const filterValue = await this.loadPanelState('deliveryMethodFilter', 'shipping');
 
             if (filterValue === 'all') {
                 // Show all listings (that aren't hidden by other filters)
@@ -7901,7 +8013,7 @@
 
             let hiddenCount = 0;
 
-            allListings.forEach(listing => {
+            for (const listing of allListings) {
                 // First check if it should be hidden by the keyword filter
                 if (this.shouldHideListing(listing)) {
                     this.hideListing(listing);
@@ -7921,7 +8033,7 @@
                 } else {
                     this.showListing(listing);
                 }
-            });
+            }
 
             Logger.debug(`Delivery method filter applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
         }
@@ -7932,7 +8044,6 @@
          * @returns {string} 'shipping', 'inperson', or 'unknown'
          */
         static getDeliveryMethod(listing) {
-
             // Look for shadow roots and badge elements within them
             const shadowRoots = [];
             const findShadowRoots = (element) => {
@@ -7942,24 +8053,17 @@
                 Array.from(element.children).forEach(findShadowRoots);
             };
             findShadowRoots(listing);
-
             // Check for shipping badge in shadow DOM
-            const hasShippingBadge = shadowRoots.some(root =>
-                root.querySelector('.wallapop-badge--shippingAvailable') !== null ||
-                root.querySelector('[class*="wallapop-badge"][class*="shippingAvailable"]') !== null
+            const hasShippingBadge = SELECTORS.DELIVERY_METHOD.BADGES.SHIPPING.some(sel =>
+                shadowRoots.some(root => root.querySelector(sel) !== null)
             );
-
             // Check for in-person badge in shadow DOM
-            const hasInPersonBadge = shadowRoots.some(root =>
-                root.querySelector('.wallapop-badge--faceToFace') !== null ||
-                root.querySelector('[class*="wallapop-badge"][class*="faceToFace"]') !== null
+            const hasInPersonBadge = SELECTORS.DELIVERY_METHOD.BADGES.INPERSON.some(sel =>
+                shadowRoots.some(root => root.querySelector(sel) !== null)
             );
-
             // Text fallback as a last resort
-            const shippingText = listing.textContent.includes('Envío disponible');
-            const inPersonText = listing.textContent.includes('Sólo venta en persona') ||
-                listing.textContent.includes('Solo venta en persona');
-
+            const shippingText = SELECTORS.DELIVERY_METHOD.TEXT.SHIPPING.some(txt => listing.textContent.includes(txt));
+            const inPersonText = SELECTORS.DELIVERY_METHOD.TEXT.INPERSON.some(txt => listing.textContent.includes(txt));
             // Determine delivery method
             if (hasShippingBadge || (!hasInPersonBadge && shippingText)) {
                 return 'shipping';
@@ -7968,19 +8072,17 @@
             } else {
                 // Add additional fallback based on HTML structure
                 // Check if there's an icon that might indicate shipping or in-person
-                const hasShippingIcon = shadowRoots.some(root =>
-                    root.querySelector('walla-icon[class*="shipping"]') !== null
+                const hasShippingIcon = SELECTORS.DELIVERY_METHOD.ICONS.SHIPPING.some(sel =>
+                    shadowRoots.some(root => root.querySelector(sel) !== null)
                 );
-                const hasInPersonIcon = shadowRoots.some(root =>
-                    root.querySelector('walla-icon[class*="faceToFace"]') !== null
+                const hasInPersonIcon = SELECTORS.DELIVERY_METHOD.ICONS.INPERSON.some(sel =>
+                    shadowRoots.some(root => root.querySelector(sel) !== null)
                 );
-
                 if (hasShippingIcon) {
                     return 'shipping';
                 } else if (hasInPersonIcon) {
                     return 'inperson';
                 }
-
                 Logger.debug("Unknown delivery method for listing:", listing);
                 return 'unknown';
             }
@@ -8483,17 +8585,17 @@
         /**
          * Create the language section using Button component with CSS styling
          */
-        static createLanguageSection(container) {
+        static async createLanguageSection(container) {
             // Load saved state
-            const isExpanded = this.loadPanelState('isLanguageSectionExpanded', true);
+            const isExpanded = await this.loadPanelState('isLanguageSectionExpanded', true);
 
             this.togglers.language = new SectionToggler({
                 container,
                 sectionClass: 'language',
                 title: TranslationManager.getText('languageSettings'),
                 isExpanded,
-                onToggle: (state) => {
-                    this.savePanelState('isLanguageSectionExpanded', state);
+                onToggle: async (state) => {
+                    await this.savePanelState('isLanguageSectionExpanded', state);
                 },
                 contentCreator: (content) => {
                     // Create language selector
@@ -8546,7 +8648,7 @@
         /**
          * Create the main control panel
          */
-        static createControlPanel() {
+        static async createControlPanel() {
             // Initialize the sidebar panel instead of draggable container
             this.sidebarPanel = new SidebarPanel({
                 id: 'wallapop-tools-panel',
@@ -8557,17 +8659,17 @@
                 namespace: 'wallapop-enhanced',
                 rememberState: true,
                 content: {
-                    generator: () => {
+                    generator: async () => {
                         // Create content container
                         const contentContainer = document.createElement('div');
 
                         // Create sections
-                        this.createExpandAllSection(contentContainer);
-                        this.createFilterSection(contentContainer);
-                        this.createDeliveryMethodSection(contentContainer);
-                        this.createReservedListingsSection(contentContainer);
-                        this.createCopySection(contentContainer);
-                        this.createLanguageSection(contentContainer);
+                        await this.createExpandAllSection(contentContainer);
+                        await this.createFilterSection(contentContainer);
+                        await this.createDeliveryMethodSection(contentContainer);
+                        await this.createReservedListingsSection(contentContainer);
+                        await this.createCopySection(contentContainer);
+                        await this.createLanguageSection(contentContainer);
 
                         return contentContainer;
                     }
@@ -8707,7 +8809,7 @@
                 removeButton.title = TranslationManager.getText('remove');
                 removeButton.addEventListener('click', () => {
                     termItem.classList.add('fadeOutAnimation');
-                    setTimeout(() => this.removeBlockedTerm(term), 300);
+                    setTimeout(async () => await this.removeBlockedTerm(term), 300);
                 });
                 termItem.appendChild(removeButton);
 
@@ -8726,7 +8828,7 @@
          * Apply all filters including keywords, delivery method, and reserved status
          * Modified to include the reserved filter
          */
-        static applyFilters() {
+        static async applyFilters() {
             Logger.debug("Applying all filters to listings");
 
             const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
@@ -8734,10 +8836,10 @@
 
             let hiddenCount = 0;
 
-            allListings.forEach(listing => {
+            for (const listing of allListings) {
                 const hideByKeyword = this.shouldHideListing(listing);
-                const hideByDelivery = this.shouldHideByDeliveryMethod(listing);
-                const hideByReserved = this.loadPanelState('hideReservedListings', true) &&
+                const hideByDelivery = await this.shouldHideByDeliveryMethod(listing);
+                const hideByReserved = await this.loadPanelState('hideReservedListings', true) &&
                     this.isReservedListing(listing);
 
                 if (hideByKeyword || hideByDelivery || hideByReserved) {
@@ -8751,7 +8853,7 @@
                 } else {
                     this.showListing(listing);
                 }
-            });
+            }
 
             Logger.debug(`All filters applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
 
@@ -8762,11 +8864,11 @@
         /**
          * Update the count of hidden reserved listings
          */
-        static updateReservedStatusCount() {
+        static async updateReservedStatusCount() {
             if (!this.reservedStatusElement) return;
 
             // Only count if the filter is active
-            if (!this.loadPanelState('hideReservedListings', true)) {
+            if (!(await this.loadPanelState('hideReservedListings', true))) {
                 this.reservedStatusElement.textContent = '';
                 return;
             }
@@ -8857,7 +8959,7 @@
         /**
          * Add a blocked term from the input field
          */
-        static addBlockedTerm() {
+        static async addBlockedTerm() {
             const term = this.filterInputElement.value.trim().toLowerCase();
 
             if (term && !this.blockedTerms.includes(term)) {
@@ -8867,7 +8969,7 @@
                 this.filterInputElement.value = '';
 
                 // Re-apply filters to all listings
-                this.applyFilters();
+                await this.applyFilters();
 
                 Logger.debug("Blocked term added:", term);
             }
@@ -8876,7 +8978,7 @@
         /**
          * Remove a blocked term
          */
-        static removeBlockedTerm(term) {
+        static async removeBlockedTerm(term) {
             const index = this.blockedTerms.indexOf(term);
             if (index > -1) {
                 this.blockedTerms.splice(index, 1);
@@ -8884,7 +8986,7 @@
                 this.updateBlockedTermsList();
 
                 // Re-apply filters to all listings
-                this.applyFilters();
+                await this.applyFilters();
 
                 Logger.debug("Blocked term removed:", term);
             }
@@ -8896,6 +8998,7 @@
         static async savePanelState(key, value) { // Made async
             try {
                 await setValue(key, value); // Use await and GMFunctions.setValue
+                this.panelStateCache[key] = value; // Update cache
                 Logger.debug('Panel state saved', {key, value});
             } catch (error) {
                 Logger.error('Error saving panel state:', error, {key});
@@ -8906,9 +9009,14 @@
          * Load a specific panel state from localStorage
          */
         static async loadPanelState(key, defaultValue) { // Made async
+            if (this.panelStateCache.hasOwnProperty(key)) {
+                Logger.debug('Panel state loaded (from cache)', {key, value: this.panelStateCache[key]});
+                return this.panelStateCache[key];
+            }
             try {
                 const value = await getValue(key, defaultValue); // Use await and GMFunctions.getValue
                 Logger.debug('Panel state loaded', {key, value});
+                this.panelStateCache[key] = value; // Cache it
                 return value;
             } catch (error) {
                 Logger.error('Error loading panel state:', error, {key});
