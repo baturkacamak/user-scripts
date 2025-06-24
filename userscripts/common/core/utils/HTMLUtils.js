@@ -112,6 +112,49 @@ class HTMLUtils {
 
         return metaTags;
     }
+
+    /**
+     * Safely set HTML content with CSP fallback
+     * @param {HTMLElement} element - The element to set content on
+     * @param {String} html - HTML content to set
+     * @param {String} fallbackText - Text to use if HTML fails (optional)
+     * @return {boolean} True if HTML was set successfully, false if fallback was used
+     */
+    static setHTMLSafely(element, html, fallbackText = null) {
+        if (!element) return false;
+        
+        try {
+            // Try to use innerHTML first
+            element.innerHTML = html;
+            return true;
+        } catch (error) {
+            // Fallback to textContent if innerHTML fails due to CSP
+            const fallback = fallbackText || html;
+            element.textContent = fallback;
+            return false;
+        }
+    }
+
+    /**
+     * Create an element with HTML content safely
+     * @param {String} tagName - HTML tag name
+     * @param {String} html - HTML content
+     * @param {Object} attributes - Element attributes
+     * @return {HTMLElement} The created element
+     */
+    static createElementWithHTML(tagName, html, attributes = {}) {
+        const element = document.createElement(tagName);
+        
+        // Set attributes
+        Object.keys(attributes).forEach(key => {
+            element.setAttribute(key, attributes[key]);
+        });
+        
+        // Set content safely
+        this.setHTMLSafely(element, html);
+        
+        return element;
+    }
 }
 
 /**
