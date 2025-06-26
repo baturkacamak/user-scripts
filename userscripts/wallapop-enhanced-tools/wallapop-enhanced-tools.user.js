@@ -4942,7 +4942,7 @@
         async init() {
             // Ensure styles are initialized only once
             if (!document.head.dataset.sidebarPanelStylesInitialized) {
-                SidebarPanel.initStyles(this.options.namespace);
+            SidebarPanel.initStyles(this.options.namespace);
                 document.head.dataset.sidebarPanelStylesInitialized = 'true';
             }
 
@@ -4962,7 +4962,7 @@
             this.setupEvents();
 
             // Set initial state without animation
-            if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
                 this.open(false);
             }
 
@@ -5288,7 +5288,7 @@
                 } else {
                     // If it's a regular element
                     this.content.appendChild(generatedContent);
-                }
+            }
             }
             Logger.debug('Panel content updated');
         }
@@ -6916,7 +6916,7 @@
             StyleManager.addStyles();
 
             // Create unified control panel
-            ControlPanel.createControlPanel();
+            await ControlPanel.createControlPanel();
 
             await DOMObserver.waitForElements(SELECTORS.ITEM_CARDS);
             ListingManager.addExpandButtonsToListings();
@@ -6925,23 +6925,27 @@
             await ControlPanel.applyFilters();
 
             const domObserver = new DOMObserver(async (mutations) => {
-                for (let mutation of mutations) {
-                    if (mutation.type === 'childList') {
-                        const addedNodes = Array.from(mutation.addedNodes);
-                        const hasNewItemCards = addedNodes.some(node =>
+                let hasNewItemCards = false;
+                for (const mutation of mutations) {
+                    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                        if (Array.from(mutation.addedNodes).some(node =>
                             node.nodeType === Node.ELEMENT_NODE &&
-                            SELECTORS.ITEM_CARDS.some(selector =>
-                                node.matches(selector) || node.querySelector(selector)
-                            )
-                        );
-                        if (hasNewItemCards) {
-                            Logger.debug("New ItemCards detected, adding expand buttons");
-                            ListingManager.addExpandButtonsToListings();
-
-                            // Apply all filters to new listings
-                            await ControlPanel.applyFilters();
+                            (SELECTORS.ITEM_CARDS.some(selector => node.matches(selector)) || node.querySelector(SELECTORS.ITEM_CARDS.join(',')))
+                        )) {
+                            hasNewItemCards = true;
+                            break;
                         }
                     }
+                }
+
+                if (hasNewItemCards) {
+                    Logger.debug("New ItemCards detected, processing...");
+                    // A small delay helps ensure that all related DOM changes are complete, especially with frameworks.
+                    setTimeout(async () => {
+                        ListingManager.addExpandButtonsToListings();
+                        await ControlPanel.applyFilters();
+                        Logger.debug("Processing of new items complete.");
+                    }, 500);
                 }
             });
             domObserver.observe();
@@ -7557,8 +7561,21 @@
             if (filterValue === 'all') return false;
 
             const deliveryMethod = this.getDeliveryMethod(listing);
-            return (filterValue === 'shipping' && deliveryMethod !== 'shipping') ||
-                (filterValue === 'inperson' && deliveryMethod !== 'inperson');
+
+            // If the delivery method can't be determined, don't hide it to be safe.
+            if (deliveryMethod === 'unknown') {
+                Logger.debug(`Delivery Filter: Not hiding item because method is 'unknown'.`, { listing: listing.href });
+                return false;
+            }
+
+            const shouldHide = (filterValue === 'shipping' && deliveryMethod !== 'shipping') ||
+                             (filterValue === 'inperson' && deliveryMethod !== 'inperson');
+
+            if (shouldHide) {
+                 Logger.debug(`Delivery Filter: Hiding item. Filter is '${filterValue}', detected method is '${deliveryMethod}'.`, { listing: listing.href });
+            }
+
+            return shouldHide;
         }
 
         /**
@@ -8018,7 +8035,7 @@
                 if (this.shouldHideListing(listing)) {
                     this.hideListing(listing);
                     hiddenCount++;
-                    return;
+                    continue;
                 }
 
                 // Then check delivery method
@@ -8044,7 +8061,20 @@
          * @returns {string} 'shipping', 'inperson', or 'unknown'
          */
         static getDeliveryMethod(listing) {
-            // Look for shadow roots and badge elements within them
+            // The text content of the whole card is a good first indicator.
+            const listingText = listing.textContent || '';
+
+            // Priority 1: Check for explicit text.
+            if (SELECTORS.DELIVERY_METHOD.TEXT.SHIPPING.some(txt => listingText.includes(txt))) {
+                Logger.debug("Delivery Method Check (Text): Detected 'shipping'", { listing: listing.href });
+                return 'shipping';
+            }
+            if (SELECTORS.DELIVERY_METHOD.TEXT.INPERSON.some(txt => listingText.includes(txt))) {
+                Logger.debug("Delivery Method Check (Text): Detected 'inperson'", { listing: listing.href });
+                return 'inperson';
+            }
+
+            // If text check fails, we move to DOM elements which can be in shadow roots.
             const shadowRoots = [];
             const findShadowRoots = (element) => {
                 if (element.shadowRoot) {
@@ -8053,39 +8083,44 @@
                 Array.from(element.children).forEach(findShadowRoots);
             };
             findShadowRoots(listing);
-            // Check for shipping badge in shadow DOM
-            const hasShippingBadge = SELECTORS.DELIVERY_METHOD.BADGES.SHIPPING.some(sel =>
-                shadowRoots.some(root => root.querySelector(sel) !== null)
-            );
-            // Check for in-person badge in shadow DOM
-            const hasInPersonBadge = SELECTORS.DELIVERY_METHOD.BADGES.INPERSON.some(sel =>
-                shadowRoots.some(root => root.querySelector(sel) !== null)
-            );
-            // Text fallback as a last resort
-            const shippingText = SELECTORS.DELIVERY_METHOD.TEXT.SHIPPING.some(txt => listing.textContent.includes(txt));
-            const inPersonText = SELECTORS.DELIVERY_METHOD.TEXT.INPERSON.some(txt => listing.textContent.includes(txt));
-            // Determine delivery method
-            if (hasShippingBadge || (!hasInPersonBadge && shippingText)) {
-                return 'shipping';
-            } else if (hasInPersonBadge || inPersonText) {
-                return 'inperson';
-            } else {
-                // Add additional fallback based on HTML structure
-                // Check if there's an icon that might indicate shipping or in-person
-                const hasShippingIcon = SELECTORS.DELIVERY_METHOD.ICONS.SHIPPING.some(sel =>
-                    shadowRoots.some(root => root.querySelector(sel) !== null)
-                );
-                const hasInPersonIcon = SELECTORS.DELIVERY_METHOD.ICONS.INPERSON.some(sel =>
-                    shadowRoots.some(root => root.querySelector(sel) !== null)
-                );
-                if (hasShippingIcon) {
-                    return 'shipping';
-                } else if (hasInPersonIcon) {
-                    return 'inperson';
+
+            const checkSelectors = (selectors) => {
+                // Check in the main DOM of the listing
+                for (const selector of selectors) {
+                    if (listing.querySelector(selector)) return true;
                 }
-                Logger.debug("Unknown delivery method for listing:", listing);
-                return 'unknown';
+                // Check within any found shadow roots
+                for (const root of shadowRoots) {
+                    for (const selector of selectors) {
+                        if (root.querySelector(selector)) return true;
+                    }
+                }
+                return false;
+            };
+
+            // Priority 2: Check for badges (shipping or in-person).
+            if (checkSelectors(SELECTORS.DELIVERY_METHOD.BADGES.SHIPPING)) {
+                Logger.debug("Delivery Method Check (Badge): Detected 'shipping'", { listing: listing.href });
+                return 'shipping';
             }
+            if (checkSelectors(SELECTORS.DELIVERY_METHOD.BADGES.INPERSON)) {
+                Logger.debug("Delivery Method Check (Badge): Detected 'inperson'", { listing: listing.href });
+                return 'inperson';
+            }
+
+            // Priority 3: Check for icons (shipping or in-person).
+            if (checkSelectors(SELECTORS.DELIVERY_METHOD.ICONS.SHIPPING)) {
+                Logger.debug("Delivery Method Check (Icon): Detected 'shipping'", { listing: listing.href });
+                return 'shipping';
+            }
+            if (checkSelectors(SELECTORS.DELIVERY_METHOD.ICONS.INPERSON)) {
+                Logger.debug("Delivery Method Check (Icon): Detected 'inperson'", { listing: listing.href });
+                return 'inperson';
+            }
+
+            // If all checks fail, log and return 'unknown'.
+            Logger.debug("Delivery Method Check: Unknown delivery method", { html: listing.innerHTML });
+            return 'unknown';
         }
 
         static formatAsPlainText(items, options) {
@@ -8680,49 +8715,21 @@
                     buttonBgHover: '#006666',
                     panelBg: '#ffffff',
                 },
-                onOpen: () => {
+                onOpen: async () => {
                     // Additional actions when panel opens
                     this.updateUILanguage();
                     this.loadBlockedTerms();
-                    this.updateReservedStatusCount();
+                    await this.updateReservedStatusCount();
                 }
             });
+
+            await this.sidebarPanel.init();
 
             // Load initial state
             this.updateUILanguage();
             this.loadBlockedTerms();
 
             Logger.debug("Sidebar panel created for Wallapop Tools");
-        }
-
-        /**
-         * Load blocked terms from localStorage
-         */
-        static loadBlockedTerms() {
-            try {
-                const savedTerms = localStorage.getItem('wallapop-blocked-terms');
-                if (savedTerms) {
-                    this.blockedTerms = JSON.parse(savedTerms);
-                    this.updateBlockedTermsList();
-                    Logger.debug("Blocked terms loaded:", this.blockedTerms);
-                }
-            } catch (error) {
-                Logger.error(error, "Loading blocked terms");
-                // Initialize with empty array if there's an error
-                this.blockedTerms = [];
-            }
-        }
-
-        /**
-         * Save blocked terms to localStorage
-         */
-        static saveBlockedTerms() {
-            try {
-                localStorage.setItem('wallapop-blocked-terms', JSON.stringify(this.blockedTerms));
-                Logger.debug("Blocked terms saved to localStorage");
-            } catch (error) {
-                Logger.error(error, "Saving blocked terms");
-            }
         }
 
         /**
@@ -8829,7 +8836,7 @@
          * Modified to include the reserved filter
          */
         static async applyFilters() {
-            Logger.debug("Applying all filters to listings");
+            Logger.debug("--- Applying all filters ---");
 
             const allSelectors = SELECTORS.ITEM_CARDS.join(', ');
             const allListings = document.querySelectorAll(allSelectors);
@@ -8837,12 +8844,20 @@
             let hiddenCount = 0;
 
             for (const listing of allListings) {
+                const listingTitle = listing.querySelector('a')?.title || listing.href || 'Unknown Listing';
+
                 const hideByKeyword = this.shouldHideListing(listing);
                 const hideByDelivery = await this.shouldHideByDeliveryMethod(listing);
                 const hideByReserved = await this.loadPanelState('hideReservedListings', true) &&
                     this.isReservedListing(listing);
 
-                if (hideByKeyword || hideByDelivery || hideByReserved) {
+                const reasons = [];
+                if (hideByKeyword) reasons.push('keyword');
+                if (hideByDelivery) reasons.push('delivery');
+                if (hideByReserved) reasons.push('reserved');
+
+                if (reasons.length > 0) {
+                    Logger.debug(`Hiding Listing: ${listingTitle}`, { reasons: reasons.join(', ') });
                     this.hideListing(listing);
                     hiddenCount++;
 
@@ -8855,10 +8870,10 @@
                 }
             }
 
-            Logger.debug(`All filters applied: ${hiddenCount} listings hidden out of ${allListings.length}`);
+            Logger.debug(`Filter Run Complete: ${hiddenCount} listings hidden out of ${allListings.length}`);
 
             // Update reserved status count
-            this.updateReservedStatusCount();
+            await this.updateReservedStatusCount();
         }
 
         /**
@@ -8918,7 +8933,14 @@
             const listingText = listing.textContent.toLowerCase();
 
             // Check if any blocked term is in the listing
-            return this.blockedTerms.some(term => listingText.includes(term.toLowerCase()));
+            return this.blockedTerms.some(term => {
+                const lowerCaseTerm = term.toLowerCase();
+                const isBlocked = listingText.includes(lowerCaseTerm);
+                if (isBlocked) {
+                    Logger.debug(`Keyword Filter: '${lowerCaseTerm}' found in listing`, { listing: listingText });
+                }
+                return isBlocked;
+            });
         }
 
         /**

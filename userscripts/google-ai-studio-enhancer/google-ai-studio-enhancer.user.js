@@ -5316,7 +5316,7 @@
         async init() {
             // Ensure styles are initialized only once
             if (!document.head.dataset.sidebarPanelStylesInitialized) {
-                SidebarPanel.initStyles(this.options.namespace);
+            SidebarPanel.initStyles(this.options.namespace);
                 document.head.dataset.sidebarPanelStylesInitialized = 'true';
             }
 
@@ -5336,7 +5336,7 @@
             this.setupEvents();
 
             // Set initial state without animation
-            if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
+                if (this.state === SidebarPanel.PANEL_STATES.OPENED) {
                 this.open(false);
             }
 
@@ -5662,7 +5662,7 @@
                 } else {
                     // If it's a regular element
                     this.content.appendChild(generatedContent);
-                }
+            }
             }
             Logger.debug('Panel content updated');
         }
