@@ -157,6 +157,7 @@ class AIStudioEnhancer {
         this.copyButton = null;
         this.toggleButton = null;
         this.isInitialLoad = true;
+        this.enhancerId = 'ai-studio-enhancer-container';
         
         // Store subscription IDs for cleanup
         this.subscriptionIds = [];
@@ -732,8 +733,14 @@ class AIStudioEnhancer {
      * Initialize the enhancer
      */
     async init() {
-        // Wait for page to be ready
+        Logger.info("Enhancer starting initialization...");
+
+        // Set a unique ID on the body for style scoping
+        document.body.id = this.enhancerId;
+
+        // Wait for the main content to be ready
         await this.waitForPageReady();
+        Logger.info("Page is ready, proceeding with initialization.");
 
         // Initialize styles
         SidebarPanel.initStyles();
@@ -912,19 +919,20 @@ class AIStudioEnhancer {
                 this.settings.AUTO_RUN_PROMPT = textArea.getValue();
                 this.saveSettings();
             },
-            container: section
+            container: section,
+            autoResize: true,
+            scopeSelector: `#${this.enhancerId}`
         });
 
         // Iterations input using Input component
         this.iterationsInput = new Input({
             type: 'number',
-            value: this.settings.DEFAULT_ITERATIONS.toString(),
+            value: this.settings.DEFAULT_ITERATIONS,
             placeholder: 'Number of iterations',
-            min: '1',
-            max: '100',
-            theme: 'primary',
-            size: 'medium',
+            min: 1,
+            max: 100,
             className: 'auto-run-iterations-input',
+            scopeSelector: `#${this.enhancerId}`,
             validator: (value) => {
                 const num = parseInt(value, 10);
                 if (isNaN(num) || num < 1) {

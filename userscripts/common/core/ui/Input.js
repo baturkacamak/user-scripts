@@ -22,20 +22,25 @@ class Input {
     /**
      * Initialize default styles for Input components
      */
-    static initStyles() {
-        if (StyleManager.hasStyles('input-component')) {
+    static initStyles(options = {}) {
+        const { scopeSelector = '' } = options;
+        const styleId = `input-component${scopeSelector ? '-' + scopeSelector.replace(/[^a-zA-Z0-9]/g, '') : ''}`;
+
+        if (StyleManager.hasStyles(styleId)) {
             return;
         }
 
+        const selectorPrefix = scopeSelector ? `${scopeSelector} ` : '';
+
         const styles = `
-            .${Input.BASE_INPUT_CLASS} {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS} {
                 position: relative;
                 display: inline-block;
                 width: 100%;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
 
-            .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field {
                 width: 100%;
                 padding: 8px 12px;
                 border: 1px solid #e0e0e0;
@@ -48,68 +53,68 @@ class Input {
                 outline: none;
             }
 
-            .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}-field:disabled {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:disabled {
                 background: #f0f0f0;
                 color: #888;
                 cursor: not-allowed;
             }
 
-            .${Input.BASE_INPUT_CLASS}-field::placeholder {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field::placeholder {
                 color: #222;
                 opacity: 0.7;
             }
 
             /* Themes */
-            .${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
                 border-color: #28a745;
             }
 
-            .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #28a745;
                 box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
                 border-color: #ffc107;
             }
 
-            .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #ffc107;
                 box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
                 border-color: #dc3545;
             }
 
-            .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #dc3545;
                 box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
             }
 
             /* Sizes */
-            .${Input.BASE_INPUT_CLASS}--small .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--small .${Input.BASE_INPUT_CLASS}-field {
                 padding: 6px 10px;
                 font-size: 12px;
             }
 
-            .${Input.BASE_INPUT_CLASS}--large .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--large .${Input.BASE_INPUT_CLASS}-field {
                 padding: 12px 16px;
                 font-size: 16px;
             }
 
             /* Label */
-            .${Input.BASE_INPUT_CLASS}-label {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-label {
                 display: block;
                 margin-bottom: 4px;
                 font-size: 13px;
@@ -118,7 +123,7 @@ class Input {
             }
 
             /* Error message */
-            .${Input.BASE_INPUT_CLASS}-error {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-error {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -126,7 +131,7 @@ class Input {
             }
 
             /* Helper text */
-            .${Input.BASE_INPUT_CLASS}-helper {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-helper {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -135,74 +140,74 @@ class Input {
 
             /* Dark theme */
             @media (prefers-color-scheme: dark) {
-                .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field {
                     background: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #555;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}-field:disabled {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:disabled {
                     background: #444;
                     color: #888;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-field::placeholder {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field::placeholder {
                     color: #e0e0e0;
                     opacity: 0.5;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-label {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-label {
                     color: #e0e0e0;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-helper {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-helper {
                     color: #aaa;
                 }
 
                 /* Themes in dark mode */
-                .${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
                     background-color: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #28a745;
                 }
 
-                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
                      background-color: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #ffc107;
                 }
 
-                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
                      background-color: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #dc3545;
                 }
 
-                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
                 }
             }
         `;
 
-        StyleManager.addStyles(styles, 'input-component');
+        StyleManager.addStyles(styles, styleId);
     }
 
     /**
@@ -260,6 +265,7 @@ class Input {
         this.isValid = true;
         this.errorMessage = '';
 
+        Input.initStyles({ scopeSelector: this.options.scopeSelector });
         this.createElement();
         this.setupEventListeners();
 
