@@ -229,6 +229,8 @@
      * Provides functions for escaping HTML, encoding/decoding entities, etc.
      */
     class HTMLUtils {
+        static #policy;
+
         /**
          * Escape special HTML characters to prevent XSS
          * @param {string} str - The string to escape
@@ -348,10 +350,27 @@
          */
         static setHTMLSafely(element, html, fallbackText = null) {
             if (!element) return false;
-            
+
+            if (window.trustedTypes && window.trustedTypes.createPolicy) {
+                if (!HTMLUtils.#policy) {
+                    try {
+                        HTMLUtils.#policy = window.trustedTypes.createPolicy('userscript-policy', {
+                            createHTML: (input) => input,
+                        });
+                    } catch (e) {
+                        // Policy likely already exists.
+                        // We will fallback to innerHTML which will probably fail and be caught.
+                        HTMLUtils.#policy = null;
+                    }
+                }
+            }
+
             try {
-                // Try to use innerHTML first
-                element.innerHTML = html;
+                if (HTMLUtils.#policy) {
+                    element.innerHTML = HTMLUtils.#policy.createHTML(html);
+                } else {
+                    element.innerHTML = html;
+                }
                 return true;
             } catch (error) {
                 // Fallback to textContent if innerHTML fails due to CSP
@@ -1700,6 +1719,20 @@
           ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
           ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            ${Notification.CSS_VAR_PREFIX}shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            ${Notification.CSS_VAR_PREFIX}color: #e0e0e0;
+            
+            /* Themed Backgrounds */
+            ${Notification.CSS_VAR_PREFIX}info-bg: #3498db;
+            ${Notification.CSS_VAR_PREFIX}success-bg: #2ecc71;
+            ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
+            ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
+            ${Notification.CSS_VAR_PREFIX}custom-bg: #5f6c6d;
+          }
+        }
       `);
                 document.head.appendChild(style);
             }
@@ -3024,7 +3057,7 @@
          */
         async initialize() {
             if (this.isInitialized) {
-                this.log('warn', 'Already initialized');
+                Logger.warn(`[${this.name}] Already initialized`);
                 return;
             }
 
@@ -3070,9 +3103,9 @@
                     const element = document.querySelector(config.selector);
                     if (element) {
                         this.fieldElements.set(fieldName, element);
-                        this.log('debug', `Found field element: ${fieldName}`);
+                        Logger.debug(`[${this.name}] Found field element: ${fieldName}`);
                     } else {
-                        this.log('warn', `Field element not found: ${fieldName} (${config.selector})`);
+                        Logger.warn(`[${this.name}] Field element not found: ${fieldName} (${config.selector})`);
                     }
                 } catch (error) {
                     Logger.error(`[${this.name}] Error finding field ${fieldName}:`, error);
@@ -3085,7 +3118,7 @@
          */
         async loadState() {
             if (!this.getValue) {
-                this.log('warn', 'No getValue function provided, cannot load state');
+                Logger.warn(`[${this.name}] No getValue function provided, cannot load state`);
                 return;
             }
 
@@ -3100,14 +3133,14 @@
                         this.fieldValues.set(fieldName, savedValue);
                         await this.setFieldValue(fieldName, savedValue);
                         loadedCount++;
-                        this.log('debug', `Loaded field ${fieldName}:`, savedValue);
+                        Logger.debug(`[${this.name}] Loaded field ${fieldName}:`, savedValue);
                     }
                 } catch (error) {
-                    this.log('error', `Error loading field ${fieldName}:`, error);
+                    Logger.error(`[${this.name}] Error loading field ${fieldName}:`, error);
                 }
             }
 
-            this.log('info', `Loaded ${loadedCount} field values from storage`);
+            Logger.info(`[${this.name}] Loaded ${loadedCount} field values from storage`);
             this.publishEvent(FormStatePersistence.EVENTS.STATE_LOADED, {
                 loadedCount,
                 totalFields: Object.keys(this.fields).length,
@@ -3120,7 +3153,7 @@
          */
         async saveState() {
             if (!this.setValue) {
-                this.log('warn', 'No setValue function provided, cannot save state');
+                Logger.warn(`[${this.name}] No setValue function provided, cannot save state`);
                 return;
             }
 
@@ -3133,7 +3166,7 @@
                     if (currentValue !== null && currentValue !== undefined) {
                         // Validate value if validator provided
                         if (config.validator && !config.validator(currentValue)) {
-                            this.log('warn', `Validation failed for field ${fieldName}, not saving`);
+                            Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
                             continue;
                         }
 
@@ -3141,14 +3174,14 @@
                         await this.setValue(storageKey, currentValue);
                         this.fieldValues.set(fieldName, currentValue);
                         savedCount++;
-                        this.log('debug', `Saved field ${fieldName}:`, currentValue);
+                        Logger.debug(`[${this.name}] Saved field ${fieldName}:`, currentValue);
                     }
                 } catch (error) {
-                    this.log('error', `Error saving field ${fieldName}:`, error);
+                    Logger.error(`[${this.name}] Error saving field ${fieldName}:`, error);
                 }
             }
 
-            this.log('info', `Saved ${savedCount} field values to storage`);
+            Logger.info(`[${this.name}] Saved ${savedCount} field values to storage`);
             this.publishEvent(FormStatePersistence.EVENTS.STATE_SAVED, {
                 savedCount,
                 totalFields: Object.keys(this.fields).length,
@@ -3201,7 +3234,7 @@
                         return element.value;
                 }
             } catch (error) {
-                this.log('error', `Error getting value for field ${fieldName}:`, error);
+                Logger.error(`[${this.name}] Error getting value for field ${fieldName}:`, error);
                 return null;
             }
         }
@@ -3272,7 +3305,7 @@
                 
                 return true;
             } catch (error) {
-                this.log('error', `Error setting value for field ${fieldName}:`, error);
+                Logger.error(`[${this.name}] Error setting value for field ${fieldName}:`, error);
                 return false;
             }
         }
@@ -3294,7 +3327,7 @@
                 }
             }
 
-            this.log('debug', 'Auto-save listeners setup complete');
+            Logger.debug(`[${this.name}] Auto-save listeners setup complete`);
         }
 
         /**
@@ -3353,10 +3386,10 @@
                     const element = await HTMLUtils.waitForElement(config.selector, timeout);
                     if (element) {
                         foundElements.set(fieldName, element);
-                        this.log('debug', `Found form element: ${fieldName}`);
+                        Logger.debug(`[${this.name}] Found form element: ${fieldName}`);
                     }
                 } catch (error) {
-                    this.log('warn', `Form element not found: ${fieldName} (${config.selector})`);
+                    Logger.warn(`[${this.name}] Form element not found: ${fieldName} (${config.selector})`);
                 }
             }
             
@@ -3380,11 +3413,11 @@
                             this.fieldValues.set(fieldName, value);
                         }
                     }
-                    this.log('info', 'Restored form data from backup');
+                    Logger.info(`[${this.name}] Restored form data from backup`);
                     return true;
                 }
             } catch (error) {
-                this.log('error', 'Error restoring from backup:', error);
+                Logger.error(`[${this.name}] Error restoring from backup:`, error);
             }
             
             return false;
@@ -3405,7 +3438,7 @@
                 if (currentValue !== null && currentValue !== undefined) {
                     // Validate value if validator provided
                     if (config.validator && !config.validator(currentValue)) {
-                        this.log('warn', `Validation failed for field ${fieldName}, not saving`);
+                        Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
                         return;
                     }
 
@@ -3413,7 +3446,7 @@
                     await this.setValue(storageKey, currentValue);
                     this.fieldValues.set(fieldName, currentValue);
                     
-                    this.log('debug', `Auto-saved field ${fieldName}:`, currentValue);
+                    Logger.debug(`[${this.name}] Auto-saved field ${fieldName}:`, currentValue);
                     this.publishEvent(FormStatePersistence.EVENTS.FIELD_CHANGED, {
                         fieldName,
                         value: currentValue,
@@ -3421,7 +3454,7 @@
                     });
                 }
             } catch (error) {
-                this.log('error', `Error auto-saving field ${fieldName}:`, error);
+                Logger.error(`[${this.name}] Error auto-saving field ${fieldName}:`, error);
             }
         }
 
@@ -3430,7 +3463,7 @@
          */
         async clearState() {
             if (!this.setValue) {
-                this.log('warn', 'No setValue function provided, cannot clear state');
+                Logger.warn(`[${this.name}] No setValue function provided, cannot clear state`);
                 return;
             }
 
@@ -3443,11 +3476,11 @@
                     this.fieldValues.delete(fieldName);
                     clearedCount++;
                 } catch (error) {
-                    this.log('error', `Error clearing field ${fieldName}:`, error);
+                    Logger.error(`[${this.name}] Error clearing field ${fieldName}:`, error);
                 }
             }
 
-            this.log('info', `Cleared ${clearedCount} field values from storage`);
+            Logger.info(`[${this.name}] Cleared ${clearedCount} field values from storage`);
             this.publishEvent(FormStatePersistence.EVENTS.STATE_CLEARED, {
                 clearedCount,
                 name: this.name
@@ -3483,10 +3516,10 @@
                         }
                     }
                     
-                    this.log('debug', `Added field: ${fieldName}`);
+                    Logger.debug(`[${this.name}] Added field: ${fieldName}`);
                 }
             } catch (error) {
-                this.log('error', `Error adding field ${fieldName}:`, error);
+                Logger.error(`[${this.name}] Error adding field ${fieldName}:`, error);
             }
         }
 
@@ -3504,7 +3537,7 @@
                 this.saveTimeouts.delete(fieldName);
             }
             
-            this.log('debug', `Removed field: ${fieldName}`);
+            Logger.debug(`[${this.name}] Removed field: ${fieldName}`);
         }
 
         /**
@@ -3524,8 +3557,6 @@
         publishEvent(eventName, data) {
             PubSub.publish(eventName, data);
         }
-
-
 
         /**
          * Cleanup resources
@@ -4002,6 +4033,44 @@
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            ${Button.CSS_VAR_PREFIX}bg-default: #4a4a4a;
+            ${Button.CSS_VAR_PREFIX}color-default: #e0e0e0;
+            ${Button.CSS_VAR_PREFIX}border-default: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-default-hover: #5a5a5a;
+
+            ${Button.CSS_VAR_PREFIX}bg-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}color-primary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}bg-primary-hover: #2563eb;
+            ${Button.CSS_VAR_PREFIX}border-primary-hover: #2563eb;
+
+            ${Button.CSS_VAR_PREFIX}bg-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}color-secondary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-secondary-hover: #5a6268;
+            ${Button.CSS_VAR_PREFIX}border-secondary-hover: #5a6268;
+
+            ${Button.CSS_VAR_PREFIX}bg-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}color-success: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}bg-success-hover: #059669;
+            ${Button.CSS_VAR_PREFIX}border-success-hover: #059669;
+
+            ${Button.CSS_VAR_PREFIX}bg-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}color-danger: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
+            ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
+            
+            ${Button.CSS_VAR_PREFIX}bg-hover: #555;
+            ${Button.CSS_VAR_PREFIX}bg-active: #666;
+
+            ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
+        }
       `);
           document.head.appendChild(style);
         }
@@ -4408,6 +4477,31 @@
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Base colors */
+            ${ProgressBar.CSS_VAR_PREFIX}label-color: #e0e0e0;
+            ${ProgressBar.CSS_VAR_PREFIX}bar-bg: #2d2d2d;
+            ${ProgressBar.CSS_VAR_PREFIX}text-color: #ffffff;
+            
+            /* Theme colors with gradients */
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start: #6b7280;
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end: #4b5563;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start: #3b82f6;
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end: #2563eb;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start: #10b981;
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end: #059669;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start: #ef4444;
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end: #dc2626;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
+          }
+        }
       `;
           document.head.appendChild(style);
         }
@@ -4756,6 +4850,24 @@
           
           /* Focus state */
           ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Default state */
+            ${Checkbox.CSS_VAR_PREFIX}bg: #2d2d2d;
+            ${Checkbox.CSS_VAR_PREFIX}border-color: #555;
+            ${Checkbox.CSS_VAR_PREFIX}hover-bg: #4a4a4a;
+            ${Checkbox.CSS_VAR_PREFIX}hover-border: #777;
+
+            /* Checked state */
+            ${Checkbox.CSS_VAR_PREFIX}checked-bg: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checked-border: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checkmark-color: #ffffff;
+
+            /* Focus state */
+            ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
         }
       `;
           document.head.appendChild(style);
@@ -5117,6 +5229,24 @@
                 style: options.style || {}
             };
 
+            // Dark mode color defaults
+            const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (isDarkMode) {
+                this.options.style = {
+                    buttonColor: '#fff',
+                    buttonBg: '#3b82f6',
+                    panelBg: '#2d2d2d',
+                    ...options.style // User-provided styles take precedence
+                };
+            } else {
+                this.options.style = {
+                    buttonColor: '#fff',
+                    buttonBg: '#625df5',
+                    panelBg: '#fff',
+                    ...options.style
+                };
+            }
+
             // Setup base class names based on namespace
             this.baseClass = `${this.options.namespace}-sidebar-panel`;
             this.cssVarPrefix = `--${this.options.namespace}-sidebar-panel-`;
@@ -5307,7 +5437,43 @@
                     width: 85vw;
                 }
             }
-        `, `${namespace}-sidebar-panel-styles`);
+
+            .${baseClass}-footer-content {
+                /* Add any specific footer content styling here */
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .${baseClass} {
+                    background-color: var(${cssVarPrefix}bg, #2d2d2d);
+                }
+
+                .${baseClass}-header {
+                    background-color: #3a3a3a;
+                    border-bottom-color: #444;
+                }
+
+                .${baseClass}-title {
+                    color: #e0e0e0;
+                }
+
+                .${baseClass}-close {
+                    color: #aaa;
+                }
+
+                .${baseClass}-close:hover {
+                    color: #fff;
+                }
+
+                .${baseClass}-footer {
+                    background-color: #3a3a3a;
+                    border-top-color: #444;
+                }
+
+                .${baseClass}-overlay {
+                    background-color: rgba(0, 0, 0, 0.7);
+                }
+            }
+        `, `sidebar-panel-styles-${namespace}`);
         }
 
         /**
@@ -5406,7 +5572,7 @@
 
             this.closeButton = document.createElement('button');
             this.closeButton.className = `${this.baseClass}-close`;
-            this.closeButton.innerHTML = '×';
+            HTMLUtils.setHTMLSafely(this.closeButton, '×');
             this.closeButton.setAttribute('aria-label', 'Close panel');
 
             this.header.appendChild(titleElement);
@@ -5423,7 +5589,7 @@
             if (this.options.content.footer) {
                 this.footer = document.createElement('div');
                 this.footer.className = `${this.baseClass}-footer`;
-                this.footer.innerHTML = this.options.content.footer;
+                HTMLUtils.setHTMLSafely(this.footer, this.options.content.footer);
             }
 
             // Assemble panel
@@ -5644,25 +5810,22 @@
          * @param {Object} contentConfig - Content configuration object
          */
         async setContent(contentConfig) {
-            // Clear existing content
-            this.content.innerHTML = '';
+            if (!this.content) return;
+            this.content.innerHTML = ''; // Clearing content is fine
 
             if (contentConfig.html) {
-                // If HTML string is provided
-                this.content.innerHTML = contentConfig.html;
-            } else if (contentConfig.generator) {
-                // If a generator function is provided
-                const generatedContent = contentConfig.generator();
-
-                // Check if the result is a Promise
-                if (generatedContent instanceof Promise) {
-                    // Wait for the promise to resolve
-                    const resolvedContent = await generatedContent;
-                    this.content.appendChild(resolvedContent);
-                } else {
-                    // If it's a regular element
+                if (typeof contentConfig.html === 'string') {
+                    HTMLUtils.setHTMLSafely(this.content, contentConfig.html);
+                } else if (contentConfig.html instanceof HTMLElement) {
+                    this.content.appendChild(contentConfig.html);
+                }
+            } else if (typeof contentConfig.generator === 'function') {
+                const generatedContent = await contentConfig.generator();
+                if (typeof generatedContent === 'string') {
+                    HTMLUtils.setHTMLSafely(this.content, generatedContent);
+                } else if (generatedContent instanceof HTMLElement) {
                     this.content.appendChild(generatedContent);
-            }
+                }
             }
             Logger.debug('Panel content updated');
         }
@@ -5854,6 +6017,74 @@
                 margin-top: 4px;
                 font-size: 12px;
                 color: #666;
+            }
+
+            /* Dark theme */
+            @media (prefers-color-scheme: dark) {
+                .${Input.BASE_INPUT_CLASS}-field {
+                    background: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #555;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}-field:disabled {
+                    background: #444;
+                    color: #888;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-field::placeholder {
+                    color: #e0e0e0;
+                    opacity: 0.5;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-label {
+                    color: #e0e0e0;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-helper {
+                    color: #aaa;
+                }
+
+                /* Themes in dark mode */
+                .${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+                    background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #28a745;
+                }
+
+                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+                     background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #ffc107;
+                }
+
+                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+                     background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #dc3545;
+                }
+
+                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+                }
             }
         `;
 
@@ -6302,6 +6533,78 @@
 
             .${TextArea.BASE_TEXTAREA_CLASS}-counter--limit-reached {
                 color: #dc3545;
+            }
+
+            /* Dark theme */
+            @media (prefers-color-scheme: dark) {
+                .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #555;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
+                    background: #444;
+                    color: #888;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
+                    color: #e0e0e0;
+                    opacity: 0.5;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-label {
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-helper {
+                    color: #aaa;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-counter {
+                    color: #aaa;
+                }
+
+                /* Themes in dark mode */
+                .${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    border-color: #28a745;
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    border-color: #ffc107;
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    border-color: #dc3545;
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+                }
             }
         `;
 

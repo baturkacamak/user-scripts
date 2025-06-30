@@ -229,6 +229,8 @@
      * Provides functions for escaping HTML, encoding/decoding entities, etc.
      */
     class HTMLUtils {
+        static #policy;
+
         /**
          * Escape special HTML characters to prevent XSS
          * @param {string} str - The string to escape
@@ -348,10 +350,27 @@
          */
         static setHTMLSafely(element, html, fallbackText = null) {
             if (!element) return false;
-            
+
+            if (window.trustedTypes && window.trustedTypes.createPolicy) {
+                if (!HTMLUtils.#policy) {
+                    try {
+                        HTMLUtils.#policy = window.trustedTypes.createPolicy('userscript-policy', {
+                            createHTML: (input) => input,
+                        });
+                    } catch (e) {
+                        // Policy likely already exists.
+                        // We will fallback to innerHTML which will probably fail and be caught.
+                        HTMLUtils.#policy = null;
+                    }
+                }
+            }
+
             try {
-                // Try to use innerHTML first
-                element.innerHTML = html;
+                if (HTMLUtils.#policy) {
+                    element.innerHTML = HTMLUtils.#policy.createHTML(html);
+                } else {
+                    element.innerHTML = html;
+                }
                 return true;
             } catch (error) {
                 // Fallback to textContent if innerHTML fails due to CSP
@@ -1056,6 +1075,20 @@
           ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
           ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
           ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
+        }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            ${Notification.CSS_VAR_PREFIX}shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            ${Notification.CSS_VAR_PREFIX}color: #e0e0e0;
+            
+            /* Themed Backgrounds */
+            ${Notification.CSS_VAR_PREFIX}info-bg: #3498db;
+            ${Notification.CSS_VAR_PREFIX}success-bg: #2ecc71;
+            ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
+            ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
+            ${Notification.CSS_VAR_PREFIX}custom-bg: #5f6c6d;
+          }
         }
       `);
                 document.head.appendChild(style);
@@ -1998,6 +2031,44 @@
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            ${Button.CSS_VAR_PREFIX}bg-default: #4a4a4a;
+            ${Button.CSS_VAR_PREFIX}color-default: #e0e0e0;
+            ${Button.CSS_VAR_PREFIX}border-default: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-default-hover: #5a5a5a;
+
+            ${Button.CSS_VAR_PREFIX}bg-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}color-primary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}bg-primary-hover: #2563eb;
+            ${Button.CSS_VAR_PREFIX}border-primary-hover: #2563eb;
+
+            ${Button.CSS_VAR_PREFIX}bg-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}color-secondary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-secondary-hover: #5a6268;
+            ${Button.CSS_VAR_PREFIX}border-secondary-hover: #5a6268;
+
+            ${Button.CSS_VAR_PREFIX}bg-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}color-success: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}bg-success-hover: #059669;
+            ${Button.CSS_VAR_PREFIX}border-success-hover: #059669;
+
+            ${Button.CSS_VAR_PREFIX}bg-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}color-danger: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
+            ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
+            
+            ${Button.CSS_VAR_PREFIX}bg-hover: #555;
+            ${Button.CSS_VAR_PREFIX}bg-active: #666;
+
+            ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
+        }
       `);
           document.head.appendChild(style);
         }
@@ -2413,6 +2484,21 @@
           ${Slider.CSS_VAR_PREFIX}thumb-size: 18px;
           ${Slider.CSS_VAR_PREFIX}thumb-size-small: 14px;
           ${Slider.CSS_VAR_PREFIX}thumb-size-large: 22px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Base colors */
+            ${Slider.CSS_VAR_PREFIX}label-color: #e0e0e0;
+            ${Slider.CSS_VAR_PREFIX}track-bg: #444;
+            ${Slider.CSS_VAR_PREFIX}value-color: #ccc;
+            
+            /* Theme colors */
+            ${Slider.CSS_VAR_PREFIX}thumb-default: #b0b0b0;
+            ${Slider.CSS_VAR_PREFIX}thumb-primary: #3b82f6;
+            ${Slider.CSS_VAR_PREFIX}thumb-success: #10b981;
+            ${Slider.CSS_VAR_PREFIX}thumb-danger: #ef4444;
+          }
         }
       `;
           document.head.appendChild(style);
@@ -2991,6 +3077,31 @@
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Base colors */
+            ${ProgressBar.CSS_VAR_PREFIX}label-color: #e0e0e0;
+            ${ProgressBar.CSS_VAR_PREFIX}bar-bg: #2d2d2d;
+            ${ProgressBar.CSS_VAR_PREFIX}text-color: #ffffff;
+            
+            /* Theme colors with gradients */
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start: #6b7280;
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end: #4b5563;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start: #3b82f6;
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end: #2563eb;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start: #10b981;
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end: #059669;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start: #ef4444;
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end: #dc2626;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
+          }
+        }
       `;
           document.head.appendChild(style);
         }
@@ -3339,6 +3450,24 @@
           
           /* Focus state */
           ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Default state */
+            ${Checkbox.CSS_VAR_PREFIX}bg: #2d2d2d;
+            ${Checkbox.CSS_VAR_PREFIX}border-color: #555;
+            ${Checkbox.CSS_VAR_PREFIX}hover-bg: #4a4a4a;
+            ${Checkbox.CSS_VAR_PREFIX}hover-border: #777;
+
+            /* Checked state */
+            ${Checkbox.CSS_VAR_PREFIX}checked-bg: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checked-border: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checkmark-color: #ffffff;
+
+            /* Focus state */
+            ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
         }
       `;
           document.head.appendChild(style);
@@ -3700,6 +3829,24 @@
                 style: options.style || {}
             };
 
+            // Dark mode color defaults
+            const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (isDarkMode) {
+                this.options.style = {
+                    buttonColor: '#fff',
+                    buttonBg: '#3b82f6',
+                    panelBg: '#2d2d2d',
+                    ...options.style // User-provided styles take precedence
+                };
+            } else {
+                this.options.style = {
+                    buttonColor: '#fff',
+                    buttonBg: '#625df5',
+                    panelBg: '#fff',
+                    ...options.style
+                };
+            }
+
             // Setup base class names based on namespace
             this.baseClass = `${this.options.namespace}-sidebar-panel`;
             this.cssVarPrefix = `--${this.options.namespace}-sidebar-panel-`;
@@ -3890,7 +4037,43 @@
                     width: 85vw;
                 }
             }
-        `, `${namespace}-sidebar-panel-styles`);
+
+            .${baseClass}-footer-content {
+                /* Add any specific footer content styling here */
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .${baseClass} {
+                    background-color: var(${cssVarPrefix}bg, #2d2d2d);
+                }
+
+                .${baseClass}-header {
+                    background-color: #3a3a3a;
+                    border-bottom-color: #444;
+                }
+
+                .${baseClass}-title {
+                    color: #e0e0e0;
+                }
+
+                .${baseClass}-close {
+                    color: #aaa;
+                }
+
+                .${baseClass}-close:hover {
+                    color: #fff;
+                }
+
+                .${baseClass}-footer {
+                    background-color: #3a3a3a;
+                    border-top-color: #444;
+                }
+
+                .${baseClass}-overlay {
+                    background-color: rgba(0, 0, 0, 0.7);
+                }
+            }
+        `, `sidebar-panel-styles-${namespace}`);
         }
 
         /**
@@ -3989,7 +4172,7 @@
 
             this.closeButton = document.createElement('button');
             this.closeButton.className = `${this.baseClass}-close`;
-            this.closeButton.innerHTML = '×';
+            HTMLUtils.setHTMLSafely(this.closeButton, '×');
             this.closeButton.setAttribute('aria-label', 'Close panel');
 
             this.header.appendChild(titleElement);
@@ -4006,7 +4189,7 @@
             if (this.options.content.footer) {
                 this.footer = document.createElement('div');
                 this.footer.className = `${this.baseClass}-footer`;
-                this.footer.innerHTML = this.options.content.footer;
+                HTMLUtils.setHTMLSafely(this.footer, this.options.content.footer);
             }
 
             // Assemble panel
@@ -4227,25 +4410,22 @@
          * @param {Object} contentConfig - Content configuration object
          */
         async setContent(contentConfig) {
-            // Clear existing content
-            this.content.innerHTML = '';
+            if (!this.content) return;
+            this.content.innerHTML = ''; // Clearing content is fine
 
             if (contentConfig.html) {
-                // If HTML string is provided
-                this.content.innerHTML = contentConfig.html;
-            } else if (contentConfig.generator) {
-                // If a generator function is provided
-                const generatedContent = contentConfig.generator();
-
-                // Check if the result is a Promise
-                if (generatedContent instanceof Promise) {
-                    // Wait for the promise to resolve
-                    const resolvedContent = await generatedContent;
-                    this.content.appendChild(resolvedContent);
-                } else {
-                    // If it's a regular element
+                if (typeof contentConfig.html === 'string') {
+                    HTMLUtils.setHTMLSafely(this.content, contentConfig.html);
+                } else if (contentConfig.html instanceof HTMLElement) {
+                    this.content.appendChild(contentConfig.html);
+                }
+            } else if (typeof contentConfig.generator === 'function') {
+                const generatedContent = await contentConfig.generator();
+                if (typeof generatedContent === 'string') {
+                    HTMLUtils.setHTMLSafely(this.content, generatedContent);
+                } else if (generatedContent instanceof HTMLElement) {
                     this.content.appendChild(generatedContent);
-            }
+                }
             }
             Logger.debug('Panel content updated');
         }

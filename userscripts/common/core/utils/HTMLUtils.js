@@ -3,6 +3,8 @@
  * Provides functions for escaping HTML, encoding/decoding entities, etc.
  */
 class HTMLUtils {
+    static #policy;
+
     /**
      * Escape special HTML characters to prevent XSS
      * @param {string} str - The string to escape
@@ -122,10 +124,27 @@ class HTMLUtils {
      */
     static setHTMLSafely(element, html, fallbackText = null) {
         if (!element) return false;
-        
+
+        if (window.trustedTypes && window.trustedTypes.createPolicy) {
+            if (!HTMLUtils.#policy) {
+                try {
+                    HTMLUtils.#policy = window.trustedTypes.createPolicy('userscript-policy', {
+                        createHTML: (input) => input,
+                    });
+                } catch (e) {
+                    // Policy likely already exists.
+                    // We will fallback to innerHTML which will probably fail and be caught.
+                    HTMLUtils.#policy = null;
+                }
+            }
+        }
+
         try {
-            // Try to use innerHTML first
-            element.innerHTML = html;
+            if (HTMLUtils.#policy) {
+                element.innerHTML = HTMLUtils.#policy.createHTML(html);
+            } else {
+                element.innerHTML = html;
+            }
             return true;
         } catch (error) {
             // Fallback to textContent if innerHTML fails due to CSP

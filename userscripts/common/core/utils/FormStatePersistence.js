@@ -77,7 +77,7 @@ class FormStatePersistence {
      */
     async initialize() {
         if (this.isInitialized) {
-            this.log('warn', 'Already initialized');
+            Logger.warn(`[${this.name}] Already initialized`);
             return;
         }
 
@@ -123,9 +123,9 @@ class FormStatePersistence {
                 const element = document.querySelector(config.selector);
                 if (element) {
                     this.fieldElements.set(fieldName, element);
-                    this.log('debug', `Found field element: ${fieldName}`);
+                    Logger.debug(`[${this.name}] Found field element: ${fieldName}`);
                 } else {
-                    this.log('warn', `Field element not found: ${fieldName} (${config.selector})`);
+                    Logger.warn(`[${this.name}] Field element not found: ${fieldName} (${config.selector})`);
                 }
             } catch (error) {
                 Logger.error(`[${this.name}] Error finding field ${fieldName}:`, error);
@@ -138,7 +138,7 @@ class FormStatePersistence {
      */
     async loadState() {
         if (!this.getValue) {
-            this.log('warn', 'No getValue function provided, cannot load state');
+            Logger.warn(`[${this.name}] No getValue function provided, cannot load state`);
             return;
         }
 
@@ -153,14 +153,14 @@ class FormStatePersistence {
                     this.fieldValues.set(fieldName, savedValue);
                     await this.setFieldValue(fieldName, savedValue);
                     loadedCount++;
-                    this.log('debug', `Loaded field ${fieldName}:`, savedValue);
+                    Logger.debug(`[${this.name}] Loaded field ${fieldName}:`, savedValue);
                 }
             } catch (error) {
-                this.log('error', `Error loading field ${fieldName}:`, error);
+                Logger.error(`[${this.name}] Error loading field ${fieldName}:`, error);
             }
         }
 
-        this.log('info', `Loaded ${loadedCount} field values from storage`);
+        Logger.info(`[${this.name}] Loaded ${loadedCount} field values from storage`);
         this.publishEvent(FormStatePersistence.EVENTS.STATE_LOADED, {
             loadedCount,
             totalFields: Object.keys(this.fields).length,
@@ -173,7 +173,7 @@ class FormStatePersistence {
      */
     async saveState() {
         if (!this.setValue) {
-            this.log('warn', 'No setValue function provided, cannot save state');
+            Logger.warn(`[${this.name}] No setValue function provided, cannot save state`);
             return;
         }
 
@@ -186,7 +186,7 @@ class FormStatePersistence {
                 if (currentValue !== null && currentValue !== undefined) {
                     // Validate value if validator provided
                     if (config.validator && !config.validator(currentValue)) {
-                        this.log('warn', `Validation failed for field ${fieldName}, not saving`);
+                        Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
                         continue;
                     }
 
@@ -194,14 +194,14 @@ class FormStatePersistence {
                     await this.setValue(storageKey, currentValue);
                     this.fieldValues.set(fieldName, currentValue);
                     savedCount++;
-                    this.log('debug', `Saved field ${fieldName}:`, currentValue);
+                    Logger.debug(`[${this.name}] Saved field ${fieldName}:`, currentValue);
                 }
             } catch (error) {
-                this.log('error', `Error saving field ${fieldName}:`, error);
+                Logger.error(`[${this.name}] Error saving field ${fieldName}:`, error);
             }
         }
 
-        this.log('info', `Saved ${savedCount} field values to storage`);
+        Logger.info(`[${this.name}] Saved ${savedCount} field values to storage`);
         this.publishEvent(FormStatePersistence.EVENTS.STATE_SAVED, {
             savedCount,
             totalFields: Object.keys(this.fields).length,
@@ -254,7 +254,7 @@ class FormStatePersistence {
                     return element.value;
             }
         } catch (error) {
-            this.log('error', `Error getting value for field ${fieldName}:`, error);
+            Logger.error(`[${this.name}] Error getting value for field ${fieldName}:`, error);
             return null;
         }
     }
@@ -325,7 +325,7 @@ class FormStatePersistence {
             
             return true;
         } catch (error) {
-            this.log('error', `Error setting value for field ${fieldName}:`, error);
+            Logger.error(`[${this.name}] Error setting value for field ${fieldName}:`, error);
             return false;
         }
     }
@@ -347,7 +347,7 @@ class FormStatePersistence {
             }
         }
 
-        this.log('debug', 'Auto-save listeners setup complete');
+        Logger.debug(`[${this.name}] Auto-save listeners setup complete`);
     }
 
     /**
@@ -406,10 +406,10 @@ class FormStatePersistence {
                 const element = await HTMLUtils.waitForElement(config.selector, timeout);
                 if (element) {
                     foundElements.set(fieldName, element);
-                    this.log('debug', `Found form element: ${fieldName}`);
+                    Logger.debug(`[${this.name}] Found form element: ${fieldName}`);
                 }
             } catch (error) {
-                this.log('warn', `Form element not found: ${fieldName} (${config.selector})`);
+                Logger.warn(`[${this.name}] Form element not found: ${fieldName} (${config.selector})`);
             }
         }
         
@@ -433,11 +433,11 @@ class FormStatePersistence {
                         this.fieldValues.set(fieldName, value);
                     }
                 }
-                this.log('info', 'Restored form data from backup');
+                Logger.info(`[${this.name}] Restored form data from backup`);
                 return true;
             }
         } catch (error) {
-            this.log('error', 'Error restoring from backup:', error);
+            Logger.error(`[${this.name}] Error restoring from backup:`, error);
         }
         
         return false;
@@ -458,7 +458,7 @@ class FormStatePersistence {
             if (currentValue !== null && currentValue !== undefined) {
                 // Validate value if validator provided
                 if (config.validator && !config.validator(currentValue)) {
-                    this.log('warn', `Validation failed for field ${fieldName}, not saving`);
+                    Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
                     return;
                 }
 
@@ -466,7 +466,7 @@ class FormStatePersistence {
                 await this.setValue(storageKey, currentValue);
                 this.fieldValues.set(fieldName, currentValue);
                 
-                this.log('debug', `Auto-saved field ${fieldName}:`, currentValue);
+                Logger.debug(`[${this.name}] Auto-saved field ${fieldName}:`, currentValue);
                 this.publishEvent(FormStatePersistence.EVENTS.FIELD_CHANGED, {
                     fieldName,
                     value: currentValue,
@@ -474,7 +474,7 @@ class FormStatePersistence {
                 });
             }
         } catch (error) {
-            this.log('error', `Error auto-saving field ${fieldName}:`, error);
+            Logger.error(`[${this.name}] Error auto-saving field ${fieldName}:`, error);
         }
     }
 
@@ -483,7 +483,7 @@ class FormStatePersistence {
      */
     async clearState() {
         if (!this.setValue) {
-            this.log('warn', 'No setValue function provided, cannot clear state');
+            Logger.warn(`[${this.name}] No setValue function provided, cannot clear state`);
             return;
         }
 
@@ -496,11 +496,11 @@ class FormStatePersistence {
                 this.fieldValues.delete(fieldName);
                 clearedCount++;
             } catch (error) {
-                this.log('error', `Error clearing field ${fieldName}:`, error);
+                Logger.error(`[${this.name}] Error clearing field ${fieldName}:`, error);
             }
         }
 
-        this.log('info', `Cleared ${clearedCount} field values from storage`);
+        Logger.info(`[${this.name}] Cleared ${clearedCount} field values from storage`);
         this.publishEvent(FormStatePersistence.EVENTS.STATE_CLEARED, {
             clearedCount,
             name: this.name
@@ -536,10 +536,10 @@ class FormStatePersistence {
                     }
                 }
                 
-                this.log('debug', `Added field: ${fieldName}`);
+                Logger.debug(`[${this.name}] Added field: ${fieldName}`);
             }
         } catch (error) {
-            this.log('error', `Error adding field ${fieldName}:`, error);
+            Logger.error(`[${this.name}] Error adding field ${fieldName}:`, error);
         }
     }
 
@@ -557,7 +557,7 @@ class FormStatePersistence {
             this.saveTimeouts.delete(fieldName);
         }
         
-        this.log('debug', `Removed field: ${fieldName}`);
+        Logger.debug(`[${this.name}] Removed field: ${fieldName}`);
     }
 
     /**
@@ -577,8 +577,6 @@ class FormStatePersistence {
     publishEvent(eventName, data) {
         PubSub.publish(eventName, data);
     }
-
-
 
     /**
      * Cleanup resources
