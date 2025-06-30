@@ -429,8 +429,8 @@ class SidebarPanel {
 
         this.closeButton = document.createElement('button');
         this.closeButton.className = `${this.baseClass}-close`;
-        HTMLUtils.setHTMLSafely(this.closeButton, '×');
-        this.closeButton.setAttribute('aria-label', 'Close panel');
+        HTMLUtils.setHTMLSafely(this.closeButton, '&times;');
+        this.closeButton.setAttribute('aria-label', 'Close Panel');
 
         this.header.appendChild(titleElement);
         this.header.appendChild(this.closeButton);
@@ -467,13 +467,11 @@ class SidebarPanel {
      * Create toggle button
      */
     createToggleButton() {
+        if (!this.options.showButton) return;
         this.button = document.createElement('button');
-        this.button.type = 'button';
         this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
         HTMLUtils.setHTMLSafely(this.button, this.options.buttonIcon);
-        this.button.setAttribute('aria-label', `Open ${this.options.title}`);
-
-        // Add to document
+        this.button.setAttribute('aria-label', 'Toggle Panel');
         document.body.appendChild(this.button);
     }
 
@@ -668,7 +666,7 @@ class SidebarPanel {
      */
     async setContent(contentConfig) {
         if (!this.content) return;
-        this.content.innerHTML = ''; // Clearing content is fine
+        this.content.textContent = ''; // Clearing content safely
 
         if (contentConfig.html) {
             if (typeof contentConfig.html === 'string') {
