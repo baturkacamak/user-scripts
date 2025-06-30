@@ -22,20 +22,25 @@ class TextArea {
     /**
      * Initialize default styles for TextArea components
      */
-    static initStyles() {
-        if (StyleManager.hasStyles('textarea-component')) {
+    static initStyles(options = {}) {
+        const { scopeSelector = '' } = options;
+        const styleId = `textarea-component${scopeSelector ? '-' + scopeSelector.replace(/[^a-zA-Z0-9]/g, '') : ''}`;
+
+        if (StyleManager.hasStyles(styleId)) {
             return;
         }
 
+        const selectorPrefix = scopeSelector ? `${scopeSelector} ` : '';
+
         const styles = `
-            .${TextArea.BASE_TEXTAREA_CLASS} {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS} {
                 position: relative;
                 display: inline-block;
                 width: 100%;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field {
                 width: 100%;
                 padding: 8px 12px;
                 border: 1px solid #e0e0e0;
@@ -52,71 +57,71 @@ class TextArea {
                 min-height: 80px;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
                 background: #f0f0f0;
                 color: #888;
                 cursor: not-allowed;
                 resize: none;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
                 color: #222;
                 opacity: 0.7;
             }
 
             /* Themes */
-            .${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 border-color: #28a745;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #28a745;
                 box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 border-color: #ffc107;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #ffc107;
                 box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 border-color: #dc3545;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #dc3545;
                 box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
             }
 
             /* Sizes */
-            .${TextArea.BASE_TEXTAREA_CLASS}--small .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--small .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 padding: 6px 10px;
                 font-size: 12px;
                 min-height: 60px;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--large .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--large .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 padding: 12px 16px;
                 font-size: 16px;
                 min-height: 120px;
             }
 
             /* Label */
-            .${TextArea.BASE_TEXTAREA_CLASS}-label {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-label {
                 display: block;
                 margin-bottom: 4px;
                 font-size: 13px;
@@ -125,7 +130,7 @@ class TextArea {
             }
 
             /* Error message */
-            .${TextArea.BASE_TEXTAREA_CLASS}-error {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-error {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -133,7 +138,7 @@ class TextArea {
             }
 
             /* Helper text */
-            .${TextArea.BASE_TEXTAREA_CLASS}-helper {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-helper {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -141,7 +146,7 @@ class TextArea {
             }
 
             /* Character counter */
-            .${TextArea.BASE_TEXTAREA_CLASS}-counter {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-counter {
                 display: block;
                 margin-top: 4px;
                 font-size: 11px;
@@ -149,84 +154,84 @@ class TextArea {
                 text-align: right;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-counter--limit-reached {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-counter--limit-reached {
                 color: #dc3545;
             }
 
             /* Dark theme */
             @media (prefers-color-scheme: dark) {
-                .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #555;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
                     background: #444;
                     color: #888;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
                     color: #e0e0e0;
                     opacity: 0.5;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-label {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-label {
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-helper {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-helper {
                     color: #aaa;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-counter {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-counter {
                     color: #aaa;
                 }
 
                 /* Themes in dark mode */
-                .${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     border-color: #28a745;
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     border-color: #ffc107;
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     border-color: #dc3545;
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
                 }
             }
         `;
 
-        StyleManager.addStyles(styles, 'textarea-component');
+        StyleManager.addStyles(styles, styleId);
     }
 
     /**
@@ -260,6 +265,7 @@ class TextArea {
      * @param {Function} [options.validator] - Custom validation function
      * @param {HTMLElement} [options.container] - Container to append to
      * @param {string} [options.className] - Additional CSS class
+     * @param {string} [options.scopeSelector] - CSS selector to scope styles
      */
     constructor(options = {}) {
         this.options = {
@@ -283,12 +289,14 @@ class TextArea {
             validator: null,
             container: null,
             className: '',
+            scopeSelector: '',
             ...options
         };
 
         this.isValid = true;
         this.errorMessage = '';
 
+        TextArea.initStyles({ scopeSelector: this.options.scopeSelector });
         this.createElement();
         this.setupEventListeners();
 
