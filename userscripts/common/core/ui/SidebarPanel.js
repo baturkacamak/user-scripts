@@ -86,23 +86,13 @@ class SidebarPanel {
             style: options.style || {}
         };
 
-        // Dark mode color defaults
-        const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (isDarkMode) {
-            this.options.style = {
-                buttonColor: '#fff',
-                buttonBg: '#3b82f6',
-                panelBg: '#2d2d2d',
-                ...options.style // User-provided styles take precedence
-            };
-        } else {
-            this.options.style = {
-                buttonColor: '#fff',
-                buttonBg: '#625df5',
-                panelBg: '#fff',
-                ...options.style
-            };
-        }
+        // Default styles
+        this.options.style = {
+            buttonColor: '#fff',
+            buttonBg: '#625df5',
+            panelBg: '#fff',
+            ...options.style
+        };
 
         // Setup base class names based on namespace
         this.baseClass = `${this.options.namespace}-sidebar-panel`;
@@ -328,6 +318,14 @@ class SidebarPanel {
 
                 .${baseClass}-overlay {
                     background-color: rgba(0, 0, 0, 0.7);
+                }
+
+                .${baseClass}-toggle {
+                    background-color: var(${cssVarPrefix}button-bg, #3b82f6);
+                }
+
+                .${baseClass}-toggle:hover {
+                    background-color: var(${cssVarPrefix}button-bg-hover, #2563eb);
                 }
             }
         `, `sidebar-panel-styles-${namespace}`);
