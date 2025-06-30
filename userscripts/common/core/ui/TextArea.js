@@ -152,6 +152,78 @@ class TextArea {
             .${TextArea.BASE_TEXTAREA_CLASS}-counter--limit-reached {
                 color: #dc3545;
             }
+
+            /* Dark theme */
+            @media (prefers-color-scheme: dark) {
+                .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #555;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
+                    background: #444;
+                    color: #888;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
+                    color: #e0e0e0;
+                    opacity: 0.5;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-label {
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-helper {
+                    color: #aaa;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}-counter {
+                    color: #aaa;
+                }
+
+                /* Themes in dark mode */
+                .${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    border-color: #28a745;
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    border-color: #ffc107;
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                    background: #2d2d2d;
+                    border-color: #dc3545;
+                    color: #e0e0e0;
+                }
+
+                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+                }
+            }
         `;
 
         StyleManager.addStyles(styles, 'textarea-component');

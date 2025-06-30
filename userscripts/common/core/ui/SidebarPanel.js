@@ -86,6 +86,24 @@ class SidebarPanel {
             style: options.style || {}
         };
 
+        // Dark mode color defaults
+        const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (isDarkMode) {
+            this.options.style = {
+                buttonColor: '#fff',
+                buttonBg: '#3b82f6',
+                panelBg: '#2d2d2d',
+                ...options.style // User-provided styles take precedence
+            };
+        } else {
+            this.options.style = {
+                buttonColor: '#fff',
+                buttonBg: '#625df5',
+                panelBg: '#fff',
+                ...options.style
+            };
+        }
+
         // Setup base class names based on namespace
         this.baseClass = `${this.options.namespace}-sidebar-panel`;
         this.cssVarPrefix = `--${this.options.namespace}-sidebar-panel-`;
@@ -276,7 +294,43 @@ class SidebarPanel {
                     width: 85vw;
                 }
             }
-        `, `${namespace}-sidebar-panel-styles`);
+
+            .${baseClass}-footer-content {
+                /* Add any specific footer content styling here */
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .${baseClass} {
+                    background-color: var(${cssVarPrefix}bg, #2d2d2d);
+                }
+
+                .${baseClass}-header {
+                    background-color: #3a3a3a;
+                    border-bottom-color: #444;
+                }
+
+                .${baseClass}-title {
+                    color: #e0e0e0;
+                }
+
+                .${baseClass}-close {
+                    color: #aaa;
+                }
+
+                .${baseClass}-close:hover {
+                    color: #fff;
+                }
+
+                .${baseClass}-footer {
+                    background-color: #3a3a3a;
+                    border-top-color: #444;
+                }
+
+                .${baseClass}-overlay {
+                    background-color: rgba(0, 0, 0, 0.7);
+                }
+            }
+        `, `sidebar-panel-styles-${namespace}`);
     }
 
     /**

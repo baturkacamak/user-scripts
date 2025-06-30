@@ -170,6 +170,24 @@ class Checkbox {
           /* Focus state */
           ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Default state */
+            ${Checkbox.CSS_VAR_PREFIX}bg: #2d2d2d;
+            ${Checkbox.CSS_VAR_PREFIX}border-color: #555;
+            ${Checkbox.CSS_VAR_PREFIX}hover-bg: #4a4a4a;
+            ${Checkbox.CSS_VAR_PREFIX}hover-border: #777;
+
+            /* Checked state */
+            ${Checkbox.CSS_VAR_PREFIX}checked-bg: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checked-border: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checkmark-color: #ffffff;
+
+            /* Focus state */
+            ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
+        }
       `;
       document.head.appendChild(style);
     }

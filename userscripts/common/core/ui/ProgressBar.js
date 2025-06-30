@@ -195,6 +195,31 @@ class ProgressBar {
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Base colors */
+            ${ProgressBar.CSS_VAR_PREFIX}label-color: #e0e0e0;
+            ${ProgressBar.CSS_VAR_PREFIX}bar-bg: #2d2d2d;
+            ${ProgressBar.CSS_VAR_PREFIX}text-color: #ffffff;
+            
+            /* Theme colors with gradients */
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start: #6b7280;
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end: #4b5563;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start: #3b82f6;
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end: #2563eb;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start: #10b981;
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end: #059669;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start: #ef4444;
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end: #dc2626;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
+          }
+        }
       `;
       document.head.appendChild(style);
     }

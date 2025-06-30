@@ -132,6 +132,74 @@ class Input {
                 font-size: 12px;
                 color: #666;
             }
+
+            /* Dark theme */
+            @media (prefers-color-scheme: dark) {
+                .${Input.BASE_INPUT_CLASS}-field {
+                    background: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #555;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}-field:disabled {
+                    background: #444;
+                    color: #888;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-field::placeholder {
+                    color: #e0e0e0;
+                    opacity: 0.5;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-label {
+                    color: #e0e0e0;
+                }
+
+                .${Input.BASE_INPUT_CLASS}-helper {
+                    color: #aaa;
+                }
+
+                /* Themes in dark mode */
+                .${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+                    background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #28a745;
+                }
+
+                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+                     background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #ffc107;
+                }
+
+                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+                }
+
+                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+                     background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #dc3545;
+                }
+
+                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+                }
+            }
         `;
 
         StyleManager.addStyles(styles, 'input-component');

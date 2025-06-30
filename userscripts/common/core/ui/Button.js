@@ -194,6 +194,44 @@ class Button {
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            ${Button.CSS_VAR_PREFIX}bg-default: #4a4a4a;
+            ${Button.CSS_VAR_PREFIX}color-default: #e0e0e0;
+            ${Button.CSS_VAR_PREFIX}border-default: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-default-hover: #5a5a5a;
+
+            ${Button.CSS_VAR_PREFIX}bg-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}color-primary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}bg-primary-hover: #2563eb;
+            ${Button.CSS_VAR_PREFIX}border-primary-hover: #2563eb;
+
+            ${Button.CSS_VAR_PREFIX}bg-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}color-secondary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-secondary-hover: #5a6268;
+            ${Button.CSS_VAR_PREFIX}border-secondary-hover: #5a6268;
+
+            ${Button.CSS_VAR_PREFIX}bg-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}color-success: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}bg-success-hover: #059669;
+            ${Button.CSS_VAR_PREFIX}border-success-hover: #059669;
+
+            ${Button.CSS_VAR_PREFIX}bg-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}color-danger: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
+            ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
+            
+            ${Button.CSS_VAR_PREFIX}bg-hover: #555;
+            ${Button.CSS_VAR_PREFIX}bg-active: #666;
+
+            ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
+        }
       `);
       document.head.appendChild(style);
     }

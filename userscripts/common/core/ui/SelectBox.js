@@ -249,15 +249,11 @@ class SelectBox {
         background: none;
         border: none;
         cursor: pointer;
-        color: var(${SelectBox.CSS_VAR_PREFIX}toggle-color, #9ca3af);
-        font-size: 0.75rem;
-        border-radius: 0.25rem;
-        transition: background-color 0.1s ease, color 0.1s ease;
+        color: var(${SelectBox.CSS_VAR_PREFIX}option-toggle-color, #6b7280);
       }
       
       .${SelectBox.BASE_SELECT_CLASS}-option-toggle:hover {
-        background-color: var(${SelectBox.CSS_VAR_PREFIX}toggle-hover-bg, #e5e7eb);
-        color: var(${SelectBox.CSS_VAR_PREFIX}toggle-hover-color, #4b5563);
+        color: var(${SelectBox.CSS_VAR_PREFIX}option-toggle-hover-color, #374151);
       }
       
       /* Size variations */
@@ -337,8 +333,80 @@ class SelectBox {
         clip: rect(0, 0, 0, 0);
         white-space: nowrap;
         border-width: 0;
+        cursor: not-allowed;
       }
-    `, 'userscripts-enhanced-select-styles');
+
+      /* Media query for dark mode */
+      @media (prefers-color-scheme: dark) {
+        .${SelectBox.BASE_SELECT_CLASS}-trigger {
+          background-color: #2d2d2d;
+          border-color: #555;
+          color: #e0e0e0;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-trigger:hover {
+          border-color: #777;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-trigger:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-dropdown {
+          background-color: #2d2d2d;
+          border-color: #555;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-category {
+          border-bottom-color: #444;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-category-label {
+          color: #aaa;
+          background-color: #3a3a3a;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item {
+          color: #e0e0e0;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item:hover {
+          background-color: #4a4a4a;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item.selected {
+          background-color: #2c3e50;
+          color: #3b82f6;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item.selected::before {
+          background-color: #3b82f6;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item-options {
+          background-color: #3a3a3a;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-option-label {
+          color: #ccc;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-option-toggle {
+          color: #aaa;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-option-toggle:hover {
+          color: #fff;
+        }
+
+        .${SelectBox.BASE_SELECT_CLASS}-container.disabled .${SelectBox.BASE_SELECT_CLASS}-trigger {
+            background-color: #444;
+            color: #888;
+        }
+      }
+    `, 'userscripts-select-styles');
 
         SelectBox.stylesInitialized = true;
     }

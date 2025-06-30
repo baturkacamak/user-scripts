@@ -261,6 +261,34 @@ class SectionToggler {
           ${SectionToggler.CSS_VAR_PREFIX}badge-bg: #e5e7eb;
           ${SectionToggler.CSS_VAR_PREFIX}badge-color: #4b5563;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Base colors */
+            ${SectionToggler.CSS_VAR_PREFIX}bg: #2d2d2d;
+            ${SectionToggler.CSS_VAR_PREFIX}border-color: #444;
+            ${SectionToggler.CSS_VAR_PREFIX}header-bg: #3a3a3a;
+            ${SectionToggler.CSS_VAR_PREFIX}header-hover-bg: #4a4a4a;
+            ${SectionToggler.CSS_VAR_PREFIX}title-color: #e0e0e0;
+            ${SectionToggler.CSS_VAR_PREFIX}icon-color: #aaa;
+            ${SectionToggler.CSS_VAR_PREFIX}icon-hover-color: #fff;
+            ${SectionToggler.CSS_VAR_PREFIX}content-bg: #2d2d2d;
+
+            /* Badge */
+            ${SectionToggler.CSS_VAR_PREFIX}badge-bg: #555;
+            ${SectionToggler.CSS_VAR_PREFIX}badge-color: #e0e0e0;
+
+            /* Primary theme */
+            ${SectionToggler.CSS_VAR_PREFIX}primary-header-bg: #2c3e50;
+            ${SectionToggler.CSS_VAR_PREFIX}primary-title-color: #3b82f6;
+            ${SectionToggler.CSS_VAR_PREFIX}primary-icon-color: #3b82f6;
+
+            /* Success theme */
+            ${SectionToggler.CSS_VAR_PREFIX}success-header-bg: #1e4634;
+            ${SectionToggler.CSS_VAR_PREFIX}success-title-color: #10b981;
+            ${SectionToggler.CSS_VAR_PREFIX}success-icon-color: #10b981;
+          }
+        }
       `;
       document.head.appendChild(style);
     }
