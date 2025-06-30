@@ -205,6 +205,21 @@ class Slider {
           ${Slider.CSS_VAR_PREFIX}thumb-size-small: 14px;
           ${Slider.CSS_VAR_PREFIX}thumb-size-large: 22px;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Base colors */
+            ${Slider.CSS_VAR_PREFIX}label-color: #e0e0e0;
+            ${Slider.CSS_VAR_PREFIX}track-bg: #444;
+            ${Slider.CSS_VAR_PREFIX}value-color: #ccc;
+            
+            /* Theme colors */
+            ${Slider.CSS_VAR_PREFIX}thumb-default: #b0b0b0;
+            ${Slider.CSS_VAR_PREFIX}thumb-primary: #3b82f6;
+            ${Slider.CSS_VAR_PREFIX}thumb-success: #10b981;
+            ${Slider.CSS_VAR_PREFIX}thumb-danger: #ef4444;
+          }
+        }
       `;
       document.head.appendChild(style);
     }

@@ -259,6 +259,32 @@ static useDefaultColors() {
           ${DraggableContainer.CSS_VAR_PREFIX}success-handle-bg: #10b981;
           ${DraggableContainer.CSS_VAR_PREFIX}success-handle-color: #ffffff;
         }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+              ${DraggableContainer.CSS_VAR_PREFIX}bg: #2d2d2d;
+              ${DraggableContainer.CSS_VAR_PREFIX}shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+              ${DraggableContainer.CSS_VAR_PREFIX}border-color: #444;
+
+              ${DraggableContainer.CSS_VAR_PREFIX}handle-bg: #3a3a3a;
+              ${DraggableContainer.CSS_VAR_PREFIX}title-color: #e0e0e0;
+
+              ${DraggableContainer.CSS_VAR_PREFIX}action-color: #ccc;
+              ${DraggableContainer.CSS_VAR_PREFIX}action-hover-color: #fff;
+
+              /* Theme Specific Variables */
+              ${DraggableContainer.CSS_VAR_PREFIX}default-handle-bg: #3a3a3a;
+              
+              ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-bg: #3b82f6;
+              ${DraggableContainer.CSS_VAR_PREFIX}primary-handle-color: #ffffff;
+              
+              ${DraggableContainer.CSS_VAR_PREFIX}secondary-handle-bg: #6b7280;
+              ${DraggableContainer.CSS_VAR_PREFIX}secondary-handle-color: #ffffff;
+              
+              ${DraggableContainer.CSS_VAR_PREFIX}success-handle-bg: #10b981;
+              ${DraggableContainer.CSS_VAR_PREFIX}success-handle-color: #ffffff;
+            }
+        }
       `;
       document.head.appendChild(style);
       Logger.debug('Default DraggableContainer colors injected.');

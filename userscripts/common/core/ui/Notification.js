@@ -308,6 +308,20 @@ class Notification {
           ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
           ${Notification.CSS_VAR_PREFIX}custom-bg: #7f8c8d;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            ${Notification.CSS_VAR_PREFIX}shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            ${Notification.CSS_VAR_PREFIX}color: #e0e0e0;
+            
+            /* Themed Backgrounds */
+            ${Notification.CSS_VAR_PREFIX}info-bg: #3498db;
+            ${Notification.CSS_VAR_PREFIX}success-bg: #2ecc71;
+            ${Notification.CSS_VAR_PREFIX}warning-bg: #f39c12;
+            ${Notification.CSS_VAR_PREFIX}error-bg: #e74c3c;
+            ${Notification.CSS_VAR_PREFIX}custom-bg: #5f6c6d;
+          }
+        }
       `);
             document.head.appendChild(style);
         }
