@@ -228,6 +228,8 @@
      * Provides functions for escaping HTML, encoding/decoding entities, etc.
      */
     class HTMLUtils {
+        static #policy;
+
         /**
          * Escape special HTML characters to prevent XSS
          * @param {string} str - The string to escape
@@ -347,10 +349,27 @@
          */
         static setHTMLSafely(element, html, fallbackText = null) {
             if (!element) return false;
-            
+
+            if (window.trustedTypes && window.trustedTypes.createPolicy) {
+                if (!HTMLUtils.#policy) {
+                    try {
+                        HTMLUtils.#policy = window.trustedTypes.createPolicy('userscript-policy', {
+                            createHTML: (input) => input,
+                        });
+                    } catch (e) {
+                        // Policy likely already exists.
+                        // We will fallback to innerHTML which will probably fail and be caught.
+                        HTMLUtils.#policy = null;
+                    }
+                }
+            }
+
             try {
-                // Try to use innerHTML first
-                element.innerHTML = html;
+                if (HTMLUtils.#policy) {
+                    element.innerHTML = HTMLUtils.#policy.createHTML(html);
+                } else {
+                    element.innerHTML = html;
+                }
                 return true;
             } catch (error) {
                 // Fallback to textContent if innerHTML fails due to CSP
@@ -928,6 +947,44 @@
           
           ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            ${Button.CSS_VAR_PREFIX}bg-default: #4a4a4a;
+            ${Button.CSS_VAR_PREFIX}color-default: #e0e0e0;
+            ${Button.CSS_VAR_PREFIX}border-default: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-default-hover: #5a5a5a;
+
+            ${Button.CSS_VAR_PREFIX}bg-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}color-primary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-primary: #3b82f6;
+            ${Button.CSS_VAR_PREFIX}bg-primary-hover: #2563eb;
+            ${Button.CSS_VAR_PREFIX}border-primary-hover: #2563eb;
+
+            ${Button.CSS_VAR_PREFIX}bg-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}color-secondary: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-secondary: #6b7280;
+            ${Button.CSS_VAR_PREFIX}bg-secondary-hover: #5a6268;
+            ${Button.CSS_VAR_PREFIX}border-secondary-hover: #5a6268;
+
+            ${Button.CSS_VAR_PREFIX}bg-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}color-success: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-success: #10b981;
+            ${Button.CSS_VAR_PREFIX}bg-success-hover: #059669;
+            ${Button.CSS_VAR_PREFIX}border-success-hover: #059669;
+
+            ${Button.CSS_VAR_PREFIX}bg-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}color-danger: #ffffff;
+            ${Button.CSS_VAR_PREFIX}border-danger: #ef4444;
+            ${Button.CSS_VAR_PREFIX}bg-danger-hover: #dc2626;
+            ${Button.CSS_VAR_PREFIX}border-danger-hover: #dc2626;
+            
+            ${Button.CSS_VAR_PREFIX}bg-hover: #555;
+            ${Button.CSS_VAR_PREFIX}bg-active: #666;
+
+            ${Button.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
+        }
       `);
           document.head.appendChild(style);
         }
@@ -1334,6 +1391,31 @@
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
           ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
         }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Base colors */
+            ${ProgressBar.CSS_VAR_PREFIX}label-color: #e0e0e0;
+            ${ProgressBar.CSS_VAR_PREFIX}bar-bg: #2d2d2d;
+            ${ProgressBar.CSS_VAR_PREFIX}text-color: #ffffff;
+            
+            /* Theme colors with gradients */
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-start: #6b7280;
+            ${ProgressBar.CSS_VAR_PREFIX}default-fill-gradient-end: #4b5563;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-start: #3b82f6;
+            ${ProgressBar.CSS_VAR_PREFIX}primary-fill-gradient-end: #2563eb;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-start: #10b981;
+            ${ProgressBar.CSS_VAR_PREFIX}success-fill-gradient-end: #059669;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-start: #ef4444;
+            ${ProgressBar.CSS_VAR_PREFIX}danger-fill-gradient-end: #dc2626;
+            
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-start: #f59e0b;
+            ${ProgressBar.CSS_VAR_PREFIX}warning-fill-gradient-end: #d97706;
+          }
+        }
       `;
           document.head.appendChild(style);
         }
@@ -1682,6 +1764,24 @@
           
           /* Focus state */
           ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.3);
+        }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            /* Default state */
+            ${Checkbox.CSS_VAR_PREFIX}bg: #2d2d2d;
+            ${Checkbox.CSS_VAR_PREFIX}border-color: #555;
+            ${Checkbox.CSS_VAR_PREFIX}hover-bg: #4a4a4a;
+            ${Checkbox.CSS_VAR_PREFIX}hover-border: #777;
+
+            /* Checked state */
+            ${Checkbox.CSS_VAR_PREFIX}checked-bg: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checked-border: #3b82f6;
+            ${Checkbox.CSS_VAR_PREFIX}checkmark-color: #ffffff;
+
+            /* Focus state */
+            ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
+          }
         }
       `;
           document.head.appendChild(style);

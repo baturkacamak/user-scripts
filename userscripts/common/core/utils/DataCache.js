@@ -12,7 +12,7 @@ export class DataCache {
           return data;
         }
         localStorage.removeItem(key);
-        this.logger.log(`Cache expired and removed for key: ${key}`);
+        this.logger.info(`Cache expired and removed for key: ${key}`);
       }
     } catch (e) {
       this.logger.error(`Error getting cache for key ${key}:`, e);
@@ -27,7 +27,7 @@ export class DataCache {
         new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
         null;
       localStorage.setItem(key, JSON.stringify({ data: value, expires }));
-      this.logger.log(`Cache set for key: ${key}, expires: ${expires}`);
+      this.logger.info(`Cache set for key: ${key}, expires: ${expires}`);
     } catch (e) {
       this.logger.error(`Error setting cache for key ${key}:`, e);
     }

@@ -429,7 +429,7 @@ class SidebarPanel {
 
         this.closeButton = document.createElement('button');
         this.closeButton.className = `${this.baseClass}-close`;
-        this.closeButton.innerHTML = '×';
+        HTMLUtils.setHTMLSafely(this.closeButton, '×');
         this.closeButton.setAttribute('aria-label', 'Close panel');
 
         this.header.appendChild(titleElement);
@@ -446,7 +446,7 @@ class SidebarPanel {
         if (this.options.content.footer) {
             this.footer = document.createElement('div');
             this.footer.className = `${this.baseClass}-footer`;
-            this.footer.innerHTML = this.options.content.footer;
+            HTMLUtils.setHTMLSafely(this.footer, this.options.content.footer);
         }
 
         // Assemble panel
@@ -667,25 +667,22 @@ class SidebarPanel {
      * @param {Object} contentConfig - Content configuration object
      */
     async setContent(contentConfig) {
-        // Clear existing content
-        this.content.innerHTML = '';
+        if (!this.content) return;
+        this.content.innerHTML = ''; // Clearing content is fine
 
         if (contentConfig.html) {
-            // If HTML string is provided
-            this.content.innerHTML = contentConfig.html;
-        } else if (contentConfig.generator) {
-            // If a generator function is provided
-            const generatedContent = contentConfig.generator();
-
-            // Check if the result is a Promise
-            if (generatedContent instanceof Promise) {
-                // Wait for the promise to resolve
-                const resolvedContent = await generatedContent;
-                this.content.appendChild(resolvedContent);
-            } else {
-                // If it's a regular element
+            if (typeof contentConfig.html === 'string') {
+                HTMLUtils.setHTMLSafely(this.content, contentConfig.html);
+            } else if (contentConfig.html instanceof HTMLElement) {
+                this.content.appendChild(contentConfig.html);
+            }
+        } else if (typeof contentConfig.generator === 'function') {
+            const generatedContent = await contentConfig.generator();
+            if (typeof generatedContent === 'string') {
+                HTMLUtils.setHTMLSafely(this.content, generatedContent);
+            } else if (generatedContent instanceof HTMLElement) {
                 this.content.appendChild(generatedContent);
-        }
+            }
         }
         Logger.debug('Panel content updated');
     }
