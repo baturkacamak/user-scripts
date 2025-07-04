@@ -353,7 +353,7 @@
             if (window.trustedTypes && window.trustedTypes.createPolicy) {
                 if (!HTMLUtils.#policy) {
                     try {
-                        HTMLUtils.#policy = window.trustedTypes.createPolicy('userscript-policy', {
+                        HTMLUtils.#policy = window.trustedTypes.createPolicy('baturkacamak-userscripts-policy', {
                             createHTML: (input) => input,
                         });
                     } catch (e) {

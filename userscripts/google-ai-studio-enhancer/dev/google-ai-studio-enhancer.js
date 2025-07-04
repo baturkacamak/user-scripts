@@ -120,7 +120,10 @@ class AIStudioEnhancer {
         AUTO_RUN_DELAY: 'gaise-auto-run-delay',
         SHOW_NOTIFICATIONS: 'gaise-show-notifications',
         PANEL_POSITION: 'gaise-panel-position',
-        AUTO_RUN_PROMPT: 'gaise-auto-run-prompt'
+        AUTO_RUN_PROMPT: 'gaise-auto-run-prompt',
+        PROMPT_MODE: 'gaise-prompt-mode',
+        MULTIPLE_PROMPTS: 'gaise-multiple-prompts',
+        TEMPLATE_PROMPT: 'gaise-template-prompt'
     };
 
     static DEFAULT_SETTINGS = {
@@ -128,7 +131,10 @@ class AIStudioEnhancer {
         AUTO_RUN_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
         PANEL_POSITION: { x: 20, y: 20 },
-        AUTO_RUN_PROMPT: ''
+        AUTO_RUN_PROMPT: '',
+        PROMPT_MODE: 'single',
+        MULTIPLE_PROMPTS: '',
+        TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.'
     };
 
     // Event names for PubSub communication
@@ -231,6 +237,8 @@ class AIStudioEnhancer {
         this.loadSettings().then(() => {
             // Initialize components
             this.init();
+            // Update prompt input visibility based on saved mode
+            this.updatePromptInputVisibility();
         });
         
         // Setup cleanup on page unload
@@ -763,8 +771,33 @@ class AIStudioEnhancer {
             }
             
             .auto-run-prompt-textarea,
-            .auto-run-iterations-input {
+            .auto-run-iterations-input,
+            .auto-run-multiple-prompts-textarea,
+            .auto-run-template-prompt-textarea {
                 margin-bottom: 12px;
+            }
+            
+            .single-prompt-container,
+            .multiple-prompt-container,
+            .template-prompt-container {
+                margin-bottom: 12px;
+            }
+            
+            .multiple-prompt-container label,
+            .template-prompt-container label {
+                display: block;
+                margin-bottom: 4px;
+                font-size: 12px;
+                color: #555;
+                font-weight: 500;
+            }
+            
+            .multiple-prompt-container code {
+                background: #f0f0f0;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: monospace;
+                font-size: 11px;
             }
         `, 'ai-studio-enhancer-custom-styles');
 
@@ -909,7 +942,36 @@ class AIStudioEnhancer {
         title.textContent = '🔄 Auto Runner';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-        // Prompt input using TextArea component
+        // Prompt mode selector
+        const promptModeContainer = document.createElement('div');
+        promptModeContainer.style.marginBottom = '12px';
+
+        const promptModeLabel = document.createElement('label');
+        promptModeLabel.textContent = 'Prompt Mode:';
+        promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        const promptModeSelect = document.createElement('select');
+        promptModeSelect.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
+        HTMLUtils.setHTMLSafely(promptModeSelect, `
+            <option value="single">Single Prompt (same for all iterations)</option>
+            <option value="multiple">Multiple Prompts (different for each iteration)</option>
+            <option value="template">Template Prompts (with variables)</option>
+        `);
+        promptModeSelect.value = this.settings.PROMPT_MODE || 'single';
+        promptModeSelect.onchange = (event) => {
+            this.settings.PROMPT_MODE = event.target.value;
+            this.saveSettings();
+            this.updatePromptInputVisibility();
+        };
+
+        promptModeContainer.appendChild(promptModeLabel);
+        promptModeContainer.appendChild(promptModeSelect);
+        this.promptModeSelect = promptModeSelect;
+
+        // Single prompt input (existing functionality)
+        this.singlePromptContainer = document.createElement('div');
+        this.singlePromptContainer.className = 'single-prompt-container';
+        
         this.promptTextArea = new TextArea({
             value: this.settings.AUTO_RUN_PROMPT,
             placeholder: 'Enter prompt to auto-run (optional)',
@@ -921,10 +983,90 @@ class AIStudioEnhancer {
                 this.settings.AUTO_RUN_PROMPT = textArea.getValue();
                 this.saveSettings();
             },
-            container: section,
+            container: this.singlePromptContainer,
             autoResize: true,
             scopeSelector: `#${this.enhancerId}`
         });
+
+        // Multiple prompts input
+        this.multiplePromptContainer = document.createElement('div');
+        this.multiplePromptContainer.className = 'multiple-prompt-container';
+        this.multiplePromptContainer.style.display = 'none';
+
+        const multiplePromptLabel = document.createElement('label');
+        multiplePromptLabel.textContent = 'Prompts (separated by ---, will cycle through):';
+        multiplePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        // Add separator info
+        const separatorInfo = document.createElement('div');
+        separatorInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
+        
+        // Create separator info content safely using HTMLUtils
+        const separatorTitle = document.createElement('div');
+        HTMLUtils.setHTMLSafely(separatorTitle, '<strong>Separator:</strong> Use <code>---</code> (three dashes) to separate prompts.');
+        separatorTitle.style.marginBottom = '4px';
+        
+        const exampleTitle = document.createElement('div');
+        HTMLUtils.setHTMLSafely(exampleTitle, '<strong>Example:</strong>');
+        exampleTitle.style.marginBottom = '4px';
+        
+        const exampleCode = document.createElement('code');
+        exampleCode.textContent = `First prompt here
+can be multiline
+---
+Second prompt here
+also multiline`;
+        exampleCode.style.cssText = 'display: block; background: #f0f0f0; padding: 4px; border-radius: 3px; font-family: monospace; font-size: 10px; white-space: pre-line;';
+        
+        separatorInfo.appendChild(separatorTitle);
+        separatorInfo.appendChild(exampleTitle);
+        separatorInfo.appendChild(exampleCode);
+
+        this.multiplePromptTextArea = new TextArea({
+            value: this.settings.MULTIPLE_PROMPTS || '',
+            placeholder: 'Enter prompts separated by ---:\nFirst prompt\ncan be multiline\n---\nSecond prompt\nalso multiline\n---\nThird prompt',
+            rows: 8,
+            theme: 'primary',
+            size: 'medium',
+            className: 'auto-run-multiple-prompts-textarea',
+            onInput: (event, textArea) => {
+                this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                this.saveSettings();
+            },
+            container: this.multiplePromptContainer,
+            autoResize: true,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        this.multiplePromptContainer.appendChild(multiplePromptLabel);
+        this.multiplePromptContainer.appendChild(separatorInfo);
+
+        // Template prompts input
+        this.templatePromptContainer = document.createElement('div');
+        this.templatePromptContainer.className = 'template-prompt-container';
+        this.templatePromptContainer.style.display = 'none';
+
+        const templatePromptLabel = document.createElement('label');
+        templatePromptLabel.textContent = 'Template Prompt (use {iteration}, {total}, {timestamp}):';
+        templatePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        this.templatePromptTextArea = new TextArea({
+            value: this.settings.TEMPLATE_PROMPT || 'This is iteration {iteration} of {total}. Please provide a response.',
+            placeholder: 'Template with variables: {iteration}, {total}, {timestamp}',
+            rows: 3,
+            theme: 'primary',
+            size: 'medium',
+            className: 'auto-run-template-prompt-textarea',
+            onInput: (event, textArea) => {
+                this.settings.TEMPLATE_PROMPT = textArea.getValue();
+                this.saveSettings();
+            },
+            container: this.templatePromptContainer,
+            autoResize: true,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        this.templatePromptContainer.appendChild(templatePromptLabel);
 
         // Iterations input using Input component
         this.iterationsInput = new Input({
@@ -975,7 +1117,11 @@ class AIStudioEnhancer {
         this.statusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center;';
 
         section.appendChild(title);
-        // promptTextArea and iterationsInput are automatically appended via container option
+        section.appendChild(promptModeContainer);
+        section.appendChild(this.singlePromptContainer);
+        section.appendChild(this.multiplePromptContainer);
+        section.appendChild(this.templatePromptContainer);
+        // iterationsInput is automatically appended via container option
         section.appendChild(buttonContainer);
         section.appendChild(this.statusElement);
 
@@ -1063,6 +1209,71 @@ class AIStudioEnhancer {
         section.appendChild(interactionSubsection);
 
         container.appendChild(section);
+    }
+
+    /**
+     * Update prompt input visibility based on selected mode
+     */
+    updatePromptInputVisibility() {
+        const mode = this.settings.PROMPT_MODE || 'single';
+        
+        // Hide all containers first
+        this.singlePromptContainer.style.display = 'none';
+        this.multiplePromptContainer.style.display = 'none';
+        this.templatePromptContainer.style.display = 'none';
+        
+        // Show the appropriate container
+        switch (mode) {
+            case 'single':
+                this.singlePromptContainer.style.display = 'block';
+                break;
+            case 'multiple':
+                this.multiplePromptContainer.style.display = 'block';
+                break;
+            case 'template':
+                this.templatePromptContainer.style.display = 'block';
+                break;
+        }
+    }
+
+    /**
+     * Get the appropriate prompt for the current iteration
+     */
+    getPromptForIteration(iteration, totalIterations) {
+        const mode = this.settings.PROMPT_MODE || 'single';
+        
+        switch (mode) {
+            case 'single':
+                return this.settings.AUTO_RUN_PROMPT || '';
+                
+            case 'multiple':
+                const prompts = this.settings.MULTIPLE_PROMPTS
+                    .split('---')
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0);
+                
+                if (prompts.length === 0) {
+                    return '';
+                }
+                
+                // Cycle through prompts (if more iterations than prompts, repeat)
+                const promptIndex = (iteration - 1) % prompts.length;
+                return prompts[promptIndex];
+                
+            case 'template':
+                let template = this.settings.TEMPLATE_PROMPT || '';
+                const timestamp = new Date().toISOString();
+                
+                // Replace variables in template
+                template = template.replace(/\{iteration\}/g, iteration);
+                template = template.replace(/\{total\}/g, totalIterations);
+                template = template.replace(/\{timestamp\}/g, timestamp);
+                
+                return template;
+                
+            default:
+                return '';
+        }
     }
 
     /**
@@ -1657,9 +1868,12 @@ class AIStudioEnhancer {
     async executeAutoRunIteration(iteration, results) {
         Logger.info(`Executing auto-run iteration ${iteration}`);
 
-        // Enter prompt if specified
-        const currentPrompt = this.promptTextArea.getValue().trim();
+        // Get the appropriate prompt for this iteration
+        const totalIterations = this.maxIterations || this.settings.DEFAULT_ITERATIONS;
+        const currentPrompt = this.getPromptForIteration(iteration, totalIterations);
+        
         if (currentPrompt) {
+            Logger.info(`Using prompt for iteration ${iteration}: ${currentPrompt.substring(0, 50)}...`);
             const promptEntered = await this.enterPrompt(currentPrompt);
             if (!promptEntered) {
                 Logger.warn('Could not enter prompt - prompt input not found, continuing anyway');
@@ -1667,6 +1881,8 @@ class AIStudioEnhancer {
                 // Small delay after entering prompt to let Google process the input
                 await this.delay(500);
             }
+        } else {
+            Logger.info(`No prompt specified for iteration ${iteration}`);
         }
 
         // Wait for run button to become enabled (with retry mechanism)
