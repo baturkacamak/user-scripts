@@ -3,6 +3,7 @@ import {
     AutoRunner,
     AsyncQueueService,
     Button,
+    Checkbox,
     ContentCollector,
     DataCache,
     Debouncer,
@@ -123,7 +124,8 @@ class AIStudioEnhancer {
         AUTO_RUN_PROMPT: 'gaise-auto-run-prompt',
         PROMPT_MODE: 'gaise-prompt-mode',
         MULTIPLE_PROMPTS: 'gaise-multiple-prompts',
-        TEMPLATE_PROMPT: 'gaise-template-prompt'
+        TEMPLATE_PROMPT: 'gaise-template-prompt',
+        OVERRIDE_ITERATIONS: 'gaise-override-iterations'
     };
 
     static DEFAULT_SETTINGS = {
@@ -134,7 +136,8 @@ class AIStudioEnhancer {
         AUTO_RUN_PROMPT: '',
         PROMPT_MODE: 'single',
         MULTIPLE_PROMPTS: '',
-        TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.'
+        TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.',
+        OVERRIDE_ITERATIONS: false
     };
 
     // Event names for PubSub communication
@@ -341,6 +344,11 @@ class AIStudioEnhancer {
         if (this.iterationsInput) {
             this.iterationsInput.destroy();
             this.iterationsInput = null;
+        }
+
+        if (this.overrideIterationsCheckbox) {
+            this.overrideIterationsCheckbox.destroy();
+            this.overrideIterationsCheckbox = null;
         }
 
         // Clean up new core components
@@ -756,6 +764,8 @@ class AIStudioEnhancer {
         SidebarPanel.initStyles();
         Button.initStyles();
         Button.useDefaultColors();
+        Checkbox.initStyles();
+        Checkbox.useDefaultColors();
         Notification.initStyles();
         Notification.useDefaultColors();
         Input.initStyles();
@@ -1068,6 +1078,33 @@ also multiline`;
 
         this.templatePromptContainer.appendChild(templatePromptLabel);
 
+        // Iterations input container
+        const iterationsContainer = document.createElement('div');
+        iterationsContainer.style.marginBottom = '12px';
+
+        // Iterations label
+        const iterationsLabel = document.createElement('label');
+        iterationsLabel.textContent = 'Number of iterations:';
+        iterationsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        // Iterations info text
+        this.iterationsInfoText = document.createElement('div');
+        this.iterationsInfoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+        this.iterationsInfoText.textContent = 'Number of iterations to run';
+
+        // Override checkbox for multiple prompts
+        this.overrideIterationsCheckbox = new Checkbox({
+            label: 'Override automatic iteration count (run multiple cycles)',
+            checked: this.settings.OVERRIDE_ITERATIONS || false,
+            onChange: (event) => {
+                this.settings.OVERRIDE_ITERATIONS = this.overrideIterationsCheckbox.isChecked();
+                this.saveSettings();
+                this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'single');
+            },
+            container: iterationsContainer,
+            size: 'small'
+        });
+
         // Iterations input using Input component
         this.iterationsInput = new Input({
             type: 'number',
@@ -1094,8 +1131,12 @@ also multiline`;
                     this.saveSettings();
                 }
             },
-            container: section
+            container: iterationsContainer
         });
+
+        iterationsContainer.appendChild(iterationsLabel);
+        iterationsContainer.appendChild(this.iterationsInfoText);
+        // iterationsInput is automatically appended via container option
 
         // Button container
         const buttonContainer = document.createElement('div');
@@ -1121,7 +1162,7 @@ also multiline`;
         section.appendChild(this.singlePromptContainer);
         section.appendChild(this.multiplePromptContainer);
         section.appendChild(this.templatePromptContainer);
-        // iterationsInput is automatically appended via container option
+        section.appendChild(iterationsContainer);
         section.appendChild(buttonContainer);
         section.appendChild(this.statusElement);
 
@@ -1234,6 +1275,67 @@ also multiline`;
                 this.templatePromptContainer.style.display = 'block';
                 break;
         }
+        
+        // Update iteration input behavior based on mode
+        this.updateIterationInputBehavior(mode);
+    }
+    
+    /**
+     * Update iteration input behavior based on prompt mode
+     */
+    updateIterationInputBehavior(mode) {
+        if (!this.iterationsInput || !this.iterationsInfoText) return;
+        
+        switch (mode) {
+            case 'multiple':
+                // For multiple prompts, show the number of prompts and disable manual input
+                const prompts = this.settings.MULTIPLE_PROMPTS
+                    ? this.settings.MULTIPLE_PROMPTS.split('---').map(p => p.trim()).filter(p => p.length > 0)
+                    : [];
+                const promptCount = prompts.length;
+                
+                // Show/hide override checkbox based on whether we have prompts
+                if (this.overrideIterationsCheckbox) {
+                    this.overrideIterationsCheckbox.setVisible(promptCount > 0);
+                }
+                
+                if (promptCount > 0) {
+                    // Check if user wants to override automatic count
+                    const shouldOverride = this.settings.OVERRIDE_ITERATIONS && this.overrideIterationsCheckbox && this.overrideIterationsCheckbox.isChecked();
+                    
+                    if (shouldOverride) {
+                        // Allow manual input for multiple cycles
+                        this.iterationsInput.setDisabled(false);
+                        this.iterationsInput.getElement().title = 'Number of iterations (will cycle through prompts)';
+                        this.iterationsInfoText.textContent = `Will run ${this.iterationsInput.getValue()} iterations, cycling through ${promptCount} prompts`;
+                    } else {
+                        // Use automatic count
+                        this.iterationsInput.setValue(promptCount.toString());
+                        this.iterationsInput.setDisabled(true);
+                        this.iterationsInput.getElement().title = `Automatically set to ${promptCount} (number of prompts)`;
+                        this.iterationsInfoText.textContent = `Automatically set to ${promptCount} (number of prompts defined)`;
+                    }
+                } else {
+                    this.iterationsInput.setValue('1');
+                    this.iterationsInput.setDisabled(true);
+                    this.iterationsInput.getElement().title = 'Set to 1 (no prompts defined)';
+                    this.iterationsInfoText.textContent = 'Set to 1 (no prompts defined)';
+                }
+                break;
+                
+            case 'single':
+            case 'template':
+                // For single and template modes, allow manual input
+                this.iterationsInput.setDisabled(false);
+                this.iterationsInput.getElement().title = 'Number of iterations to run';
+                this.iterationsInfoText.textContent = 'Number of iterations to run';
+                
+                // Hide override checkbox for non-multiple modes
+                if (this.overrideIterationsCheckbox) {
+                    this.overrideIterationsCheckbox.setVisible(false);
+                }
+                break;
+        }
     }
 
     /**
@@ -1248,15 +1350,19 @@ also multiline`;
                 
             case 'multiple':
                 const prompts = this.settings.MULTIPLE_PROMPTS
-                    .split('---')
-                    .map(p => p.trim())
-                    .filter(p => p.length > 0);
+                    ? this.settings.MULTIPLE_PROMPTS.split('---')
+                        .map(p => p.trim())
+                        .filter(p => p.length > 0)
+                    : [];
                 
                 if (prompts.length === 0) {
                     return '';
                 }
                 
-                // Cycle through prompts (if more iterations than prompts, repeat)
+                // For multiple prompts, we can either:
+                // 1. Run each prompt once (iteration count = prompt count)
+                // 2. Run multiple cycles (iteration count > prompt count)
+                // 3. Run partial cycles (iteration count < prompt count)
                 const promptIndex = (iteration - 1) % prompts.length;
                 return prompts[promptIndex];
                 
