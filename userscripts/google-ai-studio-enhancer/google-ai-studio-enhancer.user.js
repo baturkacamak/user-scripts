@@ -354,7 +354,7 @@
             if (window.trustedTypes && window.trustedTypes.createPolicy) {
                 if (!HTMLUtils.#policy) {
                     try {
-                        HTMLUtils.#policy = window.trustedTypes.createPolicy('userscript-policy', {
+                        HTMLUtils.#policy = window.trustedTypes.createPolicy('baturkacamak-userscripts-policy', {
                             createHTML: (input) => input,
                         });
                     } catch (e) {
@@ -751,7 +751,7 @@
               return data;
             }
             localStorage.removeItem(key);
-            this.logger.log(`Cache expired and removed for key: ${key}`);
+            this.logger.info(`Cache expired and removed for key: ${key}`);
           }
         } catch (e) {
           this.logger.error(`Error getting cache for key ${key}:`, e);
@@ -766,7 +766,7 @@
             new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
             null;
           localStorage.setItem(key, JSON.stringify({ data: value, expires }));
-          this.logger.log(`Cache set for key: ${key}, expires: ${expires}`);
+          this.logger.info(`Cache set for key: ${key}, expires: ${expires}`);
         } catch (e) {
           this.logger.error(`Error setting cache for key ${key}:`, e);
         }
@@ -5229,23 +5229,13 @@
                 style: options.style || {}
             };
 
-            // Dark mode color defaults
-            const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (isDarkMode) {
-                this.options.style = {
-                    buttonColor: '#fff',
-                    buttonBg: '#3b82f6',
-                    panelBg: '#2d2d2d',
-                    ...options.style // User-provided styles take precedence
-                };
-            } else {
-                this.options.style = {
-                    buttonColor: '#fff',
-                    buttonBg: '#625df5',
-                    panelBg: '#fff',
-                    ...options.style
-                };
-            }
+            // Default styles
+            this.options.style = {
+                buttonColor: '#fff',
+                buttonBg: '#625df5',
+                panelBg: '#fff',
+                ...options.style
+            };
 
             // Setup base class names based on namespace
             this.baseClass = `${this.options.namespace}-sidebar-panel`;
@@ -5472,6 +5462,14 @@
                 .${baseClass}-overlay {
                     background-color: rgba(0, 0, 0, 0.7);
                 }
+
+                .${baseClass}-toggle {
+                    background-color: var(${cssVarPrefix}button-bg, #3b82f6);
+                }
+
+                .${baseClass}-toggle:hover {
+                    background-color: var(${cssVarPrefix}button-bg-hover, #2563eb);
+                }
             }
         `, `sidebar-panel-styles-${namespace}`);
         }
@@ -5572,8 +5570,8 @@
 
             this.closeButton = document.createElement('button');
             this.closeButton.className = `${this.baseClass}-close`;
-            HTMLUtils.setHTMLSafely(this.closeButton, '×');
-            this.closeButton.setAttribute('aria-label', 'Close panel');
+            HTMLUtils.setHTMLSafely(this.closeButton, '&times;');
+            this.closeButton.setAttribute('aria-label', 'Close Panel');
 
             this.header.appendChild(titleElement);
             this.header.appendChild(this.closeButton);
@@ -5610,13 +5608,11 @@
          * Create toggle button
          */
         createToggleButton() {
+            if (!this.options.showButton) return;
             this.button = document.createElement('button');
-            this.button.type = 'button';
             this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
             HTMLUtils.setHTMLSafely(this.button, this.options.buttonIcon);
-            this.button.setAttribute('aria-label', `Open ${this.options.title}`);
-
-            // Add to document
+            this.button.setAttribute('aria-label', 'Toggle Panel');
             document.body.appendChild(this.button);
         }
 
@@ -5811,7 +5807,7 @@
          */
         async setContent(contentConfig) {
             if (!this.content) return;
-            this.content.innerHTML = ''; // Clearing content is fine
+            this.content.textContent = ''; // Clearing content safely
 
             if (contentConfig.html) {
                 if (typeof contentConfig.html === 'string') {
@@ -5908,20 +5904,25 @@
         /**
          * Initialize default styles for Input components
          */
-        static initStyles() {
-            if (StyleManager.hasStyles('input-component')) {
+        static initStyles(options = {}) {
+            const { scopeSelector = '' } = options;
+            const styleId = `input-component${scopeSelector ? '-' + scopeSelector.replace(/[^a-zA-Z0-9]/g, '') : ''}`;
+
+            if (StyleManager.hasStyles(styleId)) {
                 return;
             }
 
+            const selectorPrefix = scopeSelector ? `${scopeSelector} ` : '';
+
             const styles = `
-            .${Input.BASE_INPUT_CLASS} {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS} {
                 position: relative;
                 display: inline-block;
                 width: 100%;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
 
-            .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field {
                 width: 100%;
                 padding: 8px 12px;
                 border: 1px solid #e0e0e0;
@@ -5934,68 +5935,68 @@
                 outline: none;
             }
 
-            .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}-field:disabled {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:disabled {
                 background: #f0f0f0;
                 color: #888;
                 cursor: not-allowed;
             }
 
-            .${Input.BASE_INPUT_CLASS}-field::placeholder {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field::placeholder {
                 color: #222;
                 opacity: 0.7;
             }
 
             /* Themes */
-            .${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
                 border-color: #28a745;
             }
 
-            .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #28a745;
                 box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
                 border-color: #ffc107;
             }
 
-            .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #ffc107;
                 box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
             }
 
-            .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
                 border-color: #dc3545;
             }
 
-            .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
                 border-color: #dc3545;
                 box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
             }
 
             /* Sizes */
-            .${Input.BASE_INPUT_CLASS}--small .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--small .${Input.BASE_INPUT_CLASS}-field {
                 padding: 6px 10px;
                 font-size: 12px;
             }
 
-            .${Input.BASE_INPUT_CLASS}--large .${Input.BASE_INPUT_CLASS}-field {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--large .${Input.BASE_INPUT_CLASS}-field {
                 padding: 12px 16px;
                 font-size: 16px;
             }
 
             /* Label */
-            .${Input.BASE_INPUT_CLASS}-label {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-label {
                 display: block;
                 margin-bottom: 4px;
                 font-size: 13px;
@@ -6004,7 +6005,7 @@
             }
 
             /* Error message */
-            .${Input.BASE_INPUT_CLASS}-error {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-error {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -6012,7 +6013,7 @@
             }
 
             /* Helper text */
-            .${Input.BASE_INPUT_CLASS}-helper {
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-helper {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -6021,74 +6022,74 @@
 
             /* Dark theme */
             @media (prefers-color-scheme: dark) {
-                .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field {
                     background: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #555;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}-field:disabled {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:disabled {
                     background: #444;
                     color: #888;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-field::placeholder {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field::placeholder {
                     color: #e0e0e0;
                     opacity: 0.5;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-label {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-label {
                     color: #e0e0e0;
                 }
 
-                .${Input.BASE_INPUT_CLASS}-helper {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-helper {
                     color: #aaa;
                 }
 
                 /* Themes in dark mode */
-                .${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
                     background-color: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #28a745;
                 }
 
-                .${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
                      background-color: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #ffc107;
                 }
 
-                .${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
                 }
 
-                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
                      background-color: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #dc3545;
                 }
 
-                .${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
                 }
             }
         `;
 
-            StyleManager.addStyles(styles, 'input-component');
+            StyleManager.addStyles(styles, styleId);
         }
 
         /**
@@ -6146,6 +6147,7 @@
             this.isValid = true;
             this.errorMessage = '';
 
+            Input.initStyles({ scopeSelector: this.options.scopeSelector });
             this.createElement();
             this.setupEventListeners();
 
@@ -6404,20 +6406,25 @@
         /**
          * Initialize default styles for TextArea components
          */
-        static initStyles() {
-            if (StyleManager.hasStyles('textarea-component')) {
+        static initStyles(options = {}) {
+            const { scopeSelector = '' } = options;
+            const styleId = `textarea-component${scopeSelector ? '-' + scopeSelector.replace(/[^a-zA-Z0-9]/g, '') : ''}`;
+
+            if (StyleManager.hasStyles(styleId)) {
                 return;
             }
 
+            const selectorPrefix = scopeSelector ? `${scopeSelector} ` : '';
+
             const styles = `
-            .${TextArea.BASE_TEXTAREA_CLASS} {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS} {
                 position: relative;
                 display: inline-block;
                 width: 100%;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field {
                 width: 100%;
                 padding: 8px 12px;
                 border: 1px solid #e0e0e0;
@@ -6434,71 +6441,71 @@
                 min-height: 80px;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
                 background: #f0f0f0;
                 color: #888;
                 cursor: not-allowed;
                 resize: none;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
                 color: #222;
                 opacity: 0.7;
             }
 
             /* Themes */
-            .${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #4285f4;
                 box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 border-color: #28a745;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #28a745;
                 box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 border-color: #ffc107;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #ffc107;
                 box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 border-color: #dc3545;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                 border-color: #dc3545;
                 box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
             }
 
             /* Sizes */
-            .${TextArea.BASE_TEXTAREA_CLASS}--small .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--small .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 padding: 6px 10px;
                 font-size: 12px;
                 min-height: 60px;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}--large .${TextArea.BASE_TEXTAREA_CLASS}-field {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--large .${TextArea.BASE_TEXTAREA_CLASS}-field {
                 padding: 12px 16px;
                 font-size: 16px;
                 min-height: 120px;
             }
 
             /* Label */
-            .${TextArea.BASE_TEXTAREA_CLASS}-label {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-label {
                 display: block;
                 margin-bottom: 4px;
                 font-size: 13px;
@@ -6507,7 +6514,7 @@
             }
 
             /* Error message */
-            .${TextArea.BASE_TEXTAREA_CLASS}-error {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-error {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -6515,7 +6522,7 @@
             }
 
             /* Helper text */
-            .${TextArea.BASE_TEXTAREA_CLASS}-helper {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-helper {
                 display: block;
                 margin-top: 4px;
                 font-size: 12px;
@@ -6523,7 +6530,7 @@
             }
 
             /* Character counter */
-            .${TextArea.BASE_TEXTAREA_CLASS}-counter {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-counter {
                 display: block;
                 margin-top: 4px;
                 font-size: 11px;
@@ -6531,84 +6538,84 @@
                 text-align: right;
             }
 
-            .${TextArea.BASE_TEXTAREA_CLASS}-counter--limit-reached {
+            ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-counter--limit-reached {
                 color: #dc3545;
             }
 
             /* Dark theme */
             @media (prefers-color-scheme: dark) {
-                .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     color: #e0e0e0;
                     border-color: #555;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field:disabled {
                     background: #444;
                     color: #888;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-field::placeholder {
                     color: #e0e0e0;
                     opacity: 0.5;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-label {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-label {
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-helper {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-helper {
                     color: #aaa;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}-counter {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}-counter {
                     color: #aaa;
                 }
 
                 /* Themes in dark mode */
-                .${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--primary .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     border-color: #4285f4;
                     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     border-color: #28a745;
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--success .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     border-color: #ffc107;
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--warning .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field {
                     background: #2d2d2d;
                     border-color: #dc3545;
                     color: #e0e0e0;
                 }
 
-                .${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
+                ${selectorPrefix}.${TextArea.BASE_TEXTAREA_CLASS}--danger .${TextArea.BASE_TEXTAREA_CLASS}-field:focus {
                     box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
                 }
             }
         `;
 
-            StyleManager.addStyles(styles, 'textarea-component');
+            StyleManager.addStyles(styles, styleId);
         }
 
         /**
@@ -6642,6 +6649,7 @@
          * @param {Function} [options.validator] - Custom validation function
          * @param {HTMLElement} [options.container] - Container to append to
          * @param {string} [options.className] - Additional CSS class
+         * @param {string} [options.scopeSelector] - CSS selector to scope styles
          */
         constructor(options = {}) {
             this.options = {
@@ -6665,12 +6673,14 @@
                 validator: null,
                 container: null,
                 className: '',
+                scopeSelector: '',
                 ...options
             };
 
             this.isValid = true;
             this.errorMessage = '';
 
+            TextArea.initStyles({ scopeSelector: this.options.scopeSelector });
             this.createElement();
             this.setupEventListeners();
 
@@ -7007,7 +7017,7 @@
             ],
             // Common selectors for run buttons
             RUN_BUTTONS: [
-                // Google AI Studio specific (most accurate)
+
                 'button.run-button[aria-label="Run"]:not(.disabled):not([disabled])',
                 'button.run-button[aria-label="Run"]',
                 '.run-button:not(.disabled):not([disabled])',
@@ -7070,7 +7080,10 @@
             AUTO_RUN_DELAY: 'gaise-auto-run-delay',
             SHOW_NOTIFICATIONS: 'gaise-show-notifications',
             PANEL_POSITION: 'gaise-panel-position',
-            AUTO_RUN_PROMPT: 'gaise-auto-run-prompt'
+            AUTO_RUN_PROMPT: 'gaise-auto-run-prompt',
+            PROMPT_MODE: 'gaise-prompt-mode',
+            MULTIPLE_PROMPTS: 'gaise-multiple-prompts',
+            TEMPLATE_PROMPT: 'gaise-template-prompt'
         };
 
         static DEFAULT_SETTINGS = {
@@ -7078,7 +7091,10 @@
             AUTO_RUN_DELAY: 2000,
             SHOW_NOTIFICATIONS: true,
             PANEL_POSITION: { x: 20, y: 20 },
-            AUTO_RUN_PROMPT: ''
+            AUTO_RUN_PROMPT: '',
+            PROMPT_MODE: 'single',
+            MULTIPLE_PROMPTS: '',
+            TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.'
         };
 
         // Event names for PubSub communication
@@ -7109,6 +7125,7 @@
             this.copyButton = null;
             this.toggleButton = null;
             this.isInitialLoad = true;
+            this.enhancerId = 'ai-studio-enhancer-container';
             
             // Store subscription IDs for cleanup
             this.subscriptionIds = [];
@@ -7180,6 +7197,8 @@
             this.loadSettings().then(() => {
                 // Initialize components
                 this.init();
+                // Update prompt input visibility based on saved mode
+                this.updatePromptInputVisibility();
             });
             
             // Setup cleanup on page unload
@@ -7684,8 +7703,14 @@
          * Initialize the enhancer
          */
         async init() {
-            // Wait for page to be ready
+            Logger.info("Enhancer starting initialization...");
+
+            // Set a unique ID on the body for style scoping
+            document.body.id = this.enhancerId;
+
+            // Wait for the main content to be ready
             await this.waitForPageReady();
+            Logger.info("Page is ready, proceeding with initialization.");
 
             // Initialize styles
             SidebarPanel.initStyles();
@@ -7704,8 +7729,33 @@
             }
             
             .auto-run-prompt-textarea,
-            .auto-run-iterations-input {
+            .auto-run-iterations-input,
+            .auto-run-multiple-prompts-textarea,
+            .auto-run-template-prompt-textarea {
                 margin-bottom: 12px;
+            }
+            
+            .single-prompt-container,
+            .multiple-prompt-container,
+            .template-prompt-container {
+                margin-bottom: 12px;
+            }
+            
+            .multiple-prompt-container label,
+            .template-prompt-container label {
+                display: block;
+                margin-bottom: 4px;
+                font-size: 12px;
+                color: #555;
+                font-weight: 500;
+            }
+            
+            .multiple-prompt-container code {
+                background: #f0f0f0;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: monospace;
+                font-size: 11px;
             }
         `, 'ai-studio-enhancer-custom-styles');
 
@@ -7850,7 +7900,36 @@
             title.textContent = '🔄 Auto Runner';
             title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-            // Prompt input using TextArea component
+            // Prompt mode selector
+            const promptModeContainer = document.createElement('div');
+            promptModeContainer.style.marginBottom = '12px';
+
+            const promptModeLabel = document.createElement('label');
+            promptModeLabel.textContent = 'Prompt Mode:';
+            promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+            const promptModeSelect = document.createElement('select');
+            promptModeSelect.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
+            HTMLUtils.setHTMLSafely(promptModeSelect, `
+            <option value="single">Single Prompt (same for all iterations)</option>
+            <option value="multiple">Multiple Prompts (different for each iteration)</option>
+            <option value="template">Template Prompts (with variables)</option>
+        `);
+            promptModeSelect.value = this.settings.PROMPT_MODE || 'single';
+            promptModeSelect.onchange = (event) => {
+                this.settings.PROMPT_MODE = event.target.value;
+                this.saveSettings();
+                this.updatePromptInputVisibility();
+            };
+
+            promptModeContainer.appendChild(promptModeLabel);
+            promptModeContainer.appendChild(promptModeSelect);
+            this.promptModeSelect = promptModeSelect;
+
+            // Single prompt input (existing functionality)
+            this.singlePromptContainer = document.createElement('div');
+            this.singlePromptContainer.className = 'single-prompt-container';
+            
             this.promptTextArea = new TextArea({
                 value: this.settings.AUTO_RUN_PROMPT,
                 placeholder: 'Enter prompt to auto-run (optional)',
@@ -7862,19 +7941,100 @@
                     this.settings.AUTO_RUN_PROMPT = textArea.getValue();
                     this.saveSettings();
                 },
-                container: section
+                container: this.singlePromptContainer,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
             });
+
+            // Multiple prompts input
+            this.multiplePromptContainer = document.createElement('div');
+            this.multiplePromptContainer.className = 'multiple-prompt-container';
+            this.multiplePromptContainer.style.display = 'none';
+
+            const multiplePromptLabel = document.createElement('label');
+            multiplePromptLabel.textContent = 'Prompts (separated by ---, will cycle through):';
+            multiplePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+            // Add separator info
+            const separatorInfo = document.createElement('div');
+            separatorInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
+            
+            // Create separator info content safely using HTMLUtils
+            const separatorTitle = document.createElement('div');
+            HTMLUtils.setHTMLSafely(separatorTitle, '<strong>Separator:</strong> Use <code>---</code> (three dashes) to separate prompts.');
+            separatorTitle.style.marginBottom = '4px';
+            
+            const exampleTitle = document.createElement('div');
+            HTMLUtils.setHTMLSafely(exampleTitle, '<strong>Example:</strong>');
+            exampleTitle.style.marginBottom = '4px';
+            
+            const exampleCode = document.createElement('code');
+            exampleCode.textContent = `First prompt here
+can be multiline
+---
+Second prompt here
+also multiline`;
+            exampleCode.style.cssText = 'display: block; background: #f0f0f0; padding: 4px; border-radius: 3px; font-family: monospace; font-size: 10px; white-space: pre-line;';
+            
+            separatorInfo.appendChild(separatorTitle);
+            separatorInfo.appendChild(exampleTitle);
+            separatorInfo.appendChild(exampleCode);
+
+            this.multiplePromptTextArea = new TextArea({
+                value: this.settings.MULTIPLE_PROMPTS || '',
+                placeholder: 'Enter prompts separated by ---:\nFirst prompt\ncan be multiline\n---\nSecond prompt\nalso multiline\n---\nThird prompt',
+                rows: 8,
+                theme: 'primary',
+                size: 'medium',
+                className: 'auto-run-multiple-prompts-textarea',
+                onInput: (event, textArea) => {
+                    this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: this.multiplePromptContainer,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            this.multiplePromptContainer.appendChild(multiplePromptLabel);
+            this.multiplePromptContainer.appendChild(separatorInfo);
+
+            // Template prompts input
+            this.templatePromptContainer = document.createElement('div');
+            this.templatePromptContainer.className = 'template-prompt-container';
+            this.templatePromptContainer.style.display = 'none';
+
+            const templatePromptLabel = document.createElement('label');
+            templatePromptLabel.textContent = 'Template Prompt (use {iteration}, {total}, {timestamp}):';
+            templatePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+            this.templatePromptTextArea = new TextArea({
+                value: this.settings.TEMPLATE_PROMPT || 'This is iteration {iteration} of {total}. Please provide a response.',
+                placeholder: 'Template with variables: {iteration}, {total}, {timestamp}',
+                rows: 3,
+                theme: 'primary',
+                size: 'medium',
+                className: 'auto-run-template-prompt-textarea',
+                onInput: (event, textArea) => {
+                    this.settings.TEMPLATE_PROMPT = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: this.templatePromptContainer,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            this.templatePromptContainer.appendChild(templatePromptLabel);
 
             // Iterations input using Input component
             this.iterationsInput = new Input({
                 type: 'number',
-                value: this.settings.DEFAULT_ITERATIONS.toString(),
+                value: this.settings.DEFAULT_ITERATIONS,
                 placeholder: 'Number of iterations',
-                min: '1',
-                max: '100',
-                theme: 'primary',
-                size: 'medium',
+                min: 1,
+                max: 100,
                 className: 'auto-run-iterations-input',
+                scopeSelector: `#${this.enhancerId}`,
                 validator: (value) => {
                     const num = parseInt(value, 10);
                     if (isNaN(num) || num < 1) {
@@ -7915,7 +8075,11 @@
             this.statusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center;';
 
             section.appendChild(title);
-            // promptTextArea and iterationsInput are automatically appended via container option
+            section.appendChild(promptModeContainer);
+            section.appendChild(this.singlePromptContainer);
+            section.appendChild(this.multiplePromptContainer);
+            section.appendChild(this.templatePromptContainer);
+            // iterationsInput is automatically appended via container option
             section.appendChild(buttonContainer);
             section.appendChild(this.statusElement);
 
@@ -8003,6 +8167,71 @@
             section.appendChild(interactionSubsection);
 
             container.appendChild(section);
+        }
+
+        /**
+         * Update prompt input visibility based on selected mode
+         */
+        updatePromptInputVisibility() {
+            const mode = this.settings.PROMPT_MODE || 'single';
+            
+            // Hide all containers first
+            this.singlePromptContainer.style.display = 'none';
+            this.multiplePromptContainer.style.display = 'none';
+            this.templatePromptContainer.style.display = 'none';
+            
+            // Show the appropriate container
+            switch (mode) {
+                case 'single':
+                    this.singlePromptContainer.style.display = 'block';
+                    break;
+                case 'multiple':
+                    this.multiplePromptContainer.style.display = 'block';
+                    break;
+                case 'template':
+                    this.templatePromptContainer.style.display = 'block';
+                    break;
+            }
+        }
+
+        /**
+         * Get the appropriate prompt for the current iteration
+         */
+        getPromptForIteration(iteration, totalIterations) {
+            const mode = this.settings.PROMPT_MODE || 'single';
+            
+            switch (mode) {
+                case 'single':
+                    return this.settings.AUTO_RUN_PROMPT || '';
+                    
+                case 'multiple':
+                    const prompts = this.settings.MULTIPLE_PROMPTS
+                        .split('---')
+                        .map(p => p.trim())
+                        .filter(p => p.length > 0);
+                    
+                    if (prompts.length === 0) {
+                        return '';
+                    }
+                    
+                    // Cycle through prompts (if more iterations than prompts, repeat)
+                    const promptIndex = (iteration - 1) % prompts.length;
+                    return prompts[promptIndex];
+                    
+                case 'template':
+                    let template = this.settings.TEMPLATE_PROMPT || '';
+                    const timestamp = new Date().toISOString();
+                    
+                    // Replace variables in template
+                    template = template.replace(/\{iteration\}/g, iteration);
+                    template = template.replace(/\{total\}/g, totalIterations);
+                    template = template.replace(/\{timestamp\}/g, timestamp);
+                    
+                    return template;
+                    
+                default:
+                    return '';
+            }
         }
 
         /**
@@ -8597,9 +8826,12 @@
         async executeAutoRunIteration(iteration, results) {
             Logger.info(`Executing auto-run iteration ${iteration}`);
 
-            // Enter prompt if specified
-            const currentPrompt = this.promptTextArea.getValue().trim();
+            // Get the appropriate prompt for this iteration
+            const totalIterations = this.maxIterations || this.settings.DEFAULT_ITERATIONS;
+            const currentPrompt = this.getPromptForIteration(iteration, totalIterations);
+            
             if (currentPrompt) {
+                Logger.info(`Using prompt for iteration ${iteration}: ${currentPrompt.substring(0, 50)}...`);
                 const promptEntered = await this.enterPrompt(currentPrompt);
                 if (!promptEntered) {
                     Logger.warn('Could not enter prompt - prompt input not found, continuing anyway');
@@ -8607,6 +8839,8 @@
                     // Small delay after entering prompt to let Google process the input
                     await this.delay(500);
                 }
+            } else {
+                Logger.info(`No prompt specified for iteration ${iteration}`);
             }
 
             // Wait for run button to become enabled (with retry mechanism)

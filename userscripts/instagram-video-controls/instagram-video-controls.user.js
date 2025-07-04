@@ -354,7 +354,7 @@
             if (window.trustedTypes && window.trustedTypes.createPolicy) {
                 if (!HTMLUtils.#policy) {
                     try {
-                        HTMLUtils.#policy = window.trustedTypes.createPolicy('userscript-policy', {
+                        HTMLUtils.#policy = window.trustedTypes.createPolicy('baturkacamak-userscripts-policy', {
                             createHTML: (input) => input,
                         });
                     } catch (e) {
@@ -3829,23 +3829,13 @@
                 style: options.style || {}
             };
 
-            // Dark mode color defaults
-            const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (isDarkMode) {
-                this.options.style = {
-                    buttonColor: '#fff',
-                    buttonBg: '#3b82f6',
-                    panelBg: '#2d2d2d',
-                    ...options.style // User-provided styles take precedence
-                };
-            } else {
-                this.options.style = {
-                    buttonColor: '#fff',
-                    buttonBg: '#625df5',
-                    panelBg: '#fff',
-                    ...options.style
-                };
-            }
+            // Default styles
+            this.options.style = {
+                buttonColor: '#fff',
+                buttonBg: '#625df5',
+                panelBg: '#fff',
+                ...options.style
+            };
 
             // Setup base class names based on namespace
             this.baseClass = `${this.options.namespace}-sidebar-panel`;
@@ -4072,6 +4062,14 @@
                 .${baseClass}-overlay {
                     background-color: rgba(0, 0, 0, 0.7);
                 }
+
+                .${baseClass}-toggle {
+                    background-color: var(${cssVarPrefix}button-bg, #3b82f6);
+                }
+
+                .${baseClass}-toggle:hover {
+                    background-color: var(${cssVarPrefix}button-bg-hover, #2563eb);
+                }
             }
         `, `sidebar-panel-styles-${namespace}`);
         }
@@ -4172,8 +4170,8 @@
 
             this.closeButton = document.createElement('button');
             this.closeButton.className = `${this.baseClass}-close`;
-            HTMLUtils.setHTMLSafely(this.closeButton, '×');
-            this.closeButton.setAttribute('aria-label', 'Close panel');
+            HTMLUtils.setHTMLSafely(this.closeButton, '&times;');
+            this.closeButton.setAttribute('aria-label', 'Close Panel');
 
             this.header.appendChild(titleElement);
             this.header.appendChild(this.closeButton);
@@ -4210,13 +4208,11 @@
          * Create toggle button
          */
         createToggleButton() {
+            if (!this.options.showButton) return;
             this.button = document.createElement('button');
-            this.button.type = 'button';
             this.button.className = `${this.baseClass}-toggle ${this.baseClass}-toggle--${this.options.position}`;
             HTMLUtils.setHTMLSafely(this.button, this.options.buttonIcon);
-            this.button.setAttribute('aria-label', `Open ${this.options.title}`);
-
-            // Add to document
+            this.button.setAttribute('aria-label', 'Toggle Panel');
             document.body.appendChild(this.button);
         }
 
@@ -4411,7 +4407,7 @@
          */
         async setContent(contentConfig) {
             if (!this.content) return;
-            this.content.innerHTML = ''; // Clearing content is fine
+            this.content.textContent = ''; // Clearing content safely
 
             if (contentConfig.html) {
                 if (typeof contentConfig.html === 'string') {
