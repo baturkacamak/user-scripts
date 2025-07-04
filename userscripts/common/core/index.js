@@ -18,6 +18,10 @@ import ContentCollector from './utils/ContentCollector.js';
 import FormStatePersistence from './utils/FormStatePersistence.js';
 import * as GMFunctions from './utils/GMFunctions.js';
 
+// Services
+import ThrottleService from './services/ThrottleService.js';
+import AsyncQueueService from './services/AsyncQueueService.js';
+
 // Internationalization
 import TranslationManager from './i18n/TranslationManager.js';
 
@@ -51,6 +55,10 @@ export {
   FormStatePersistence,
   GMFunctions,
 
+  // Services
+  ThrottleService,
+  AsyncQueueService,
+
   // Internationalization
   TranslationManager,
 
@@ -82,6 +90,8 @@ export default {
   AutoRunner,
   ContentCollector,
   FormStatePersistence,
+  ThrottleService,
+  AsyncQueueService,
   TranslationManager,
   SectionToggler,
   DOMObserver,

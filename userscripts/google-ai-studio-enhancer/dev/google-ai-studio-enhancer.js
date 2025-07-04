@@ -1,6 +1,7 @@
 // Import core components
 import {
     AutoRunner,
+    AsyncQueueService,
     Button,
     ContentCollector,
     DataCache,
@@ -16,6 +17,7 @@ import {
     SidebarPanel,
     StyleManager,
     TextArea,
+    ThrottleService,
     UrlChangeWatcher,
     UserInteractionDetector
 } from "../../common/core";
@@ -55,7 +57,7 @@ class AIStudioEnhancer {
         ],
         // Common selectors for run buttons
         RUN_BUTTONS: [
-            // Google AI Studio specific (most accurate)
+
             'button.run-button[aria-label="Run"]:not(.disabled):not([disabled])',
             'button.run-button[aria-label="Run"]',
             '.run-button:not(.disabled):not([disabled])',
