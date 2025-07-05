@@ -41,20 +41,6 @@ class AIStudioEnhancer {
         RESPONSE_CONTAINERS: [
             // Google AI Studio specific (most accurate)
             '.chat-turn-container.model.render',
-            '.chat-turn-container.model',
-            // General selectors
-            '[data-test-id="response-text"]',
-            '.model-response',
-            '.response-content',
-            '[role="text"]',
-            '.markdown-content',
-            'div[data-message-author-role="model"]',
-            'div[data-message-role="model"]',
-            '[data-message-author-role="assistant"]',
-            // More specific selectors for Google AI Studio
-            '[data-testid="conversation-turn-content"]',
-            '.conversation-turn-content',
-            '[data-testid="model-response"]'
         ],
         // Common selectors for run buttons
         RUN_BUTTONS: [
@@ -173,9 +159,6 @@ class AIStudioEnhancer {
         // Store subscription IDs for cleanup
         this.subscriptionIds = [];
         
-        // Initialize cache for persistent response storage
-        this.responseCache = new DataCache(Logger);
-        
         // Initialize user interaction detector for distinguishing real vs programmatic events
         this.userInteraction = UserInteractionDetector.getInstance({
             debug: Logger.DEBUG,
@@ -184,7 +167,7 @@ class AIStudioEnhancer {
             interactionThrottle: 100 // 100ms throttle for performance
         });
 
-        // Initialize ContentCollector for sophisticated response collection
+        // Initialize ContentCollector for response collection
         this.contentCollector = new ContentCollector({
             name: 'AI-Studio-Responses',
             selectors: AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS,
@@ -193,8 +176,6 @@ class AIStudioEnhancer {
             contentValidator: (content, existing) => content && content.length > 10,
             deduplicate: true,
             enableNotifications: false, // We'll handle notifications ourselves
-            enablePersistence: true,
-            cacheKey: () => this.getChatCacheKey(),
             highlightCollected: false
         });
 
@@ -349,9 +330,8 @@ class AIStudioEnhancer {
             this.overrideIterationsCheckbox = null;
         }
 
-        // Clean up new core components
+        // Clean up ContentCollector
         if (this.contentCollector) {
-            this.contentCollector.stopMonitoring();
             this.contentCollector = null;
         }
 
@@ -368,90 +348,7 @@ class AIStudioEnhancer {
         Logger.debug("All subscriptions and resources cleaned up");
     }
 
-    /**
-     * Generate cache key for current chat
-     */
-    getChatCacheKey() {
-        const chatId = this.currentChatId || 'default';
-        return `ai-studio-responses-${chatId}`;
-    }
 
-    /**
-     * Load responses from cache for current chat
-     */
-    loadResponsesFromCache() {
-        const cacheKey = this.getChatCacheKey();
-        const cachedResponses = this.responseCache.get(cacheKey);
-        
-        if (cachedResponses && Array.isArray(cachedResponses)) {
-            this.responses = [...cachedResponses];
-            Logger.debug(`Loaded ${this.responses.length} responses from cache for chat: ${this.currentChatId}`);
-            
-            // Update UI to reflect cached responses
-            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
-                type: 'chat-changed',
-                chatId: this.currentChatId 
-            });
-            
-            return true;
-        }
-        
-        Logger.debug(`No cached responses found for chat: ${this.currentChatId}`);
-        return false;
-    }
-
-    /**
-     * Save responses to cache for current chat
-     */
-    saveResponsesToCache() {
-        const cacheKey = this.getChatCacheKey();
-        
-        // Save responses with 7 days expiration
-        this.responseCache.set(cacheKey, this.responses, 7);
-        
-        Logger.debug(`Saved ${this.responses.length} responses to cache for chat: ${this.currentChatId}`);
-    }
-
-    /**
-     * Clear cache for current chat
-     */
-    clearChatCache() {
-        const cacheKey = this.getChatCacheKey();
-        this.responseCache.set(cacheKey, [], 7); // Set empty array instead of removing
-        Logger.debug(`Cleared cache for chat: ${this.currentChatId}`);
-    }
-
-    /**
-     * Clear all cached responses
-     */
-    clearAllCache() {
-        // This would require knowing all chat IDs, which is complex
-        // For now, we'll just clear the current chat
-        this.clearChatCache();
-        Logger.info("Cache cleared for current chat");
-    }
-
-    /**
-     * Clear current chat cache and update UI
-     */
-    clearCurrentChatCache() {
-        this.clearChatCache();
-        
-        // Also clear current responses in memory and ContentCollector
-        this.responses = [];
-        if (this.contentCollector) {
-            this.contentCollector.clearContent();
-        }
-        
-        // Update UI
-        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
-            type: 'chat-changed',
-            chatId: this.currentChatId 
-        });
-        
-        this.showNotification('Cache cleared for current chat', 'success');
-        Logger.info("Current chat cache cleared via UI");
-    }
 
     /**
      * Update interaction statistics display
@@ -558,46 +455,7 @@ class AIStudioEnhancer {
         }
     }
 
-    /**
-     * Handle clear cache button click with user interaction detection
-     */
-    handleClearCacheClick(event) {
-        const isUserInitiated = this.userInteraction.isUserEvent(event);
-        
-        Logger.debug('Clear cache button clicked', {
-            isUserInitiated,
-            eventType: event?.type,
-            isTrusted: event?.isTrusted,
-            isInteracting: this.userInteraction.isInteracting(),
-            timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
-        });
 
-        if (isUserInitiated) {
-            // Real user click - proceed with cache clearing
-            this.clearCurrentChatCache();
-            
-            // Publish event for analytics/logging
-            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
-                type: 'user-action',
-                action: 'clear-cache',
-                userInitiated: true
-            });
-        } else {
-            // Programmatic click - be more cautious with destructive actions
-            Logger.warn('Programmatic clear cache click detected - requiring user confirmation');
-            
-            // For destructive actions, we might want to require real user interaction
-            // For now, we'll allow it but with extra logging
-            this.clearCurrentChatCache();
-            
-            // Publish event for analytics/logging
-            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, {
-                type: 'programmatic-action',
-                action: 'clear-cache',
-                userInitiated: false
-            });
-        }
-    }
 
     /**
      * Handle response addition events
@@ -605,9 +463,6 @@ class AIStudioEnhancer {
     handleResponseAdded(data) {
         // Update UI counter
         this.updateResponseCount();
-        
-        // Save to cache
-        this.saveResponsesToCache();
         
         Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}`);
     }
@@ -618,36 +473,41 @@ class AIStudioEnhancer {
     handleChatChangedEvent(data) {
         Logger.info(`Chat changed event: ${data.oldChatId} → ${data.newChatId}`);
         
-        // Try to load responses from cache for the new chat first
-        const loadedFromCache = this.loadResponsesFromCache();
-        
-        if (!loadedFromCache) {
-            // Clear responses if no cache found
-            this.responses = [];
-            
-            // Publish UI update event
-            PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
-                type: 'chat-changed',
-                chatId: data.newChatId 
-            });
+        // Clear responses for new chat
+        this.responses = [];
+        if (this.contentCollector) {
+            this.contentCollector.clearContent();
         }
+        
+        // Publish UI update event
+        PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
+            type: 'chat-changed',
+            chatId: data.newChatId 
+        });
         
         // Set initial load mode for the new chat
         this.isInitialLoad = true;
         
         // Collect responses from the new chat after a short delay
         setTimeout(() => {
-            this.collectExistingResponses();
+            this.collectResponses();
             setTimeout(() => {
                 this.isInitialLoad = false;
                 Logger.debug("New chat initial load completed");
             }, 1000);
         }, 1000);
         
-        if (loadedFromCache) {
-            this.showNotification(`Switched to chat - loaded ${this.responses.length} cached responses`, 'info');
-        } else {
-            this.showNotification('Switched to new chat - responses cleared', 'info');
+        this.showNotification('Switched to new chat - collecting responses', 'info');
+    }
+
+    /**
+     * Manually collect responses from the current page
+     */
+    collectResponses() {
+        if (this.contentCollector) {
+            this.contentCollector.collectExistingContent();
+            this.responses = this.contentCollector.getContent();
+            Logger.info(`Collected ${this.responses.length} responses from page`);
         }
     }
 
@@ -825,7 +685,7 @@ class AIStudioEnhancer {
         // Setup chat monitoring to detect chat switches
         this.setupChatMonitoring();
 
-        // Initialize ContentCollector for response monitoring
+        // Initialize ContentCollector for response collection
         this.initializeContentCollector();
 
         // Initialize FormStatePersistence for automatic form state saving
@@ -846,6 +706,44 @@ class AIStudioEnhancer {
             this.showNotification('Failed to initialize enhancer. Please refresh the page.', 'error');
         }
     }
+
+    /**
+     * Initialize ContentCollector for response collection
+     */
+    initializeContentCollector() {
+        // Setup event subscriptions for ContentCollector
+        this.subscriptionIds.push(
+            PubSub.subscribe(ContentCollector.EVENTS.CONTENT_ADDED, (data) => {
+                // Update our local responses array to maintain compatibility
+                this.responses = this.contentCollector.getContent();
+                
+                // Handle the new content addition
+                this.handleResponseAdded({
+                    text: data.content,
+                    total: data.totalItems,
+                    isInitialLoad: this.isInitialLoad
+                });
+            })
+        );
+
+        this.subscriptionIds.push(
+            PubSub.subscribe(ContentCollector.EVENTS.COLLECTION_UPDATED, (data) => {
+                // Update response count in UI
+                this.updateResponseCount();
+                Logger.debug(`ContentCollector updated: ${data.newItems} new, ${data.totalItems} total`);
+            })
+        );
+
+        // Collect existing responses
+        this.contentCollector.collectExistingContent();
+        
+        // Update our responses array from ContentCollector
+        this.responses = this.contentCollector.getContent();
+        
+        Logger.info("ContentCollector initialized and responses collected");
+    }
+
+
 
     /**
      * Wait for the page to be ready
@@ -1195,40 +1093,7 @@ also multiline`;
         title.textContent = '⚙️ Settings';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-        // Cache management subsection
-        const cacheSubsection = document.createElement('div');
-        cacheSubsection.style.marginBottom = '16px';
 
-        const cacheTitle = document.createElement('h4');
-        cacheTitle.textContent = '💾 Cache Management';
-        cacheTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
-
-        // Cache info
-        const cacheInfo = document.createElement('div');
-        cacheInfo.textContent = 'Responses are automatically saved per chat';
-        cacheInfo.style.cssText = `
-            color: #666;
-            font-size: 12px;
-            margin-bottom: 8px;
-            padding: 8px;
-            background: #f5f5f5;
-            border-radius: 4px;
-        `;
-
-        // Clear cache button
-        const clearCacheButton = new Button({
-            text: 'Clear Current Chat Cache',
-            theme: 'danger',
-            size: 'small',
-            onClick: (event) => this.handleClearCacheClick(event),
-            successText: '✅ Cleared!',
-            successDuration: 1500,
-            container: cacheSubsection
-        });
-
-        cacheSubsection.appendChild(cacheTitle);
-        cacheSubsection.appendChild(cacheInfo);
-        // clearCacheButton is automatically appended via container option
 
         // User interaction subsection
         const interactionSubsection = document.createElement('div');
@@ -1261,7 +1126,6 @@ also multiline`;
         interactionSubsection.appendChild(this.interactionStatsElement);
 
         section.appendChild(title);
-        section.appendChild(cacheSubsection);
         section.appendChild(interactionSubsection);
 
         container.appendChild(section);
@@ -1485,42 +1349,6 @@ also multiline`;
             this.currentChatId = newChatId;
             this.onChatChanged();
         }
-    }
-
-    /**
-     * Initialize ContentCollector for sophisticated response monitoring
-     */
-    async initializeContentCollector() {
-        // Setup event subscriptions for ContentCollector
-        this.subscriptionIds.push(
-            PubSub.subscribe(ContentCollector.EVENTS.CONTENT_ADDED, (data) => {
-                // Update our local responses array to maintain compatibility
-                this.responses = this.contentCollector.getContent();
-                
-                // Handle the new content addition
-                this.handleResponseAdded({
-                    text: data.content,
-                    total: data.totalItems,
-                    isInitialLoad: this.isInitialLoad
-                });
-            })
-        );
-
-        this.subscriptionIds.push(
-            PubSub.subscribe(ContentCollector.EVENTS.COLLECTION_UPDATED, (data) => {
-                // Update response count in UI
-                this.updateResponseCount();
-                Logger.debug(`ContentCollector updated: ${data.newItems} new, ${data.totalItems} total`);
-            })
-        );
-
-        // Start monitoring for responses
-        this.contentCollector.startMonitoring();
-        
-        // Update our responses array from ContentCollector
-        this.responses = this.contentCollector.getContent();
-        
-        Logger.info("ContentCollector initialized and monitoring started");
     }
 
     /**
@@ -1826,29 +1654,7 @@ also multiline`;
      * Extract clean text from response element
      */
     extractResponseText(element) {
-        // Try to find more specific text content within the response container
-        const textSelectors = [
-            '.response-text',
-            '.message-content',
-            '.content',
-            '.text-content',
-            'p',
-            'div.content',
-            '[data-testid="message-text"]'
-        ];
-
-        // First, try to find specific text content elements
-        for (const selector of textSelectors) {
-            const textElement = element.querySelector(selector);
-            if (textElement) {
-                const text = textElement.innerText?.trim();
-                if (text && text.length > 10) {
-                    return this.cleanResponseText(text);
-                }
-            }
-        }
-
-        // If no specific text element found, use the container but clean it thoroughly
+        // Always use the full container text to get complete responses
         const fullText = element.innerText?.trim();
         return this.cleanResponseText(fullText);
     }
