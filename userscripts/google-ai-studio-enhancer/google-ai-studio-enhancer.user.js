@@ -6562,7 +6562,7 @@
             // Common selectors for AI responses
             RESPONSE_CONTAINERS: [
                 // Google AI Studio specific (most accurate)
-                '.chat-turn-container.model.render',
+                '.ng-star-inserted .chat-turn-container.model.render .turn-content:not(:has(.mat-accordion))',
             ],
             // Common selectors for run buttons
             RUN_BUTTONS: [
@@ -6891,9 +6891,7 @@
             Logger.debug('Copy button clicked', {
                 isUserInitiated,
                 eventType: event?.type,
-                isTrusted: event?.isTrusted,
-                isInteracting: this.userInteraction.isInteracting(),
-                timeSinceLastInteraction: this.userInteraction.getTimeSinceLastInteraction()
+                isTrusted: event?.isTrusted
             });
 
             if (isUserInitiated) {
@@ -6988,26 +6986,80 @@
         /**
          * Collect responses fresh from the current page
          */
-        collectResponsesFresh() {
-            const responses = [];
+        async collectResponsesFresh() {
+            Logger.debug('Starting response collection...');
             
-            // Use the same selectors that were used in ContentCollector
-            for (const selector of AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS) {
-                const elements = document.querySelectorAll(selector);
-                for (const element of elements) {
-                    try {
-                        const responseText = this.extractResponseText(element);
-                        if (responseText && responseText.length > 10) {
-                            responses.push(responseText);
-                        }
-                    } catch (error) {
-                        Logger.warn('Error extracting response text:', error);
+            // Find the autoscroll container
+            const autoscrollContainer = document.querySelector('ms-autoscroll-container') 
+                                     || document.querySelector('[ms-autoscroll-container]');
+            
+            if (!autoscrollContainer) {
+                Logger.error('Autoscroll container not found');
+                return [];
+            }
+
+            // CSS properties to snapshot & restore
+            const cssProps = [
+                'height', 'max-height', 'min-height', 'width', 'max-width', 'min-width', 
+                'overflow', 'container-type', 'outline', 'padding'
+            ];
+            const originalStyles = {};
+            
+            // Store original styles
+            cssProps.forEach(prop => {
+                originalStyles[prop] = autoscrollContainer.style.getPropertyValue(prop) || '';
+            });
+
+            try {
+                // Temporarily expand container for scrolling
+                cssProps.forEach(prop => {
+                    let value = prop === 'overflow' ? 'visible' : 'auto';
+                    if (prop === 'container-type') value = 'normal';
+                    autoscrollContainer.style.setProperty(prop, value, 'important');
+                });
+
+                // Find all response elements using the selector from your test
+                const responseSelector = '.ng-star-inserted .chat-turn-container.model.render .turn-content:not(:has(.mat-accordion))';
+                const responseElements = Array.from(document.querySelectorAll(responseSelector));
+                
+                Logger.debug(`Found ${responseElements.length} response elements`);
+
+                const responses = [];
+                
+                // Scroll each response into view and extract text
+                for (let i = 0; i < responseElements.length; i++) {
+                    const element = responseElements[i];
+                    
+                    // Scroll element into view
+                    element.scrollIntoView({ behavior: 'auto', block: 'center' });
+                    Logger.debug(`Processing response ${i + 1}/${responseElements.length}`);
+                    
+                    // Wait for any dynamic content to load
+                    await this.delay(200);
+                    
+                    // Extract text content with formatting
+                    const responseText = this.extractResponseText(element);
+                    if (responseText && responseText.length > 10) {
+                        responses.push(responseText);
                     }
                 }
+
+                Logger.success(`Collected ${responses.length} responses`);
+                return responses;
+
+            } catch (error) {
+                Logger.error('Error during response collection:', error);
+                return [];
+            } finally {
+                // Restore original styles
+                cssProps.forEach(prop => {
+                    if (originalStyles[prop]) {
+                        autoscrollContainer.style.setProperty(prop, originalStyles[prop]);
+                    } else {
+                        autoscrollContainer.style.removeProperty(prop);
+                    }
+                });
             }
-            
-            Logger.debug(`Collected ${responses.length} responses fresh from page`);
-            return responses;
         }
 
         /**
@@ -8056,35 +8108,65 @@ also multiline`;
                 'like', 'dislike', 'report', 'flag', 'hide', 'show'
             ];
 
-            // Split into lines and clean
-            let lines = text.split('\n')
-                .map(line => line.trim())
-                .filter(line => {
-                    // Remove empty lines
-                    if (!line) return false;
-                    
-                    // Remove lines that are just UI elements
-                    const lowerLine = line.toLowerCase();
-                    if (uiElements.includes(lowerLine)) return false;
-                    
-                    // Remove lines with only symbols/dashes
-                    if (/^[-=_\s]+$/.test(line)) return false;
-                    
-                    // Remove very short lines that are likely UI elements
-                    if (line.length <= 3 && !/\w/.test(line)) return false;
-                    
-                    return true;
-                });
-
-            // Remove common patterns at the beginning and end
-            while (lines.length > 0 && this.isUILine(lines[0])) {
-                lines.shift();
+            // Process the text to preserve paragraph spacing while cleaning UI elements
+            let lines = text.split('\n');
+            let cleanedLines = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Keep empty lines for paragraph spacing, but check if it's between content lines
+                if (!line) {
+                    // Only keep empty lines if they're between non-empty content lines
+                    if (cleanedLines.length > 0 && 
+                        i < lines.length - 1 && 
+                        lines.slice(i + 1).some(l => l.trim() && !this.isUIElementLine(l.trim(), uiElements))) {
+                        cleanedLines.push('');
+                    }
+                    continue;
+                }
+                
+                // Skip UI element lines
+                if (this.isUIElementLine(line, uiElements)) {
+                    continue;
+                }
+                
+                // Skip lines with only symbols/dashes
+                if (/^[-=_\s]+$/.test(line)) {
+                    continue;
+                }
+                
+                // Skip very short lines that are likely UI elements
+                if (line.length <= 3 && !/\w/.test(line)) {
+                    continue;
+                }
+                
+                cleanedLines.push(line);
             }
-            while (lines.length > 0 && this.isUILine(lines[lines.length - 1])) {
-                lines.pop();
+
+            // Remove UI patterns at the beginning and end
+            while (cleanedLines.length > 0 && this.isUILine(cleanedLines[0])) {
+                cleanedLines.shift();
+            }
+            while (cleanedLines.length > 0 && this.isUILine(cleanedLines[cleanedLines.length - 1])) {
+                cleanedLines.pop();
             }
 
-            return lines.join('\n').trim();
+            // Join with single newlines (paragraph spacing is already preserved as empty lines)
+            let result = cleanedLines.join('\n').trim();
+            
+            // Normalize multiple consecutive empty lines to single empty lines for proper paragraph spacing
+            result = result.replace(/\n\s*\n\s*\n+/g, '\n\n');
+            
+            return result;
+        }
+
+        /**
+         * Check if a line contains UI elements
+         */
+        isUIElementLine(line, uiElements) {
+            const lowerLine = line.toLowerCase();
+            return uiElements.includes(lowerLine) || this.isUILine(line);
         }
 
         /**
@@ -8246,47 +8328,82 @@ also multiline`;
          * Copy all responses to clipboard without showing notifications
          */
         async copyAllResponsesSilent() {
-            // Collect responses fresh from the current page
-            const responses = this.collectResponsesFresh();
-            
-            if (responses.length === 0) {
-                return false;
-            }
-
-            // Format responses - clean output without headers
-            const content = responses.join('\n\n---\n\n');
-
             try {
-                GM_setClipboard(content);
-                Logger.success(`Copied ${responses.length} responses to clipboard`);
-                return true;
+                // Collect responses fresh from the current page
+                const responses = await this.collectResponsesFresh();
+                
+                if (responses.length === 0) {
+                    Logger.warn('No responses found to copy');
+                    return false;
+                }
+
+                // Join responses with separator
+                const content = responses.join('\n\n---\n\n');
+                
+                // Try multiple clipboard methods with fallbacks
+                const success = await this.copyToClipboardWithFallbacks(content);
+                
+                if (success) {
+                    Logger.success(`Copied ${responses.length} responses to clipboard silently`);
+                } else {
+                    Logger.error('All clipboard copy methods failed');
+                }
+                
+                return success;
             } catch (error) {
-                Logger.error('Failed to copy responses:', error);
+                Logger.error('Error in copyAllResponsesSilent:', error);
                 return false;
             }
         }
-
-
 
         /**
          * Manual copy button handler - always shows notifications
          */
         async copyAllResponsesManual() {
-            // Collect responses fresh from the current page
-            const responses = this.collectResponsesFresh();
-            
-            if (responses.length === 0) {
-                this.showNotification('No responses found to copy', 'warning');
-                return false;
-            }
+            try {
+                // Update button state to show it's working
+                if (this.copyButton) {
+                    this.copyButton.setText('Copying...');
+                    this.copyButton.setDisabled(true);
+                }
 
-            const success = await this.copyAllResponsesSilent();
-            if (success) {
-                this.showNotification(`Copied ${responses.length} responses to clipboard`, 'success');
-            } else {
-                this.showNotification('Failed to copy responses', 'error');
+                // Collect responses fresh from the current page
+                const responses = await this.collectResponsesFresh();
+                
+                if (responses.length === 0) {
+                    this.showNotification('No responses found to copy', 'warning');
+                    return false;
+                }
+
+                // Join responses with separator
+                const content = responses.join('\n\n---\n\n');
+                
+                // Try multiple clipboard methods with fallbacks
+                const success = await this.copyToClipboardWithFallbacks(content);
+                
+                if (success) {
+                    this.showNotification(`✅ Copied ${responses.length} responses to clipboard`, 'success');
+                    // Don't call showSuccess() on button - just let the notification handle success feedback
+                } else {
+                    // Only show error for actual failures, not for manual copy prompts
+                    Logger.warn('Copy to clipboard failed, manual copy prompt was shown');
+                    // Don't show error notification since manual copy prompt was already shown
+                }
+                
+                return success;
+            } catch (error) {
+                Logger.error('Error in copyAllResponsesManual:', error);
+                this.showNotification('Error occurred while copying responses', 'error');
+                return false;
+            } finally {
+                // Reset button state
+                if (this.copyButton) {
+                    setTimeout(() => {
+                        this.copyButton.setDisabled(false);
+                        this.copyButton.setText('Copy All Responses');
+                    }, 1500);
+                }
             }
-            return success;
         }
 
         /**
@@ -8294,6 +8411,112 @@ also multiline`;
          */
         async copyAllResponses() {
             return await this.copyAllResponsesManual();
+        }
+
+        /**
+         * Copy content to clipboard with multiple fallback methods
+         */
+        async copyToClipboardWithFallbacks(content) {
+            if (!content) {
+                Logger.warn('No content to copy');
+                return false;
+            }
+
+            Logger.debug(`Attempting to copy ${content.length} characters to clipboard`);
+
+            // Method 1: Try GM_setClipboard first (if available)
+            try {
+                if (typeof GM_setClipboard !== 'undefined') {
+                    GM_setClipboard(content);
+                    Logger.debug('✅ GM_setClipboard succeeded');
+                    return true;
+                }
+            } catch (error) {
+                Logger.warn('⚠ GM_setClipboard failed:', error);
+            }
+
+            // Method 2: Try Clipboard API
+            try {
+                await navigator.clipboard.writeText(content);
+                Logger.debug('✅ Clipboard API succeeded');
+                return true;
+            } catch (error) {
+                Logger.warn('⚠ Clipboard API failed:', error);
+            }
+
+            // Method 3: Create hidden textarea and use execCommand
+            const textarea = document.createElement('textarea');
+            textarea.value = content;
+            Object.assign(textarea.style, {
+                position: 'fixed',
+                top: '-9999px',
+                left: '-9999px',
+                opacity: '0',
+                pointerEvents: 'none'
+            });
+            
+            document.body.appendChild(textarea);
+
+            try {
+                textarea.select();
+                textarea.setSelectionRange(0, content.length);
+                const success = document.execCommand('copy');
+                Logger.debug(`execCommand copy returned: ${success}`);
+                
+                if (success) {
+                    document.body.removeChild(textarea);
+                    Logger.debug('✅ execCommand succeeded');
+                    return true;
+                }
+            } catch (error) {
+                Logger.warn('⚠ execCommand failed:', error);
+            }
+
+            // Method 4: designMode hack as ultimate fallback
+            try {
+                Logger.debug('Trying designMode hack...');
+                document.designMode = 'on';
+                
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                
+                const range = document.createRange();
+                range.selectNodeContents(textarea);
+                selection.addRange(range);
+                
+                const success = document.execCommand('copy');
+                Logger.debug(`designMode execCommand returned: ${success}`);
+                
+                document.designMode = 'off';
+                selection.removeAllRanges();
+                
+                if (success) {
+                    document.body.removeChild(textarea);
+                    Logger.debug('✅ designMode hack succeeded');
+                    return true;
+                }
+            } catch (error) {
+                Logger.warn('⚠ designMode hack failed:', error);
+                document.designMode = 'off';
+            }
+
+            // Method 5: Last resort - show prompt for manual copy
+            try {
+                Logger.warn('All automatic copy methods failed. Showing manual copy prompt...');
+                window.prompt('All automatic copy methods failed. Please copy manually:', content);
+                Logger.debug('Manual copy prompt shown');
+                // We can't know if user actually copied, so return false
+                return false;
+            } catch (error) {
+                Logger.error('Even manual copy prompt failed:', error);
+            } finally {
+                // Clean up textarea if it still exists
+                if (textarea.parentNode) {
+                    document.body.removeChild(textarea);
+                }
+            }
+
+            return false;
         }
 
 
