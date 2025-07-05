@@ -2528,330 +2528,6 @@
     }
 
     /**
-     * ContentCollector - Simple content collection and cleaning system
-     * Collects content from web pages using selectors and processing functions
-     */
-    class ContentCollector {
-        static EVENTS = {
-            CONTENT_ADDED: 'contentcollector:content-added',
-            CONTENT_CLEARED: 'contentcollector:content-cleared',
-            COLLECTION_UPDATED: 'contentcollector:collection-updated'
-        };
-
-        /**
-         * @param {Object} options Configuration options
-         * @param {Array<string>} options.selectors - CSS selectors for content containers
-         * @param {Function} options.contentExtractor - Function to extract text from elements
-         * @param {Function} options.contentCleaner - Function to clean extracted content
-         * @param {Function} options.contentValidator - Function to validate content before adding
-         * @param {boolean} options.deduplicate - Whether to remove duplicates (default: true)
-         * @param {Object} options.pubsub - Optional PubSub instance for events
-         * @param {Object} options.logger - Optional logger instance
-         * @param {string} options.name - Optional name for this collector
-         */
-        constructor(options) {
-            this.selectors = options.selectors || [];
-            this.contentExtractor = options.contentExtractor || this.defaultContentExtractor.bind(this);
-            this.contentCleaner = options.contentCleaner || this.defaultContentCleaner.bind(this);
-            this.contentValidator = options.contentValidator || this.defaultContentValidator.bind(this);
-            this.deduplicate = options.deduplicate !== false;
-            this.name = options.name || 'ContentCollector';
-            
-            // Optional notifications
-            this.enableNotifications = options.enableNotifications || false;
-
-            this.content = [];
-            this.seenElements = new WeakSet();
-            
-            // Use StyleManager for highlighting collected elements
-            this.highlightCollected = options.highlightCollected || false;
-            if (this.highlightCollected) {
-                this.initializeHighlightStyles();
-            }
-        }
-
-        /**
-         * Collect existing content on page
-         */
-        collectExistingContent() {
-            const initialCount = this.content.length;
-
-            this.selectors.forEach(selector => {
-                try {
-                    document.querySelectorAll(selector).forEach(element => {
-                        this.processElement(element);
-                    });
-                } catch (error) {
-                    Logger.error(`[${this.name}] Error with selector "${selector}":`, error);
-                }
-            });
-
-            const newCount = this.content.length - initialCount;
-            Logger.info(`[${this.name}] Collected ${newCount} new content items (${this.content.length} total)`);
-
-            // Show notification if enabled and content was found
-            if (this.enableNotifications && newCount > 0) {
-                Notification.success(`Collected ${newCount} new content items`, {
-                    duration: 3000,
-                    position: 'top-right'
-                });
-            }
-
-            this.publishEvent(ContentCollector.EVENTS.COLLECTION_UPDATED, {
-                newItems: newCount,
-                totalItems: this.content.length,
-                name: this.name
-            });
-        }
-
-        /**
-         * Process a single element for content extraction
-         */
-        processElement(element) {
-            // Skip if already processed
-            if (this.seenElements.has(element)) {
-                return;
-            }
-
-            this.seenElements.add(element);
-
-            try {
-                // Extract content using the configured extractor
-                const rawContent = this.contentExtractor(element);
-                if (!rawContent) {
-                    return;
-                }
-
-                // Clean the content
-                const cleanedContent = this.contentCleaner(rawContent);
-                if (!cleanedContent) {
-                    return;
-                }
-
-                // Validate the content
-                if (!this.contentValidator(cleanedContent, this.content)) {
-                    return;
-                }
-
-                // Check for duplicates if enabled
-                if (this.deduplicate && this.content.includes(cleanedContent)) {
-                    return;
-                }
-
-                // Add to collection
-                this.content.push(cleanedContent);
-
-                // Highlight the element if enabled
-                this.highlightElement(element);
-
-                Logger.debug(`[${this.name}] Added content: ${cleanedContent.substring(0, 100)}...`);
-                this.publishEvent(ContentCollector.EVENTS.CONTENT_ADDED, {
-                    content: cleanedContent,
-                    totalItems: this.content.length,
-                    name: this.name
-                });
-
-            } catch (error) {
-                Logger.error(`[${this.name}] Error processing element:`, error);
-            }
-        }
-
-        /**
-         * Default content extractor - uses innerText
-         */
-        defaultContentExtractor(element) {
-            return element.innerText?.trim() || '';
-        }
-
-        /**
-         * Default content cleaner - removes common UI elements
-         */
-        defaultContentCleaner(text) {
-            if (!text) return '';
-
-            // Common UI elements to remove
-            const uiElements = [
-                'edit', 'more_vert', 'thumb_up', 'thumb_down', 'copy', 'share',
-                'delete', 'refresh', 'restart', 'stop', 'play', 'pause',
-                'expand_more', 'expand_less', 'close', 'menu', 'settings',
-                'download', 'upload', 'save', 'favorite', 'star', 'bookmark'
-            ];
-
-            // Split into lines and clean
-            let lines = text.split('\n')
-                .map(line => line.trim())
-                .filter(line => {
-                    if (!line) return false;
-                    
-                    const lowerLine = line.toLowerCase();
-                    if (uiElements.includes(lowerLine)) return false;
-                    
-                    if (/^[-=_\s]+$/.test(line)) return false;
-                    if (line.length <= 3 && !/\w/.test(line)) return false;
-                    
-                    return true;
-                });
-
-            // Remove UI patterns at beginning and end
-            while (lines.length > 0 && this.isUILine(lines[0])) {
-                lines.shift();
-            }
-            while (lines.length > 0 && this.isUILine(lines[lines.length - 1])) {
-                lines.pop();
-            }
-
-            return lines.join('\n').trim();
-        }
-
-        /**
-         * Check if a line is likely a UI element
-         */
-        isUILine(line) {
-            const cleaned = line.toLowerCase().trim();
-            
-            const uiPatterns = [
-                /^(edit|copy|share|delete|save|download)$/,
-                /^(thumb_up|thumb_down|more_vert)$/,
-                /^[👍👎❤️⭐🔗📋✏️🗑️]+$/,
-                /^[\s\-=_]{1,5}$/
-            ];
-
-            return uiPatterns.some(pattern => pattern.test(cleaned));
-        }
-
-        /**
-         * Default content validator - checks minimum length
-         */
-        defaultContentValidator(content, existingContent) {
-            return content && content.length > 10;
-        }
-
-        /**
-         * Get all collected content
-         */
-        getContent() {
-            return [...this.content];
-        }
-
-        /**
-         * Get content formatted as string
-         */
-        getFormattedContent(separator = '\n\n---\n\n') {
-            return this.content.join(separator);
-        }
-
-        /**
-         * Clear all collected content
-         */
-        clearContent() {
-            const clearedCount = this.content.length;
-            this.content = [];
-            this.seenElements = new WeakSet();
-
-            Logger.info(`[${this.name}] Cleared ${clearedCount} content items`);
-            this.publishEvent(ContentCollector.EVENTS.CONTENT_CLEARED, {
-                clearedCount,
-                name: this.name
-            });
-        }
-
-        /**
-         * Get collection statistics
-         */
-        getStats() {
-            return {
-                totalItems: this.content.length,
-                selectors: this.selectors.length,
-                name: this.name
-            };
-        }
-
-        /**
-         * Add custom selector
-         */
-        addSelector(selector) {
-            if (!this.selectors.includes(selector)) {
-                this.selectors.push(selector);
-                Logger.debug(`[${this.name}] Added selector: ${selector}`);
-            }
-        }
-
-        /**
-         * Initialize highlight styles using StyleManager
-         */
-        initializeHighlightStyles() {
-            StyleManager.addStyles(`
-            .content-collector-highlighted {
-                outline: 2px solid #4CAF50 !important;
-                background-color: rgba(76, 175, 80, 0.1) !important;
-                transition: all 0.3s ease !important;
-            }
-            .content-collector-highlighted::after {
-                content: "✓ Collected";
-                position: absolute;
-                top: -20px;
-                right: 0;
-                background: #4CAF50;
-                color: white;
-                padding: 2px 6px;
-                font-size: 10px;
-                border-radius: 3px;
-                z-index: 10000;
-            }
-        `, `content-collector-styles-${this.name}`);
-        }
-
-        /**
-         * Wait for elements using HTMLUtils
-         */
-        async waitForContent(timeout = 10000) {
-            for (const selector of this.selectors) {
-                try {
-                    const element = await HTMLUtils.waitForElement(selector, timeout);
-                    if (element) {
-                        Logger.debug(`[${this.name}] Found content with selector: ${selector}`);
-                        return element;
-                    }
-                } catch (error) {
-                    Logger.debug(`[${this.name}] No content found for selector: ${selector}`);
-                }
-            }
-            return null;
-        }
-
-        /**
-         * Highlight collected element using StyleManager
-         */
-        highlightElement(element) {
-            if (this.highlightCollected && element) {
-                element.classList.add('content-collector-highlighted');
-                // Remove highlight after 3 seconds
-                setTimeout(() => {
-                    element.classList.remove('content-collector-highlighted');
-                }, 3000);
-            }
-        }
-
-        /**
-         * Remove selector
-         */
-        removeSelector(selector) {
-            const index = this.selectors.indexOf(selector);
-            if (index > -1) {
-                this.selectors.splice(index, 1);
-                Logger.debug(`[${this.name}] Removed selector: ${selector}`);
-            }
-        }
-
-        /**
-         * Publish event using core PubSub
-         */
-        publishEvent(eventName, data) {
-            PubSub.publish(eventName, data);
-        }
-    }
-
-    /**
      * FormStatePersistence - Generic form state persistence system
      * Automatically saves and restores form values using GM storage
      */
@@ -6988,7 +6664,6 @@
          * Initialize the enhancer
          */
         constructor() {
-            this.responses = [];
             this.isAutoRunning = false;
             this.currentIteration = 0;
             this.maxIterations = 0;
@@ -7013,17 +6688,8 @@
                 interactionThrottle: 100 // 100ms throttle for performance
             });
 
-            // Initialize ContentCollector for response collection
-            this.contentCollector = new ContentCollector({
-                name: 'AI-Studio-Responses',
-                selectors: AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS,
-                contentExtractor: this.extractResponseText.bind(this),
-                contentCleaner: this.cleanResponseText.bind(this),
-                contentValidator: (content, existing) => content && content.length > 10,
-                deduplicate: true,
-                enableNotifications: false, // We'll handle notifications ourselves
-                highlightCollected: false
-            });
+            // No longer using ContentCollector for automatic collection
+            this.contentCollector = null;
 
             // Initialize AutoRunner for sophisticated auto-run functionality
             this.autoRunner = null; // Will be created when needed
@@ -7176,10 +6842,7 @@
                 this.overrideIterationsCheckbox = null;
             }
 
-            // Clean up ContentCollector
-            if (this.contentCollector) {
-                this.contentCollector = null;
-            }
+
 
             if (this.autoRunner) {
                 this.autoRunner.stop('cleanup');
@@ -7303,15 +6966,7 @@
 
 
 
-        /**
-         * Handle response addition events
-         */
-        handleResponseAdded(data) {
-            // Update UI counter
-            this.updateResponseCount();
-            
-            Logger.debug(`Response added event handled - Total: ${data.total}, Initial Load: ${data.isInitialLoad}`);
-        }
+
 
         /**
          * Handle chat change events
@@ -7319,11 +6974,7 @@
         handleChatChangedEvent(data) {
             Logger.info(`Chat changed event: ${data.oldChatId} → ${data.newChatId}`);
             
-            // Clear responses for new chat
-            this.responses = [];
-            if (this.contentCollector) {
-                this.contentCollector.clearContent();
-            }
+            // No longer need to clear responses since we collect fresh each time
             
             // Publish UI update event
             PubSub.publish(AIStudioEnhancer.EVENTS.UI_UPDATE_REQUIRED, { 
@@ -7331,30 +6982,32 @@
                 chatId: data.newChatId 
             });
             
-            // Set initial load mode for the new chat
-            this.isInitialLoad = true;
-            
-            // Collect responses from the new chat after a short delay
-            setTimeout(() => {
-                this.collectResponses();
-                setTimeout(() => {
-                    this.isInitialLoad = false;
-                    Logger.debug("New chat initial load completed");
-                }, 1000);
-            }, 1000);
-            
-            this.showNotification('Switched to new chat - collecting responses', 'info');
+            Logger.info('Switched to new chat - responses will be collected fresh when copying');
         }
 
         /**
-         * Manually collect responses from the current page
+         * Collect responses fresh from the current page
          */
-        collectResponses() {
-            if (this.contentCollector) {
-                this.contentCollector.collectExistingContent();
-                this.responses = this.contentCollector.getContent();
-                Logger.info(`Collected ${this.responses.length} responses from page`);
+        collectResponsesFresh() {
+            const responses = [];
+            
+            // Use the same selectors that were used in ContentCollector
+            for (const selector of AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS) {
+                const elements = document.querySelectorAll(selector);
+                for (const element of elements) {
+                    try {
+                        const responseText = this.extractResponseText(element);
+                        if (responseText && responseText.length > 10) {
+                            responses.push(responseText);
+                        }
+                    } catch (error) {
+                        Logger.warn('Error extracting response text:', error);
+                    }
+                }
             }
+            
+            Logger.debug(`Collected ${responses.length} responses fresh from page`);
+            return responses;
         }
 
         /**
@@ -7362,9 +7015,6 @@
          */
         handleUIUpdate(data) {
             switch (data.type) {
-                case 'chat-changed':
-                    this.updateResponseCount();
-                    break;
                 case 'auto-run-status':
                     this.updateAutoRunStatus();
                     break;
@@ -7531,8 +7181,7 @@
             // Setup chat monitoring to detect chat switches
             this.setupChatMonitoring();
 
-            // Initialize ContentCollector for response collection
-            this.initializeContentCollector();
+            // No longer initializing ContentCollector - responses collected on-demand
 
             // Initialize FormStatePersistence for automatic form state saving
             this.initializeFormPersistence();
@@ -7553,41 +7202,7 @@
             }
         }
 
-        /**
-         * Initialize ContentCollector for response collection
-         */
-        initializeContentCollector() {
-            // Setup event subscriptions for ContentCollector
-            this.subscriptionIds.push(
-                PubSub.subscribe(ContentCollector.EVENTS.CONTENT_ADDED, (data) => {
-                    // Update our local responses array to maintain compatibility
-                    this.responses = this.contentCollector.getContent();
-                    
-                    // Handle the new content addition
-                    this.handleResponseAdded({
-                        text: data.content,
-                        total: data.totalItems,
-                        isInitialLoad: this.isInitialLoad
-                    });
-                })
-            );
 
-            this.subscriptionIds.push(
-                PubSub.subscribe(ContentCollector.EVENTS.COLLECTION_UPDATED, (data) => {
-                    // Update response count in UI
-                    this.updateResponseCount();
-                    Logger.debug(`ContentCollector updated: ${data.newItems} new, ${data.totalItems} total`);
-                })
-            );
-
-            // Collect existing responses
-            this.contentCollector.collectExistingContent();
-            
-            // Update our responses array from ContentCollector
-            this.responses = this.contentCollector.getContent();
-            
-            Logger.info("ContentCollector initialized and responses collected");
-        }
 
 
 
@@ -7672,11 +7287,6 @@
             title.textContent = '📋 Response Management';
             title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-            // Response counter
-            this.responseCountElement = document.createElement('div');
-            this.responseCountElement.textContent = `Current chat responses: ${this.responses.length}`;
-            this.responseCountElement.style.cssText = 'margin-bottom: 10px; color: #666; font-size: 12px;';
-
             // Copy button using Button component
             this.copyButton = new Button({
                 text: 'Copy All Responses',
@@ -7690,7 +7300,6 @@
             });
 
             section.appendChild(title);
-            section.appendChild(this.responseCountElement);
             // Note: copyButton is automatically appended to section via container option
 
             container.appendChild(section);
@@ -8497,20 +8106,148 @@ also multiline`;
         }
 
         /**
-         * Extract clean text from response element
+         * Extract clean text from response element with formatting
          */
         extractResponseText(element) {
-            // Always use the full container text to get complete responses
-            const fullText = element.innerText?.trim();
-            return this.cleanResponseText(fullText);
+            // Clone the element to avoid modifying the original
+            const clonedElement = element.cloneNode(true);
+            
+            // Remove UI elements that we don't want in the copied text
+            const uiSelectors = [
+                'button',
+                '[role="button"]',
+                '.material-icons',
+                '.icon',
+                '[aria-label*="copy"]',
+                '[aria-label*="share"]',
+                '[aria-label*="edit"]',
+                '[aria-label*="more"]',
+                '.action-buttons',
+                '.response-actions'
+            ];
+            
+            uiSelectors.forEach(selector => {
+                clonedElement.querySelectorAll(selector).forEach(el => el.remove());
+            });
+            
+            // Get the HTML content with formatting preserved
+            const htmlContent = clonedElement.innerHTML?.trim();
+            
+            if (!htmlContent) {
+                // Fallback to plain text if no HTML content
+                const fullText = element.innerText?.trim();
+                return this.cleanResponseText(fullText);
+            }
+            
+            // Convert HTML to formatted text while preserving structure
+            return this.convertHtmlToFormattedText(htmlContent);
+        }
+
+        /**
+         * Convert HTML content to formatted text while preserving styling
+         */
+        convertHtmlToFormattedText(htmlContent) {
+            if (!htmlContent) return '';
+            
+            // Create a temporary div to parse the HTML
+            const tempDiv = document.createElement('div');
+            
+            // Use setHTMLSafely to avoid TrustedHTML errors
+            try {
+                HTMLUtils.setHTMLSafely(tempDiv, htmlContent);
+            } catch (error) {
+                Logger.warn('Failed to set HTML safely, falling back to plain text:', error);
+                // Fallback to plain text if HTML setting fails
+                return this.cleanResponseText(htmlContent.replace(/<[^>]*>/g, ''));
+            }
+            
+            // Process the content recursively to preserve formatting
+            const formattedText = this.processNodeForFormatting(tempDiv);
+            
+            // Clean up any remaining UI elements and normalize whitespace
+            return this.cleanResponseText(formattedText);
+        }
+
+        /**
+         * Recursively process DOM nodes to preserve formatting
+         */
+        processNodeForFormatting(node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                return node.textContent || '';
+            }
+            
+            if (node.nodeType !== Node.ELEMENT_NODE) {
+                return '';
+            }
+            
+            const tagName = node.tagName.toLowerCase();
+            const children = Array.from(node.childNodes);
+            const childText = children.map(child => this.processNodeForFormatting(child)).join('');
+            
+            // Apply formatting based on tag type
+            switch (tagName) {
+                case 'h1':
+                case 'h2':
+                case 'h3':
+                case 'h4':
+                case 'h5':
+                case 'h6':
+                    return `\n\n${childText}\n\n`;
+                    
+                case 'p':
+                    return `\n\n${childText}\n\n`;
+                    
+                case 'br':
+                    return '\n';
+                    
+                case 'strong':
+                case 'b':
+                    return `**${childText}**`;
+                    
+                case 'em':
+                case 'i':
+                    return `*${childText}*`;
+                    
+                case 'code':
+                    return `\`${childText}\``;
+                    
+                case 'pre':
+                    return `\n\n\`\`\`\n${childText}\n\`\`\`\n\n`;
+                    
+                case 'ul':
+                case 'ol':
+                    return `\n\n${childText}\n\n`;
+                    
+                case 'li':
+                    return `• ${childText}\n`;
+                    
+                case 'blockquote':
+                    return `\n\n> ${childText}\n\n`;
+                    
+                case 'a':
+                    const href = node.getAttribute('href');
+                    if (href && href !== childText) {
+                        return `[${childText}](${href})`;
+                    }
+                    return childText;
+                    
+                case 'div':
+                case 'span':
+                    // For div and span, just return the content with proper spacing
+                    return childText;
+                    
+                default:
+                    // For unknown tags, just return the text content
+                    return childText;
+            }
         }
 
         /**
          * Copy all responses to clipboard without showing notifications
          */
         async copyAllResponsesSilent() {
-            // Get responses from ContentCollector if available, fallback to local array
-            const responses = this.contentCollector ? this.contentCollector.getContent() : this.responses;
+            // Collect responses fresh from the current page
+            const responses = this.collectResponsesFresh();
             
             if (responses.length === 0) {
                 return false;
@@ -8529,23 +8266,14 @@ also multiline`;
             }
         }
 
-        /**
-         * Update response counter display
-         */
-        updateResponseCount() {
-            if (this.responseCountElement) {
-                // Get count from ContentCollector if available, fallback to local array
-                const count = this.contentCollector ? this.contentCollector.getContent().length : this.responses.length;
-                this.responseCountElement.textContent = `Current chat responses: ${count}`;
-            }
-        }
+
 
         /**
          * Manual copy button handler - always shows notifications
          */
         async copyAllResponsesManual() {
-            // Get responses from ContentCollector if available, fallback to local array
-            const responses = this.contentCollector ? this.contentCollector.getContent() : this.responses;
+            // Collect responses fresh from the current page
+            const responses = this.collectResponsesFresh();
             
             if (responses.length === 0) {
                 this.showNotification('No responses found to copy', 'warning');
@@ -8568,18 +8296,7 @@ also multiline`;
             return await this.copyAllResponsesManual();
         }
 
-        /**
-         * Clear all collected responses
-         */
-        clearResponses() {
-            this.responses = [];
-            if (this.contentCollector) {
-                this.contentCollector.clearContent();
-            }
-            this.updateResponseCount();
-            this.showNotification('Chat responses cleared', 'info');
-            Logger.info('Chat responses cleared');
-        }
+
 
         /**
          * Toggle auto-run process (start/stop)
