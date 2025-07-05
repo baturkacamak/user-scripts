@@ -2053,6 +2053,29 @@
       isDisabled() {
         return this.disabled;
       }
+
+      /**
+         * Shows or hides the entire checkbox.
+         * @param {Boolean} visible - True to show, false to hide.
+         */
+      setVisible(visible) {
+        if (this.checkboxContainer) {
+          this.checkboxContainer.style.display = visible ? '' : 'none';
+        }
+      }
+
+      /**
+         * Destroys the checkbox and removes it from the DOM.
+         */
+      destroy() {
+        if (this.checkboxContainer && this.checkboxContainer.parentNode) {
+          this.checkboxContainer.parentNode.removeChild(this.checkboxContainer);
+        }
+        this.checkboxContainer = null;
+        this.customCheckbox = null;
+        this.nativeCheckbox = null;
+        this.labelElement = null;
+      }
     }
 
     // Static property to track if styles have been initialized.
