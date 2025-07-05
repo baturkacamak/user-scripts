@@ -1860,12 +1860,17 @@ also multiline`;
             
             if (success) {
                 this.showNotification(`✅ Copied ${responses.length} responses to clipboard`, 'success');
-                // Update button to show success
+                // Update button to show success AFTER the notification
                 if (this.copyButton) {
-                    this.copyButton.showSuccess();
+                    // Small delay to let user see the "Copying..." state and notification first
+                    setTimeout(() => {
+                        this.copyButton.showSuccess();
+                    }, 100);
                 }
             } else {
-                this.showNotification('❌ Failed to copy responses automatically - check console for manual copy option', 'error');
+                // Only show error for actual failures, not for manual copy prompts
+                Logger.warn('Copy to clipboard failed, manual copy prompt was shown');
+                // Don't show error notification since manual copy prompt was already shown
             }
             
             return success;
