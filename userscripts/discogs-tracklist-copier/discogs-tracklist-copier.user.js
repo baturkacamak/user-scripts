@@ -399,6 +399,32 @@
             
             return element;
         }
+
+        /**
+         * Waits for an element to disappear from the DOM.
+         * @param {string} selector - The CSS selector of the element.
+         * @param {number} timeout - The maximum time to wait in milliseconds.
+         * @param {number} interval - The interval between checks in milliseconds.
+         * @returns {Promise<void>} A promise that resolves when the element is no longer found.
+         */
+        static waitForElementToDisappear(selector, timeout = 10000, interval = 1000) {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+
+                const check = () => {
+                    if (!document.querySelector(selector)) {
+                        clearInterval(intervalId);
+                        resolve();
+                    } else if (Date.now() - startTime > timeout) {
+                        clearInterval(intervalId);
+                        reject(new Error(`Element "${selector}" did not disappear within ${timeout}ms`));
+                    }
+                };
+
+                const intervalId = setInterval(check, interval);
+                check(); // Initial check
+            });
+        }
     }
 
     /**

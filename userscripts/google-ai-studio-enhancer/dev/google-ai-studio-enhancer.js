@@ -36,6 +36,11 @@ Logger.DEBUG = true;
 class AIStudioEnhancer {
     // Configuration
     static SELECTORS = {
+        MAIN_SUBMIT_BUTTON: {
+            READY: 'button.run-button[aria-label="Run"]:not([disabled]):not(.stoppable)',
+            LOADING: 'button.run-button.stoppable',
+            DISABLED: 'button.run-button[disabled]',
+        },
         // Common selectors for AI responses
         RESPONSE_CONTAINERS: [
             // Google AI Studio specific (most accurate)
@@ -2281,8 +2286,8 @@ also multiline`;
      */
     async waitForRunButton(maxWaitTime = 10000) {
         try {
-            // Try to find enabled run button using HTMLUtils
-            const button = await HTMLUtils.waitForElement('button.run-button[aria-label="Run"]:not(.disabled):not([disabled]):not(.stoppable)', maxWaitTime);
+            // Try to find enabled run button using HTMLUtils and the new selector
+            const button = await HTMLUtils.waitForElement(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY, maxWaitTime);
             Logger.debug('Run button found and enabled using HTMLUtils');
             return button;
         } catch (error) {
@@ -2293,7 +2298,7 @@ also multiline`;
                 // Wait for any run button first
                 await HTMLUtils.waitForElement('button.run-button[aria-label="Run"]', maxWaitTime);
                 
-                // Then check if it's enabled
+                // Then check if it's enabled using the refactored findRunButton
                 const button = this.findRunButton();
                 if (button) {
                     Logger.debug('Run button found via fallback method');
@@ -2311,16 +2316,18 @@ also multiline`;
      * Find the run button on the page
      */
     findRunButton() {
-        // First, try Google AI Studio specific selectors (most accurate)
-        const googleRunButton = document.querySelector('button.run-button[aria-label="Run"]');
-        if (googleRunButton && !googleRunButton.disabled && !googleRunButton.classList.contains('disabled') && !googleRunButton.classList.contains('stoppable')) {
-            return googleRunButton;
+        // Use the new selector for the READY state, which is the most reliable
+        const readyButton = document.querySelector(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY);
+        if (readyButton) {
+            return readyButton;
         }
 
-        // Try other specific selectors
+        // The rest of the function serves as a fallback for different UI variations.
+        // Try other specific selectors from the RUN_BUTTONS list
         for (const selector of AIStudioEnhancer.SELECTORS.RUN_BUTTONS) {
             const button = document.querySelector(selector);
-            if (button && !button.disabled && !button.classList.contains('disabled')) {
+            // Check if a button is found and if it's not in a disabled or loading state
+            if (button && !button.disabled && !button.matches(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.LOADING)) {
                 return button;
             }
         }
@@ -2332,7 +2339,7 @@ also multiline`;
             if ((text === 'run' || text === 'send' || text.includes('run') || text.includes('send')) && 
                 !button.disabled && 
                 !button.classList.contains('disabled') &&
-                !button.classList.contains('stoppable')) {
+                !button.matches(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.LOADING)) {
                 return button;
             }
         }
@@ -2344,138 +2351,31 @@ also multiline`;
      * Wait for response completion using DOM observer (much faster)
      */
     async waitForResponseCompletion() {
-        return new Promise((resolve) => {
-            let timeoutId;
-            let observer;
-            
-            const cleanup = () => {
-                if (observer) {
-                    observer.disconnect();
-                }
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-            };
+        return new Promise((resolve, reject) => {
+            const loadingSelector = AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.LOADING;
+            const maxWaitTime = 120000; // 2 minutes
 
-            const checkCompletion = () => {
-                const runButton = document.querySelector('button.run-button[aria-label="Run"]');
-                
-                if (!runButton) {
-                    Logger.warn('Run button not found during completion check');
-                    cleanup();
+            // Wait for the loading state to appear first, indicating the request is in flight.
+            HTMLUtils.waitForElement(loadingSelector, 5000)
+                .then(loadingElement => {
+                    Logger.debug('Response generation started (loading state detected).');
+                    
+                    // Now that loading has started, wait for it to disappear.
+                    // We use a 1-second interval for the check as requested.
+                    return HTMLUtils.waitForElementToDisappear(loadingSelector, maxWaitTime, 1000);
+                })
+                .then(() => {
+                    Logger.debug('Response generation complete (loading state removed).');
+                    // Add a small delay for UI to settle before the next action.
+                    return this.delay(500);
+                })
+                .then(resolve)
+                .catch(error => {
+                    // This can happen if the response is too fast and the loading indicator disappears
+                    // before our first check. We can treat this as a success and continue.
+                    Logger.warn(`Could not track response completion: ${error.message}. Assuming completion.`);
                     resolve();
-                    return true;
-                }
-
-                // Check if button is in stoppable/busy state
-                const isStoppable = runButton.classList.contains('stoppable');
-                const isButtonTypeButton = runButton.type === 'button';
-                const isDisabled = runButton.disabled || runButton.classList.contains('disabled');
-                const buttonText = runButton.textContent?.trim();
-                
-                Logger.debug(`Button state check:`, {
-                    isStoppable,
-                    isButtonTypeButton,
-                    isDisabled,
-                    type: runButton.type,
-                    text: buttonText,
-                    classes: Array.from(runButton.classList)
                 });
-                
-                // Response is complete when button changes from "Stop" to "Run" state
-                // Note: Button may be disabled because prompt is empty (that's normal)
-                const isComplete = !isStoppable && !isButtonTypeButton && runButton.type === 'submit';
-                
-                if (isComplete) {
-                    Logger.debug('Response completion detected via DOM observer');
-                    cleanup();
-                    resolve();
-                    return true;
-                }
-                
-                return false;
-            };
-
-            // Set up DOM observer to watch for button changes
-            observer = new MutationObserver((mutations) => {
-                let shouldCheck = false;
-                
-                mutations.forEach((mutation) => {
-                    // Check if the run button or its attributes changed
-                    if (mutation.type === 'attributes') {
-                        const target = mutation.target;
-                        if (target.classList.contains('run-button') || target.getAttribute('aria-label') === 'Run') {
-                            Logger.debug(`Button attribute changed: ${mutation.attributeName} on`, target);
-                            shouldCheck = true;
-                        }
-                    }
-                    
-                    // Check if new nodes were added that might be the run button
-                    if (mutation.type === 'childList') {
-                        mutation.addedNodes.forEach((node) => {
-                            if (node.nodeType === Node.ELEMENT_NODE) {
-                                if (node.classList?.contains('run-button') || 
-                                    node.querySelector?.('.run-button')) {
-                                    Logger.debug('Run button node added/changed');
-                                    shouldCheck = true;
-                                }
-                            }
-                        });
-                    }
-                    
-                    // Also check for text content changes (Stop -> Run)
-                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                        const target = mutation.target;
-                        if (target.closest && target.closest('.run-button')) {
-                            Logger.debug('Button content changed');
-                            shouldCheck = true;
-                        }
-                    }
-                });
-                
-                if (shouldCheck) {
-                    Logger.debug('DOM observer triggered, checking completion...');
-                    checkCompletion();
-                }
-            });
-
-            // Start observing the document for changes
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['class', 'type', 'disabled', 'aria-label'],
-                characterData: true // Watch for text changes too
-            });
-            
-            Logger.debug('DOM observer started, watching for button changes...');
-
-            // Initial check after a short delay to let the button state change
-            setTimeout(() => {
-                if (!checkCompletion()) {
-                    // Set a maximum timeout as fallback
-                    timeoutId = setTimeout(() => {
-                        Logger.warn('Response completion timeout (2 minutes)');
-                        cleanup();
-                        resolve();
-                    }, 120000); // 2 minutes
-                    
-                    // Also set up periodic checking as backup (every 5 seconds)
-                    const intervalId = setInterval(() => {
-                        Logger.debug('Periodic check (backup)...');
-                        if (checkCompletion()) {
-                            clearInterval(intervalId);
-                        }
-                    }, 5000);
-                    
-                    // Store interval ID for cleanup
-                    const originalCleanup = cleanup;
-                    cleanup = () => {
-                        clearInterval(intervalId);
-                        originalCleanup();
-                    };
-                }
-            }, 500); // Reduced from 2000ms to 500ms
         });
     }
 
