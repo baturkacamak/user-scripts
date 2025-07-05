@@ -1,15 +1,12 @@
 import HTMLUtils from './HTMLUtils.js';
-import { DataCache } from './DataCache.js';
 import StyleManager from './StyleManager.js';
 import Logger from './Logger.js';
 import PubSub from './PubSub.js';
 import Notification from '../ui/Notification.js';
-import UserInteractionDetector from './UserInteractionDetector.js';
-import DOMObserver from '../ui/DOMObserver.js';
 
 /**
- * ContentCollector - Generic content collection and cleaning system
- * Automatically detects and collects content from dynamic web pages
+ * ContentCollector - Simple content collection and cleaning system
+ * Collects content from web pages using selectors and processing functions
  */
 class ContentCollector {
     static EVENTS = {
@@ -25,7 +22,6 @@ class ContentCollector {
      * @param {Function} options.contentCleaner - Function to clean extracted content
      * @param {Function} options.contentValidator - Function to validate content before adding
      * @param {boolean} options.deduplicate - Whether to remove duplicates (default: true)
-     * @param {Object} options.observer - DOMObserver instance for monitoring changes
      * @param {Object} options.pubsub - Optional PubSub instance for events
      * @param {Object} options.logger - Optional logger instance
      * @param {string} options.name - Optional name for this collector
@@ -38,68 +34,16 @@ class ContentCollector {
         this.deduplicate = options.deduplicate !== false;
         this.name = options.name || 'ContentCollector';
         
-        // Use core DOMObserver instead of custom observer
-        this.observer = new DOMObserver((mutations) => {
-            this.handleMutations(mutations);
-        });
-        
         // Optional notifications
         this.enableNotifications = options.enableNotifications || false;
 
         this.content = [];
         this.seenElements = new WeakSet();
-        this.isMonitoring = false;
-        
-        // Use DataCache for persistent storage if enabled
-        this.enablePersistence = options.enablePersistence || false;
-        this.cache = this.enablePersistence ? new DataCache(Logger) : null;
-        this.cacheKey = options.cacheKey || `content-collector-${this.name}`;
         
         // Use StyleManager for highlighting collected elements
         this.highlightCollected = options.highlightCollected || false;
         if (this.highlightCollected) {
             this.initializeHighlightStyles();
-        }
-    }
-
-    /**
-     * Start monitoring for new content
-     */
-    startMonitoring() {
-        if (this.isMonitoring) {
-            Logger.warn(`[${this.name}] Already monitoring for content`);
-            return;
-        }
-
-        this.isMonitoring = true;
-        Logger.info(`[${this.name}] Starting content monitoring with ${this.selectors.length} selectors`);
-
-        // Collect existing content
-        this.collectExistingContent();
-
-        // Setup DOM observer if provided
-        if (this.observer) {
-            this.observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-        }
-    }
-
-    /**
-     * Stop monitoring for new content
-     */
-    stopMonitoring() {
-        if (!this.isMonitoring) {
-            Logger.warn(`[${this.name}] Not currently monitoring`);
-            return;
-        }
-
-        this.isMonitoring = false;
-        Logger.info(`[${this.name}] Stopped content monitoring`);
-
-        if (this.observer && typeof this.observer.disconnect === 'function') {
-            this.observer.disconnect();
         }
     }
 
@@ -140,7 +84,7 @@ class ContentCollector {
     /**
      * Process a single element for content extraction
      */
-    async processElement(element) {
+    processElement(element) {
         // Skip if already processed
         if (this.seenElements.has(element)) {
             return;
@@ -177,11 +121,6 @@ class ContentCollector {
             // Highlight the element if enabled
             this.highlightElement(element);
 
-            // Save to cache if persistence is enabled
-            if (this.enablePersistence) {
-                await this.saveToCache();
-            }
-
             Logger.debug(`[${this.name}] Added content: ${cleanedContent.substring(0, 100)}...`);
             this.publishEvent(ContentCollector.EVENTS.CONTENT_ADDED, {
                 content: cleanedContent,
@@ -192,48 +131,6 @@ class ContentCollector {
         } catch (error) {
             Logger.error(`[${this.name}] Error processing element:`, error);
         }
-    }
-
-    /**
-     * Handle DOM mutations for new content detection
-     */
-    handleMutations(mutations) {
-        if (!this.isMonitoring) {
-            return;
-        }
-
-        for (const mutation of mutations) {
-            if (mutation.type === 'childList') {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        this.scanForNewContent(node);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Scan element for new content using configured selectors
-     */
-    scanForNewContent(element) {
-        this.selectors.forEach(selector => {
-            try {
-                // Check if the element itself matches
-                if (element.matches && element.matches(selector)) {
-                    this.processElement(element);
-                }
-
-                // Check children
-                if (element.querySelectorAll) {
-                    element.querySelectorAll(selector).forEach(el => {
-                        this.processElement(el);
-                    });
-                }
-            } catch (error) {
-                Logger.error(`[${this.name}] Error scanning with selector "${selector}":`, error);
-            }
-        });
     }
 
     /**
@@ -341,7 +238,6 @@ class ContentCollector {
     getStats() {
         return {
             totalItems: this.content.length,
-            isMonitoring: this.isMonitoring,
             selectors: this.selectors.length,
             name: this.name
         };
@@ -380,39 +276,6 @@ class ContentCollector {
                 z-index: 10000;
             }
         `, `content-collector-styles-${this.name}`);
-    }
-
-    /**
-     * Load content from cache using DataCache
-     */
-    async loadFromCache() {
-        if (!this.cache) return false;
-        
-        try {
-            const cachedContent = this.cache.get(this.cacheKey);
-            if (cachedContent && Array.isArray(cachedContent)) {
-                this.content = [...cachedContent];
-                Logger.info(`[${this.name}] Loaded ${this.content.length} items from cache`);
-                return true;
-            }
-        } catch (error) {
-            Logger.error(`[${this.name}] Error loading from cache:`, error);
-        }
-        return false;
-    }
-
-    /**
-     * Save content to cache using DataCache
-     */
-    async saveToCache() {
-        if (!this.cache) return;
-        
-        try {
-            this.cache.set(this.cacheKey, this.content, 7); // 7 days expiration
-            Logger.debug(`[${this.name}] Saved ${this.content.length} items to cache`);
-        } catch (error) {
-            Logger.error(`[${this.name}] Error saving to cache:`, error);
-        }
     }
 
     /**
@@ -463,8 +326,6 @@ class ContentCollector {
     publishEvent(eventName, data) {
         PubSub.publish(eventName, data);
     }
-
-
 }
 
 export default ContentCollector; 
