@@ -3,6 +3,7 @@
  * Creates customizable, accessible checkboxes with various states and callbacks.
  */
 import StyleManager from '../utils/StyleManager.js';
+import HTMLUtils from '../utils/HTMLUtils.js';
 
 /**
  * A reusable UI component for creating accessible, customizable checkboxes.
@@ -154,7 +155,7 @@ class Checkbox {
     if (!document.getElementById(styleId)) {
       const style = document.createElement('style');
       style.id = styleId;
-      style.innerHTML = `
+      HTMLUtils.setHTMLSafely(style, `
         :root {
           /* Default state */
           ${Checkbox.CSS_VAR_PREFIX}bg: #ffffff;
@@ -188,7 +189,7 @@ class Checkbox {
             ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
           }
         }
-      `;
+      `);
       document.head.appendChild(style);
     }
   }

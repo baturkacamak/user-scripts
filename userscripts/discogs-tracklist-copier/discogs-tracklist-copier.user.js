@@ -1749,7 +1749,7 @@
         if (!document.getElementById(styleId)) {
           const style = document.createElement('style');
           style.id = styleId;
-          style.innerHTML = `
+          HTMLUtils.setHTMLSafely(style, `
         :root {
           /* Default state */
           ${Checkbox.CSS_VAR_PREFIX}bg: #ffffff;
@@ -1783,7 +1783,7 @@
             ${Checkbox.CSS_VAR_PREFIX}focus-shadow: rgba(59, 130, 246, 0.4);
           }
         }
-      `;
+      `);
           document.head.appendChild(style);
         }
       }
