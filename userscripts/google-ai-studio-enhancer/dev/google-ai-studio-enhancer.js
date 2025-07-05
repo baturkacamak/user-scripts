@@ -240,8 +240,6 @@ class AIStudioEnhancer {
         this.loadSettings().then(() => {
             // Initialize components
             this.init();
-            // Update prompt input visibility based on saved mode
-            this.updatePromptInputVisibility();
         });
         
         // Setup cleanup on page unload
@@ -751,27 +749,37 @@ class AIStudioEnhancer {
      * Initialize the enhancer
      */
     async init() {
-        Logger.info("Enhancer starting initialization...");
+        try {
+            Logger.info("Enhancer starting initialization...");
 
-        // Set a unique ID on the body for style scoping
-        document.body.id = this.enhancerId;
+            // Set a unique ID on the body for style scoping
+            try {
+                document.body.id = this.enhancerId;
+            } catch (error) {
+                Logger.warn('Failed to set body ID:', error);
+            }
 
-        // Wait for the main content to be ready
-        await this.waitForPageReady();
-        Logger.info("Page is ready, proceeding with initialization.");
+            // Wait for the main content to be ready
+            await this.waitForPageReady();
+            Logger.info("Page is ready, proceeding with initialization.");
 
-        // Initialize styles
-        SidebarPanel.initStyles();
-        Button.initStyles();
-        Button.useDefaultColors();
-        Checkbox.initStyles();
-        Checkbox.useDefaultColors();
-        Notification.initStyles();
-        Notification.useDefaultColors();
-        Input.initStyles();
-        Input.useDefaultColors();
-        TextArea.initStyles();
-        TextArea.useDefaultColors();
+            // Initialize styles with error handling
+            try {
+                SidebarPanel.initStyles();
+                Button.initStyles();
+                Button.useDefaultColors();
+                Checkbox.initStyles();
+                Checkbox.useDefaultColors();
+                Notification.initStyles();
+                Notification.useDefaultColors();
+                Input.initStyles();
+                Input.useDefaultColors();
+                TextArea.initStyles();
+                TextArea.useDefaultColors();
+            } catch (error) {
+                Logger.error('Error initializing styles:', error);
+                // Continue with initialization even if styles fail
+            }
         
         // Add custom styles for full-width buttons and form inputs
         StyleManager.addStyles(`
@@ -833,6 +841,10 @@ class AIStudioEnhancer {
         }, 2000);
 
         Logger.success("Google AI Studio Enhancer initialized successfully!");
+        } catch (error) {
+            Logger.error('Error during initialization:', error);
+            this.showNotification('Failed to initialize enhancer. Please refresh the page.', 'error');
+        }
     }
 
     /**
@@ -1167,6 +1179,9 @@ also multiline`;
         section.appendChild(this.statusElement);
 
         container.appendChild(section);
+        
+        // Update prompt input visibility after all UI elements are created
+        this.updatePromptInputVisibility();
     }
 
     /**
@@ -1256,85 +1271,163 @@ also multiline`;
      * Update prompt input visibility based on selected mode
      */
     updatePromptInputVisibility() {
-        const mode = this.settings.PROMPT_MODE || 'single';
-        
-        // Hide all containers first
-        this.singlePromptContainer.style.display = 'none';
-        this.multiplePromptContainer.style.display = 'none';
-        this.templatePromptContainer.style.display = 'none';
-        
-        // Show the appropriate container
-        switch (mode) {
-            case 'single':
-                this.singlePromptContainer.style.display = 'block';
-                break;
-            case 'multiple':
-                this.multiplePromptContainer.style.display = 'block';
-                break;
-            case 'template':
-                this.templatePromptContainer.style.display = 'block';
-                break;
+        try {
+            const mode = this.settings.PROMPT_MODE || 'single';
+            
+            // Check if UI elements exist before trying to access them
+            if (!this.singlePromptContainer || !this.multiplePromptContainer || !this.templatePromptContainer) {
+                Logger.debug('UI elements not yet created, skipping updatePromptInputVisibility');
+                return;
+            }
+            
+            // Hide all containers first
+            try {
+                this.singlePromptContainer.style.display = 'none';
+                this.multiplePromptContainer.style.display = 'none';
+                this.templatePromptContainer.style.display = 'none';
+            } catch (error) {
+                Logger.warn('Failed to hide prompt containers:', error);
+            }
+            
+            // Show the appropriate container
+            try {
+                switch (mode) {
+                    case 'single':
+                        this.singlePromptContainer.style.display = 'block';
+                        break;
+                    case 'multiple':
+                        this.multiplePromptContainer.style.display = 'block';
+                        break;
+                    case 'template':
+                        this.templatePromptContainer.style.display = 'block';
+                        break;
+                    default:
+                        Logger.warn(`Unknown prompt mode: ${mode}, defaulting to single`);
+                        this.singlePromptContainer.style.display = 'block';
+                        break;
+                }
+            } catch (error) {
+                Logger.warn('Failed to show prompt container:', error);
+                // Fallback: show single prompt container
+                try {
+                    this.singlePromptContainer.style.display = 'block';
+                } catch (fallbackError) {
+                    Logger.error('Failed to show fallback prompt container:', fallbackError);
+                }
+            }
+            
+            // Update iteration input behavior based on mode
+            this.updateIterationInputBehavior(mode);
+        } catch (error) {
+            Logger.error('Error in updatePromptInputVisibility:', error);
+            // Try to recover by showing single prompt container
+            try {
+                if (this.singlePromptContainer) {
+                    this.singlePromptContainer.style.display = 'block';
+                }
+            } catch (fallbackError) {
+                Logger.error('Failed to recover from updatePromptInputVisibility error:', fallbackError);
+            }
         }
-        
-        // Update iteration input behavior based on mode
-        this.updateIterationInputBehavior(mode);
     }
     
     /**
      * Update iteration input behavior based on prompt mode
      */
     updateIterationInputBehavior(mode) {
-        if (!this.iterationsInput || !this.iterationsInfoText) return;
-        
-        switch (mode) {
-            case 'multiple':
-                // For multiple prompts, show the number of prompts and disable manual input
-                const prompts = this.settings.MULTIPLE_PROMPTS
-                    ? this.settings.MULTIPLE_PROMPTS.split('---').map(p => p.trim()).filter(p => p.length > 0)
-                    : [];
-                const promptCount = prompts.length;
-                
-                // Show/hide override checkbox based on whether we have prompts
-                if (this.overrideIterationsCheckbox) {
-                    this.overrideIterationsCheckbox.setVisible(promptCount > 0);
-                }
-                
-                if (promptCount > 0) {
-                    // Check if user wants to override automatic count
-                    const shouldOverride = this.settings.OVERRIDE_ITERATIONS && this.overrideIterationsCheckbox && this.overrideIterationsCheckbox.isChecked();
+        try {
+            // Check if required UI elements exist
+            if (!this.iterationsInput || !this.iterationsInfoText) {
+                Logger.debug('Required UI elements not available for updateIterationInputBehavior');
+                return;
+            }
+            
+            switch (mode) {
+                case 'multiple':
+                    // For multiple prompts, show the number of prompts and disable manual input
+                    const prompts = this.settings.MULTIPLE_PROMPTS
+                        ? this.settings.MULTIPLE_PROMPTS.split('---').map(p => p.trim()).filter(p => p.length > 0)
+                        : [];
+                    const promptCount = prompts.length;
                     
-                    if (shouldOverride) {
-                        // Allow manual input for multiple cycles
-                        this.iterationsInput.setDisabled(false);
-                        this.iterationsInput.getElement().title = 'Number of iterations (will cycle through prompts)';
-                        this.iterationsInfoText.textContent = `Will run ${this.iterationsInput.getValue()} iterations, cycling through ${promptCount} prompts`;
-                    } else {
-                        // Use automatic count
-                        this.iterationsInput.setValue(promptCount.toString());
-                        this.iterationsInput.setDisabled(true);
-                        this.iterationsInput.getElement().title = `Automatically set to ${promptCount} (number of prompts)`;
-                        this.iterationsInfoText.textContent = `Automatically set to ${promptCount} (number of prompts defined)`;
+                    // Show/hide override checkbox based on whether we have prompts
+                    if (this.overrideIterationsCheckbox && typeof this.overrideIterationsCheckbox.setVisible === 'function') {
+                        try {
+                            this.overrideIterationsCheckbox.setVisible(promptCount > 0);
+                        } catch (error) {
+                            Logger.warn('Failed to set override checkbox visibility:', error);
+                        }
                     }
-                } else {
-                    this.iterationsInput.setValue('1');
-                    this.iterationsInput.setDisabled(true);
-                    this.iterationsInput.getElement().title = 'Set to 1 (no prompts defined)';
-                    this.iterationsInfoText.textContent = 'Set to 1 (no prompts defined)';
+                    
+                    if (promptCount > 0) {
+                        // Check if user wants to override automatic count
+                        const shouldOverride = this.settings.OVERRIDE_ITERATIONS && 
+                            this.overrideIterationsCheckbox && 
+                            typeof this.overrideIterationsCheckbox.isChecked === 'function' &&
+                            this.overrideIterationsCheckbox.isChecked();
+                        
+                        if (shouldOverride) {
+                            // Allow manual input for multiple cycles
+                            this.iterationsInput.setDisabled(false);
+                            if (this.iterationsInput.getElement) {
+                                this.iterationsInput.getElement().title = 'Number of iterations (will cycle through prompts)';
+                            }
+                            this.iterationsInfoText.textContent = `Will run ${this.iterationsInput.getValue()} iterations, cycling through ${promptCount} prompts`;
+                        } else {
+                            // Use automatic count
+                            this.iterationsInput.setValue(promptCount.toString());
+                            this.iterationsInput.setDisabled(true);
+                            if (this.iterationsInput.getElement) {
+                                this.iterationsInput.getElement().title = `Automatically set to ${promptCount} (number of prompts)`;
+                            }
+                            this.iterationsInfoText.textContent = `Automatically set to ${promptCount} (number of prompts defined)`;
+                        }
+                    } else {
+                        this.iterationsInput.setValue('1');
+                        this.iterationsInput.setDisabled(true);
+                        if (this.iterationsInput.getElement) {
+                            this.iterationsInput.getElement().title = 'Set to 1 (no prompts defined)';
+                        }
+                        this.iterationsInfoText.textContent = 'Set to 1 (no prompts defined)';
+                    }
+                    break;
+                    
+                case 'single':
+                case 'template':
+                    // For single and template modes, allow manual input
+                    this.iterationsInput.setDisabled(false);
+                    if (this.iterationsInput.getElement) {
+                        this.iterationsInput.getElement().title = 'Number of iterations to run';
+                    }
+                    this.iterationsInfoText.textContent = 'Number of iterations to run';
+                    
+                    // Hide override checkbox for non-multiple modes
+                    if (this.overrideIterationsCheckbox && typeof this.overrideIterationsCheckbox.setVisible === 'function') {
+                        try {
+                            this.overrideIterationsCheckbox.setVisible(false);
+                        } catch (error) {
+                            Logger.warn('Failed to hide override checkbox:', error);
+                        }
+                    }
+                    break;
+                    
+                default:
+                    Logger.warn(`Unknown prompt mode: ${mode}`);
+                    break;
+            }
+        } catch (error) {
+            Logger.error('Error in updateIterationInputBehavior:', error);
+            // Fallback: try to set basic state
+            try {
+                if (this.iterationsInput) {
+                    this.iterationsInput.setDisabled(false);
                 }
-                break;
-                
-            case 'single':
-            case 'template':
-                // For single and template modes, allow manual input
-                this.iterationsInput.setDisabled(false);
-                this.iterationsInput.getElement().title = 'Number of iterations to run';
-                this.iterationsInfoText.textContent = 'Number of iterations to run';
-                
-                // Hide override checkbox for non-multiple modes
-                if (this.overrideIterationsCheckbox) {
-                    this.overrideIterationsCheckbox.setVisible(false);
+                if (this.iterationsInfoText) {
+                    this.iterationsInfoText.textContent = 'Number of iterations to run';
                 }
-                break;
+            } catch (fallbackError) {
+                Logger.error('Fallback error in updateIterationInputBehavior:', fallbackError);
+            }
         }
     }
 
@@ -1856,15 +1949,34 @@ also multiline`;
             return false;
         }
 
-        // Validate iterations input first
-        if (!this.iterationsInput.validate()) {
-            this.showNotification('Please fix the iterations input error', 'error');
+        // Check if UI elements are available
+        if (!this.iterationsInput) {
+            this.showNotification('UI not yet initialized, please wait a moment and try again', 'error');
             return false;
         }
 
-        const iterations = parseInt(this.iterationsInput.getValue(), 10);
-        if (isNaN(iterations) || iterations <= 0) {
-            this.showNotification('Please enter a valid number of iterations', 'error');
+        // Validate iterations input first
+        try {
+            if (!this.iterationsInput.validate()) {
+                this.showNotification('Please fix the iterations input error', 'error');
+                return false;
+            }
+        } catch (error) {
+            Logger.error('Error validating iterations input:', error);
+            this.showNotification('Error validating input, please check your settings', 'error');
+            return false;
+        }
+
+        let iterations;
+        try {
+            iterations = parseInt(this.iterationsInput.getValue(), 10);
+            if (isNaN(iterations) || iterations <= 0) {
+                this.showNotification('Please enter a valid number of iterations', 'error');
+                return false;
+            }
+        } catch (error) {
+            Logger.error('Error getting iterations value:', error);
+            this.showNotification('Error reading iterations value, please check your settings', 'error');
             return false;
         }
 
