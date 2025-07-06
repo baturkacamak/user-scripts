@@ -144,6 +144,26 @@ class Logger {
         Object.assign(this._theme, theme);
     }
 
+    static newPrefix(prefix) {
+        const prefixedLogger = {};
+        const levels = ['debug', 'info', 'warn', 'error', 'success', 'trace', 'logHtml', 'step', 'hello'];
+
+        levels.forEach(level => {
+            prefixedLogger[level] = (...args) => {
+                const originalPrefix = this.PREFIX;
+                try {
+                    this.setPrefix(prefix);
+                    if (typeof Logger[level] === 'function') {
+                        Logger[level](...args);
+                    }
+                } finally {
+                    this.setPrefix(originalPrefix);
+                }
+            };
+        });
+        return prefixedLogger;
+    }
+
     static addFilter(tag) {
         this._filters.add(tag);
     }
