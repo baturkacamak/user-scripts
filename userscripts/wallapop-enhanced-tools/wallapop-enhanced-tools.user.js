@@ -1297,11 +1297,13 @@
 
           // Find parent section content element
           const parentContent = selectboxElement.closest(`.${SectionToggler.BASE_SECTION_CLASS}__content`);
+
           if (parentContent) {
             parentContent.classList.add('has-selectbox');
 
             // Adjust the padding-bottom based on dropdown height if needed
             const dropdownHeight = data.height || 200;
+
             parentContent.style.paddingBottom = `${dropdownHeight + 20}px`;
           }
         });
@@ -2909,7 +2911,8 @@
             this.rebuild();
         }
 
-        _handleTriggerClick = () => {
+        _handleTriggerClick = (e) => {
+            e.stopPropagation();
             this.toggleDropdown();
         }
 
