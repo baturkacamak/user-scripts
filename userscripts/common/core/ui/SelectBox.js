@@ -4,6 +4,7 @@
  */
 import StyleManager from '../utils/StyleManager.js';
 import PubSub from '../utils/PubSub';
+import Logger from '../utils/Logger.js';
 
 class SelectBox {
     /**
@@ -1130,7 +1131,8 @@ class SelectBox {
         this.rebuild();
     }
 
-    _handleTriggerClick = () => {
+    _handleTriggerClick = (e) => {
+        e.stopPropagation();
         this.toggleDropdown();
     }
 
