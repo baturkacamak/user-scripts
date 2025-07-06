@@ -17,10 +17,12 @@ import AutoRunner from './utils/AutoRunner.js';
 import ContentCollector from './utils/ContentCollector.js';
 import FormStatePersistence from './utils/FormStatePersistence.js';
 import * as GMFunctions from './utils/GMFunctions.js';
+import MarkdownConverter from './utils/MarkdownConverter.js';
 
 // Services
 import ThrottleService from './services/ThrottleService.js';
 import AsyncQueueService from './services/AsyncQueueService.js';
+import ClipboardService from './services/ClipboardService.js';
 
 // Internationalization
 import TranslationManager from './i18n/TranslationManager.js';
@@ -54,10 +56,12 @@ export {
   ContentCollector,
   FormStatePersistence,
   GMFunctions,
+  MarkdownConverter,
 
   // Services
   ThrottleService,
   AsyncQueueService,
+  ClipboardService,
 
   // Internationalization
   TranslationManager,
@@ -90,8 +94,10 @@ export default {
   AutoRunner,
   ContentCollector,
   FormStatePersistence,
+  GMFunctions,
   ThrottleService,
   AsyncQueueService,
+  ClipboardService,
   TranslationManager,
   SectionToggler,
   DOMObserver,
