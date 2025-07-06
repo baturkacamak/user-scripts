@@ -1539,12 +1539,17 @@ also multiline`;
         
         switch (tagName) {
             case 'h1':
+                return `\n\n# ${childText}\n\n`;
             case 'h2':
+                return `\n\n## ${childText}\n\n`;
             case 'h3':
+                return `\n\n### ${childText}\n\n`;
             case 'h4':
+                return `\n\n#### ${childText}\n\n`;
             case 'h5':
+                return `\n\n##### ${childText}\n\n`;
             case 'h6':
-                return `\n\n${childText}\n\n`;
+                return `\n\n###### ${childText}\n\n`;
                 
             case 'p':
                 return `\n\n${childText}\n\n`;
