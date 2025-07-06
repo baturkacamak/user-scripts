@@ -5033,9 +5033,6 @@
 
             // Storage key for this specific panel instance
             this.storageKey = `${SidebarPanel.STORAGE_KEYS.PANEL_STATE}-${this.options.id}`;
-
-            // Initialize the component
-            this.init();
         }
 
         /**
