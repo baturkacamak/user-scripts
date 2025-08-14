@@ -278,7 +278,7 @@ class AIStudioEnhancer {
                 }
             `, 'ai-studio-enhancer-custom-styles');
 
-            this.createSidebarPanel();
+            await this.createSidebarPanel();
             this.setupChatMonitoring();
             this.setupRunButtonInteractionTracking();
 
@@ -316,7 +316,7 @@ class AIStudioEnhancer {
     /**
      * Create the sidebar panel
      */
-    createSidebarPanel() {
+    async createSidebarPanel() {
         this.sidebarPanel = new SidebarPanel({
             title: '🤖 AI Studio Enhancer',
             id: 'ai-studio-enhancer-panel',
@@ -336,7 +336,10 @@ class AIStudioEnhancer {
             rememberState: true
         });
 
-        Logger.debug("SidebarPanel created");
+        // Initialize the panel to create DOM elements
+        await this.sidebarPanel.init();
+
+        Logger.debug("SidebarPanel created and initialized");
     }
 
     /**
