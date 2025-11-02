@@ -106,7 +106,21 @@ class AIStudioEnhancer {
         
         this.subscriptionIds = [];
         
-        this.markdownConverter = new MarkdownConverter();
+        this.markdownConverter = new MarkdownConverter({
+            selectorsToRemove: [
+                'button',
+                '[role="button"]',
+                '.material-icons',
+                '.icon',
+                '[aria-label*="copy"]',
+                '[aria-label*="share"]',
+                '[aria-label*="edit"]',
+                '[aria-label*="more"]',
+                '.action-buttons',
+                '.response-actions',
+                '.author-label'  // Exclude "Model" label
+            ]
+        });
         
         this.userInteraction = UserInteractionDetector.getInstance({
             debug: Logger.DEBUG,
@@ -1356,22 +1370,49 @@ also multiline`;
                 autoscrollContainer.style.setProperty(prop, value, 'important');
             });
 
-            const responseSelector = '.ng-star-inserted .chat-turn-container.model.render .turn-content:not(:has(.mat-accordion))';
+            const responseSelector = AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS[0];
             const responseElements = Array.from(document.querySelectorAll(responseSelector));
             
             Logger.debug(`Found ${responseElements.length} response elements`);
 
             const responses = [];
             
+            // Helper function to check if element matches the selector criteria
+            const isValidResponseElement = (element) => {
+                if (!element || !element.isConnected) {
+                    return false;
+                }
+                // Check that it doesn't have .mat-accordion inside it
+                return !element.querySelector('.mat-accordion');
+            };
+            
             for (let i = 0; i < responseElements.length; i++) {
-                const element = responseElements[i];
+                let element = responseElements[i];
+                
+                // Verify element is still valid before scrolling
+                if (!isValidResponseElement(element)) {
+                    Logger.debug(`Skipping invalid element ${i + 1}/${responseElements.length}`);
+                    continue;
+                }
                 
                 element.scrollIntoView({ behavior: 'auto', block: 'center' });
                 Logger.debug(`Processing response ${i + 1}/${responseElements.length}`);
                 
                 await this.delay(200);
                 
-                const responseText = this.markdownConverter.extractText(element);
+                // Re-verify element after scrolling (DOM may have changed)
+                if (!isValidResponseElement(element)) {
+                    Logger.debug(`Element ${i + 1} no longer valid after scrolling, skipping`);
+                    continue;
+                }
+                
+                let responseText = this.markdownConverter.extractText(element);
+                
+                // Remove "Model" at the beginning if present
+                if (responseText) {
+                    responseText = responseText.replace(/^Model\.?\s*/i, '').trim();
+                }
+                
                 if (responseText && responseText.length > 10) {
                     responses.push(responseText);
                 }
