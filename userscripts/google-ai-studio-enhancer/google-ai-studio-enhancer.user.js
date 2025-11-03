@@ -2,7 +2,7 @@
 // @name        Google AI Studio Enhancer
 // @description Copy all AI chatbot responses and auto-click Run button for specified iterations
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     2.0.1
+// @version     2.0.2
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/google-ai-studio-enhancer#readme
@@ -7175,6 +7175,21 @@ also multiline`;
                     return !element.querySelector('.mat-accordion');
                 };
                 
+                // Wait until the element has stabilized without .mat-accordion for a short period
+                const waitForNoAccordion = async (element, timeoutMs = 1500, intervalMs = 100) => {
+                    const start = Date.now();
+                    while (Date.now() - start < timeoutMs) {
+                        if (!element.isConnected) {
+                            return false;
+                        }
+                        if (!element.querySelector('.mat-accordion')) {
+                            return true;
+                        }
+                        await this.delay(intervalMs);
+                    }
+                    return !element.querySelector('.mat-accordion');
+                };
+                
                 for (let i = 0; i < responseElements.length; i++) {
                     let element = responseElements[i];
                     
@@ -7192,6 +7207,13 @@ also multiline`;
                     // Re-verify element after scrolling (DOM may have changed)
                     if (!isValidResponseElement(element)) {
                         Logger.debug(`Element ${i + 1} no longer valid after scrolling, skipping`);
+                        continue;
+                    }
+                    
+                    // Give the DOM a moment to settle and ensure accordion is not present
+                    const stable = await waitForNoAccordion(element, 1500, 120);
+                    if (!stable) {
+                        Logger.debug(`Element ${i + 1} still contains accordion after wait, skipping`);
                         continue;
                     }
                     
