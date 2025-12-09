@@ -20,7 +20,8 @@ import {
     UrlChangeWatcher,
     UserInteractionDetector,
     ClipboardService,
-    MarkdownConverter
+    MarkdownConverter,
+    ViewportStabilizer
 } from "../../common/core";
 import { getValue, setValue } from "../../common/core/utils/GMFunctions";
 import { MouseEventUtils } from '../../common/core/utils/HTMLUtils.js';
@@ -129,6 +130,16 @@ class AIStudioEnhancer {
             namespace: 'ai-studio-enhancer',
             interactionWindow: 200,
             interactionThrottle: 100
+        });
+
+        // Initialize ViewportStabilizer for lazy-rendered content
+        this.viewportStabilizer = new ViewportStabilizer({
+            scrollContainer: null, // Use window/document
+            stableDurationMs: 1000,
+            checkIntervalMs: 150,
+            maxWaitMs: 10000,
+            enableDebugLogging: Logger.DEBUG,
+            logger: Logger
         });
 
         Logger.info("Initializing Google AI Studio Enhancer");
@@ -1560,101 +1571,52 @@ also multiline`;
                 return !element.querySelector('.mat-accordion');
             };
             
-            // Wait for response height to stabilize (indicates lazy-rendered content has finished)
-            const waitForHeightStable = async (element, stableDurationMs = 1000, checkIntervalMs = 150, maxWaitMs = 10000) => {
-                if (!element || !element.isConnected) {
-                    return false;
-                }
-                
-                let lastHeight = element.offsetHeight || element.scrollHeight || 0;
-                let lastTextLength = (element.textContent || '').length;
-                let stableStartTime = Date.now();
-                const startTime = Date.now();
-                
-                Logger.debug(`Waiting for response height to stabilize (current: ${lastHeight}px, text: ${lastTextLength} chars)...`);
-                
-                while (Date.now() - startTime < maxWaitMs) {
-                    if (!element.isConnected) {
-                        Logger.debug('Element disconnected while waiting for height stability');
-                        return false;
+            // Configure ViewportStabilizer with custom hooks for accordion checking
+            const stabilizer = new ViewportStabilizer({
+                scrollContainer: null, // Use window/document
+                stableDurationMs: 1000,
+                checkIntervalMs: 150,
+                maxWaitMs: 10000,
+                elementValidator: isValidResponseElement,
+                postScrollHook: async (element) => {
+                    // Wait for accordion to disappear after scrolling
+                    const stable = await waitForNoAccordion(element, 1500, 120);
+                    if (!stable) {
+                        throw new Error('Element still contains accordion after wait');
                     }
-                    
-                    const currentHeight = element.offsetHeight || element.scrollHeight || 0;
-                    const currentTextLength = (element.textContent || '').length;
-                    
-                    const heightChanged = currentHeight !== lastHeight;
-                    const textChanged = currentTextLength !== lastTextLength;
-                    
-                    if (heightChanged || textChanged) {
-                        // Height or text changed, reset stability timer
-                        if (heightChanged) {
-                            lastHeight = currentHeight;
-                            Logger.debug(`Height changed to ${currentHeight}px, resetting stability timer`);
-                        }
-                        if (textChanged) {
-                            lastTextLength = currentTextLength;
-                            Logger.debug(`Text length changed to ${currentTextLength} chars, resetting stability timer`);
-                        }
-                        stableStartTime = Date.now();
-                    } else {
-                        // Both height and text are stable, check if it's been stable long enough
-                        const stableDuration = Date.now() - stableStartTime;
-                        if (stableDuration >= stableDurationMs) {
-                            Logger.debug(`Height (${currentHeight}px) and text (${currentTextLength} chars) stable for ${stableDuration}ms`);
-                            return true;
-                        }
-                    }
-                    
-                    await this.delay(checkIntervalMs);
-                }
-                
-                Logger.debug(`Height stability timeout reached (final height: ${lastHeight}px, text: ${lastTextLength} chars)`);
-                return true; // Return true even if timeout, to not block forever
-            };
+                },
+                enableDebugLogging: Logger.DEBUG,
+                logger: Logger
+            });
             
+            // Process elements using ViewportStabilizer
             for (let i = 0; i < responseElements.length; i++) {
-                let element = responseElements[i];
+                const element = responseElements[i];
                 
-                // Verify element is still valid before scrolling
-                if (!isValidResponseElement(element)) {
-                    Logger.debug(`Skipping invalid element ${i + 1}/${responseElements.length}`);
-                    continue;
-                }
-                
-                element.scrollIntoView({ behavior: 'auto', block: 'center' });
                 Logger.debug(`Processing response ${i + 1}/${responseElements.length}`);
                 
-                // Small delay to allow scroll to start
-                await this.delay(200);
-                
-                // Re-verify element after scrolling (DOM may have changed)
-                if (!isValidResponseElement(element)) {
-                    Logger.debug(`Element ${i + 1} no longer valid after scrolling, skipping`);
-                    continue;
-                }
-                
-                // Give the DOM a moment to settle and ensure accordion is not present
-                const stable = await waitForNoAccordion(element, 1500, 120);
-                if (!stable) {
-                    Logger.debug(`Element ${i + 1} still contains accordion after wait, skipping`);
-                    continue;
-                }
-                
-                // Wait for response height to stabilize (lazy-rendered content finishing)
-                const heightStable = await waitForHeightStable(element, 1000, 150, 10000);
-                if (!heightStable) {
-                    Logger.warn(`Element ${i + 1} height did not stabilize, but continuing anyway`);
-                }
-                
-                let responseText = this.markdownConverter.extractText(element);
-                
-                // Remove "Model" at the beginning if present
-                if (responseText) {
-                    responseText = responseText.replace(/^Model\.?\s*/i, '').trim();
-                }
-                
-                if (responseText && responseText.length > 10) {
-                    responses.push(responseText);
+                try {
+                    // Scroll and wait for stability
+                    const stabilityResult = await stabilizer.scrollAndWaitForStable(element);
+                    
+                    if (!stabilityResult.stable) {
+                        Logger.warn(`Element ${i + 1} did not stabilize: ${stabilityResult.reason}, but continuing anyway`);
+                    }
+                    
+                    // Extract text after element is stable
+                    let responseText = this.markdownConverter.extractText(element);
+                    
+                    // Remove "Model" at the beginning if present
+                    if (responseText) {
+                        responseText = responseText.replace(/^Model\.?\s*/i, '').trim();
+                    }
+                    
+                    if (responseText && responseText.length > 10) {
+                        responses.push(responseText);
+                    }
+                } catch (error) {
+                    Logger.warn(`Error processing element ${i + 1}/${responseElements.length}:`, error);
+                    // Continue with next element
                 }
             }
 

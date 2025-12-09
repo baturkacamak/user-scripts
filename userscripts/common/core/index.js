@@ -18,6 +18,8 @@ import ContentCollector from './utils/ContentCollector.js';
 import FormStatePersistence from './utils/FormStatePersistence.js';
 import * as GMFunctions from './utils/GMFunctions.js';
 import MarkdownConverter from './utils/MarkdownConverter.js';
+import ViewportStabilizer from './utils/ViewportStabilizer.js';
+import ContentFormatter from './utils/ContentFormatter.js';
 
 // Services
 import ThrottleService from './services/ThrottleService.js';
@@ -57,6 +59,8 @@ export {
   FormStatePersistence,
   GMFunctions,
   MarkdownConverter,
+  ViewportStabilizer,
+  ContentFormatter,
 
   // Services
   ThrottleService,
@@ -95,6 +99,8 @@ export default {
   ContentCollector,
   FormStatePersistence,
   GMFunctions,
+  ViewportStabilizer,
+  ContentFormatter,
   ThrottleService,
   AsyncQueueService,
   ClipboardService,
