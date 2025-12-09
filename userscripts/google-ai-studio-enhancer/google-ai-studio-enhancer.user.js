@@ -2,7 +2,7 @@
 // @name        Google AI Studio Enhancer
 // @description Copy all AI chatbot responses and auto-click Run button for specified iterations
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     2.0.2
+// @version     2.0.3
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/google-ai-studio-enhancer#readme
@@ -7349,6 +7349,58 @@ also multiline`;
                     return !element.querySelector('.mat-accordion');
                 };
                 
+                // Wait for response height to stabilize (indicates lazy-rendered content has finished)
+                const waitForHeightStable = async (element, stableDurationMs = 1000, checkIntervalMs = 150, maxWaitMs = 10000) => {
+                    if (!element || !element.isConnected) {
+                        return false;
+                    }
+                    
+                    let lastHeight = element.offsetHeight || element.scrollHeight || 0;
+                    let lastTextLength = (element.textContent || '').length;
+                    let stableStartTime = Date.now();
+                    const startTime = Date.now();
+                    
+                    Logger.debug(`Waiting for response height to stabilize (current: ${lastHeight}px, text: ${lastTextLength} chars)...`);
+                    
+                    while (Date.now() - startTime < maxWaitMs) {
+                        if (!element.isConnected) {
+                            Logger.debug('Element disconnected while waiting for height stability');
+                            return false;
+                        }
+                        
+                        const currentHeight = element.offsetHeight || element.scrollHeight || 0;
+                        const currentTextLength = (element.textContent || '').length;
+                        
+                        const heightChanged = currentHeight !== lastHeight;
+                        const textChanged = currentTextLength !== lastTextLength;
+                        
+                        if (heightChanged || textChanged) {
+                            // Height or text changed, reset stability timer
+                            if (heightChanged) {
+                                lastHeight = currentHeight;
+                                Logger.debug(`Height changed to ${currentHeight}px, resetting stability timer`);
+                            }
+                            if (textChanged) {
+                                lastTextLength = currentTextLength;
+                                Logger.debug(`Text length changed to ${currentTextLength} chars, resetting stability timer`);
+                            }
+                            stableStartTime = Date.now();
+                        } else {
+                            // Both height and text are stable, check if it's been stable long enough
+                            const stableDuration = Date.now() - stableStartTime;
+                            if (stableDuration >= stableDurationMs) {
+                                Logger.debug(`Height (${currentHeight}px) and text (${currentTextLength} chars) stable for ${stableDuration}ms`);
+                                return true;
+                            }
+                        }
+                        
+                        await this.delay(checkIntervalMs);
+                    }
+                    
+                    Logger.debug(`Height stability timeout reached (final height: ${lastHeight}px, text: ${lastTextLength} chars)`);
+                    return true; // Return true even if timeout, to not block forever
+                };
+                
                 for (let i = 0; i < responseElements.length; i++) {
                     let element = responseElements[i];
                     
@@ -7361,6 +7413,7 @@ also multiline`;
                     element.scrollIntoView({ behavior: 'auto', block: 'center' });
                     Logger.debug(`Processing response ${i + 1}/${responseElements.length}`);
                     
+                    // Small delay to allow scroll to start
                     await this.delay(200);
                     
                     // Re-verify element after scrolling (DOM may have changed)
@@ -7374,6 +7427,12 @@ also multiline`;
                     if (!stable) {
                         Logger.debug(`Element ${i + 1} still contains accordion after wait, skipping`);
                         continue;
+                    }
+                    
+                    // Wait for response height to stabilize (lazy-rendered content finishing)
+                    const heightStable = await waitForHeightStable(element, 1000, 150, 10000);
+                    if (!heightStable) {
+                        Logger.warn(`Element ${i + 1} height did not stabilize, but continuing anyway`);
                     }
                     
                     let responseText = this.markdownConverter.extractText(element);
