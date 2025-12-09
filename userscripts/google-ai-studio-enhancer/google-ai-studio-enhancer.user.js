@@ -5826,9 +5826,9 @@
         // Configuration
         static SELECTORS = {
             MAIN_SUBMIT_BUTTON: {
-                READY: 'button.run-button[aria-label="Run"]:not([disabled]):not(.stoppable)',
-                LOADING: 'button.run-button.stoppable',
-                DISABLED: 'button.run-button[disabled]',
+                READY: 'button[aria-label="Run"][type="submit"][aria-disabled="false"]:not([disabled])',
+                LOADING: 'button[aria-label="Run"][type="button"]:not([disabled]), button[aria-label="Run"]:has(.material-symbols-outlined.spin), button[aria-label="Run"]:has(span:contains("Stop"))',
+                DISABLED: 'button[aria-label="Run"][disabled]',
             },
             RESPONSE_CONTAINERS: [
                 '.ng-star-inserted .chat-turn-container.model.render .turn-content:not(:has(.mat-accordion))',
@@ -5853,6 +5853,7 @@
             AUTO_RUN_PROMPT: 'gaise-auto-run-prompt',
             PROMPT_MODE: 'gaise-prompt-mode',
             MULTIPLE_PROMPTS: 'gaise-multiple-prompts',
+            BASE_PROMPT_MULTIPLE: 'gaise-base-prompt-multiple',
             TEMPLATE_PROMPT: 'gaise-template-prompt',
             OVERRIDE_ITERATIONS: 'gaise-override-iterations'
         };
@@ -5865,6 +5866,7 @@
             AUTO_RUN_PROMPT: '',
             PROMPT_MODE: 'single',
             MULTIPLE_PROMPTS: '',
+            BASE_PROMPT_MULTIPLE: '',
             TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.',
             OVERRIDE_ITERATIONS: false
         };
@@ -6053,12 +6055,14 @@
                 .auto-run-prompt-textarea,
                 .auto-run-iterations-input,
                 .auto-run-multiple-prompts-textarea,
+                .auto-run-base-prompt-multiple-textarea,
                 .auto-run-template-prompt-textarea {
                     margin-bottom: 12px;
                 }
                 
                 .auto-run-prompt-textarea textarea,
                 .auto-run-multiple-prompts-textarea textarea,
+                .auto-run-base-prompt-multiple-textarea textarea,
                 .auto-run-template-prompt-textarea textarea {
                     max-height: 200px !important;
                     overflow-y: auto !important;
@@ -6276,6 +6280,34 @@ also multiline`;
 
             this.multiplePromptContainer.appendChild(multiplePromptLabel);
             this.multiplePromptContainer.appendChild(separatorInfo);
+
+            // Base prompt for multiple prompts
+            const basePromptLabel = document.createElement('label');
+            basePromptLabel.textContent = 'Base Prompt (will be appended to each prompt):';
+            basePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; margin-top: 12px; font-size: 12px; color: #555; font-weight: 500;';
+
+            const basePromptInfo = document.createElement('div');
+            basePromptInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
+            HTMLUtils.setHTMLSafely(basePromptInfo, 'Each prompt will be combined with the base prompt as: <code>Prompt X\n[Base Prompt]</code>');
+
+            this.basePromptMultipleTextArea = new TextArea({
+                value: this.settings.BASE_PROMPT_MULTIPLE || '',
+                placeholder: 'Enter base prompt to append to each prompt (optional)',
+                rows: 3,
+                theme: 'primary',
+                size: 'medium',
+                className: 'auto-run-base-prompt-multiple-textarea',
+                onInput: (event, textArea) => {
+                    this.settings.BASE_PROMPT_MULTIPLE = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: this.multiplePromptContainer,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            this.multiplePromptContainer.appendChild(basePromptLabel);
+            this.multiplePromptContainer.appendChild(basePromptInfo);
 
             // Template prompts input
             this.templatePromptContainer = document.createElement('div');
@@ -6623,10 +6655,19 @@ also multiline`;
                         break;
                     }
 
+                    const basePrompt = (this.settings.BASE_PROMPT_MULTIPLE || '').trim();
+
                     // Fill prompts array by cycling through available prompts
                     for (let i = 0; i < iterations; i++) {
                         const promptIndex = i % multiplePrompts.length;
-                        prompts.push(multiplePrompts[promptIndex]);
+                        let combinedPrompt = multiplePrompts[promptIndex];
+                        
+                        // Combine with base prompt if provided
+                        if (basePrompt) {
+                            combinedPrompt = `${combinedPrompt}\n${basePrompt}`;
+                        }
+                        
+                        prompts.push(combinedPrompt);
                     }
                     break;
 
@@ -6748,17 +6789,55 @@ also multiline`;
          * Click run button (based on your working example)
          */
         async clickRunButton(retries = 10) {
+            // Try multiple selector variations as fallbacks
+            const selectors = [
+                AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY,
+                'button[type="submit"][aria-label="Run"][aria-disabled="false"]:not([disabled])',
+                'button[aria-label="Run"][aria-disabled="false"]:not([disabled]):not([type="button"])',
+                'button.ms-button-primary[type="submit"][aria-label="Run"][aria-disabled="false"]',
+                'button[aria-label="Run"]:not([disabled]):not([aria-disabled="true"]):not([type="button"])'
+            ];
+
             for (let attempt = 0; attempt < retries; attempt++) {
-                const button = document.querySelector(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY);
-                if (button) {
-                    button.click();
-                    Logger.debug("📤 Clicked Run button");
-                    return;
+                // Try each selector
+                for (const selector of selectors) {
+                    const button = document.querySelector(selector);
+                    if (button && button.offsetParent !== null) { // Check if button is visible
+                        // Double-check it's actually enabled and ready (not in loading state)
+                        const isDisabled = button.hasAttribute('disabled') || 
+                                         button.getAttribute('aria-disabled') === 'true';
+                        const isTypeSubmit = button.getAttribute('type') === 'submit';
+                        const hasStopText = button.textContent?.trim().includes('Stop');
+                        const hasSpinner = button.querySelector('.material-symbols-outlined.spin') ||
+                                         button.querySelector('span.spin');
+                        
+                        if (!isDisabled && isTypeSubmit && !hasStopText && !hasSpinner) {
+                            button.click();
+                            Logger.debug(`📤 Clicked Run button using selector: ${selector}`);
+                            // Small delay to allow DOM to update after click
+                            await this.delay(100);
+                            return;
+                        }
+                    }
                 }
                 
-                Logger.debug("⏱ Waiting for Run button to be ready...");
+                Logger.debug(`⏱ Waiting for Run button to be ready... (attempt ${attempt + 1}/${retries})`);
                 await this.delay(500);
             }
+            
+            // Log available buttons for debugging
+            const allRunButtons = document.querySelectorAll('button[aria-label="Run"]');
+            Logger.error(`❌ Run button not found. Found ${allRunButtons.length} button(s) with aria-label="Run":`, 
+                Array.from(allRunButtons).map(btn => ({
+                    type: btn.getAttribute('type'),
+                    ariaDisabled: btn.getAttribute('aria-disabled'),
+                    disabled: btn.hasAttribute('disabled'),
+                    textContent: btn.textContent?.trim(),
+                    hasSpinner: !!btn.querySelector('.material-symbols-outlined.spin'),
+                    classes: btn.className,
+                    visible: btn.offsetParent !== null
+                }))
+            );
             
             throw new Error("❌ Run button not found or never became ready");
         }
@@ -6771,21 +6850,81 @@ also multiline`;
             
             Logger.debug("🕐 Waiting for prompt to start...");
             
+            // Helper function to check if button is in loading state
+            const isButtonLoading = () => {
+                // Check for loading state indicators
+                const runButton = document.querySelector('button[aria-label="Run"]');
+                if (!runButton || runButton.offsetParent === null) {
+                    return false;
+                }
+                
+                // Check if button type changed from "submit" to "button" (indicates loading)
+                if (runButton.getAttribute('type') === 'button') {
+                    return true;
+                }
+                
+                // Check if button contains "Stop" text
+                const buttonText = runButton.textContent?.trim() || '';
+                if (buttonText.includes('Stop')) {
+                    return true;
+                }
+                
+                // Check if button has spinner icon (progress_activity or spin class)
+                const hasSpinner = runButton.querySelector('.material-symbols-outlined.spin') ||
+                                  runButton.querySelector('.material-symbols-outlined[class*="progress_activity"]') ||
+                                  runButton.querySelector('span.spin');
+                if (hasSpinner) {
+                    return true;
+                }
+                
+                // Check if ready button is gone (might indicate loading)
+                const readyButton = document.querySelector(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY);
+                if (!readyButton || readyButton.offsetParent === null) {
+                    // If there's a Run button but it's not ready, it might be loading
+                    if (runButton && runButton.getAttribute('type') !== 'submit') {
+                        return true;
+                    }
+                }
+                
+                return false;
+            };
+            
             // Wait for loading state to appear
-            while (!document.querySelector(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.LOADING)) {
+            let loadingCheckCount = 0;
+            while (!isButtonLoading()) {
                 if (Date.now() - start > 10000) {
+                    // Log button state for debugging
+                    const runButton = document.querySelector('button[aria-label="Run"]');
+                    Logger.error('⚠️ Timeout waiting for response to start. Current button state:', {
+                        exists: !!runButton,
+                        type: runButton?.getAttribute('type'),
+                        ariaDisabled: runButton?.getAttribute('aria-disabled'),
+                        textContent: runButton?.textContent?.trim(),
+                        hasSpinner: !!runButton?.querySelector('.material-symbols-outlined.spin'),
+                        visible: runButton?.offsetParent !== null
+                    });
                     throw new Error("⚠️ Timed out waiting for response to start");
                 }
                 if (this.shouldStopAutoRun) {
                     throw new Error("Auto-run stopped by user");
+                }
+                loadingCheckCount++;
+                if (loadingCheckCount % 10 === 0) {
+                    // Log every 2 seconds (10 * 200ms)
+                    const runButton = document.querySelector('button[aria-label="Run"]');
+                    Logger.debug('Still waiting for loading state...', {
+                        type: runButton?.getAttribute('type'),
+                        textContent: runButton?.textContent?.trim(),
+                        hasSpinner: !!runButton?.querySelector('.material-symbols-outlined.spin')
+                    });
                 }
                 await this.delay(200);
             }
             
             Logger.debug("⏳ Response started... waiting for it to finish");
             
-            // Wait for loading state to disappear
-            while (document.querySelector(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.LOADING)) {
+            // Wait for loading state to disappear (button becomes ready again)
+            while (isButtonLoading()) {
                 if (Date.now() - start > timeout) {
                     throw new Error("⏰ Timeout: Prompt processing took too long");
                 }
@@ -7058,9 +7197,20 @@ also multiline`;
          * Track existing run buttons
          */
         trackExistingRunButtons() {
-            const selector = AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY;
-            document.querySelectorAll(selector).forEach(button => {
-                this.trackRunButton(button);
+            // Try multiple selectors to catch all variations
+            const selectors = [
+                AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY,
+                'button[aria-label="Run"]'
+            ];
+            
+            const trackedButtons = new Set();
+            selectors.forEach(selector => {
+                document.querySelectorAll(selector).forEach(button => {
+                    if (!trackedButtons.has(button)) {
+                        trackedButtons.add(button);
+                        this.trackRunButton(button);
+                    }
+                });
             });
         }
 
@@ -7068,17 +7218,29 @@ also multiline`;
          * Track run buttons in element
          */
         trackRunButtonsInElement(element) {
+            const selectors = [
+                AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY,
+                'button[aria-label="Run"]'
+            ];
+            
             if (element.matches) {
-                const selector = AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY;
-                if (element.matches(selector)) {
-                    this.trackRunButton(element);
+                for (const selector of selectors) {
+                    if (element.matches(selector)) {
+                        this.trackRunButton(element);
+                        return;
+                    }
                 }
             }
 
             if (element.querySelectorAll) {
-                const selector = AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY;
-                element.querySelectorAll(selector).forEach(button => {
-                    this.trackRunButton(button);
+                const trackedButtons = new Set();
+                selectors.forEach(selector => {
+                    element.querySelectorAll(selector).forEach(button => {
+                        if (!trackedButtons.has(button)) {
+                            trackedButtons.add(button);
+                            this.trackRunButton(button);
+                        }
+                    });
                 });
             }
         }
