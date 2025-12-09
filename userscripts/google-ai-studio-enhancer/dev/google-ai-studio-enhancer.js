@@ -268,6 +268,13 @@ class AIStudioEnhancer {
                     margin-bottom: 12px;
                 }
                 
+                .auto-run-prompt-textarea textarea,
+                .auto-run-multiple-prompts-textarea textarea,
+                .auto-run-template-prompt-textarea textarea {
+                    max-height: 200px !important;
+                    overflow-y: auto !important;
+                }
+                
                 .single-prompt-container,
                 .multiple-prompt-container,
                 .template-prompt-container {
@@ -366,38 +373,12 @@ class AIStudioEnhancer {
             font-size: 14px;
         `;
 
-        this.createResponseSection(content);
         this.createAutoRunSection(content);
         this.createSettingsSection(content);
 
         return content;
     }
 
-    /**
-     * Create response management section
-     */
-    createResponseSection(container) {
-        const section = document.createElement('div');
-        section.style.marginBottom = '20px';
-
-        const title = document.createElement('h3');
-        title.textContent = '📋 Response Management';
-        title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
-
-        this.copyButton = new Button({
-            text: 'Copy All Responses',
-            theme: 'primary',
-            size: 'medium',
-            onClick: (event) => this.handleCopyButtonClick(event),
-            successText: '✅ Copied!',
-            successDuration: 1000,
-            className: 'copy-responses-button',
-            container: section
-        });
-
-        section.appendChild(title);
-        container.appendChild(section);
-    }
 
     /**
      * Create auto-run section
@@ -589,6 +570,21 @@ also multiline`;
         iterationsContainer.appendChild(iterationsLabel);
         iterationsContainer.appendChild(this.iterationsInfoText);
 
+        // Copy button container (moved above auto-run button)
+        const copyButtonContainer = document.createElement('div');
+        copyButtonContainer.style.cssText = 'margin-bottom: 10px;';
+
+        this.copyButton = new Button({
+            text: 'Copy All Responses',
+            theme: 'primary',
+            size: 'medium',
+            onClick: (event) => this.handleCopyButtonClick(event),
+            successText: '✅ Copied!',
+            successDuration: 1000,
+            className: 'copy-responses-button',
+            container: copyButtonContainer
+        });
+
         // Button container
         const buttonContainer = document.createElement('div');
         buttonContainer.style.cssText = 'margin-bottom: 10px;';
@@ -613,6 +609,7 @@ also multiline`;
         section.appendChild(this.multiplePromptContainer);
         section.appendChild(this.templatePromptContainer);
         section.appendChild(iterationsContainer);
+        section.appendChild(copyButtonContainer);
         section.appendChild(buttonContainer);
         section.appendChild(this.statusElement);
 
