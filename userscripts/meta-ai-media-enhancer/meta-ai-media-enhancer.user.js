@@ -5749,6 +5749,24 @@
                     border-radius: 4px;
                     margin-top: 8px;
                 }
+                
+                /* Settings section improvements */
+                #meta-ai-media-enhancer-panel h3 {
+                    margin-top: 0;
+                }
+                
+                /* Checkbox label styling for better readability */
+                #meta-ai-media-enhancer-panel input[type="checkbox"] + label {
+                    font-size: 13px;
+                    line-height: 1.5;
+                    color: #555;
+                    cursor: pointer;
+                    user-select: none;
+                }
+                
+                #meta-ai-media-enhancer-panel input[type="checkbox"] + label:hover {
+                    color: #333;
+                }
             `, 'meta-ai-media-enhancer-custom-styles');
 
                 await this.createSidebarPanel();
@@ -5955,12 +5973,39 @@ also multiline`;
          */
         createSettingsSection(container) {
             const section = document.createElement('div');
+            section.style.cssText = `
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #e0e0e0;
+        `;
 
             const title = document.createElement('h3');
             title.textContent = '⚙️ Settings';
-            title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+            title.style.cssText = `
+            margin: 0 0 16px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            letter-spacing: 0.3px;
+        `;
 
-            // Auto clear prompt checkbox
+            // Create a container for checkboxes with better spacing
+            const checkboxesContainer = document.createElement('div');
+            checkboxesContainer.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding: 0;
+        `;
+
+            // Auto clear prompt checkbox container
+            const autoClearContainer = document.createElement('div');
+            autoClearContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+        `;
+
             this.autoClearCheckbox = new Checkbox({
                 label: 'Auto-clear prompt after sending',
                 checked: this.settings.AUTO_CLEAR_PROMPT !== false,
@@ -5968,11 +6013,18 @@ also multiline`;
                     this.settings.AUTO_CLEAR_PROMPT = this.autoClearCheckbox.isChecked();
                     this.saveSettings();
                 },
-                container: section,
+                container: autoClearContainer,
                 size: 'small'
             });
 
-            // Show notifications checkbox
+            // Show notifications checkbox container
+            const notificationsContainer = document.createElement('div');
+            notificationsContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+        `;
+
             this.showNotificationsCheckbox = new Checkbox({
                 label: 'Show notifications',
                 checked: this.settings.SHOW_NOTIFICATIONS !== false,
@@ -5980,11 +6032,16 @@ also multiline`;
                     this.settings.SHOW_NOTIFICATIONS = this.showNotificationsCheckbox.isChecked();
                     this.saveSettings();
                 },
-                container: section,
+                container: notificationsContainer,
                 size: 'small'
             });
 
+            // Assemble the section
+            checkboxesContainer.appendChild(autoClearContainer);
+            checkboxesContainer.appendChild(notificationsContainer);
+            
             section.appendChild(title);
+            section.appendChild(checkboxesContainer);
 
             container.appendChild(section);
         }
