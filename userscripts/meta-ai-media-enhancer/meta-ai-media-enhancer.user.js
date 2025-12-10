@@ -6330,68 +6330,6 @@ also multiline`;
         }
 
         /**
-         * Wait for image generation to complete
-         */
-        async waitForCompletion(timeout = null) {
-            const timeoutMs = timeout || this.settings.COMPLETION_TIMEOUT || 60000;
-            const start = Date.now();
-            
-            Logger.debug("🕐 Waiting for image generation to complete...");
-            
-            // Wait for send button to become disabled (request sent)
-            let disabledCheckCount = 0;
-            while (true) {
-                const sendButton = document.querySelector(MetaAIMediaEnhancer.SELECTORS.SEND_BUTTON_DISABLED[0]);
-                if (sendButton) {
-                    Logger.debug("✅ Request sent, waiting for completion...");
-                    break;
-                }
-                
-                if (Date.now() - start > 5000) {
-                    Logger.warn('Send button did not become disabled, continuing anyway');
-                    break;
-                }
-                
-                disabledCheckCount++;
-                if (disabledCheckCount % 10 === 0) {
-                    Logger.debug('Still waiting for send button to become disabled...');
-                }
-                await this.delay(200);
-            }
-            
-            // Wait for send button to become enabled again (generation complete)
-            let enabledCheckCount = 0;
-            while (true) {
-                if (Date.now() - start > timeoutMs) {
-                    Logger.warn('Timeout waiting for completion, continuing to next prompt');
-                    break;
-                }
-                
-                if (this.shouldStop) {
-                    throw new Error("Automation stopped by user");
-                }
-                
-                // Check if send button is enabled again
-                const sendButton = document.querySelector(MetaAIMediaEnhancer.SELECTORS.SEND_BUTTON[0]);
-                if (sendButton && sendButton.offsetParent !== null) {
-                    const isDisabled = sendButton.getAttribute('aria-disabled') === 'true';
-                    if (!isDisabled) {
-                        Logger.debug("✅ Image generation completed");
-                        // Additional delay to ensure image is fully loaded
-                        await this.delay(1000);
-                        return;
-                    }
-                }
-                
-                enabledCheckCount++;
-                if (enabledCheckCount % 10 === 0) {
-                    Logger.debug('Still waiting for completion...');
-                }
-                await this.delay(500);
-            }
-        }
-
-        /**
          * Update button state
          */
         updateButtonState() {
