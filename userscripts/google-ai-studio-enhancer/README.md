@@ -1,6 +1,6 @@
 # Google AI Studio Enhancer
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/baturkacamak/user-scripts)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/baturkacamak/user-scripts)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-Compatible-brightgreen.svg)](https://tampermonkey.net/)
 
@@ -25,12 +25,22 @@ A powerful userscript that enhances Google AI Studio with advanced response mana
 - **⏹️ Emergency Stop**: Stop auto-run at any time with progress preservation
 - **📊 Real-time Progress**: Live status updates showing current iteration and progress
 
+### 🔊 **Text-to-Speech Queue System**
+- **📝 Long Text Support**: Automatically splits long texts into manageable chunks (configurable word count)
+- **🔄 Queue Processing**: Processes multiple audio chunks sequentially with automatic download
+- **💾 Smart File Naming**: Downloads with meaningful filenames including chunk numbers and timestamps
+- **⏱️ Intelligent Waiting**: Waits for full audio generation before downloading (handles busy servers)
+- **🔇 Auto-stop Autoplay**: Automatically stops audio autoplay before downloading
+- **⚙️ Configurable Settings**: Set words per chunk (50-1000), filename prefix, and more
+- **📊 Progress Tracking**: Real-time status showing current chunk progress
+
 ### ⚙️ **Settings & Persistence**
 - **💾 Persistent Settings**: All preferences automatically saved using GM storage
 - **🔧 Auto-copy Toggle**: Enable/disable automatic response copying
 - **🔔 Notifications Control**: Show/hide operation notifications
 - **📍 Panel Position**: Draggable interface that remembers position
-- **🎨 Professional UI**: Clean, modern interface with focus states and hover effects
+- **🎨 Professional UI**: Clean, modern interface with tabs and organized sections
+- **📝 TTS Text Persistence**: TTS input text is saved and restored after page reload
 
 ### 🎨 **Professional User Interface**
 - **📱 Responsive Design**: Works on different screen sizes and layouts
@@ -80,10 +90,29 @@ Choose your preferred version:
    - Repeat for the specified number of iterations
 5. **Stop Anytime**: Use "Stop" button to halt the process at any time
 
+### **Text-to-Speech Queue**
+1. **Navigate** to the Text-to-Speech tab in the enhancer panel
+2. **Enter Text**: Paste or type the text you want to convert to speech (will be split into chunks)
+3. **Configure Settings**:
+   - **Words per chunk**: Set how many words per audio file (default: 300, range: 50-1000)
+   - **Filename prefix**: Customize the downloaded file names (default: "tts-output")
+4. **Start Queue**: Click "Start TTS Queue" button
+5. **Automated Process**: The script will automatically:
+   - Split your text into chunks based on word count
+   - Type each chunk into the TTS textarea
+   - Click Run button for each chunk
+   - Wait for audio generation to complete (handles busy servers intelligently)
+   - Automatically download each audio file
+   - Continue to the next chunk without waiting for downloads
+6. **Stop Anytime**: Use "Stop TTS Queue" button to halt the process
+
+**Note**: The TTS text is automatically saved and will be restored when you reload the page.
+
 ### **Settings Configuration**
 - **Auto-copy new responses**: Toggle automatic copying of new responses
 - **Show notifications**: Control visibility of operation notifications
 - **Panel position**: Drag the panel to your preferred location (automatically saved)
+- **TTS settings**: Words per chunk, filename prefix, and text input are all persisted
 
 ## 🛠️ Troubleshooting
 
@@ -220,6 +249,17 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🆙 Version History
 
+### **v2.1.0** - Text-to-Speech Queue System
+- ✅ **🔊 TTS Queue System**: Complete automation for converting long texts to speech
+- ✅ **📦 Chunk Processing**: Automatically splits long texts into manageable chunks
+- ✅ **💾 Auto Download**: Automatically downloads each generated audio file
+- ✅ **🎯 Smart Waiting**: Intelligent button state detection for busy servers (up to 10 min timeout)
+- ✅ **🔇 Autoplay Control**: Automatically stops audio autoplay before downloading
+- ✅ **📝 Text Persistence**: TTS input text is saved and restored after page reload
+- ✅ **🎨 Tabbed Interface**: Organized UI with tabs separating Prompt Automation, TTS, and Settings
+- ✅ **⚙️ Configurable**: Words per chunk (50-1000), filename prefix, and more
+- ✅ **📊 Progress Tracking**: Real-time status for TTS queue processing
+
 ### **v1.0.0** - Initial Release
 - ✅ **DOM-based approach** for Trusted Types compliance
 - ✅ **Real-time response detection** using DOM observers
@@ -237,6 +277,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - Created robust retry mechanisms for UI state changes
 - Developed intelligent text cleaning algorithms
 - Built professional, accessible user interface
+- Added complete TTS automation with intelligent state detection
+- Created reusable Tabs UI component for better organization
 
 ---
 
