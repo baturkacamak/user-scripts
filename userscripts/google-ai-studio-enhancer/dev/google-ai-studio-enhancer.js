@@ -1542,8 +1542,17 @@ also multiline`;
                 autoscrollContainer.style.setProperty(prop, value, 'important');
             });
 
-            const responseSelector = AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS[0];
-            const responseElements = Array.from(document.querySelectorAll(responseSelector));
+            const responseSelectors = AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS || [];
+            let responseElements = [];
+
+            // Use the first selector that yields results; fallback to empty if none
+            for (const selector of responseSelectors) {
+                const found = Array.from(document.querySelectorAll(selector));
+                if (found.length > 0) {
+                    responseElements = found;
+                    break;
+                }
+            }
             
             Logger.debug(`Found ${responseElements.length} response elements`);
 
