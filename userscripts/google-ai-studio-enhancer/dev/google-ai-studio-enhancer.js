@@ -44,6 +44,7 @@ class AIStudioEnhancer {
         },
         RESPONSE_CONTAINERS: [
             '.ng-star-inserted .chat-turn-container.model.render .turn-content:not(:has(.mat-accordion))',
+            '.ng-star-inserted .chat-turn-container.model.render .turn-content:has(.turn-information)',
         ],
         PROMPT_INPUTS: [
             'textarea[aria-label*="Start typing a prompt"]',
