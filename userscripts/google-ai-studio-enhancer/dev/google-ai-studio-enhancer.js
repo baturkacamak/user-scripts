@@ -136,9 +136,10 @@ class AIStudioEnhancer {
         // Initialize ViewportStabilizer for lazy-rendered content
         this.viewportStabilizer = new ViewportStabilizer({
             scrollContainer: null, // Use window/document
-            stableDurationMs: 1000,
-            checkIntervalMs: 150,
-            maxWaitMs: 10000,
+            stableDurationMs: 500,
+            checkIntervalMs: 120,
+            maxWaitMs: 4000,
+            scrollDelayMs: 120,
             enableDebugLogging: Logger.DEBUG,
             logger: Logger
         });
@@ -1558,7 +1559,7 @@ also multiline`;
             };
             
             // Wait until the element has stabilized without .mat-accordion for a short period
-            const waitForNoAccordion = async (element, timeoutMs = 1500, intervalMs = 100) => {
+            const waitForNoAccordion = async (element, timeoutMs = 800, intervalMs = 80) => {
                 const start = Date.now();
                 while (Date.now() - start < timeoutMs) {
                     if (!element.isConnected) {
@@ -1575,13 +1576,14 @@ also multiline`;
             // Configure ViewportStabilizer with custom hooks for accordion checking
             const stabilizer = new ViewportStabilizer({
                 scrollContainer: null, // Use window/document
-                stableDurationMs: 1000,
-                checkIntervalMs: 150,
-                maxWaitMs: 10000,
+                stableDurationMs: 500,
+                checkIntervalMs: 120,
+                maxWaitMs: 4000,
+                scrollDelayMs: 120,
                 elementValidator: isValidResponseElement,
                 postScrollHook: async (element) => {
                     // Wait for accordion to disappear after scrolling
-                    const stable = await waitForNoAccordion(element, 1500, 120);
+                    const stable = await waitForNoAccordion(element, 800, 80);
                     if (!stable) {
                         throw new Error('Element still contains accordion after wait');
                     }
