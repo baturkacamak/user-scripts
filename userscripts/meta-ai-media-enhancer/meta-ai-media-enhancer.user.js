@@ -2,7 +2,7 @@
 // @name        Meta AI Media Enhancer
 // @description Automate prompt sending to Meta AI Media with multiple prompts and configurable delays
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     1.0.0
+// @version     1.0.1
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/meta-ai-media-enhancer#readme
