@@ -41,6 +41,7 @@ import SidebarPanel from './ui/SidebarPanel';
 import Notification from './ui/Notification';
 import Input from './ui/Input.js';
 import TextArea from './ui/TextArea.js';
+import Tabs from './ui/Tabs.js';
 
 // Export all components
 export {
@@ -82,6 +83,7 @@ export {
   Notification,
   Input,
   TextArea,
+  Tabs,
 };
 
 // Also export as default for convenience
@@ -114,4 +116,5 @@ export default {
   Notification,
   Input,
   TextArea,
+  Tabs,
 };

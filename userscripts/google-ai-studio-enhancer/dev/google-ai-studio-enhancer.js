@@ -21,7 +21,8 @@ import {
     UserInteractionDetector,
     ClipboardService,
     MarkdownConverter,
-    ViewportStabilizer
+    ViewportStabilizer,
+    Tabs
 } from "../../common/core";
 import { getValue, setValue } from "../../common/core/utils/GMFunctions";
 import { MouseEventUtils } from '../../common/core/utils/HTMLUtils.js';
@@ -55,7 +56,22 @@ class AIStudioEnhancer {
             'textarea[aria-label*="prompt"]',
             'textarea[aria-label*="message"]',
             'div[contenteditable="true"]',
-        ]
+        ],
+        TTS_TEXTAREA: [
+            'textarea[placeholder*="Start writing or paste text here to generate speech"]',
+            'textarea[arialabel*="Enter a prompt"]',
+            'textarea[aria-label*="Enter a prompt"]',
+            'textarea[placeholder*="generate speech"]',
+            'textarea[placeholder*="Text"]',
+            'textarea.textarea.gmat-body-medium',
+            'textarea.textarea',
+            'textarea'
+        ],
+        TTS_AUDIO: 'audio[src^="data:audio"], audio[controls]',
+        TTS_RUN_BUTTON: {
+            READY: 'button[aria-label="Run"][type="submit"][aria-disabled="false"]:not([disabled])',
+            LOADING: 'button[aria-label="Run"][type="button"]:not([disabled]), button[aria-label="Run"]:has(.material-symbols-outlined.spin), button[aria-label="Run"]:has(span:contains("Stop"))'
+        }
     };
 
     static SETTINGS_KEYS = {
@@ -68,7 +84,10 @@ class AIStudioEnhancer {
         MULTIPLE_PROMPTS: 'gaise-multiple-prompts',
         BASE_PROMPT_MULTIPLE: 'gaise-base-prompt-multiple',
         TEMPLATE_PROMPT: 'gaise-template-prompt',
-        OVERRIDE_ITERATIONS: 'gaise-override-iterations'
+        OVERRIDE_ITERATIONS: 'gaise-override-iterations',
+        TTS_TEXT: 'gaise-tts-text',
+        TTS_WORDS_PER_CHUNK: 'gaise-tts-words-per-chunk',
+        TTS_FILENAME_PREFIX: 'gaise-tts-filename-prefix'
     };
 
     static DEFAULT_SETTINGS = {
@@ -81,7 +100,10 @@ class AIStudioEnhancer {
         MULTIPLE_PROMPTS: '',
         BASE_PROMPT_MULTIPLE: '',
         TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.',
-        OVERRIDE_ITERATIONS: false
+        OVERRIDE_ITERATIONS: false,
+        TTS_TEXT: '',
+        TTS_WORDS_PER_CHUNK: 300,
+        TTS_FILENAME_PREFIX: 'tts-output'
     };
 
     static EVENTS = {
@@ -107,6 +129,13 @@ class AIStudioEnhancer {
         this.toggleButton = null;
         this.isInitialLoad = true;
         this.enhancerId = 'ai-studio-enhancer-container';
+        
+        // TTS state
+        this.isTTSRunning = false;
+        this.shouldStopTTS = false;
+        this.ttsChunks = [];
+        this.currentTTSChunk = 0;
+        this.totalTTSChunks = 0;
         
         this.subscriptionIds = [];
         
@@ -199,6 +228,10 @@ class AIStudioEnhancer {
             this.shouldStopAutoRun = true;
         }
         
+        if (this.isTTSRunning) {
+            this.shouldStopTTS = true;
+        }
+        
         if (this.statsUpdateInterval) {
             clearInterval(this.statsUpdateInterval);
             this.statsUpdateInterval = null;
@@ -266,6 +299,8 @@ class AIStudioEnhancer {
                 Input.useDefaultColors();
                 TextArea.initStyles();
                 TextArea.useDefaultColors();
+                Tabs.initStyles();
+                Tabs.useDefaultColors();
             } catch (error) {
                 Logger.error('Error initializing styles:', error);
             }
@@ -390,8 +425,47 @@ class AIStudioEnhancer {
             font-size: 14px;
         `;
 
-        this.createAutoRunSection(content);
-        this.createSettingsSection(content);
+        // Create tabs to separate prompt automation and TTS
+        const tabsContainer = document.createElement('div');
+        
+        this.tabs = new Tabs({
+            tabs: [
+                {
+                    id: 'prompt-automation',
+                    label: '🔄 Prompt Automation',
+                    content: () => {
+                        const tabContent = document.createElement('div');
+                        this.createAutoRunSection(tabContent);
+                        return tabContent;
+                    }
+                },
+                {
+                    id: 'tts',
+                    label: '🔊 Text-to-Speech',
+                    content: () => {
+                        const tabContent = document.createElement('div');
+                        this.createTTSSection(tabContent);
+                        return tabContent;
+                    }
+                },
+                {
+                    id: 'settings',
+                    label: '⚙️ Settings',
+                    content: () => {
+                        const tabContent = document.createElement('div');
+                        this.createSettingsSection(tabContent);
+                        return tabContent;
+                    }
+                }
+            ],
+            defaultTab: 'prompt-automation',
+            container: tabsContainer,
+            onTabChange: (tabId) => {
+                Logger.debug(`Switched to tab: ${tabId}`);
+            }
+        });
+
+        content.appendChild(tabsContainer);
 
         return content;
     }
@@ -661,6 +735,128 @@ also multiline`;
         container.appendChild(section);
         
         this.updatePromptInputVisibility();
+    }
+
+    /**
+     * Create TTS section
+     */
+    createTTSSection(container) {
+        const section = document.createElement('div');
+        section.style.marginBottom = '20px';
+
+        const title = document.createElement('h3');
+        title.textContent = '🔊 Text-to-Speech Queue';
+        title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+
+        // Text input
+        const textLabel = document.createElement('label');
+        textLabel.textContent = 'Text to convert (will be split into chunks):';
+        textLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        this.ttsTextArea = new TextArea({
+            value: this.settings.TTS_TEXT || '',
+            placeholder: 'Enter the text you want to convert to speech...',
+            rows: 6,
+            theme: 'primary',
+            size: 'medium',
+            className: 'tts-text-textarea',
+            onInput: (event, textArea) => {
+                this.settings.TTS_TEXT = textArea.getValue();
+                this.saveSettings();
+            },
+            container: section,
+            autoResize: true,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        // Words per chunk input
+        const wordsPerChunkContainer = document.createElement('div');
+        wordsPerChunkContainer.style.marginBottom = '12px';
+        wordsPerChunkContainer.style.marginTop = '12px';
+
+        const wordsPerChunkLabel = document.createElement('label');
+        wordsPerChunkLabel.textContent = 'Words per chunk:';
+        wordsPerChunkLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        this.ttsWordsPerChunkInput = new Input({
+            type: 'number',
+            value: this.settings.TTS_WORDS_PER_CHUNK || 300,
+            placeholder: 'Words per chunk',
+            min: 50,
+            max: 1000,
+            className: 'tts-words-per-chunk-input',
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 50) {
+                    return 'Please enter a number between 50 and 1000';
+                }
+                if (num > 1000) {
+                    return 'Maximum 1000 words per chunk';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 50 && value <= 1000) {
+                    this.settings.TTS_WORDS_PER_CHUNK = value;
+                    this.saveSettings();
+                }
+            },
+            container: wordsPerChunkContainer
+        });
+
+        wordsPerChunkContainer.appendChild(wordsPerChunkLabel);
+
+        // Filename prefix input
+        const filenamePrefixContainer = document.createElement('div');
+        filenamePrefixContainer.style.marginBottom = '12px';
+
+        const filenamePrefixLabel = document.createElement('label');
+        filenamePrefixLabel.textContent = 'Filename prefix:';
+        filenamePrefixLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        this.ttsFilenamePrefixInput = new Input({
+            type: 'text',
+            value: this.settings.TTS_FILENAME_PREFIX || 'tts-output',
+            placeholder: 'tts-output',
+            className: 'tts-filename-prefix-input',
+            scopeSelector: `#${this.enhancerId}`,
+            onChange: (event, input) => {
+                this.settings.TTS_FILENAME_PREFIX = input.getValue() || 'tts-output';
+                this.saveSettings();
+            },
+            container: filenamePrefixContainer
+        });
+
+        filenamePrefixContainer.appendChild(filenamePrefixLabel);
+
+        // TTS Button container
+        const ttsButtonContainer = document.createElement('div');
+        ttsButtonContainer.style.cssText = 'margin-bottom: 10px;';
+
+        this.ttsToggleButton = new Button({
+            text: 'Start TTS Queue',
+            theme: 'primary',
+            size: 'medium',
+            onClick: (event) => this.handleTTSToggleButtonClick(event),
+            className: 'tts-toggle-button',
+            container: ttsButtonContainer
+        });
+
+        // TTS Status display
+        this.ttsStatusElement = document.createElement('div');
+        this.ttsStatusElement.textContent = 'Ready to start';
+        this.ttsStatusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center; margin-top: 8px;';
+
+        section.appendChild(title);
+        section.appendChild(textLabel);
+        section.appendChild(wordsPerChunkContainer);
+        section.appendChild(filenamePrefixContainer);
+        section.appendChild(ttsButtonContainer);
+        section.appendChild(this.ttsStatusElement);
+
+        container.appendChild(section);
     }
 
     /**
@@ -1733,6 +1929,472 @@ also multiline`;
                     this.copyButton.setDisabled(false);
                     this.copyButton.setText('Copy All Responses');
                 }, 1500);
+            }
+        }
+    }
+
+    /**
+     * Handle TTS toggle button click
+     */
+    handleTTSToggleButtonClick(event) {
+        const isUserInitiated = this.userInteraction.isUserEvent(event);
+        
+        Logger.info('TTS toggle button clicked', {
+            isUserInitiated,
+            currentState: this.isTTSRunning
+        });
+
+        if (isUserInitiated) {
+            this.toggleTTS();
+        } else {
+            Logger.warn('Programmatic TTS toggle button click detected - ignoring');
+        }
+    }
+
+    /**
+     * Toggle TTS queue
+     */
+    async toggleTTS() {
+        if (this.isTTSRunning) {
+            this.stopTTS();
+        } else {
+            await this.startTTS();
+        }
+    }
+
+    /**
+     * Start TTS queue
+     */
+    async startTTS() {
+        if (this.isTTSRunning) {
+            this.showNotification('TTS queue is already running', 'warning');
+            return;
+        }
+
+        // Get text
+        const text = this.settings.TTS_TEXT || '';
+        if (!text.trim()) {
+            this.showNotification('Please enter text to convert', 'error');
+            return;
+        }
+
+        // Get words per chunk
+        const wordsPerChunk = this.settings.TTS_WORDS_PER_CHUNK || 300;
+        if (wordsPerChunk < 50 || wordsPerChunk > 1000) {
+            this.showNotification('Words per chunk must be between 50 and 1000', 'error');
+            return;
+        }
+
+        // Split text into chunks
+        const chunks = this.splitTextIntoChunks(text, wordsPerChunk);
+        if (chunks.length === 0) {
+            this.showNotification('No text chunks to process', 'warning');
+            return;
+        }
+
+        // Update state
+        this.isTTSRunning = true;
+        this.shouldStopTTS = false;
+        this.ttsChunks = chunks;
+        this.currentTTSChunk = 0;
+        this.totalTTSChunks = chunks.length;
+
+        // Update UI
+        this.updateTTSButtonState();
+        this.updateTTSStatus();
+
+        Logger.info(`Starting TTS queue with ${chunks.length} chunks`);
+        this.showNotification(`Starting TTS queue with ${chunks.length} chunks`, 'info');
+
+        // Process chunks sequentially
+        try {
+            await this.processTTSChunks(chunks);
+            
+            if (!this.shouldStopTTS) {
+                this.showNotification('TTS queue completed successfully', 'success');
+                Logger.success('TTS queue completed successfully');
+            }
+        } catch (error) {
+            Logger.error('TTS queue error:', error);
+            this.showNotification(`TTS queue error: ${error.message}`, 'error');
+        } finally {
+            // Clean up state
+            this.isTTSRunning = false;
+            this.shouldStopTTS = false;
+            this.currentTTSChunk = 0;
+            this.updateTTSButtonState();
+            this.updateTTSStatus();
+        }
+    }
+
+    /**
+     * Stop TTS queue
+     */
+    stopTTS() {
+        if (!this.isTTSRunning) {
+            return;
+        }
+
+        Logger.info('Stopping TTS queue');
+        this.shouldStopTTS = true;
+        this.showNotification('Stopping TTS queue...', 'info');
+    }
+
+    /**
+     * Split text into chunks by word count
+     */
+    splitTextIntoChunks(text, wordsPerChunk) {
+        const words = text.trim().split(/\s+/);
+        const chunks = [];
+        
+        for (let i = 0; i < words.length; i += wordsPerChunk) {
+            const chunk = words.slice(i, i + wordsPerChunk).join(' ');
+            if (chunk.trim()) {
+                chunks.push(chunk.trim());
+            }
+        }
+        
+        return chunks;
+    }
+
+    /**
+     * Process TTS chunks sequentially
+     */
+    async processTTSChunks(chunks) {
+        Logger.info(`🎤 Starting TTS processing with ${chunks.length} chunks...`);
+        
+        for (let i = 0; i < chunks.length; i++) {
+            // Check if we should stop
+            if (this.shouldStopTTS) {
+                Logger.info('TTS queue stopped by user');
+                break;
+            }
+
+            this.currentTTSChunk = i + 1;
+            this.updateTTSStatus();
+            
+            await this.processTTSChunk(chunks[i], i);
+            
+            // Add delay between chunks (except for the last one)
+            if (i < chunks.length - 1 && !this.shouldStopTTS) {
+                await this.delay(1000);
+            }
+        }
+        
+        Logger.info('🎉 All TTS chunks processed');
+    }
+
+    /**
+     * Process a single TTS chunk
+     */
+    async processTTSChunk(chunk, index) {
+        Logger.info(`➡️ Processing TTS chunk ${index + 1}/${this.totalTTSChunks}`);
+        
+        try {
+            // Type the text into TTS textarea
+            await this.typeTTSText(chunk);
+            
+            // Small delay to let the UI settle
+            await this.delay(300);
+            
+            // Click run button
+            await this.clickTTSRunButton();
+            
+            // Wait for audio to be ready
+            const audioData = await this.waitForTTSAudioReady();
+            
+            // Download the audio
+            if (audioData) {
+                await this.downloadTTSAudio(audioData, index + 1);
+            } else {
+                throw new Error('Audio data not found');
+            }
+            
+            Logger.success(`✅ TTS chunk ${index + 1} completed and downloaded`);
+        } catch (error) {
+            Logger.error(`🚨 Error on TTS chunk ${index + 1}:`, error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Type text into TTS textarea
+     */
+    async typeTTSText(text) {
+        try {
+            let textarea = null;
+            
+            // Try to find TTS textarea
+            for (const selector of AIStudioEnhancer.SELECTORS.TTS_TEXTAREA) {
+                const element = document.querySelector(selector);
+                if (element && element.offsetParent !== null) {
+                    textarea = element;
+                    break;
+                }
+            }
+            
+            if (!textarea) {
+                throw new Error("TTS textarea not found");
+            }
+            
+            return await this.typeIntoElement(textarea, text);
+        } catch (error) {
+            throw new Error("❌ Typing TTS text failed: " + error.message);
+        }
+    }
+
+    /**
+     * Click TTS run button
+     */
+    async clickTTSRunButton(retries = 10) {
+        const selectors = [
+            AIStudioEnhancer.SELECTORS.TTS_RUN_BUTTON.READY,
+            'button[type="submit"][aria-label="Run"][aria-disabled="false"]:not([disabled])',
+            'button[aria-label="Run"][aria-disabled="false"]:not([disabled]):not([type="button"])'
+        ];
+
+        for (let attempt = 0; attempt < retries; attempt++) {
+            for (const selector of selectors) {
+                const button = document.querySelector(selector);
+                if (button && button.offsetParent !== null) {
+                    const isDisabled = button.hasAttribute('disabled') || 
+                                     button.getAttribute('aria-disabled') === 'true';
+                    const isTypeSubmit = button.getAttribute('type') === 'submit';
+                    const hasStopText = button.textContent?.trim().includes('Stop');
+                    const hasSpinner = button.querySelector('.material-symbols-outlined.spin') ||
+                                     button.querySelector('span.spin');
+                    
+                    if (!isDisabled && isTypeSubmit && !hasStopText && !hasSpinner) {
+                        button.click();
+                        Logger.debug(`📤 Clicked TTS Run button using selector: ${selector}`);
+                        await this.delay(100);
+                        return;
+                    }
+                }
+            }
+            
+            Logger.debug(`⏱ Waiting for TTS Run button to be ready... (attempt ${attempt + 1}/${retries})`);
+            await this.delay(500);
+        }
+        
+        throw new Error("❌ TTS Run button not found or never became ready");
+    }
+
+    /**
+     * Wait for TTS audio to be ready
+     */
+    async waitForTTSAudioReady(timeout = 120000) {
+        const start = Date.now();
+        
+        Logger.debug("🕐 Waiting for TTS audio to start...");
+        
+        // Wait for loading state to appear
+        let loadingCheckCount = 0;
+        while (!this.isTTSButtonLoading()) {
+            if (Date.now() - start > 10000) {
+                throw new Error("⚠️ Timed out waiting for TTS to start");
+            }
+            if (this.shouldStopTTS) {
+                throw new Error("TTS queue stopped by user");
+            }
+            loadingCheckCount++;
+            if (loadingCheckCount % 10 === 0) {
+                Logger.debug('Still waiting for TTS loading state...');
+            }
+            await this.delay(200);
+        }
+        
+        Logger.debug("⏳ TTS started... waiting for audio to be ready");
+        
+        // Wait for audio element to appear with data AND button to return to ready state
+        let audioFound = false;
+        let audioDataUrl = null;
+        
+        while (true) {
+            if (Date.now() - start > timeout) {
+                throw new Error("⏰ Timeout: TTS processing took too long");
+            }
+            if (this.shouldStopTTS) {
+                throw new Error("TTS queue stopped by user");
+            }
+            
+            // Check for audio element
+            const audio = document.querySelector(AIStudioEnhancer.SELECTORS.TTS_AUDIO);
+            if (audio && audio.src && !audioFound) {
+                // Check if it's a data URL (base64 audio)
+                if (audio.src.startsWith('data:audio/')) {
+                    audioDataUrl = audio.src;
+                    audioFound = true;
+                    Logger.debug("✅ TTS audio found with data URL");
+                } else if (audio.readyState >= 2) { // HAVE_CURRENT_DATA
+                    // Try to get the source
+                    try {
+                        const response = await fetch(audio.src);
+                        const blob = await response.blob();
+                        audioDataUrl = await this.blobToDataURL(blob);
+                        audioFound = true;
+                        Logger.debug("✅ TTS audio ready");
+                    } catch (error) {
+                        Logger.warn('Could not fetch audio, using src directly:', error);
+                        audioDataUrl = audio.src;
+                        audioFound = true;
+                    }
+                }
+            }
+            
+            // Check if button is back to ready state (processing complete)
+            const isReady = !this.isTTSButtonLoading();
+            
+            if (audioFound && isReady) {
+                // Give it a small delay to ensure audio is fully ready
+                await this.delay(500);
+                Logger.debug("✅ TTS audio ready and processing complete");
+                return audioDataUrl;
+            }
+            
+            await this.delay(500);
+        }
+    }
+
+    /**
+     * Check if TTS button is in loading state
+     */
+    isTTSButtonLoading() {
+        const runButton = document.querySelector('button[aria-label="Run"]');
+        if (!runButton || runButton.offsetParent === null) {
+            return false;
+        }
+        
+        if (runButton.getAttribute('type') === 'button') {
+            return true;
+        }
+        
+        const buttonText = runButton.textContent?.trim() || '';
+        if (buttonText.includes('Stop')) {
+            return true;
+        }
+        
+        const hasSpinner = runButton.querySelector('.material-symbols-outlined.spin') ||
+                          runButton.querySelector('.material-symbols-outlined[class*="progress_activity"]') ||
+                          runButton.querySelector('span.spin');
+        if (hasSpinner) {
+            return true;
+        }
+        
+        const readyButton = document.querySelector(AIStudioEnhancer.SELECTORS.TTS_RUN_BUTTON.READY);
+        if (!readyButton || readyButton.offsetParent === null) {
+            if (runButton && runButton.getAttribute('type') !== 'submit') {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Convert blob to data URL
+     */
+    blobToDataURL(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    /**
+     * Download TTS audio
+     */
+    async downloadTTSAudio(audioDataUrl, chunkNumber) {
+        try {
+            const prefix = this.settings.TTS_FILENAME_PREFIX || 'tts-output';
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+            const filename = `${prefix}-chunk-${chunkNumber.toString().padStart(3, '0')}-${timestamp}.wav`;
+            
+            // Convert data URL to blob if needed
+            let blob;
+            if (audioDataUrl.startsWith('data:')) {
+                const response = await fetch(audioDataUrl);
+                blob = await response.blob();
+            } else {
+                // If it's a regular URL, fetch it
+                const response = await fetch(audioDataUrl);
+                blob = await response.blob();
+            }
+            
+            const url = URL.createObjectURL(blob);
+            
+            // Use GM_download if available, otherwise fallback
+            if (typeof GM_download === 'function') {
+                await GM_download({
+                    url: url,
+                    name: filename,
+                    saveAs: false,
+                    onload: () => {
+                        URL.revokeObjectURL(url);
+                        Logger.success(`Downloaded: ${filename}`);
+                    },
+                    onerror: (error) => {
+                        Logger.error('GM_download error:', error);
+                        this.fallbackDownloadAudio(url, filename);
+                    }
+                });
+            } else {
+                this.fallbackDownloadAudio(url, filename);
+            }
+            
+            Logger.info(`📥 Downloaded audio chunk ${chunkNumber}: ${filename}`);
+        } catch (error) {
+            Logger.error('Error downloading TTS audio:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Fallback download method for audio
+     */
+    fallbackDownloadAudio(url, filename) {
+        try {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        } catch (error) {
+            Logger.error('Fallback download error:', error);
+        }
+    }
+
+    /**
+     * Update TTS button state
+     */
+    updateTTSButtonState() {
+        if (this.ttsToggleButton) {
+            if (this.isTTSRunning) {
+                this.ttsToggleButton.setText('Stop TTS Queue');
+                this.ttsToggleButton.setTheme('danger');
+            } else {
+                this.ttsToggleButton.setText('Start TTS Queue');
+                this.ttsToggleButton.setTheme('primary');
+            }
+        }
+    }
+
+    /**
+     * Update TTS status
+     */
+    updateTTSStatus() {
+        if (this.ttsStatusElement) {
+            if (this.isTTSRunning) {
+                this.ttsStatusElement.textContent = `Processing: ${this.currentTTSChunk}/${this.totalTTSChunks}`;
+            } else {
+                this.ttsStatusElement.textContent = 'Ready to start';
             }
         }
     }
