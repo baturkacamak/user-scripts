@@ -137,6 +137,11 @@ class AIStudioEnhancer {
         this.currentTTSChunk = 0;
         this.totalTTSChunks = 0;
         
+        // Debouncer for TTS text saving
+        this.ttsTextSaveDebouncer = new Debouncer(() => {
+            this.saveSettings();
+        }, 500);
+        
         this.subscriptionIds = [];
         
         this.markdownConverter = new MarkdownConverter({
@@ -761,6 +766,12 @@ also multiline`;
             size: 'medium',
             className: 'tts-text-textarea',
             onInput: (event, textArea) => {
+                this.settings.TTS_TEXT = textArea.getValue();
+                // Debounce the save to avoid too many writes
+                this.ttsTextSaveDebouncer.trigger();
+            },
+            onChange: (event, textArea) => {
+                // Also save on change (when user leaves the field)
                 this.settings.TTS_TEXT = textArea.getValue();
                 this.saveSettings();
             },
