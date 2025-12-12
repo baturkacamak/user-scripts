@@ -2209,6 +2209,7 @@ also multiline`;
         // Wait for audio element to appear with data AND button to return to ready state
         let audioFound = false;
         let audioDataUrl = null;
+        let audioElement = null;
         
         while (true) {
             if (Date.now() - start > timeout) {
@@ -2221,6 +2222,9 @@ also multiline`;
             // Check for audio element
             const audio = document.querySelector(AIStudioEnhancer.SELECTORS.TTS_AUDIO);
             if (audio && audio.src && !audioFound) {
+                // Store reference to audio element
+                audioElement = audio;
+                
                 // Check if it's a data URL (base64 audio)
                 if (audio.src.startsWith('data:audio/')) {
                     audioDataUrl = audio.src;
@@ -2248,6 +2252,24 @@ also multiline`;
             if (audioFound && isReady) {
                 // Give it a small delay to ensure audio is fully ready
                 await this.delay(500);
+                
+                // Stop autoplay before downloading
+                if (audioElement) {
+                    try {
+                        // Remove autoplay attribute
+                        audioElement.removeAttribute('autoplay');
+                        // Pause the audio if it's playing
+                        if (!audioElement.paused) {
+                            audioElement.pause();
+                        }
+                        // Reset to beginning
+                        audioElement.currentTime = 0;
+                        Logger.debug("🔇 Stopped audio autoplay before download");
+                    } catch (error) {
+                        Logger.warn('Error stopping audio autoplay:', error);
+                    }
+                }
+                
                 Logger.debug("✅ TTS audio ready and processing complete");
                 return audioDataUrl;
             }
