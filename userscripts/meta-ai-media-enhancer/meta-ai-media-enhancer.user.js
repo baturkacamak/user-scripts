@@ -5561,14 +5561,20 @@
                 'div[contenteditable="true"][role="textbox"]',
                 'div[contenteditable="true"]'
             ],
+            // Keep the original aria-label selector, but add language-agnostic fallbacks
             SEND_BUTTON: [
                 'div[aria-label="Send"][role="button"]:not([aria-disabled="true"])',
                 'div[aria-label="Send"][role="button"]',
-                'div[role="button"][aria-label="Send"]'
+                'div[role="button"][aria-label="Send"]',
+                // Language-agnostic fallbacks (role + icon shape + enabled)
+                'div[role="button"]:has(svg path[d^="M16.0279"]):not([aria-disabled="true"])',
+                'div[role="button"]:has(svg path[d^="M16.0279"])'
             ],
             SEND_BUTTON_DISABLED: [
                 'div[aria-label="Send"][aria-disabled="true"]',
-                'div[role="button"][aria-disabled="true"][aria-label="Send"]'
+                'div[role="button"][aria-disabled="true"][aria-label="Send"]',
+                // Language-agnostic fallback for disabled state
+                'div[role="button"][aria-disabled="true"]:has(svg path[d^="M16.0279"])'
             ]
         };
 
@@ -6345,45 +6351,44 @@ also multiline`;
          * Click send button
          */
         async clickSendButton(retries = 10) {
+            const selectors = MetaAIMediaEnhancer.SELECTORS.SEND_BUTTON;
+
             for (let attempt = 0; attempt < retries; attempt++) {
-                // Try each selector
-                for (const selector of MetaAIMediaEnhancer.SELECTORS.SEND_BUTTON) {
+                for (const selector of selectors) {
                     const button = document.querySelector(selector);
                     if (button && button.offsetParent !== null) {
-                        // Check if button is disabled
                         const isDisabled = button.getAttribute('aria-disabled') === 'true';
-                        
                         if (!isDisabled) {
-                            // Use MouseEventUtils for better compatibility
-                            const clickEvent = MouseEventUtils.createClickEvent({ 
-                                bubbles: true, 
-                                cancelable: true, 
-                                programmatic: true 
+                            const clickEvent = MouseEventUtils.createClickEvent({
+                                bubbles: true,
+                                cancelable: true,
+                                programmatic: true
                             });
                             button.dispatchEvent(clickEvent);
                             Logger.debug(`📤 Clicked Send button using selector: ${selector}`);
-                            // Small delay to allow DOM to update after click
                             await this.delay(200);
                             return;
                         }
                     }
                 }
-                
+
                 Logger.debug(`⏱ Waiting for Send button to be ready... (attempt ${attempt + 1}/${retries})`);
                 await this.delay(500);
             }
-            
-            // Log available buttons for debugging
-            const allSendButtons = document.querySelectorAll('div[aria-label="Send"]');
-            Logger.error(`❌ Send button not found or disabled. Found ${allSendButtons.length} button(s) with aria-label="Send":`, 
-                Array.from(allSendButtons).map(btn => ({
+
+            // Log available buttons for debugging (language-agnostic)
+            const allButtons = document.querySelectorAll('div[role="button"]');
+            Logger.error(`❌ Send button not found or disabled. Checked ${selectors.length} selectors. Found ${allButtons.length} role="button" elements:`,
+                Array.from(allButtons).map(btn => ({
+                    ariaLabel: btn.getAttribute('aria-label'),
                     ariaDisabled: btn.getAttribute('aria-disabled'),
                     visible: btn.offsetParent !== null,
-                    classes: btn.className
+                    classes: btn.className,
+                    hasSendIcon: !!btn.querySelector('svg path[d^="M16.0279"]')
                 }))
             );
-            
-            throw new Error("❌ Send button not found or disabled");
+
+            throw new Error("❌ Send button not found or never became enabled");
         }
 
         /**
