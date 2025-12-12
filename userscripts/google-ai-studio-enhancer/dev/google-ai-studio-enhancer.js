@@ -1601,6 +1601,16 @@ also multiline`;
                 logger: Logger
             });
             
+            // Quick stability probe: check if text changes within a short window
+            const quickStableCheck = async (element, windowMs = 150) => {
+                const text1 = element.textContent || '';
+                const height1 = element.offsetHeight || element.scrollHeight || 0;
+                await this.delay(windowMs);
+                const text2 = element.textContent || '';
+                const height2 = element.offsetHeight || element.scrollHeight || 0;
+                return text1 === text2 && height1 === height2;
+            };
+            
             // Process elements using ViewportStabilizer
             for (let i = 0; i < responseElements.length; i++) {
                 const element = responseElements[i];
@@ -1608,8 +1618,17 @@ also multiline`;
                 Logger.debug(`Processing response ${i + 1}/${responseElements.length}`);
                 
                 try {
-                    // Scroll and wait for stability
-                    const stabilityResult = await stabilizer.scrollAndWaitForStable(element);
+                    // Scroll first
+                    stabilizer.scrollIntoView(element);
+                    await this.delay(120);
+                    
+                    // Quick probe: if text/height not changing, skip longer wait
+                    let stabilityResult = { stable: true, reason: 'quick-stable' };
+                    const quickStable = await quickStableCheck(element, 150);
+                    if (!quickStable) {
+                        // Fall back to full stabilizer wait
+                        stabilityResult = await stabilizer.scrollAndWaitForStable(element);
+                    }
                     
                     if (!stabilityResult.stable) {
                         Logger.warn(`Element ${i + 1} did not stabilize: ${stabilityResult.reason}, but continuing anyway`);
