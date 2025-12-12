@@ -6159,6 +6159,7 @@
         align-items: center;
         justify-content: center;
         box-sizing: border-box;
+        max-width: fit-content;
       }
       
       .${Tabs.BASE_TABS_CLASS}__tab:hover:not(.${Tabs.BASE_TABS_CLASS}__tab--active) {
@@ -7161,7 +7162,7 @@ also multiline`;
                     this.saveSettings();
                 },
                 container: section,
-                autoResize: true,
+                autoResize: false,
                 scopeSelector: `#${this.enhancerId}`
             });
 

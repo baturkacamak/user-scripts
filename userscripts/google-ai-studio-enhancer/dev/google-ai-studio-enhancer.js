@@ -765,7 +765,7 @@ also multiline`;
                 this.saveSettings();
             },
             container: section,
-            autoResize: true,
+            autoResize: false,
             scopeSelector: `#${this.enhancerId}`
         });
 
