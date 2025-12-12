@@ -2114,14 +2114,17 @@ also multiline`;
             // Wait for audio to be ready
             const audioData = await this.waitForTTSAudioReady();
             
-            // Download the audio
+            // Download the audio (non-blocking - don't wait for download to complete)
             if (audioData) {
-                await this.downloadTTSAudio(audioData, index + 1);
+                // Start download but don't await it - continue to next chunk
+                this.downloadTTSAudio(audioData, index + 1).catch(error => {
+                    Logger.error(`Error downloading audio chunk ${index + 1}:`, error);
+                });
             } else {
                 throw new Error('Audio data not found');
             }
             
-            Logger.success(`✅ TTS chunk ${index + 1} completed and downloaded`);
+            Logger.success(`✅ TTS chunk ${index + 1} completed, download started`);
         } catch (error) {
             Logger.error(`🚨 Error on TTS chunk ${index + 1}:`, error.message);
             throw error;
@@ -2193,17 +2196,20 @@ also multiline`;
 
     /**
      * Wait for TTS audio to be ready
+     * Uses button state checking rather than fixed timeout
      */
-    async waitForTTSAudioReady(timeout = 120000) {
+    async waitForTTSAudioReady(maxTimeout = 600000) { // 10 minutes max timeout for busy servers
         const start = Date.now();
+        const READY_STATE_STABLE_DURATION = 2000; // Button must be ready for 2 seconds to be considered stable
         
         Logger.debug("🕐 Waiting for TTS audio to start...");
         
-        // Wait for loading state to appear
+        // Wait for loading state to appear (button should change to loading)
         let loadingCheckCount = 0;
+        const loadingStartTimeout = 15000; // 15 seconds max to detect loading state
         while (!this.isTTSButtonLoading()) {
-            if (Date.now() - start > 10000) {
-                throw new Error("⚠️ Timed out waiting for TTS to start");
+            if (Date.now() - start > loadingStartTimeout) {
+                throw new Error("⚠️ Timed out waiting for TTS to start (button never entered loading state)");
             }
             if (this.shouldStopTTS) {
                 throw new Error("TTS queue stopped by user");
@@ -2215,19 +2221,42 @@ also multiline`;
             await this.delay(200);
         }
         
-        Logger.debug("⏳ TTS started... waiting for audio to be ready");
+        const loadingStartTime = Date.now();
+        Logger.debug("⏳ TTS started (button in loading state)... waiting for audio to be ready");
         
         // Wait for audio element to appear with data AND button to return to ready state
         let audioFound = false;
         let audioDataUrl = null;
         let audioElement = null;
+        let readyStateStartTime = null; // Track when button first becomes ready
+        let lastLoadingCheckTime = Date.now(); // Track last time we saw loading state
         
         while (true) {
-            if (Date.now() - start > timeout) {
-                throw new Error("⏰ Timeout: TTS processing took too long");
+            const elapsed = Date.now() - start;
+            
+            // Check max timeout (safety net for very busy servers)
+            if (elapsed > maxTimeout) {
+                const loadingDuration = Date.now() - loadingStartTime;
+                throw new Error(`⏰ Max timeout reached (${Math.round(maxTimeout / 1000)}s). Processing took too long. Last seen loading: ${Math.round((Date.now() - lastLoadingCheckTime) / 1000)}s ago`);
             }
+            
             if (this.shouldStopTTS) {
                 throw new Error("TTS queue stopped by user");
+            }
+            
+            // Check button state
+            const isCurrentlyLoading = this.isTTSButtonLoading();
+            const isCurrentlyReady = !isCurrentlyLoading;
+            
+            // Update tracking
+            if (isCurrentlyLoading) {
+                lastLoadingCheckTime = Date.now();
+                readyStateStartTime = null; // Reset ready state timer if button goes back to loading
+            } else if (isCurrentlyReady) {
+                if (readyStateStartTime === null) {
+                    readyStateStartTime = Date.now();
+                    Logger.debug("🔄 Button entered ready state, waiting for stability...");
+                }
             }
             
             // Check for audio element
@@ -2257,32 +2286,52 @@ also multiline`;
                 }
             }
             
-            // Check if button is back to ready state (processing complete)
-            const isReady = !this.isTTSButtonLoading();
+            // Check if button has been in ready state for the required duration
+            const readyStateStable = readyStateStartTime !== null && 
+                                   (Date.now() - readyStateStartTime) >= READY_STATE_STABLE_DURATION;
             
-            if (audioFound && isReady) {
-                // Give it a small delay to ensure audio is fully ready
-                await this.delay(500);
-                
-                // Stop autoplay before downloading
+            // Only proceed if audio is found AND button has been stable in ready state
+            if (audioFound && readyStateStable) {
+                // Wait for audio to be fully loaded and check duration
                 if (audioElement) {
                     try {
-                        // Remove autoplay attribute
+                        // Wait for audio metadata to be loaded (duration, etc.)
+                        let waitCount = 0;
+                        while ((!audioElement.duration || isNaN(audioElement.duration) || audioElement.duration === 0) && waitCount < 20) {
+                            await this.delay(200);
+                            waitCount++;
+                        }
+                        
+                        if (audioElement.duration && !isNaN(audioElement.duration) && audioElement.duration > 0) {
+                            Logger.debug(`🎵 Audio duration detected: ${audioElement.duration.toFixed(2)}s`);
+                        }
+                        
+                        // Stop autoplay before downloading
                         audioElement.removeAttribute('autoplay');
-                        // Pause the audio if it's playing
                         if (!audioElement.paused) {
                             audioElement.pause();
                         }
-                        // Reset to beginning
                         audioElement.currentTime = 0;
                         Logger.debug("🔇 Stopped audio autoplay before download");
                     } catch (error) {
-                        Logger.warn('Error stopping audio autoplay:', error);
+                        Logger.warn('Error processing audio element:', error);
                     }
                 }
                 
-                Logger.debug("✅ TTS audio ready and processing complete");
+                // Add additional delay to ensure audio is fully generated and ready
+                // This is important because the audio might still be processing even after the button is ready
+                await this.delay(3000); // 3 second delay to ensure full audio generation
+                
+                const totalTime = Math.round((Date.now() - start) / 1000);
+                Logger.debug(`✅ TTS audio ready and processing complete (took ${totalTime}s)`);
                 return audioDataUrl;
+            }
+            
+            // Log progress every 10 seconds
+            if (elapsed % 10000 < 500) {
+                const loadingDuration = Math.round((Date.now() - loadingStartTime) / 1000);
+                const timeSinceLastLoading = Math.round((Date.now() - lastLoadingCheckTime) / 1000);
+                Logger.debug(`⏳ Still processing... Loading for ${loadingDuration}s, last loading state ${timeSinceLastLoading}s ago`);
             }
             
             await this.delay(500);
@@ -2337,13 +2386,15 @@ also multiline`;
     }
 
     /**
-     * Download TTS audio
+     * Download TTS audio (non-blocking)
      */
     async downloadTTSAudio(audioDataUrl, chunkNumber) {
         try {
             const prefix = this.settings.TTS_FILENAME_PREFIX || 'tts-output';
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
             const filename = `${prefix}-chunk-${chunkNumber.toString().padStart(3, '0')}-${timestamp}.wav`;
+            
+            Logger.debug(`📥 Starting download for chunk ${chunkNumber}...`);
             
             // Convert data URL to blob if needed
             let blob;
@@ -2356,17 +2407,21 @@ also multiline`;
                 blob = await response.blob();
             }
             
+            // Log blob size for debugging
+            Logger.debug(`📦 Audio blob size: ${(blob.size / 1024).toFixed(2)} KB`);
+            
             const url = URL.createObjectURL(blob);
             
             // Use GM_download if available, otherwise fallback
             if (typeof GM_download === 'function') {
-                await GM_download({
+                // Don't await - let it download in background
+                GM_download({
                     url: url,
                     name: filename,
                     saveAs: false,
                     onload: () => {
                         URL.revokeObjectURL(url);
-                        Logger.success(`Downloaded: ${filename}`);
+                        Logger.success(`✅ Downloaded: ${filename} (${(blob.size / 1024).toFixed(2)} KB)`);
                     },
                     onerror: (error) => {
                         Logger.error('GM_download error:', error);
@@ -2377,7 +2432,7 @@ also multiline`;
                 this.fallbackDownloadAudio(url, filename);
             }
             
-            Logger.info(`📥 Downloaded audio chunk ${chunkNumber}: ${filename}`);
+            Logger.info(`📥 Download initiated for chunk ${chunkNumber}: ${filename}`);
         } catch (error) {
             Logger.error('Error downloading TTS audio:', error);
             throw error;
