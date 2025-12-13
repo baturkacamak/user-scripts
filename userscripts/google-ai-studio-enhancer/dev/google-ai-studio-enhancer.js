@@ -87,7 +87,9 @@ class AIStudioEnhancer {
         OVERRIDE_ITERATIONS: 'gaise-override-iterations',
         TTS_TEXT: 'gaise-tts-text',
         TTS_WORDS_PER_CHUNK: 'gaise-tts-words-per-chunk',
-        TTS_FILENAME_PREFIX: 'gaise-tts-filename-prefix'
+        TTS_FILENAME_PREFIX: 'gaise-tts-filename-prefix',
+        TTS_RETRY_COUNT: 'gaise-tts-retry-count',
+        TTS_START_COUNT: 'gaise-tts-start-count'
     };
 
     static DEFAULT_SETTINGS = {
@@ -103,7 +105,9 @@ class AIStudioEnhancer {
         OVERRIDE_ITERATIONS: false,
         TTS_TEXT: '',
         TTS_WORDS_PER_CHUNK: 300,
-        TTS_FILENAME_PREFIX: 'tts-output'
+        TTS_FILENAME_PREFIX: 'tts-output',
+        TTS_RETRY_COUNT: 5,
+        TTS_START_COUNT: 0
     };
 
     static EVENTS = {
@@ -136,6 +140,7 @@ class AIStudioEnhancer {
         this.ttsChunks = [];
         this.currentTTSChunk = 0;
         this.totalTTSChunks = 0;
+        this.ttsQuotaMonitor = null; // MutationObserver for quota errors
         
         // Debouncer for TTS text saving
         this.ttsTextSaveDebouncer = new Debouncer(() => {
@@ -842,6 +847,84 @@ also multiline`;
 
         filenamePrefixContainer.appendChild(filenamePrefixLabel);
 
+        // Retry count input
+        const retryCountContainer = document.createElement('div');
+        retryCountContainer.style.marginBottom = '12px';
+
+        const retryCountLabel = document.createElement('label');
+        retryCountLabel.textContent = 'Retry count (on timeout):';
+        retryCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        this.ttsRetryCountInput = new Input({
+            type: 'number',
+            value: this.settings.TTS_RETRY_COUNT || 5,
+            placeholder: '5',
+            min: 1,
+            max: 20,
+            className: 'tts-retry-count-input',
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 1) {
+                    return 'Please enter a number between 1 and 20';
+                }
+                if (num > 20) {
+                    return 'Maximum 20 retries';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 1 && value <= 20) {
+                    this.settings.TTS_RETRY_COUNT = value;
+                    this.saveSettings();
+                }
+            },
+            container: retryCountContainer
+        });
+
+        retryCountContainer.appendChild(retryCountLabel);
+
+        // Start count input
+        const startCountContainer = document.createElement('div');
+        startCountContainer.style.marginBottom = '12px';
+
+        const startCountLabel = document.createElement('label');
+        startCountLabel.textContent = 'Start from chunk number:';
+        startCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        // Get current chunk number for default (1-indexed)
+        const currentChunkNumber = this.currentTTSChunk || 0;
+        const defaultStartCount = this.settings.TTS_START_COUNT !== undefined 
+            ? this.settings.TTS_START_COUNT 
+            : currentChunkNumber;
+
+        this.ttsStartCountInput = new Input({
+            type: 'number',
+            value: defaultStartCount,
+            placeholder: '0',
+            min: 0,
+            className: 'tts-start-count-input',
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 0) {
+                    return 'Please enter a number >= 0';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 0) {
+                    this.settings.TTS_START_COUNT = value;
+                    this.saveSettings();
+                }
+            },
+            container: startCountContainer
+        });
+
+        startCountContainer.appendChild(startCountLabel);
+
         // TTS Button container
         const ttsButtonContainer = document.createElement('div');
         ttsButtonContainer.style.cssText = 'margin-bottom: 10px;';
@@ -864,6 +947,8 @@ also multiline`;
         section.appendChild(textLabel);
         section.appendChild(wordsPerChunkContainer);
         section.appendChild(filenamePrefixContainer);
+        section.appendChild(retryCountContainer);
+        section.appendChild(startCountContainer);
         section.appendChild(ttsButtonContainer);
         section.appendChild(this.ttsStatusElement);
 
@@ -2003,16 +2088,31 @@ also multiline`;
             return;
         }
 
+        // Get start count (default to current chunk number if available, otherwise 0)
+        // Start count is 1-indexed (chunk number, not array index)
+        const startCount = this.settings.TTS_START_COUNT !== undefined 
+            ? this.settings.TTS_START_COUNT 
+            : (this.currentTTSChunk || 0);
+        
+        // Validate start count (1-indexed, so max is chunks.length)
+        if (startCount < 0 || startCount > chunks.length) {
+            this.showNotification(`Start count must be between 0 and ${chunks.length}`, 'error');
+            return;
+        }
+
         // Update state
         this.isTTSRunning = true;
         this.shouldStopTTS = false;
         this.ttsChunks = chunks;
-        this.currentTTSChunk = 0;
+        this.currentTTSChunk = startCount; // 1-indexed chunk number
         this.totalTTSChunks = chunks.length;
 
         // Update UI
         this.updateTTSButtonState();
         this.updateTTSStatus();
+
+        // Start monitoring for quota errors
+        this.startTTSQuotaMonitor();
 
         Logger.info(`Starting TTS queue with ${chunks.length} chunks`);
         this.showNotification(`Starting TTS queue with ${chunks.length} chunks`, 'info');
@@ -2029,10 +2129,12 @@ also multiline`;
             Logger.error('TTS queue error:', error);
             this.showNotification(`TTS queue error: ${error.message}`, 'error');
         } finally {
-            // Clean up state
+            // Clean up state (but preserve currentTTSChunk for next run)
             this.isTTSRunning = false;
             this.shouldStopTTS = false;
-            this.currentTTSChunk = 0;
+            this.stopTTSQuotaMonitor(); // Stop quota monitoring
+            // Don't reset currentTTSChunk to 0 - keep it for next run
+            // this.currentTTSChunk = 0;
             this.updateTTSButtonState();
             this.updateTTSStatus();
         }
@@ -2048,20 +2150,190 @@ also multiline`;
 
         Logger.info('Stopping TTS queue');
         this.shouldStopTTS = true;
+        this.stopTTSQuotaMonitor();
         this.showNotification('Stopping TTS queue...', 'info');
     }
 
     /**
-     * Split text into chunks by word count
+     * Check for quota exceeded error in the page
+     */
+    checkForQuotaError() {
+        // Check for error messages in snackbar/toast containers
+        const errorSelectors = [
+            'mat-snack-bar-container',
+            'ms-toast-snack-bar-container',
+            '.ms-toast',
+            '.mat-snack-bar-container',
+            'ms-callout.error-callout'
+        ];
+
+        for (const selector of errorSelectors) {
+            const containers = document.querySelectorAll(selector);
+            for (const container of containers) {
+                const text = container.textContent || '';
+                // Check for quota exceeded messages (case insensitive)
+                const lowerText = text.toLowerCase();
+                if (lowerText.includes('user has exceeded quota') || 
+                    lowerText.includes('exceeded quota') ||
+                    (lowerText.includes('quota') && lowerText.includes('exceeded')) ||
+                    lowerText.includes('failed to generate content') && lowerText.includes('quota')) {
+                    return true;
+                }
+            }
+        }
+
+        // Also check for specific error message elements (more targeted)
+        const errorMessages = document.querySelectorAll('.message, .mat-mdc-snack-bar-label, .mdc-snackbar__label, ms-callout .message');
+        for (const msg of errorMessages) {
+            const text = msg.textContent || '';
+            const lowerText = text.toLowerCase();
+            // Check for the exact quota error message
+            if (lowerText.includes('user has exceeded quota') || 
+                lowerText.includes('exceeded quota') ||
+                (lowerText.includes('quota') && lowerText.includes('exceeded')) ||
+                (lowerText.includes('failed to generate content') && lowerText.includes('quota'))) {
+                return true;
+            }
+        }
+
+        // Check for error callout specifically
+        const errorCallouts = document.querySelectorAll('ms-callout.error-callout');
+        for (const callout of errorCallouts) {
+            const text = callout.textContent || '';
+            const lowerText = text.toLowerCase();
+            if (lowerText.includes('quota') && (lowerText.includes('exceeded') || lowerText.includes('failed'))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Start monitoring for quota errors
+     */
+    startTTSQuotaMonitor() {
+        // Stop any existing monitor
+        this.stopTTSQuotaMonitor();
+
+        // Check immediately
+        if (this.checkForQuotaError()) {
+            Logger.warn('⚠️ Quota error detected, stopping TTS queue');
+            this.shouldStopTTS = true;
+            this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+            return;
+        }
+
+        // Set up mutation observer to watch for new error messages
+        this.ttsQuotaMonitor = new MutationObserver((mutations) => {
+            // Only check if relevant nodes were added
+            let shouldCheck = false;
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    // Check if any added node is a snackbar or contains error-related elements
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            const element = node;
+                            if (element.matches && (
+                                element.matches('mat-snack-bar-container') ||
+                                element.matches('ms-toast') ||
+                                element.matches('ms-callout.error-callout') ||
+                                element.querySelector('mat-snack-bar-container, ms-toast, ms-callout.error-callout')
+                            )) {
+                                shouldCheck = true;
+                                break;
+                            }
+                        }
+                    }
+                } else if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                    // Text content might have changed
+                    shouldCheck = true;
+                }
+                if (shouldCheck) break;
+            }
+            
+            if (shouldCheck && this.checkForQuotaError()) {
+                Logger.warn('⚠️ Quota error detected via mutation observer, stopping TTS queue');
+                this.shouldStopTTS = true;
+                this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+                this.stopTTSQuotaMonitor();
+            }
+        });
+
+        // Observe the document body for new snackbar/toast elements and text changes
+        this.ttsQuotaMonitor.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true // Also watch for text content changes
+        });
+
+        Logger.debug('TTS quota monitor started');
+    }
+
+    /**
+     * Stop monitoring for quota errors
+     */
+    stopTTSQuotaMonitor() {
+        if (this.ttsQuotaMonitor) {
+            this.ttsQuotaMonitor.disconnect();
+            this.ttsQuotaMonitor = null;
+            Logger.debug('TTS quota monitor stopped');
+        }
+    }
+
+    /**
+     * Split text into chunks by word count, breaking at closest sentence boundary (.)
      */
     splitTextIntoChunks(text, wordsPerChunk) {
         const words = text.trim().split(/\s+/);
         const chunks = [];
+        let currentChunk = [];
+        let currentWordCount = 0;
         
-        for (let i = 0; i < words.length; i += wordsPerChunk) {
-            const chunk = words.slice(i, i + wordsPerChunk).join(' ');
-            if (chunk.trim()) {
-                chunks.push(chunk.trim());
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            currentChunk.push(word);
+            currentWordCount++;
+            
+            // Check if we've reached the target word count or exceeded it
+            if (currentWordCount >= wordsPerChunk) {
+                // Look for the closest sentence ending (.) in the current chunk
+                const chunkText = currentChunk.join(' ');
+                const lastPeriodIndex = chunkText.lastIndexOf('.');
+                
+                if (lastPeriodIndex > 0) {
+                    // Split at the last period found
+                    const beforePeriod = chunkText.substring(0, lastPeriodIndex + 1).trim();
+                    const afterPeriod = chunkText.substring(lastPeriodIndex + 1).trim();
+                    
+                    if (beforePeriod) {
+                        chunks.push(beforePeriod);
+                    }
+                    
+                    // Start new chunk with remaining text after the period
+                    if (afterPeriod) {
+                        currentChunk = afterPeriod.split(/\s+/);
+                        currentWordCount = currentChunk.length;
+                    } else {
+                        currentChunk = [];
+                        currentWordCount = 0;
+                    }
+                } else {
+                    // No period found, use the current chunk as-is
+                    if (chunkText.trim()) {
+                        chunks.push(chunkText.trim());
+                    }
+                    currentChunk = [];
+                    currentWordCount = 0;
+                }
+            }
+        }
+        
+        // Add any remaining words
+        if (currentChunk.length > 0) {
+            const remainingText = currentChunk.join(' ').trim();
+            if (remainingText) {
+                chunks.push(remainingText);
             }
         }
         
@@ -2072,12 +2344,22 @@ also multiline`;
      * Process TTS chunks sequentially
      */
     async processTTSChunks(chunks) {
-        Logger.info(`🎤 Starting TTS processing with ${chunks.length} chunks...`);
+        // Start index is 0-indexed (array index), currentTTSChunk is 1-indexed (chunk number)
+        const startIndex = this.currentTTSChunk > 0 ? this.currentTTSChunk - 1 : 0;
+        Logger.info(`🎤 Starting TTS processing with ${chunks.length} chunks (starting from chunk ${startIndex + 1})...`);
         
-        for (let i = 0; i < chunks.length; i++) {
+        for (let i = startIndex; i < chunks.length; i++) {
             // Check if we should stop
             if (this.shouldStopTTS) {
                 Logger.info('TTS queue stopped by user');
+                break;
+            }
+
+            // Check for quota error before processing each chunk
+            if (this.checkForQuotaError()) {
+                Logger.warn('⚠️ Quota error detected before processing chunk, stopping TTS queue');
+                this.shouldStopTTS = true;
+                this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
                 break;
             }
 
@@ -2085,6 +2367,14 @@ also multiline`;
             this.updateTTSStatus();
             
             await this.processTTSChunk(chunks[i], i);
+            
+            // Check for quota error after processing chunk
+            if (this.checkForQuotaError()) {
+                Logger.warn('⚠️ Quota error detected after processing chunk, stopping TTS queue');
+                this.shouldStopTTS = true;
+                this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+                break;
+            }
             
             // Add delay between chunks (except for the last one)
             if (i < chunks.length - 1 && !this.shouldStopTTS) {
@@ -2096,39 +2386,90 @@ also multiline`;
     }
 
     /**
-     * Process a single TTS chunk
+     * Process a single TTS chunk with retry logic
      */
     async processTTSChunk(chunk, index) {
         Logger.info(`➡️ Processing TTS chunk ${index + 1}/${this.totalTTSChunks}`);
         
-        try {
-            // Type the text into TTS textarea
-            await this.typeTTSText(chunk);
-            
-            // Small delay to let the UI settle
-            await this.delay(300);
-            
-            // Click run button
-            await this.clickTTSRunButton();
-            
-            // Wait for audio to be ready
-            const audioData = await this.waitForTTSAudioReady();
-            
-            // Download the audio (non-blocking - don't wait for download to complete)
-            if (audioData) {
-                // Start download but don't await it - continue to next chunk
-                this.downloadTTSAudio(audioData, index + 1).catch(error => {
-                    Logger.error(`Error downloading audio chunk ${index + 1}:`, error);
-                });
-            } else {
-                throw new Error('Audio data not found');
+        const retryCount = this.settings.TTS_RETRY_COUNT || 5;
+        let lastError = null;
+        
+            for (let attempt = 0; attempt < retryCount; attempt++) {
+                try {
+                    // Check for quota error before each attempt
+                    if (this.checkForQuotaError()) {
+                        Logger.warn('⚠️ Quota error detected before processing chunk, stopping TTS queue');
+                        this.shouldStopTTS = true;
+                        this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+                        throw new Error('Quota exceeded - TTS queue stopped');
+                    }
+
+                    if (attempt > 0) {
+                        Logger.info(`🔄 Retry attempt ${attempt + 1}/${retryCount} for chunk ${index + 1}`);
+                        await this.delay(2000); // Wait 2 seconds before retry
+                    }
+                    
+                    // Type the text into TTS textarea
+                    await this.typeTTSText(chunk);
+                    
+                    // Small delay to let the UI settle
+                    await this.delay(300);
+                    
+                    // Click run button
+                    await this.clickTTSRunButton();
+                    
+                    // Check for quota error immediately after clicking (error might appear quickly)
+                    await this.delay(500); // Small delay to allow error to appear
+                    if (this.checkForQuotaError()) {
+                        Logger.warn('⚠️ Quota error detected after clicking run button, stopping TTS queue');
+                        this.shouldStopTTS = true;
+                        this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+                        throw new Error('Quota exceeded - TTS queue stopped');
+                    }
+                
+                // Calculate timeout based on word count (approximately 1 minute per 100 words, minimum 2 minutes)
+                const wordCount = chunk.trim().split(/\s+/).length;
+                const timeoutMinutes = Math.max(2, Math.ceil(wordCount / 100));
+                const timeoutMs = timeoutMinutes * 60 * 1000;
+                
+                Logger.debug(`⏱️ Timeout set to ${timeoutMinutes} minutes for ${wordCount} words`);
+                
+                // Wait for audio to be ready with calculated timeout
+                const audioData = await this.waitForTTSAudioReady(timeoutMs);
+                
+                // Download the audio (non-blocking - don't wait for download to complete)
+                if (audioData) {
+                    // Start download but don't await it - continue to next chunk
+                    this.downloadTTSAudio(audioData, index + 1).catch(error => {
+                        Logger.error(`Error downloading audio chunk ${index + 1}:`, error);
+                    });
+                } else {
+                    throw new Error('Audio data not found');
+                }
+                
+                Logger.success(`✅ TTS chunk ${index + 1} completed, download started`);
+                return; // Success, exit retry loop
+                } catch (error) {
+                lastError = error;
+                
+                // If quota error, don't retry - stop immediately
+                if (error.message && error.message.includes('Quota exceeded')) {
+                    Logger.error(`🚨 Quota exceeded detected, stopping TTS queue immediately`);
+                    throw error; // Re-throw to stop processing
+                }
+                
+                Logger.warn(`⚠️ Attempt ${attempt + 1}/${retryCount} failed for chunk ${index + 1}:`, error.message);
+                
+                // If it's the last attempt, throw the error
+                if (attempt === retryCount - 1) {
+                    Logger.error(`🚨 All ${retryCount} attempts failed for TTS chunk ${index + 1}`);
+                    throw error;
+                }
             }
-            
-            Logger.success(`✅ TTS chunk ${index + 1} completed, download started`);
-        } catch (error) {
-            Logger.error(`🚨 Error on TTS chunk ${index + 1}:`, error.message);
-            throw error;
         }
+        
+        // Should never reach here, but just in case
+        throw lastError || new Error('Unknown error processing TTS chunk');
     }
 
     /**
@@ -2214,6 +2555,12 @@ also multiline`;
             if (this.shouldStopTTS) {
                 throw new Error("TTS queue stopped by user");
             }
+            // Check for quota error
+            if (this.checkForQuotaError()) {
+                Logger.warn('⚠️ Quota error detected while waiting for TTS to start');
+                this.shouldStopTTS = true;
+                throw new Error("⚠️ Quota exceeded - TTS queue stopped");
+            }
             loadingCheckCount++;
             if (loadingCheckCount % 10 === 0) {
                 Logger.debug('Still waiting for TTS loading state...');
@@ -2230,6 +2577,7 @@ also multiline`;
         let audioElement = null;
         let readyStateStartTime = null; // Track when button first becomes ready
         let lastLoadingCheckTime = Date.now(); // Track last time we saw loading state
+        let quotaCheckCounter = 0; // Counter for periodic quota checks
         
         while (true) {
             const elapsed = Date.now() - start;
@@ -2242,6 +2590,17 @@ also multiline`;
             
             if (this.shouldStopTTS) {
                 throw new Error("TTS queue stopped by user");
+            }
+            
+            // Check for quota error periodically (every 10 iterations, roughly every 2 seconds)
+            quotaCheckCounter++;
+            if (quotaCheckCounter >= 10) {
+                quotaCheckCounter = 0;
+                if (this.checkForQuotaError()) {
+                    Logger.warn('⚠️ Quota error detected while waiting for audio');
+                    this.shouldStopTTS = true;
+                    throw new Error("⚠️ Quota exceeded - TTS queue stopped");
+                }
             }
             
             // Check button state
