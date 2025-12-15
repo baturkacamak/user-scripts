@@ -6619,7 +6619,8 @@
             TTS_WORDS_PER_CHUNK: 'gaise-tts-words-per-chunk',
             TTS_FILENAME_PREFIX: 'gaise-tts-filename-prefix',
             TTS_RETRY_COUNT: 'gaise-tts-retry-count',
-            TTS_START_COUNT: 'gaise-tts-start-count'
+            TTS_START_COUNT: 'gaise-tts-start-count',
+            TTS_DOWNLOAD_DELAY_MS: 'gaise-tts-download-delay-ms'
         };
 
         static DEFAULT_SETTINGS = {
@@ -6637,7 +6638,9 @@
             TTS_WORDS_PER_CHUNK: 300,
             TTS_FILENAME_PREFIX: 'tts-output',
             TTS_RETRY_COUNT: 5,
-            TTS_START_COUNT: 0
+            TTS_START_COUNT: 0,
+            // Delay before downloading TTS audio (in ms)
+            TTS_DOWNLOAD_DELAY_MS: 5000
         };
 
         static EVENTS = {
@@ -7415,6 +7418,44 @@ also multiline`;
 
             retryCountContainer.appendChild(retryCountLabel);
 
+            // Download delay input
+            const downloadDelayContainer = document.createElement('div');
+            downloadDelayContainer.style.marginBottom = '12px';
+
+            const downloadDelayLabel = document.createElement('label');
+            downloadDelayLabel.textContent = 'Delay before download (ms):';
+            downloadDelayLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+            this.ttsDownloadDelayInput = new Input({
+                type: 'number',
+                value: this.settings.TTS_DOWNLOAD_DELAY_MS ?? 5000,
+                placeholder: '5000',
+                min: 0,
+                max: 600000,
+                className: 'tts-download-delay-input',
+                scopeSelector: `#${this.enhancerId}`,
+                validator: (value) => {
+                    const num = parseInt(value, 10);
+                    if (isNaN(num) || num < 0) {
+                        return 'Please enter a number between 0 and 600000';
+                    }
+                    if (num > 600000) {
+                        return 'Maximum 600000 ms (10 minutes)';
+                    }
+                    return true;
+                },
+                onChange: (event, input) => {
+                    const value = parseInt(input.getValue(), 10);
+                    if (!isNaN(value) && value >= 0 && value <= 600000) {
+                        this.settings.TTS_DOWNLOAD_DELAY_MS = value;
+                        this.saveSettings();
+                    }
+                },
+                container: downloadDelayContainer
+            });
+
+            downloadDelayContainer.appendChild(downloadDelayLabel);
+
             // Start count input
             const startCountContainer = document.createElement('div');
             startCountContainer.style.marginBottom = '12px';
@@ -7478,6 +7519,7 @@ also multiline`;
             section.appendChild(wordsPerChunkContainer);
             section.appendChild(filenamePrefixContainer);
             section.appendChild(retryCountContainer);
+            section.appendChild(downloadDelayContainer);
             section.appendChild(startCountContainer);
             section.appendChild(ttsButtonContainer);
             section.appendChild(this.ttsStatusElement);
@@ -7858,11 +7900,11 @@ also multiline`;
                                          button.querySelector('span.spin');
                         
                         if (!isDisabled && isTypeSubmit && !hasStopText && !hasSpinner) {
-                            button.click();
+                    button.click();
                             Logger.debug(`📤 Clicked Run button using selector: ${selector}`);
                             // Small delay to allow DOM to update after click
                             await this.delay(100);
-                            return;
+                    return;
                         }
                     }
                 }
@@ -8251,10 +8293,10 @@ also multiline`;
             
             const trackedButtons = new Set();
             selectors.forEach(selector => {
-                document.querySelectorAll(selector).forEach(button => {
+            document.querySelectorAll(selector).forEach(button => {
                     if (!trackedButtons.has(button)) {
                         trackedButtons.add(button);
-                        this.trackRunButton(button);
+                this.trackRunButton(button);
                     }
                 });
             });
@@ -8271,8 +8313,8 @@ also multiline`;
             
             if (element.matches) {
                 for (const selector of selectors) {
-                    if (element.matches(selector)) {
-                        this.trackRunButton(element);
+                if (element.matches(selector)) {
+                    this.trackRunButton(element);
                         return;
                     }
                 }
@@ -8281,10 +8323,10 @@ also multiline`;
             if (element.querySelectorAll) {
                 const trackedButtons = new Set();
                 selectors.forEach(selector => {
-                    element.querySelectorAll(selector).forEach(button => {
+                element.querySelectorAll(selector).forEach(button => {
                         if (!trackedButtons.has(button)) {
                             trackedButtons.add(button);
-                            this.trackRunButton(button);
+                    this.trackRunButton(button);
                         }
                     });
                 });
@@ -8443,7 +8485,7 @@ also multiline`;
                         // Scroll first
                         stabilizer.scrollIntoView(element);
                         await this.delay(120);
-                        
+                    
                         // Quick probe: if text/height not changing, skip longer wait
                         let stabilityResult = { stable: true, reason: 'quick-stable' };
                         const quickStable = await quickStableCheck(element, 150);
@@ -8457,15 +8499,15 @@ also multiline`;
                         }
                         
                         // Extract text after element is stable
-                        let responseText = this.markdownConverter.extractText(element);
-                        
-                        // Remove "Model" at the beginning if present
-                        if (responseText) {
-                            responseText = responseText.replace(/^Model\.?\s*/i, '').trim();
-                        }
-                        
-                        if (responseText && responseText.length > 10) {
-                            responses.push(responseText);
+                    let responseText = this.markdownConverter.extractText(element);
+                    
+                    // Remove "Model" at the beginning if present
+                    if (responseText) {
+                        responseText = responseText.replace(/^Model\.?\s*/i, '').trim();
+                    }
+                    
+                    if (responseText && responseText.length > 10) {
+                        responses.push(responseText);
                         }
                     } catch (error) {
                         Logger.warn(`Error processing element ${i + 1}/${responseElements.length}:`, error);
@@ -8966,6 +9008,13 @@ also multiline`;
                     
                     // Wait for audio to be ready with calculated timeout
                     const audioData = await this.waitForTTSAudioReady(timeoutMs);
+                    
+                    // Optional delay before starting download (to coordinate with other processes)
+                    const downloadDelayMs = this.settings.TTS_DOWNLOAD_DELAY_MS ?? AIStudioEnhancer.DEFAULT_SETTINGS.TTS_DOWNLOAD_DELAY_MS;
+                    if (downloadDelayMs > 0) {
+                        Logger.debug(`⏳ Waiting ${downloadDelayMs}ms before downloading TTS audio for chunk ${index + 1}`);
+                        await this.delay(downloadDelayMs);
+                    }
                     
                     // Download the audio (non-blocking - don't wait for download to complete)
                     if (audioData) {
