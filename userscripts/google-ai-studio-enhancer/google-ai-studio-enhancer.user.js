@@ -2,7 +2,7 @@
 // @name        Google AI Studio Enhancer
 // @description Copy all AI chatbot responses and auto-click Run button for specified iterations
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     2.1.1
+// @version     2.2.0
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/google-ai-studio-enhancer#readme
@@ -6597,6 +6597,23 @@
                 'textarea.textarea',
                 'textarea'
             ],
+            TTS_STYLE_TEXTAREA: [
+                'textarea[placeholder*="Describe the style of your dialog"]',
+                'textarea[aria-label*="Style instructions"]',
+                'textarea[placeholder*="style of your dialog"]'
+            ],
+            TTS_TEMPERATURE_RANGE: [
+                'input[type="range"].mdc-slider__input[min="0"][max="2"]',
+                'input[type="range"][step][min="0"][max="2"]'
+            ],
+            TTS_TEMPERATURE_NUMBER: [
+                'input.slider-number-input[min="0"][max="2"]',
+                'input.slider-number-input'
+            ],
+            TTS_VOICE_SELECT: [
+                'mat-select[aria-haspopup="listbox"].mat-mdc-select',
+                'mat-select.mat-mdc-select'
+            ],
             TTS_AUDIO: 'audio[src^="data:audio"], audio[controls]',
             TTS_RUN_BUTTON: {
                 READY: 'button[aria-label="Run"][type="submit"][aria-disabled="false"]:not([disabled])',
@@ -6620,7 +6637,10 @@
             TTS_FILENAME_PREFIX: 'gaise-tts-filename-prefix',
             TTS_RETRY_COUNT: 'gaise-tts-retry-count',
             TTS_START_COUNT: 'gaise-tts-start-count',
-            TTS_DOWNLOAD_DELAY_MS: 'gaise-tts-download-delay-ms'
+            TTS_DOWNLOAD_DELAY_MS: 'gaise-tts-download-delay-ms',
+            TTS_STYLE_PROMPT: 'gaise-tts-style-prompt',
+            TTS_TEMPERATURE: 'gaise-tts-temperature',
+            TTS_VOICE: 'gaise-tts-voice'
         };
 
         static DEFAULT_SETTINGS = {
@@ -6640,7 +6660,10 @@
             TTS_RETRY_COUNT: 5,
             TTS_START_COUNT: 0,
             // Delay before downloading TTS audio (in ms)
-            TTS_DOWNLOAD_DELAY_MS: 5000
+            TTS_DOWNLOAD_DELAY_MS: 5000,
+            TTS_STYLE_PROMPT: '',
+            TTS_TEMPERATURE: 0.75,
+            TTS_VOICE: ''
         };
 
         static EVENTS = {
@@ -7318,6 +7341,37 @@ also multiline`;
                 scopeSelector: `#${this.enhancerId}`
             });
 
+            // Style instructions (prompt) input
+            const stylePromptContainer = document.createElement('div');
+            stylePromptContainer.style.marginBottom = '12px';
+            stylePromptContainer.style.marginTop = '10px';
+
+            const stylePromptLabel = document.createElement('label');
+            stylePromptLabel.textContent = 'Style instructions (kept across refresh):';
+            stylePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+            stylePromptContainer.appendChild(stylePromptLabel);
+
+            this.ttsStylePromptArea = new TextArea({
+                value: this.settings.TTS_STYLE_PROMPT || '',
+                placeholder: 'Describe the style, e.g. "Dramatic whisper"...',
+                rows: 2,
+                theme: 'primary',
+                size: 'small',
+                className: 'tts-style-prompt-textarea',
+                onInput: (event, textArea) => {
+                    this.settings.TTS_STYLE_PROMPT = textArea.getValue();
+                    this.ttsTextSaveDebouncer.trigger();
+                },
+                onChange: (event, textArea) => {
+                    this.settings.TTS_STYLE_PROMPT = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: stylePromptContainer,
+                autoResize: false,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
             // Words per chunk input
             const wordsPerChunkContainer = document.createElement('div');
             wordsPerChunkContainer.style.marginBottom = '12px';
@@ -7356,6 +7410,68 @@ also multiline`;
             });
 
             wordsPerChunkContainer.appendChild(wordsPerChunkLabel);
+
+            // Temperature input
+            const temperatureContainer = document.createElement('div');
+            temperatureContainer.style.marginBottom = '12px';
+
+            const temperatureLabel = document.createElement('label');
+            temperatureLabel.textContent = 'Temperature (0 - 2):';
+            temperatureLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+            temperatureContainer.appendChild(temperatureLabel);
+
+            this.ttsTemperatureInput = new Input({
+                type: 'number',
+                value: this.settings.TTS_TEMPERATURE ?? 0.75,
+                placeholder: '0.75',
+                min: 0,
+                max: 2,
+                step: 0.05,
+                className: 'tts-temperature-input',
+                scopeSelector: `#${this.enhancerId}`,
+                validator: (value) => {
+                    const num = parseFloat(value);
+                    if (isNaN(num) || num < 0) {
+                        return 'Please enter a number between 0 and 2';
+                    }
+                    if (num > 2) {
+                        return 'Maximum 2.0';
+                    }
+                    return true;
+                },
+                onChange: (event, input) => {
+                    const value = parseFloat(input.getValue());
+                    if (!isNaN(value) && value >= 0 && value <= 2) {
+                        this.settings.TTS_TEMPERATURE = value;
+                        this.saveSettings();
+                    }
+                },
+                container: temperatureContainer
+            });
+
+            // Voice selection input
+            const voiceContainer = document.createElement('div');
+            voiceContainer.style.marginBottom = '12px';
+
+            const voiceLabel = document.createElement('label');
+            voiceLabel.textContent = 'Voice name (as shown in selector):';
+            voiceLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+            voiceContainer.appendChild(voiceLabel);
+
+            this.ttsVoiceInput = new Input({
+                type: 'text',
+                value: this.settings.TTS_VOICE || '',
+                placeholder: 'e.g., Charon',
+                className: 'tts-voice-input',
+                scopeSelector: `#${this.enhancerId}`,
+                onChange: (event, input) => {
+                    this.settings.TTS_VOICE = input.getValue() || '';
+                    this.saveSettings();
+                },
+                container: voiceContainer
+            });
 
             // Filename prefix input
             const filenamePrefixContainer = document.createElement('div');
@@ -7516,7 +7632,10 @@ also multiline`;
 
             section.appendChild(title);
             section.appendChild(textLabel);
+            section.appendChild(stylePromptContainer);
             section.appendChild(wordsPerChunkContainer);
+            section.appendChild(temperatureContainer);
+            section.appendChild(voiceContainer);
             section.appendChild(filenamePrefixContainer);
             section.appendChild(retryCountContainer);
             section.appendChild(downloadDelayContainer);
@@ -8672,6 +8791,13 @@ also multiline`;
                 return;
             }
 
+            // Apply persisted TTS preferences (style prompt, temperature, voice)
+            try {
+                await this.applyTTSPreferences();
+            } catch (error) {
+                Logger.warn('Could not apply saved TTS preferences:', error);
+            }
+
             // Update state
             this.isTTSRunning = true;
             this.shouldStopTTS = false;
@@ -9075,6 +9201,128 @@ also multiline`;
             } catch (error) {
                 throw new Error("❌ Typing TTS text failed: " + error.message);
             }
+        }
+
+        /**
+         * Apply persisted TTS preferences (style prompt, temperature, voice)
+         */
+        async applyTTSPreferences() {
+            const { TTS_STYLE_PROMPT, TTS_TEMPERATURE, TTS_VOICE } = this.settings;
+
+            if (TTS_STYLE_PROMPT && TTS_STYLE_PROMPT.trim()) {
+                await this.setTTSStylePrompt(TTS_STYLE_PROMPT.trim());
+            }
+
+            if (TTS_TEMPERATURE !== undefined && TTS_TEMPERATURE !== null && !isNaN(Number(TTS_TEMPERATURE))) {
+                await this.setTTSTemperature(Number(TTS_TEMPERATURE));
+            }
+
+            if (TTS_VOICE && TTS_VOICE.trim()) {
+                await this.setTTSVoice(TTS_VOICE.trim());
+            }
+        }
+
+        /**
+         * Set style prompt/voice instructions
+         */
+        async setTTSStylePrompt(text) {
+            const selectors = AIStudioEnhancer.SELECTORS.TTS_STYLE_TEXTAREA || [];
+            for (const selector of selectors) {
+                const element = document.querySelector(selector);
+                if (element && element.offsetParent !== null) {
+                    await this.typeIntoElement(element, text);
+                    Logger.debug('✅ Applied TTS style prompt');
+                    return;
+                }
+            }
+            Logger.warn('TTS style prompt textarea not found');
+        }
+
+        /**
+         * Set temperature using slider/number input
+         */
+        async setTTSTemperature(value) {
+            const clamped = Math.min(2, Math.max(0, value));
+            let applied = false;
+
+            const setValueAndDispatch = (el) => {
+                el.value = clamped;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+
+            const rangeSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_RANGE || [];
+            for (const selector of rangeSelectors) {
+                const el = document.querySelector(selector);
+                if (el && el.offsetParent !== null) {
+                    setValueAndDispatch(el);
+                    applied = true;
+                    break;
+                }
+            }
+
+            const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
+            for (const selector of numberSelectors) {
+                const el = document.querySelector(selector);
+                if (el && el.offsetParent !== null) {
+                    setValueAndDispatch(el);
+                    applied = true;
+                    break;
+                }
+            }
+
+            if (applied) {
+                Logger.debug(`✅ Applied TTS temperature: ${clamped}`);
+            } else {
+                Logger.warn('TTS temperature controls not found');
+            }
+        }
+
+        /**
+         * Set TTS voice by selecting option in mat-select
+         */
+        async setTTSVoice(voiceName) {
+            const selectors = AIStudioEnhancer.SELECTORS.TTS_VOICE_SELECT || [];
+            let trigger = null;
+
+            for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (el && el.offsetParent !== null) {
+                    trigger = el;
+                    break;
+                }
+            }
+
+            if (!trigger) {
+                Logger.warn('TTS voice select trigger not found');
+                return;
+            }
+
+            // Open dropdown
+            trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            await this.delay(200);
+
+            let options = [];
+            for (let attempt = 0; attempt < 10; attempt++) {
+                options = Array.from(document.querySelectorAll('mat-option'));
+                if (options.length > 0) break;
+                await this.delay(100);
+            }
+
+            const lowerVoice = voiceName.toLowerCase();
+            const target = options.find(opt => (opt.textContent || '').toLowerCase().includes(lowerVoice));
+
+            if (!target) {
+                Logger.warn(`TTS voice option not found for "${voiceName}"`);
+                // Close dropdown by clicking trigger again
+                trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                return;
+            }
+
+            const clickable = target.querySelector('.mdc-list-item__primary-text') || target;
+            clickable.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            await this.delay(150);
+            Logger.debug(`✅ Applied TTS voice: ${voiceName}`);
         }
 
         /**
