@@ -2,7 +2,7 @@
 // @name        Google AI Studio Enhancer
 // @description Copy all AI chatbot responses and auto-click Run button for specified iterations
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     2.2.0
+// @version     2.2.1
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/google-ai-studio-enhancer#readme
@@ -6697,6 +6697,7 @@
             this.currentTTSChunk = 0;
             this.totalTTSChunks = 0;
             this.ttsQuotaMonitor = null; // MutationObserver for quota errors
+            this.lastTTSAudioSrc = null; // Track last downloaded audio src to detect new audio
             
             // Debouncer for TTS text saving
             this.ttsTextSaveDebouncer = new Debouncer(() => {
@@ -8804,6 +8805,7 @@ also multiline`;
             this.ttsChunks = chunks;
             this.currentTTSChunk = startCount; // 1-indexed chunk number
             this.totalTTSChunks = chunks.length;
+            this.lastTTSAudioSrc = null; // Reset audio src tracking for new run
 
             // Update UI
             this.updateTTSButtonState();
@@ -9399,12 +9401,16 @@ also multiline`;
             Logger.debug("⏳ TTS started (button in loading state)... waiting for audio to be ready");
             
             // Wait for audio element to appear with data AND button to return to ready state
-            let audioFound = false;
+            // Track previous audio src to detect when a NEW audio is ready
+            let previousAudioSrc = this.lastTTSAudioSrc || null; // Track previous audio src
             let audioDataUrl = null;
             let audioElement = null;
             let readyStateStartTime = null; // Track when button first becomes ready
             let lastLoadingCheckTime = Date.now(); // Track last time we saw loading state
             let quotaCheckCounter = 0; // Counter for periodic quota checks
+            let audioSrcChangeTime = null; // Track when audio src changed
+            
+            Logger.debug(`🔍 Looking for new audio (previous src: ${previousAudioSrc ? 'exists' : 'none'})`);
             
             while (true) {
                 const elapsed = Date.now() - start;
@@ -9437,6 +9443,7 @@ also multiline`;
                 if (isCurrentlyLoading) {
                     lastLoadingCheckTime = Date.now();
                     readyStateStartTime = null; // Reset ready state timer if button goes back to loading
+                    audioSrcChangeTime = null; // Reset audio src change time when button goes to loading
                 } else if (isCurrentlyReady) {
                     if (readyStateStartTime === null) {
                         readyStateStartTime = Date.now();
@@ -9444,30 +9451,47 @@ also multiline`;
                     }
                 }
                 
-                // Check for audio element
+                // Check for audio element and detect src changes
                 const audio = document.querySelector(AIStudioEnhancer.SELECTORS.TTS_AUDIO);
-                if (audio && audio.src && !audioFound) {
-                    // Store reference to audio element
-                    audioElement = audio;
+                if (audio && audio.src) {
+                    const currentSrc = audio.src;
                     
-                    // Check if it's a data URL (base64 audio)
-                    if (audio.src.startsWith('data:audio/')) {
-                        audioDataUrl = audio.src;
-                        audioFound = true;
-                        Logger.debug("✅ TTS audio found with data URL");
-                    } else if (audio.readyState >= 2) { // HAVE_CURRENT_DATA
-                        // Try to get the source
+                    // Check if this is a NEW audio (src has changed from previous)
+                    const isNewAudio = previousAudioSrc === null || currentSrc !== previousAudioSrc;
+                    
+                    if (isNewAudio && !audioDataUrl) {
+                        // New audio detected!
+                        audioElement = audio;
+                        audioSrcChangeTime = Date.now();
+                        Logger.debug(`🆕 New audio detected! Src changed (length: ${currentSrc.length} chars)`);
+                        
+                        // Extract audio data
                         try {
-                            const response = await fetch(audio.src);
-                            const blob = await response.blob();
-                            audioDataUrl = await this.blobToDataURL(blob);
-                            audioFound = true;
-                            Logger.debug("✅ TTS audio ready");
+                            if (currentSrc.startsWith('data:audio/')) {
+                                audioDataUrl = currentSrc;
+                                Logger.debug("✅ TTS audio found with data URL");
+                            } else if (audio.readyState >= 2) { // HAVE_CURRENT_DATA
+                                // Try to get the source
+                                try {
+                                    const response = await fetch(currentSrc);
+                                    const blob = await response.blob();
+                                    audioDataUrl = await this.blobToDataURL(blob);
+                                    Logger.debug("✅ TTS audio ready (fetched)");
+                                } catch (error) {
+                                    Logger.warn('Could not fetch audio, using src directly:', error);
+                                    audioDataUrl = currentSrc;
+                                }
+                            } else {
+                                // Audio element exists but not ready yet, wait a bit
+                                Logger.debug(`⏳ Audio element found but not ready yet (readyState: ${audio.readyState})`);
+                            }
                         } catch (error) {
-                            Logger.warn('Could not fetch audio, using src directly:', error);
-                            audioDataUrl = audio.src;
-                            audioFound = true;
+                            Logger.warn('Error processing audio src:', error);
                         }
+                    } else if (!isNewAudio && audioDataUrl) {
+                        // Same audio as before, but we already have the data URL - this is fine
+                        // Just make sure we have the latest reference
+                        audioElement = audio;
                     }
                 }
                 
@@ -9475,8 +9499,12 @@ also multiline`;
                 const readyStateStable = readyStateStartTime !== null && 
                                        (Date.now() - readyStateStartTime) >= READY_STATE_STABLE_DURATION;
                 
-                // Only proceed if audio is found AND button has been stable in ready state
-                if (audioFound && readyStateStable) {
+                // Also ensure audio src has been stable (not changing) for a bit
+                const audioSrcStable = audioSrcChangeTime !== null && 
+                                     (Date.now() - audioSrcChangeTime) >= 1000; // Audio src stable for 1 second
+                
+                // Only proceed if we have NEW audio data AND button has been stable in ready state AND audio src is stable
+                if (audioDataUrl && readyStateStable && audioSrcStable) {
                     // Wait for audio to be fully loaded and check duration
                     if (audioElement) {
                         try {
@@ -9507,6 +9535,9 @@ also multiline`;
                     // This is important because the audio might still be processing even after the button is ready
                     await this.delay(3000); // 3 second delay to ensure full audio generation
                     
+                    // Store this audio src as the last one for next chunk
+                    this.lastTTSAudioSrc = audioDataUrl;
+                    
                     const totalTime = Math.round((Date.now() - start) / 1000);
                     Logger.debug(`✅ TTS audio ready and processing complete (took ${totalTime}s)`);
                     return audioDataUrl;
@@ -9516,7 +9547,8 @@ also multiline`;
                 if (elapsed % 10000 < 500) {
                     const loadingDuration = Math.round((Date.now() - loadingStartTime) / 1000);
                     const timeSinceLastLoading = Math.round((Date.now() - lastLoadingCheckTime) / 1000);
-                    Logger.debug(`⏳ Still processing... Loading for ${loadingDuration}s, last loading state ${timeSinceLastLoading}s ago`);
+                    const audioStatus = audioDataUrl ? 'found' : 'waiting';
+                    Logger.debug(`⏳ Still processing... Loading for ${loadingDuration}s, last loading state ${timeSinceLastLoading}s ago, audio: ${audioStatus}`);
                 }
                 
                 await this.delay(500);
