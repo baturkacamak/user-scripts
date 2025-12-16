@@ -1,7 +1,7 @@
 {
   "name": "X (Twitter) Tweet Extractor",
   "namespace": "https://github.com/baturkacamak/userscripts",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Extract all visible tweets from X.com viewport with username, content, datetime, tweet ID, and reply information",
   "author": "Batur Kacamak",
   "copyright": "2025+, Batur Kacamak (https://batur.info/)",

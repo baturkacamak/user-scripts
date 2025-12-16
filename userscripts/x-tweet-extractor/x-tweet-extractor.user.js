@@ -4773,6 +4773,8 @@
             this.extractDebouncer = null;
             this.subscriptionIds = [];
             this.isExtracting = false;
+            this.pendingNotificationCount = 0; // Queue for batched notifications
+            this.notificationDebouncer = null; // Debouncer for showing batched notifications
             
             Logger.info("Initializing X Tweet Extractor");
 
@@ -4790,12 +4792,8 @@
          * Setup PubSub event handlers
          */
         setupEventHandlers() {
-            this.subscriptionIds.push(
-                PubSub.subscribe(XTweetExtractor.EVENTS.SETTINGS_CHANGED, (data) => {
-                    this.handleSettingsChanged(data);
-                })
-            );
-
+            // Note: Settings changed event handler removed to avoid duplicate notifications
+            // Settings are handled directly in the checkbox onChange handler
             Logger.debug("PubSub event handlers setup complete");
         }
 
@@ -4850,15 +4848,6 @@
             }
         }
 
-        /**
-         * Handle settings changed event
-         */
-        handleSettingsChanged(data) {
-            Logger.debug("Settings changed:", data);
-            if (data.autoExtract !== undefined) {
-                this.toggleAutoExtract(data.autoExtract);
-            }
-        }
 
         /**
          * Initialize the extractor
@@ -4922,6 +4911,15 @@
                 await this.createSidebarPanel();
                 this.setupTweetObserver();
                 this.setupScrollListener();
+                this.setupNotificationQueue();
+                
+                // Initial extraction if auto-extract is enabled
+                if (this.settings.AUTO_EXTRACT) {
+                    // Small delay to ensure DOM is ready
+                    setTimeout(() => {
+                        this.extractNewTweets();
+                    }, 1000);
+                }
                 
                 Logger.info("X Tweet Extractor initialized successfully");
             } catch (error) {
@@ -5010,7 +5008,6 @@
                     this.settings.AUTO_EXTRACT = checked;
                     this.saveSettings();
                     this.toggleAutoExtract(checked);
-                    PubSub.publish(XTweetExtractor.EVENTS.SETTINGS_CHANGED, { autoExtract: checked });
                 },
                 container: autoExtractContainer,
                 scopeSelector: `#${this.enhancerId}`
@@ -5076,11 +5073,14 @@
             });
 
             // Debouncer for extraction to avoid too frequent calls
-            this.extractDebouncer = new Debouncer(() => {
+            this.extractDebouncer = Debouncer.debounce(() => {
                 if (this.settings.AUTO_EXTRACT && !this.isExtracting) {
-                    this.extractNewTweets();
+                    // Use requestAnimationFrame to ensure DOM is updated
+                    requestAnimationFrame(() => {
+                        this.extractNewTweets();
+                    });
                 }
-            }, 500);
+            }, 800);
 
             Logger.debug("Tweet observer setup complete");
         }
@@ -5090,15 +5090,23 @@
          */
         setupScrollListener() {
             // Use ThrottleService for scroll events
-            this.scrollThrottle = new ThrottleService(() => {
+            const throttleService = new ThrottleService();
+            this.scrollThrottle = throttleService.throttle(() => {
                 if (this.settings.AUTO_EXTRACT && !this.isExtracting) {
-                    this.extractNewTweets();
+                    // Use requestAnimationFrame to ensure DOM is updated
+                    requestAnimationFrame(() => {
+                        this.extractNewTweets();
+                    });
                 }
             }, 300);
 
-            window.addEventListener('scroll', () => {
-                this.scrollThrottle.trigger();
-            }, { passive: true });
+            // Listen to scroll on both window and document
+            const scrollHandler = () => {
+                this.scrollThrottle();
+            };
+            
+            window.addEventListener('scroll', scrollHandler, { passive: true });
+            document.addEventListener('scroll', scrollHandler, { passive: true });
 
             Logger.debug("Scroll listener setup complete");
         }
@@ -5107,6 +5115,8 @@
          * Handle tweet DOM changes
          */
         handleTweetDOMChanges(mutations) {
+            if (!this.settings.AUTO_EXTRACT || this.isExtracting) return;
+            
             let hasNewTweets = false;
 
             for (const mutation of mutations) {
@@ -5129,7 +5139,10 @@
             }
 
             if (hasNewTweets) {
-                this.extractDebouncer.trigger();
+                // Use requestAnimationFrame to ensure DOM is fully updated
+                requestAnimationFrame(() => {
+                    this.extractDebouncer();
+                });
             }
         }
 
@@ -5140,10 +5153,9 @@
             this.settings.AUTO_EXTRACT = enabled;
             if (enabled) {
                 // Extract immediately when enabled
-                this.extractNewTweets();
-                this.showNotification('Auto-extract enabled', 'success');
-            } else {
-                this.showNotification('Auto-extract disabled', 'info');
+                setTimeout(() => {
+                    this.extractNewTweets();
+                }, 100);
             }
         }
 
@@ -5171,8 +5183,10 @@
                     this.appendToTextarea(extractedData);
                     this.updateStats();
                     
+                    // Queue notification count instead of showing immediately
                     if (this.settings.SHOW_NOTIFICATIONS) {
-                        this.showNotification(`Extracted ${extractedData.length} new tweet(s)`, 'success');
+                        this.pendingNotificationCount += extractedData.length;
+                        this.queueNotification();
                     }
                     
                     PubSub.publish(XTweetExtractor.EVENTS.TWEET_EXTRACTED, {
@@ -5393,6 +5407,44 @@
             } catch (error) {
                 Logger.error('Error copying to clipboard:', error);
                 this.showNotification('Failed to copy to clipboard', 'error');
+            }
+        }
+
+        /**
+         * Setup notification queue with debouncer
+         */
+        setupNotificationQueue() {
+            // Debouncer to batch notifications - wait 1.5 seconds after last extraction
+            this.notificationDebouncer = Debouncer.debounce(() => {
+                if (this.pendingNotificationCount > 0) {
+                    const count = this.pendingNotificationCount;
+                    this.pendingNotificationCount = 0; // Reset counter
+                    this.showNotification(`Extracted ${count} new tweet(s)`, 'success');
+                }
+            }, 1500);
+        }
+
+        /**
+         * Queue notification (will be batched and shown after debounce delay)
+         */
+        queueNotification() {
+            if (this.notificationDebouncer) {
+                this.notificationDebouncer();
+            }
+        }
+
+        /**
+         * Flush pending notifications immediately
+         */
+        flushNotifications() {
+            if (this.pendingNotificationCount > 0 && this.notificationDebouncer) {
+                // Cancel the debouncer and show immediately
+                if (this.notificationDebouncer.cancel) {
+                    this.notificationDebouncer.cancel();
+                }
+                const count = this.pendingNotificationCount;
+                this.pendingNotificationCount = 0;
+                this.showNotification(`Extracted ${count} new tweet(s)`, 'success');
             }
         }
 
