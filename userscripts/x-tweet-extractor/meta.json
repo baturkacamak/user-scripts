@@ -1,0 +1,21 @@
+{
+  "name": "X (Twitter) Tweet Extractor",
+  "namespace": "https://github.com/baturkacamak/userscripts",
+  "version": "0.1.0",
+  "description": "Extract all visible tweets from X.com viewport with username, content, datetime, tweet ID, and reply information",
+  "author": "Batur Kacamak",
+  "copyright": "2025+, Batur Kacamak (https://batur.info/)",
+  "license": "MIT",
+  "homepage": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/x-tweet-extractor#readme",
+  "homepageURL": "https://github.com/baturkacamak/user-scripts/tree/master/userscripts/x-tweet-extractor#readme",
+  "supportURL": "https://github.com/baturkacamak/userscripts/issues",
+  "downloadURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/x-tweet-extractor/x-tweet-extractor.user.js",
+  "updateURL": "https://github.com/baturkacamak/user-scripts/raw/master/userscripts/x-tweet-extractor/x-tweet-extractor.user.js",
+  "match": [
+    "https://x.com/*",
+    "https://twitter.com/*"
+  ],
+  "icon": "https://abs.twimg.com/favicons/twitter.3.ico",
+  "run-at": "document-idle"
+}
+
