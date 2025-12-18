@@ -2,7 +2,7 @@
 // @name        Google AI Studio Enhancer
 // @description Copy all AI chatbot responses and auto-click Run button for specified iterations
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     2.2.1
+// @version     2.2.2
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/google-ai-studio-enhancer#readme
@@ -11,7 +11,7 @@
 // @downloadURL https://github.com/baturkacamak/userscripts/raw/master/userscripts/google-ai-studio-enhancer/google-ai-studio-enhancer.user.js
 // @updateURL   https://github.com/baturkacamak/userscripts/raw/master/userscripts/google-ai-studio-enhancer/google-ai-studio-enhancer.user.js
 // @match       https://aistudio.google.com/*
-// @icon        https://aistudio.google.com/static/favicon.ico
+// @icon        https://www.gstatic.com/aistudio/ai_studio_favicon_2_32x32.png
 // @run-at      document-idle
 // @grant       GM_setClipboard
 // @grant       GM_getValue
@@ -6602,11 +6602,9 @@
                 'textarea[aria-label*="Style instructions"]',
                 'textarea[placeholder*="style of your dialog"]'
             ],
-            TTS_TEMPERATURE_RANGE: [
-                'input[type="range"].mdc-slider__input[min="0"][max="2"]',
-                'input[type="range"][step][min="0"][max="2"]'
-            ],
+            // Temperature number input (we prefer this over the range slider for better control)
             TTS_TEMPERATURE_NUMBER: [
+                'input.slider-number-input.small[min="0"][max="2"]',
                 'input.slider-number-input[min="0"][max="2"]',
                 'input.slider-number-input'
             ],
@@ -9241,7 +9239,7 @@ also multiline`;
         }
 
         /**
-         * Set temperature using slider/number input
+         * Set temperature using the numeric input (preferred over slider)
          */
         async setTTSTemperature(value) {
             const clamped = Math.min(2, Math.max(0, value));
@@ -9253,16 +9251,7 @@ also multiline`;
                 el.dispatchEvent(new Event('change', { bubbles: true }));
             };
 
-            const rangeSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_RANGE || [];
-            for (const selector of rangeSelectors) {
-                const el = document.querySelector(selector);
-                if (el && el.offsetParent !== null) {
-                    setValueAndDispatch(el);
-                    applied = true;
-                    break;
-                }
-            }
-
+            // Prefer the numeric input control for temperature instead of the range slider
             const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
             for (const selector of numberSelectors) {
                 const el = document.querySelector(selector);
@@ -9274,9 +9263,9 @@ also multiline`;
             }
 
             if (applied) {
-                Logger.debug(`✅ Applied TTS temperature: ${clamped}`);
+                Logger.debug(`✅ Applied TTS temperature via number input: ${clamped}`);
             } else {
-                Logger.warn('TTS temperature controls not found');
+                Logger.warn('TTS temperature number input not found');
             }
         }
 

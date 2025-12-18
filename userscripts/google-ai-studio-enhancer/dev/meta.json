@@ -1,7 +1,7 @@
 {
   "name": "Google AI Studio Enhancer",
   "namespace": "https://github.com/baturkacamak/userscripts",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Copy all AI chatbot responses and auto-click Run button for specified iterations",
   "author": "Batur Kacamak",
   "copyright": "2024+, Batur Kacamak (https://batur.info/)",
@@ -14,7 +14,7 @@
   "match": [
     "https://aistudio.google.com/*"
   ],
-  "icon": "https://aistudio.google.com/static/favicon.ico",
+  "icon": "https://www.gstatic.com/aistudio/ai_studio_favicon_2_32x32.png",
   "run-at": "document-idle",
   "grant": [
     "GM_setClipboard",
