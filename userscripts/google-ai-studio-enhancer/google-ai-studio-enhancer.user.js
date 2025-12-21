@@ -2,7 +2,7 @@
 // @name        Google AI Studio Enhancer
 // @description Copy all AI chatbot responses and auto-click Run button for specified iterations
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     2.2.2
+// @version     2.2.3
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/google-ai-studio-enhancer#readme
@@ -9075,8 +9075,14 @@ also multiline`;
                 }
                 
                 // Add delay between chunks (except for the last one)
+                // Check shouldStopTTS during delay
                 if (i < chunks.length - 1 && !this.shouldStopTTS) {
-                    await this.delay(1000);
+                    for (let j = 0; j < 10; j++) {
+                        if (this.shouldStopTTS) {
+                            break;
+                        }
+                        await this.delay(100); // 100ms at a time, checking stop flag
+                    }
                 }
             }
             
@@ -9093,6 +9099,12 @@ also multiline`;
             let lastError = null;
             
                 for (let attempt = 0; attempt < retryCount; attempt++) {
+                    // Check if we should stop before starting a new attempt
+                    if (this.shouldStopTTS) {
+                        Logger.info('TTS queue stopped by user - aborting chunk processing');
+                        throw new Error('TTS queue stopped by user');
+                    }
+                    
                     try {
                         // Check for quota error before each attempt
                         if (this.checkForQuotaError()) {
@@ -9104,20 +9116,37 @@ also multiline`;
 
                         if (attempt > 0) {
                             Logger.info(`🔄 Retry attempt ${attempt + 1}/${retryCount} for chunk ${index + 1}`);
-                            await this.delay(2000); // Wait 2 seconds before retry
+                            // Check shouldStopTTS during retry delay
+                            for (let i = 0; i < 20; i++) {
+                                if (this.shouldStopTTS) {
+                                    throw new Error('TTS queue stopped by user');
+                                }
+                                await this.delay(100); // Wait 100ms at a time, checking stop flag
+                            }
                         }
                         
                         // Type the text into TTS textarea
                         await this.typeTTSText(chunk);
                         
-                        // Small delay to let the UI settle
-                        await this.delay(300);
+                        // Small delay to let the UI settle (check shouldStopTTS during delay)
+                        for (let i = 0; i < 3; i++) {
+                            if (this.shouldStopTTS) {
+                                throw new Error('TTS queue stopped by user');
+                            }
+                            await this.delay(100);
+                        }
                         
                         // Click run button
                         await this.clickTTSRunButton();
                         
                         // Check for quota error immediately after clicking (error might appear quickly)
-                        await this.delay(500); // Small delay to allow error to appear
+                        // Check shouldStopTTS during delay
+                        for (let i = 0; i < 5; i++) {
+                            if (this.shouldStopTTS) {
+                                throw new Error('TTS queue stopped by user');
+                            }
+                            await this.delay(100);
+                        }
                         if (this.checkForQuotaError()) {
                             Logger.warn('⚠️ Quota error detected after clicking run button, stopping TTS queue');
                             this.shouldStopTTS = true;
@@ -9139,7 +9168,14 @@ also multiline`;
                     const downloadDelayMs = this.settings.TTS_DOWNLOAD_DELAY_MS ?? AIStudioEnhancer.DEFAULT_SETTINGS.TTS_DOWNLOAD_DELAY_MS;
                     if (downloadDelayMs > 0) {
                         Logger.debug(`⏳ Waiting ${downloadDelayMs}ms before downloading TTS audio for chunk ${index + 1}`);
-                        await this.delay(downloadDelayMs);
+                        // Check shouldStopTTS during delay (split into chunks)
+                        const delayChunks = Math.ceil(downloadDelayMs / 100);
+                        for (let i = 0; i < delayChunks; i++) {
+                            if (this.shouldStopTTS) {
+                                throw new Error('TTS queue stopped by user');
+                            }
+                            await this.delay(100); // 100ms at a time, checking stop flag
+                        }
                     }
                     
                     // Download the audio (non-blocking - don't wait for download to complete)
@@ -9160,6 +9196,12 @@ also multiline`;
                     // If quota error, don't retry - stop immediately
                     if (error.message && error.message.includes('Quota exceeded')) {
                         Logger.error(`🚨 Quota exceeded detected, stopping TTS queue immediately`);
+                        throw error; // Re-throw to stop processing
+                    }
+                    
+                    // If stopped by user, don't retry - stop immediately
+                    if (error.message && error.message.includes('stopped by user')) {
+                        Logger.info(`🛑 TTS queue stopped by user, aborting chunk processing`);
                         throw error; // Re-throw to stop processing
                     }
                     
@@ -9500,6 +9542,9 @@ also multiline`;
                             // Wait for audio metadata to be loaded (duration, etc.)
                             let waitCount = 0;
                             while ((!audioElement.duration || isNaN(audioElement.duration) || audioElement.duration === 0) && waitCount < 20) {
+                                if (this.shouldStopTTS) {
+                                    throw new Error("TTS queue stopped by user");
+                                }
                                 await this.delay(200);
                                 waitCount++;
                             }
@@ -9517,12 +9562,27 @@ also multiline`;
                             Logger.debug("🔇 Stopped audio autoplay before download");
                         } catch (error) {
                             Logger.warn('Error processing audio element:', error);
+                            // Re-throw if it's a stop error
+                            if (error.message && error.message.includes('stopped by user')) {
+                                throw error;
+                            }
                         }
+                    }
+                    
+                    // Check shouldStopTTS before final delay
+                    if (this.shouldStopTTS) {
+                        throw new Error("TTS queue stopped by user");
                     }
                     
                     // Add additional delay to ensure audio is fully generated and ready
                     // This is important because the audio might still be processing even after the button is ready
-                    await this.delay(3000); // 3 second delay to ensure full audio generation
+                    // Check shouldStopTTS during delay (split into smaller chunks)
+                    for (let i = 0; i < 30; i++) {
+                        if (this.shouldStopTTS) {
+                            throw new Error("TTS queue stopped by user");
+                        }
+                        await this.delay(100); // 100ms at a time, checking stop flag
+                    }
                     
                     // Store this audio src as the last one for next chunk
                     this.lastTTSAudioSrc = audioDataUrl;
