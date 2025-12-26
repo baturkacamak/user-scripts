@@ -5049,13 +5049,18 @@
 
             // Prompts textarea
             const promptsLabel = document.createElement('label');
-            promptsLabel.textContent = 'Prompts (one per line):';
+            promptsLabel.textContent = 'Prompts (separated by ---):';
             promptsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
             container.appendChild(promptsLabel);
 
+            const separatorInfo = document.createElement('div');
+            separatorInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
+            separatorInfo.textContent = 'Separator: Use --- (three dashes) to separate prompts.';
+            container.appendChild(separatorInfo);
+
             this.promptsTextArea = new TextArea({
                 value: this.settings.PROMPTS_QUEUE || '',
-                placeholder: 'Enter prompts, one per line:\nFirst prompt\nSecond prompt\nThird prompt',
+                placeholder: 'Enter prompts separated by ---:\nFirst prompt\n---\nSecond prompt\n---\nThird prompt',
                 rows: 10,
                 onChange: (textArea) => {
                     this.settings.PROMPTS_QUEUE = textArea.getValue();
@@ -5155,8 +5160,8 @@
                 return;
             }
 
-            // Parse prompts (one per line)
-            this.prompts = promptsText.split('\n')
+            // Parse prompts (separated by ---)
+            this.prompts = promptsText.split('---')
                 .map(p => p.trim())
                 .filter(p => p.length > 0);
 
