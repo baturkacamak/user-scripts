@@ -106,6 +106,13 @@ class GeminiEnhancer {
     };
 
     constructor() {
+        // This check must be the first line
+        if (window.GeminiEnhancerInstance) {
+            console.warn("⚠️ [Gemini Enhancer] Instance already exists. Killing duplicate.");
+            return; 
+        }
+        window.GeminiEnhancerInstance = this;
+
         this.isQueueRunning = false;
         this.shouldStopQueue = false;
         this.currentPromptIndex = 0;
@@ -325,32 +332,6 @@ class GeminiEnhancer {
                 Logger.error("Error setting up form state persistence:", error);
             }
         }, 1000);
-    }
-
-    /**
-     * Download a single image and wait for completion
-     */
-    async downloadSingleImage(button, index, total) {
-        try {
-            Logger.debug(`Downloading image ${index + 1}/${total}...`);
-            
-            // Scroll button into view
-            button.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(300);
-            
-            // Click the download button
-            button.click();
-            Logger.debug(`Clicked download button ${index + 1}/${total}`);
-            
-            // Wait for download to complete
-            await this.waitForDownloadComplete(button);
-            
-            Logger.success(`Downloaded image ${index + 1}/${total}`);
-            return true;
-        } catch (error) {
-            Logger.error(`Error downloading image ${index + 1}:`, error);
-            return false;
-        }
     }
 
     /**
@@ -719,11 +700,11 @@ class GeminiEnhancer {
             if (this.settings.AUTO_DOWNLOAD_IMAGES && generationType === 'image') {
                 await this.delay(2000); // Wait a bit for image to render
                 // Only download the newly generated image (the last one)
-                const downloadButtons = this.findAllDownloadButtons();
-                if (downloadButtons.length > 0) {
-                    // Download the last button (most recent image)
-                    const lastButton = downloadButtons[downloadButtons.length - 1];
-                    await this.downloadSingleImage(lastButton, 0, 1);
+                const downloadContainers = this.findAllDownloadButtons();
+                if (downloadContainers.length > 0) {
+                    // Download the last container (most recent image)
+                    const lastContainer = downloadContainers[downloadContainers.length - 1];
+                    await this.downloadSingleImage(lastContainer, 0, 1);
                 }
             }
             
@@ -1226,22 +1207,96 @@ class GeminiEnhancer {
     }
 
     /**
-     * Find all download buttons
+     * Find all download button containers
      */
     findAllDownloadButtons() {
-        const downloadButtons = [];
+        const downloadContainers = [];
         
-        // Find all download buttons
+        // Find all download-generated-image-button containers
         for (const selector of GeminiEnhancer.SELECTORS.DOWNLOAD_IMAGE_BUTTON) {
-            const buttons = document.querySelectorAll(selector);
-            for (const button of buttons) {
-                if (button.offsetParent !== null && !downloadButtons.includes(button)) {
-                    downloadButtons.push(button);
+            const containers = document.querySelectorAll(selector);
+            for (const container of containers) {
+                // Check if the container is visible (part of a visible image)
+                if (container.offsetParent !== null && !downloadContainers.includes(container)) {
+                    downloadContainers.push(container);
                 }
             }
         }
         
-        return downloadButtons;
+        return downloadContainers;
+    }
+
+    /**
+     * Get the download button from a container
+     */
+    getDownloadButtonFromContainer(container) {
+        return container.querySelector('button[data-test-id="download-generated-image-button"]');
+    }
+
+    /**
+     * Wait for menu to open and find download link
+     * Material menus are attached to body, so we need to find the overlay panel
+     */
+    async waitForMenuAndFindDownloadLink(button, timeout = 5000) {
+        const start = Date.now();
+        const buttonRect = button.getBoundingClientRect();
+        
+        while (Date.now() - start < timeout) {
+            // Material menus are typically in overlay panels attached to body
+            // Look for the menu panel that's currently visible
+            const menuPanels = document.querySelectorAll('.cdk-overlay-pane, .mat-mdc-menu-panel, [role="menu"]');
+            
+            let closestMenu = null;
+            let closestDistance = Infinity;
+            
+            for (const menuPanel of menuPanels) {
+                // Check if this menu panel is visible
+                if (menuPanel.offsetParent === null) {
+                    continue;
+                }
+                
+                // Check if menu has download links
+                const menuItems = menuPanel.querySelectorAll('a[href], button[href], a[download], button[download]');
+                if (menuItems.length > 0) {
+                    // Verify this menu is associated with our button by checking if it's near the button
+                    const menuRect = menuPanel.getBoundingClientRect();
+                    
+                    // Calculate distance from button to menu
+                    const distanceX = Math.abs(menuRect.left - buttonRect.right);
+                    const distanceY = Math.abs(menuRect.top - buttonRect.bottom);
+                    const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+                    
+                    // Find the closest menu (should be the one we just opened)
+                    if (distance < closestDistance && distance < 300) {
+                        closestDistance = distance;
+                        closestMenu = menuItems[0];
+                    }
+                }
+            }
+            
+            if (closestMenu) {
+                Logger.debug(`Found menu with download link, distance: ${Math.round(closestDistance)}px`);
+                return closestMenu;
+            }
+            
+            // Also check for menu inside container (fallback)
+            const container = button.closest('download-generated-image-button');
+            if (container) {
+                const menu = container.querySelector('mat-menu');
+                if (menu) {
+                    const menuItems = menu.querySelectorAll('a[href], button[href], a[download], button[download]');
+                    if (menuItems.length > 0) {
+                        Logger.debug(`Found menu inside container with ${menuItems.length} items`);
+                        return menuItems[0];
+                    }
+                }
+            }
+            
+            await this.delay(200);
+        }
+        
+        Logger.warn("Menu not found or no download link in menu");
+        return null;
     }
 
     /**
@@ -1335,22 +1390,147 @@ class GeminiEnhancer {
     }
 
     /**
+     * Simulate realistic mouse hover over an element with proper coordinates
+     */
+    simulateRealisticHover(element) {
+        if (!element) return;
+        
+        const rect = element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        // Create mouse events with actual coordinates
+        const mouseOverEvent = new MouseEvent('mouseover', {
+            view: document.defaultView || window,
+            bubbles: true,
+            cancelable: true,
+            clientX: centerX,
+            clientY: centerY,
+            screenX: centerX + window.screenX,
+            screenY: centerY + window.screenY
+        });
+        
+        const mouseEnterEvent = new MouseEvent('mouseenter', {
+            view: document.defaultView || window,
+            bubbles: true,
+            cancelable: true,
+            clientX: centerX,
+            clientY: centerY,
+            screenX: centerX + window.screenX,
+            screenY: centerY + window.screenY
+        });
+        
+        const mouseMoveEvent = new MouseEvent('mousemove', {
+            view: document.defaultView || window,
+            bubbles: true,
+            cancelable: true,
+            clientX: centerX,
+            clientY: centerY,
+            screenX: centerX + window.screenX,
+            screenY: centerY + window.screenY
+        });
+        
+        // Dispatch events in order (mouseover -> mouseenter -> mousemove)
+        element.dispatchEvent(mouseOverEvent);
+        element.dispatchEvent(mouseEnterEvent);
+        element.dispatchEvent(mouseMoveEvent);
+        
+        Logger.debug(`Simulated realistic hover at (${Math.round(centerX)}, ${Math.round(centerY)})`);
+    }
+
+    /**
      * Download a single image and wait for completion
      */
-    async downloadSingleImage(button, index, total) {
+    async downloadSingleImage(container, index, total) {
         try {
             Logger.debug(`Downloading image ${index + 1}/${total}...`);
             
-            // Scroll button into view
-            button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Scroll container into view
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(500);
+            
+            // Find the overlay-container element that triggers the download button to appear
+            const overlayContainer = container.closest('generated-image')?.querySelector('.overlay-container.ng-star-inserted');
+            if (!overlayContainer) {
+                // Fallback: try finding it from the container itself
+                const imageElement = container.closest('generated-image');
+                if (imageElement) {
+                    const overlay = imageElement.querySelector('.overlay-container.ng-star-inserted');
+                    if (overlay) {
+                        // Simulate realistic hover over the overlay container to show the download button
+                        this.simulateRealisticHover(overlay);
+                        Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
+                        await this.delay(800); // Wait longer for controls to appear
+                    } else {
+                        // Fallback: hover over the image element
+                        this.simulateRealisticHover(imageElement);
+                        Logger.debug(`Fallback: hovered over image element for ${index + 1}/${total}`);
+                        await this.delay(800);
+                    }
+                }
+            } else {
+                // Simulate realistic hover over the overlay container to show the download button
+                this.simulateRealisticHover(overlayContainer);
+                Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
+                await this.delay(800); // Wait longer for controls to appear
+            }
+            
+            // Get the download button from container
+            const downloadButton = this.getDownloadButtonFromContainer(container);
+            if (!downloadButton) {
+                Logger.warn(`Download button not found in container ${index + 1}`);
+                return false;
+            }
+            
+            // Check if button is visible
+            if (downloadButton.offsetParent === null) {
+                Logger.warn(`Download button ${index + 1} is not visible after hover`);
+                // Try hovering again with a longer delay
+                if (overlayContainer) {
+                    this.simulateRealisticHover(overlayContainer);
+                    await this.delay(1000);
+                }
+                // Re-check visibility
+                const retryButton = this.getDownloadButtonFromContainer(container);
+                if (!retryButton || retryButton.offsetParent === null) {
+                    Logger.warn(`Download button ${index + 1} still not visible after retry`);
+                    return false;
+                }
+            }
+            
+            // Simulate realistic hover over the download button
+            this.simulateRealisticHover(downloadButton);
+            Logger.debug(`Hovered over download button ${index + 1}/${total}`);
+            await this.delay(800); // Wait longer for hover effects and URL generation
+            
+            // Close any previously open menus first
+            const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+            document.dispatchEvent(escapeEvent);
             await this.delay(300);
             
-            // Click the download button
-            button.click();
-            Logger.debug(`Clicked download button ${index + 1}/${total}`);
+            // Click the download button to open menu
+            downloadButton.click();
+            Logger.debug(`Clicked download button ${index + 1}/${total} to open menu`);
+            await this.delay(1000); // Wait longer for menu to appear and URLs to be generated
             
-            // Wait for download to complete
-            await this.waitForDownloadComplete(button);
+            // Wait for menu to open and find download link (pass the button, not container)
+            const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton);
+            if (!downloadLink) {
+                Logger.warn(`Download link not found in menu for image ${index + 1}`);
+                // Try closing any open menus before continuing
+                document.dispatchEvent(escapeEvent);
+                await this.delay(500);
+                return false;
+            }
+            
+            Logger.debug(`Found download link for image ${index + 1}/${total}, href: ${downloadLink.href || 'no href'}`);
+            
+            // Click the download link
+            downloadLink.click();
+            Logger.debug(`Clicked download link for image ${index + 1}/${total}`);
+            
+            // Wait for download to complete (monitor the button state)
+            await this.waitForDownloadComplete(downloadButton);
             
             Logger.success(`Downloaded image ${index + 1}/${total}`);
             return true;
@@ -1364,41 +1544,46 @@ class GeminiEnhancer {
      * Download all available images (queued, one at a time)
      */
     async downloadAllImages() {
-        Logger.debug("Searching for download image buttons...");
+        Logger.debug("Searching for download image containers...");
         
-        const downloadButtons = this.findAllDownloadButtons();
+        const downloadContainers = this.findAllDownloadButtons();
         
-        Logger.debug(`Found ${downloadButtons.length} download buttons`);
+        Logger.debug(`Found ${downloadContainers.length} download containers`);
         
-        if (downloadButtons.length === 0) {
+        if (downloadContainers.length === 0) {
             this.showNotification('No download buttons found', 'info');
             return;
         }
         
-        this.showNotification(`Starting download queue for ${downloadButtons.length} image(s)...`, 'info');
+        this.showNotification(`Starting download queue for ${downloadContainers.length} image(s)...`, 'info');
         
         let downloadedCount = 0;
         
         // Download each image sequentially
-        for (let i = 0; i < downloadButtons.length; i++) {
-            // Re-find buttons in case DOM changed
-            const currentButtons = this.findAllDownloadButtons();
-            if (i >= currentButtons.length) {
-                Logger.warn(`Button ${i + 1} no longer available, skipping`);
+        for (let i = 0; i < downloadContainers.length; i++) {
+            // Re-find containers in case DOM changed
+            const currentContainers = this.findAllDownloadButtons();
+            if (i >= currentContainers.length) {
+                Logger.warn(`Container ${i + 1} no longer available, skipping`);
                 continue;
             }
             
-            const button = currentButtons[i];
+            const container = currentContainers[i];
             
-            // Check if button is still visible
-            if (button.offsetParent === null) {
-                Logger.debug(`Button ${i + 1} is not visible, skipping`);
+            // Check if container is still visible
+            if (container.offsetParent === null) {
+                Logger.debug(`Container ${i + 1} is not visible, skipping`);
                 continue;
             }
             
-            const success = await this.downloadSingleImage(button, i, downloadButtons.length);
+            const success = await this.downloadSingleImage(container, i, downloadContainers.length);
             if (success) {
                 downloadedCount++;
+            }
+            
+            // Small delay between downloads
+            if (i < downloadContainers.length - 1) {
+                await this.delay(1000);
             }
         }
         
@@ -1430,11 +1615,22 @@ class GeminiEnhancer {
 }
 
 // Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        new GeminiEnhancer();
-    });
-} else {
-    new GeminiEnhancer();
+// Ensure you aren't calling 'new GeminiEnhancer()' in a way that allows multiples
+if (window.top === window.self) { // Only run in the main window, not iframes
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                new GeminiEnhancer();
+            } catch (e) {
+                console.error("Failed to start Gemini Enhancer", e);
+            }
+        });
+    } else {
+        try {
+            new GeminiEnhancer();
+        } catch (e) {
+            console.error("Failed to start Gemini Enhancer", e);
+        }
+    }
 }
 

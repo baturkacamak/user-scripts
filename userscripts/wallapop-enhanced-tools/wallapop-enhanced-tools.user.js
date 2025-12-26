@@ -450,6 +450,100 @@
     }
 
     /**
+     * MouseEventUtils - Utility for creating mouse events with fallbacks
+     * Usage:
+     *   const evt = MouseEventUtils.createClickEvent({bubbles: true, cancelable: true, programmatic: true});
+     *   element.dispatchEvent(evt);
+     */
+    class MouseEventUtils {
+        /**
+         * Create a click MouseEvent with fallbacks for older browsers
+         * @param {Object} options - MouseEventInit options + {programmatic: boolean}
+         * @returns {MouseEvent}
+         */
+        static createClickEvent(options = {}) {
+            const { programmatic, ...eventOptions } = options;
+            let event;
+            try {
+                event = new MouseEvent('click', eventOptions);
+            } catch (e) {
+                // Fallback for older browsers
+                event = document.createEvent('MouseEvents');
+                event.initMouseEvent(
+                    'click',
+                    eventOptions.bubbles || false,
+                    eventOptions.cancelable || false,
+                    window,
+                    eventOptions.detail || 1,
+                    eventOptions.screenX || 0,
+                    eventOptions.screenY || 0,
+                    eventOptions.clientX || 0,
+                    eventOptions.clientY || 0,
+                    eventOptions.ctrlKey || false,
+                    eventOptions.altKey || false,
+                    eventOptions.shiftKey || false,
+                    eventOptions.metaKey || false,
+                    eventOptions.button || 0,
+                    eventOptions.relatedTarget || null
+                );
+            }
+            if (programmatic) {
+                event._programmatic = true;
+            }
+            return event;
+        }
+
+        /**
+         * Create a mouseenter MouseEvent with fallbacks for older browsers
+         * @param {Object} options - MouseEventInit options + {programmatic: boolean}
+         * @returns {MouseEvent}
+         */
+        static createMouseEnterEvent(options = {}) {
+            const { programmatic, ...eventOptions } = options;
+            // Remove 'view' property if present, as it can cause issues
+            const { view, ...safeOptions } = eventOptions;
+            let event;
+            try {
+                // Use document.defaultView instead of window for better compatibility
+                event = new MouseEvent('mouseenter', {
+                    ...safeOptions,
+                    view: document.defaultView || window,
+                    bubbles: safeOptions.bubbles !== undefined ? safeOptions.bubbles : true,
+                    cancelable: safeOptions.cancelable !== undefined ? safeOptions.cancelable : true
+                });
+            } catch (e) {
+                // Fallback for older browsers
+                event = document.createEvent('MouseEvents');
+                const view = document.defaultView || window;
+                event.initMouseEvent(
+                    'mouseenter',
+                    safeOptions.bubbles !== undefined ? safeOptions.bubbles : true,
+                    safeOptions.cancelable !== undefined ? safeOptions.cancelable : true,
+                    view,
+                    safeOptions.detail || 0,
+                    safeOptions.screenX || 0,
+                    safeOptions.screenY || 0,
+                    safeOptions.clientX || 0,
+                    safeOptions.clientY || 0,
+                    safeOptions.ctrlKey || false,
+                    safeOptions.altKey || false,
+                    safeOptions.shiftKey || false,
+                    safeOptions.metaKey || false,
+                    safeOptions.button || 0,
+                    safeOptions.relatedTarget || null
+                );
+            }
+            if (programmatic) {
+                event._programmatic = true;
+            }
+            return event;
+        }
+    }
+
+    // Attach MouseEventUtils to HTMLUtils for easier access
+    HTMLUtils.MouseEventUtils = MouseEventUtils;
+
+    /**
      * StyleManager - Utility for CSS style management
      * Handles adding and removing styles, theme variables, etc.
      */
