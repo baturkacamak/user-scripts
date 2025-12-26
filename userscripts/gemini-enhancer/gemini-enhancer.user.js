@@ -5664,17 +5664,17 @@
                 // Don't throw error, just continue - sometimes the button state changes too quickly
             }
 
-            // Wait for button to return to ready state
-            Logger.debug("Waiting for generation to complete...");
+            // Wait for loading state to disappear (button no longer has stop class)
+            Logger.debug("Waiting for generation to complete (checking if loading button is gone)...");
             let lastLogTime = 0;
             while (Date.now() - start < timeout) {
                 if (this.shouldStopQueue) {
                     throw new Error("Queue stopped by user");
                 }
 
-                // Check if button is ready
-                if (this.isButtonReady()) {
-                    Logger.debug("Generation completed - button is ready");
+                // Check if loading state is gone (button no longer has stop class)
+                if (!this.isButtonLoading()) {
+                    Logger.debug("Generation completed - loading button is gone");
                     await this.delay(1500); // Extra delay to ensure response is fully rendered
                     return;
                 }
@@ -5685,7 +5685,8 @@
                     lastLogTime = elapsed;
                     const sendButton = document.querySelector('button.send-button');
                     if (sendButton) {
-                        Logger.debug(`Still waiting... (${Math.round(elapsed / 1000)}s) - Button classes: ${sendButton.className}, disabled: ${sendButton.hasAttribute('disabled')}, aria-disabled: ${sendButton.getAttribute('aria-disabled')}`);
+                        const isStop = sendButton.classList.contains('stop');
+                        Logger.debug(`Still waiting... (${Math.round(elapsed / 1000)}s) - Button has stop class: ${isStop}, classes: ${sendButton.className}`);
                     } else {
                         Logger.debug(`Still waiting... (${Math.round(elapsed / 1000)}s) - Send button not found`);
                     }
