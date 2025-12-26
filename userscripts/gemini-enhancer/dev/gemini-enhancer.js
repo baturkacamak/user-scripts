@@ -74,7 +74,16 @@ class GeminiEnhancer {
         TOOLBOX_DRAWER_BUTTONS: 'mat-action-list button.toolbox-drawer-item-list-button, mat-action-list button.mat-mdc-list-item',
         // Deselect buttons that appear when image/video is already selected
         IMAGE_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button:has(.toolbox-drawer-item-deselect-button-label)',
-        VIDEO_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button'
+        VIDEO_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button',
+        // Download image button
+        DOWNLOAD_IMAGE_BUTTON: [
+            'download-generated-image-button button[data-test-id="download-generated-image-button"]',
+            'button[aria-label*="Tam boyutlu resmi indir"]', // Turkish
+            'button[aria-label*="Download full size"]', // English
+            'button[aria-label*="Descargar tamaño completo"]', // Spanish
+            'button.generated-image-button',
+            'download-generated-image-button button'
+        ]
     };
 
     static SETTINGS_KEYS = {
@@ -82,7 +91,8 @@ class GeminiEnhancer {
         GENERATION_TYPE: 'gemini-generation-type',
         QUEUE_DELAY: 'gemini-queue-delay',
         SHOW_NOTIFICATIONS: 'gemini-show-notifications',
-        PANEL_POSITION: 'gemini-panel-position'
+        PANEL_POSITION: 'gemini-panel-position',
+        AUTO_DOWNLOAD_IMAGES: 'gemini-auto-download-images'
     };
 
     static DEFAULT_SETTINGS = {
@@ -90,7 +100,8 @@ class GeminiEnhancer {
         GENERATION_TYPE: 'text', // 'text', 'image', 'video'
         QUEUE_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
-        PANEL_POSITION: { x: 20, y: 20 }
+        PANEL_POSITION: { x: 20, y: 20 },
+        AUTO_DOWNLOAD_IMAGES: false
     };
 
     constructor() {
@@ -398,11 +409,28 @@ class GeminiEnhancer {
 
         // Control buttons
         const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = 'display: flex; gap: 8px; margin-top: 12px;';
+        buttonContainer.style.cssText = 'display: flex; flex-direction: column; gap: 8px; margin-top: 12px;';
+
+        const queueButtonRow = document.createElement('div');
+        queueButtonRow.style.cssText = 'display: flex; gap: 8px;';
 
         this.queueToggleButton = new Button({
             text: 'Start Queue',
             onClick: () => this.toggleQueue(),
+            container: queueButtonRow
+        });
+
+        this.queueWithDownloadButton = new Button({
+            text: 'Start Queue & Download Images',
+            onClick: () => this.startQueueWithDownload(),
+            container: queueButtonRow
+        });
+
+        buttonContainer.appendChild(queueButtonRow);
+
+        this.downloadAllImagesButton = new Button({
+            text: 'Download All Images',
+            onClick: () => this.downloadAllImages(),
             container: buttonContainer
         });
 
@@ -462,6 +490,27 @@ class GeminiEnhancer {
             this.stopQueue();
         } else {
             await this.startQueue();
+        }
+    }
+
+    /**
+     * Start queue with auto-download enabled
+     */
+    async startQueueWithDownload() {
+        if (this.isQueueRunning) {
+            this.showNotification('Queue is already running', 'warning');
+            return;
+        }
+
+        // Temporarily enable auto-download
+        const originalAutoDownload = this.settings.AUTO_DOWNLOAD_IMAGES;
+        this.settings.AUTO_DOWNLOAD_IMAGES = true;
+
+        try {
+            await this.startQueue();
+        } finally {
+            // Restore original setting
+            this.settings.AUTO_DOWNLOAD_IMAGES = originalAutoDownload;
         }
     }
 
@@ -586,6 +635,18 @@ class GeminiEnhancer {
             
             // Wait for completion
             await this.waitForCompletion();
+            
+            // Download image if auto-download is enabled and generation type is image
+            if (this.settings.AUTO_DOWNLOAD_IMAGES && generationType === 'image') {
+                await this.delay(2000); // Wait a bit for image to render
+                // Only download the newly generated image (the last one)
+                const downloadButtons = this.findAllDownloadButtons();
+                if (downloadButtons.length > 0) {
+                    // Download the last button (most recent image)
+                    const lastButton = downloadButtons[downloadButtons.length - 1];
+                    await this.downloadSingleImage(lastButton, 0, 1);
+                }
+            }
             
             Logger.success(`Prompt ${this.currentPromptIndex} completed`);
         } catch (error) {
@@ -1083,6 +1144,168 @@ class GeminiEnhancer {
         }
         
         throw new Error("Generation did not complete within timeout");
+    }
+
+    /**
+     * Find all download buttons
+     */
+    findAllDownloadButtons() {
+        const downloadButtons = [];
+        
+        // Find all download buttons
+        for (const selector of GeminiEnhancer.SELECTORS.DOWNLOAD_IMAGE_BUTTON) {
+            const buttons = document.querySelectorAll(selector);
+            for (const button of buttons) {
+                if (button.offsetParent !== null && !downloadButtons.includes(button)) {
+                    downloadButtons.push(button);
+                }
+            }
+        }
+        
+        return downloadButtons;
+    }
+
+    /**
+     * Wait for download to complete by monitoring the button state
+     */
+    async waitForDownloadComplete(button, timeout = 30000) {
+        const start = Date.now();
+        const initialAriaExpanded = button.getAttribute('aria-expanded');
+        const initialClasses = button.className;
+        
+        Logger.debug("Waiting for download to start...");
+        
+        // Wait for button state to change (download started)
+        let downloadStarted = false;
+        while (Date.now() - start < timeout) {
+            const currentAriaExpanded = button.getAttribute('aria-expanded');
+            const currentClasses = button.className;
+            
+            // Check if button state changed (download might have started)
+            if (currentAriaExpanded !== initialAriaExpanded || currentClasses !== initialClasses) {
+                downloadStarted = true;
+                Logger.debug("Download started (button state changed)");
+                break;
+            }
+            
+            // Also check if button is no longer visible (menu might have closed)
+            if (button.offsetParent === null) {
+                downloadStarted = true;
+                Logger.debug("Download started (button no longer visible)");
+                break;
+            }
+            
+            await this.delay(200);
+        }
+        
+        if (!downloadStarted) {
+            Logger.warn("Download start not detected, but continuing...");
+        }
+        
+        // Wait for download to complete - check if button is back to normal state or menu closed
+        Logger.debug("Waiting for download to complete...");
+        const completionStart = Date.now();
+        
+        while (Date.now() - completionStart < timeout) {
+            // Check if button is visible again (menu might have reopened)
+            if (button.offsetParent !== null) {
+                // Check if aria-expanded is back to initial state
+                const currentAriaExpanded = button.getAttribute('aria-expanded');
+                if (currentAriaExpanded === initialAriaExpanded || currentAriaExpanded === 'false') {
+                    Logger.debug("Download completed (button state returned to normal)");
+                    await this.delay(1000); // Extra delay to ensure download is fully processed
+                    return true;
+                }
+            } else {
+                // Button not visible, might mean download completed and menu closed
+                // Wait a bit more to be sure
+                await this.delay(2000);
+                Logger.debug("Download completed (button no longer visible)");
+                return true;
+            }
+            
+            await this.delay(500);
+        }
+        
+        Logger.warn("Download completion timeout, but continuing...");
+        await this.delay(2000); // Extra delay before next download
+        return true;
+    }
+
+    /**
+     * Download a single image and wait for completion
+     */
+    async downloadSingleImage(button, index, total) {
+        try {
+            Logger.debug(`Downloading image ${index + 1}/${total}...`);
+            
+            // Scroll button into view
+            button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(300);
+            
+            // Click the download button
+            button.click();
+            Logger.debug(`Clicked download button ${index + 1}/${total}`);
+            
+            // Wait for download to complete
+            await this.waitForDownloadComplete(button);
+            
+            Logger.success(`Downloaded image ${index + 1}/${total}`);
+            return true;
+        } catch (error) {
+            Logger.error(`Error downloading image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Download all available images (queued, one at a time)
+     */
+    async downloadAllImages() {
+        Logger.debug("Searching for download image buttons...");
+        
+        const downloadButtons = this.findAllDownloadButtons();
+        
+        Logger.debug(`Found ${downloadButtons.length} download buttons`);
+        
+        if (downloadButtons.length === 0) {
+            this.showNotification('No download buttons found', 'info');
+            return;
+        }
+        
+        this.showNotification(`Starting download queue for ${downloadButtons.length} image(s)...`, 'info');
+        
+        let downloadedCount = 0;
+        
+        // Download each image sequentially
+        for (let i = 0; i < downloadButtons.length; i++) {
+            // Re-find buttons in case DOM changed
+            const currentButtons = this.findAllDownloadButtons();
+            if (i >= currentButtons.length) {
+                Logger.warn(`Button ${i + 1} no longer available, skipping`);
+                continue;
+            }
+            
+            const button = currentButtons[i];
+            
+            // Check if button is still visible
+            if (button.offsetParent === null) {
+                Logger.debug(`Button ${i + 1} is not visible, skipping`);
+                continue;
+            }
+            
+            const success = await this.downloadSingleImage(button, i, downloadButtons.length);
+            if (success) {
+                downloadedCount++;
+            }
+        }
+        
+        if (downloadedCount > 0) {
+            this.showNotification(`Downloaded ${downloadedCount} image(s)`, 'success');
+            Logger.success(`Downloaded ${downloadedCount} image(s)`);
+        } else {
+            this.showNotification('No images were downloaded', 'warning');
+        }
     }
 
     /**
