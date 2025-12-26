@@ -1,6 +1,7 @@
 // Import core components
 import {
     Button,
+    FormStatePersistence,
     HTMLUtils,
     Logger,
     Notification,
@@ -112,6 +113,7 @@ class GeminiEnhancer {
         this.settings = { ...GeminiEnhancer.DEFAULT_SETTINGS };
         this.sidebarPanel = null;
         this.enhancerId = 'gemini-enhancer-container';
+        this.formStatePersistence = null;
 
         Logger.info("Initializing Gemini Enhancer");
 
@@ -269,9 +271,85 @@ class GeminiEnhancer {
             `);
 
             this.createUI();
+            this.setupFormStatePersistence();
             Logger.info("Gemini Enhancer initialized successfully");
         } catch (error) {
             Logger.error("Error during initialization:", error);
+        }
+    }
+
+    /**
+     * Setup form state persistence for prompts textarea
+     */
+    setupFormStatePersistence() {
+        if (!this.promptsTextArea) {
+            Logger.warn("Prompts textarea not available for persistence");
+            return;
+        }
+
+        // Wait a bit for textarea to be fully initialized
+        setTimeout(() => {
+            try {
+                const containerElement = this.promptsTextArea.getElement();
+                if (!containerElement) {
+                    Logger.warn("Textarea container element not found");
+                    return;
+                }
+
+                // Find the actual textarea element inside the container
+                const textareaElement = containerElement.querySelector('textarea');
+                if (!textareaElement) {
+                    Logger.warn("Textarea element not found in container");
+                    return;
+                }
+
+                this.formStatePersistence = new FormStatePersistence({
+                    namespace: 'gemini-enhancer',
+                    fields: {
+                        prompts: {
+                            selector: () => textareaElement,
+                            type: 'textarea',
+                            defaultValue: '',
+                            validator: null
+                        }
+                    },
+                    getValue: getValue,
+                    setValue: setValue,
+                    autoSave: true,
+                    debounceDelay: 500,
+                    name: 'Gemini Enhancer Prompts'
+                });
+
+                Logger.debug("Form state persistence setup complete");
+            } catch (error) {
+                Logger.error("Error setting up form state persistence:", error);
+            }
+        }, 1000);
+    }
+
+    /**
+     * Download a single image and wait for completion
+     */
+    async downloadSingleImage(button, index, total) {
+        try {
+            Logger.debug(`Downloading image ${index + 1}/${total}...`);
+            
+            // Scroll button into view
+            button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(300);
+            
+            // Click the download button
+            button.click();
+            Logger.debug(`Clicked download button ${index + 1}/${total}`);
+            
+            // Wait for download to complete
+            await this.waitForDownloadComplete(button);
+            
+            Logger.success(`Downloaded image ${index + 1}/${total}`);
+            return true;
+        } catch (error) {
+            Logger.error(`Error downloading image ${index + 1}:`, error);
+            return false;
         }
     }
 
@@ -395,6 +473,7 @@ class GeminiEnhancer {
             placeholder: 'Enter prompts separated by ---:\nFirst prompt\n---\nSecond prompt\n---\nThird prompt',
             rows: 10,
             onChange: (textArea) => {
+                // FormStatePersistence will handle saving, but we also save to settings for compatibility
                 this.settings.PROMPTS_QUEUE = textArea.getValue();
                 this.saveSettings();
             },
@@ -1166,29 +1245,48 @@ class GeminiEnhancer {
     }
 
     /**
+     * Check if download button is in active/loading state (has active class or spinner)
+     */
+    isDownloadButtonActive(button) {
+        if (!button || button.offsetParent === null) {
+            return false;
+        }
+        
+        // Check for active class
+        const hasActiveClass = button.classList.contains('active');
+        
+        // Check for spinner
+        const hasSpinner = button.querySelector('mat-spinner') !== null;
+        
+        return hasActiveClass || hasSpinner;
+    }
+
+    /**
      * Wait for download to complete by monitoring the button state
      */
     async waitForDownloadComplete(button, timeout = 30000) {
         const start = Date.now();
-        const initialAriaExpanded = button.getAttribute('aria-expanded');
-        const initialClasses = button.className;
+        const initialHasActive = this.isDownloadButtonActive(button);
         
         Logger.debug("Waiting for download to start...");
         
-        // Wait for button state to change (download started)
+        // Wait for button to become active (download started)
         let downloadStarted = false;
         while (Date.now() - start < timeout) {
-            const currentAriaExpanded = button.getAttribute('aria-expanded');
-            const currentClasses = button.className;
+            if (this.shouldStopQueue) {
+                throw new Error("Queue stopped by user");
+            }
             
-            // Check if button state changed (download might have started)
-            if (currentAriaExpanded !== initialAriaExpanded || currentClasses !== initialClasses) {
+            const isActive = this.isDownloadButtonActive(button);
+            
+            // Check if button became active (download started)
+            if (isActive && !initialHasActive) {
                 downloadStarted = true;
-                Logger.debug("Download started (button state changed)");
+                Logger.debug("Download started (button is active with spinner)");
                 break;
             }
             
-            // Also check if button is no longer visible (menu might have closed)
+            // Also check if button is no longer visible
             if (button.offsetParent === null) {
                 downloadStarted = true;
                 Logger.debug("Download started (button no longer visible)");
@@ -1202,29 +1300,33 @@ class GeminiEnhancer {
             Logger.warn("Download start not detected, but continuing...");
         }
         
-        // Wait for download to complete - check if button is back to normal state or menu closed
+        // Wait for download to complete - button should return to normal state (no active class, no spinner)
         Logger.debug("Waiting for download to complete...");
         const completionStart = Date.now();
         
         while (Date.now() - completionStart < timeout) {
-            // Check if button is visible again (menu might have reopened)
+            if (this.shouldStopQueue) {
+                throw new Error("Queue stopped by user");
+            }
+            
+            // Check if button is visible
             if (button.offsetParent !== null) {
-                // Check if aria-expanded is back to initial state
-                const currentAriaExpanded = button.getAttribute('aria-expanded');
-                if (currentAriaExpanded === initialAriaExpanded || currentAriaExpanded === 'false') {
-                    Logger.debug("Download completed (button state returned to normal)");
+                const isActive = this.isDownloadButtonActive(button);
+                
+                // Download completed when button is no longer active
+                if (!isActive) {
+                    Logger.debug("Download completed (button returned to normal state)");
                     await this.delay(1000); // Extra delay to ensure download is fully processed
                     return true;
                 }
             } else {
-                // Button not visible, might mean download completed and menu closed
-                // Wait a bit more to be sure
+                // Button not visible - wait a bit and assume download completed
                 await this.delay(2000);
                 Logger.debug("Download completed (button no longer visible)");
                 return true;
             }
             
-            await this.delay(500);
+            await this.delay(300);
         }
         
         Logger.warn("Download completion timeout, but continuing...");

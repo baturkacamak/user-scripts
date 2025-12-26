@@ -538,6 +538,139 @@
     }
 
     /**
+     * Debouncer - A utility class for creating debounced and throttled functions
+     *
+     * Provides sophisticated debouncing and throttling with options for immediate/delayed
+     * execution, cancellation, and flushing of pending operations.
+     */
+    class Debouncer {
+      /**
+         * Creates a debounced version of a function that delays invocation until after
+         * a specified wait time has elapsed since the last time the debounced function was called.
+         *
+         * @param {Function} func - The function to debounce.
+         * @param {number} wait - The number of milliseconds to delay.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=false] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new debounced function.
+         */
+      static debounce(func, wait, options = {}) {
+        const {leading = false, trailing = true} = options;
+        let timeout;
+        let lastArgs;
+        let lastThis;
+        let lastCallTime;
+        let result;
+
+        function invokeFunc() {
+          const args = lastArgs;
+          const thisArg = lastThis;
+
+          lastArgs = lastThis = undefined;
+          result = func.apply(thisArg, args);
+          return result;
+        }
+
+        function startTimer(pendingFunc, wait) {
+          return setTimeout(pendingFunc, wait);
+        }
+
+        function cancelTimer(id) {
+          clearTimeout(id);
+        }
+
+        function trailingEdge() {
+          timeout = undefined;
+
+          // Only invoke if we have `lastArgs` which means `func` has been debounced at least once
+          if (trailing && lastArgs) {
+            return invokeFunc();
+          }
+
+          lastArgs = lastThis = undefined;
+          return result;
+        }
+
+        function leadingEdge() {
+          // Reset any `maxWait` timer
+          timeout = startTimer(trailingEdge, wait);
+
+          // Invoke the leading edge
+          return leading ? invokeFunc() : result;
+        }
+
+        function cancel() {
+          if (timeout !== undefined) {
+            cancelTimer(timeout);
+          }
+          lastArgs = lastThis = lastCallTime = undefined;
+          timeout = undefined;
+        }
+
+        function flush() {
+          return timeout === undefined ? result : trailingEdge();
+        }
+
+        function debounced(...args) {
+          const time = Date.now();
+          const isInvoking = shouldInvoke(time);
+
+          lastArgs = args;
+          lastThis = this;
+          lastCallTime = time;
+
+          if (isInvoking) {
+            if (timeout === undefined) {
+              return leadingEdge();
+            }
+            if (isInvoking) {
+              // Handle invocations in a tight loop
+              timeout = startTimer(trailingEdge, wait);
+              return invokeFunc();
+            }
+          }
+          if (timeout === undefined) {
+            timeout = startTimer(trailingEdge, wait);
+          }
+          return result;
+        }
+
+        function shouldInvoke(time) {
+          const timeSinceLastCall = time - (lastCallTime || 0);
+
+          // Either this is the first call, activity has stopped and we're at the
+          // trailing edge, the system time has gone backwards and we're treating
+          // it as the trailing edge, or we've hit the `maxWait` limit
+          return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
+                    (0 > timeSinceLastCall));
+        }
+
+        debounced.cancel = cancel;
+        debounced.flush = flush;
+        return debounced;
+      }
+
+      /**
+         * Creates a throttled function that only invokes func at most once per
+         * every wait milliseconds.
+         *
+         * @param {Function} func - The function to throttle.
+         * @param {number} wait - The number of milliseconds to throttle invocations to.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=true] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new throttled function.
+         */
+      static throttle(func, wait, options = {}) {
+        return this.debounce(func, wait, {
+          leading: false !== options.leading,
+          trailing: false !== options.trailing,
+        });
+      }
+    }
+
+    /**
      * PubSub - A simple publish/subscribe pattern implementation
      * Enables components to communicate without direct references
      */
@@ -602,6 +735,641 @@
                 this.#events = {};
             }
         }
+    }
+
+    class DataCache {
+      constructor(logger) {
+        this.logger = logger;
+      }
+
+      get(key) {
+        try {
+          const value = localStorage.getItem(key);
+          if (value !== null) {
+            const { data, expires } = JSON.parse(value);
+            if (expires === null || new Date(expires) > new Date()) {
+              return data;
+            }
+            localStorage.removeItem(key);
+            this.logger.info(`Cache expired and removed for key: ${key}`);
+          }
+        } catch (e) {
+          this.logger.error(`Error getting cache for key ${key}:`, e);
+          localStorage.removeItem(key); // Remove potentially corrupted data
+        }
+        return null;
+      }
+
+      set(key, value, expirationDays) {
+        try {
+          const expires = expirationDays ?
+            new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
+            null;
+          localStorage.setItem(key, JSON.stringify({ data: value, expires }));
+          this.logger.info(`Cache set for key: ${key}, expires: ${expires}`);
+        } catch (e) {
+          this.logger.error(`Error setting cache for key ${key}:`, e);
+        }
+      }
+    }
+
+    /**
+     * UserInteractionDetector - A utility class for detecting genuine user interactions
+     *
+     * Provides robust detection of user-initiated events vs programmatic ones
+     * with multiple fallback mechanisms and integration with other utility classes.
+     */
+
+    class UserInteractionDetector {
+      /**
+         * Get a singleton instance - this allows sharing the detector across modules
+         * @param {Object} [options] - Configuration options (only used for first initialization)
+         * @return {UserInteractionDetector} Singleton instance
+         * @static
+         */
+      static getInstance(options = {}) {
+        if (!window.UserInteractionDetector) {
+          window.UserInteractionDetector = {};
+        }
+
+        if (!window.UserInteractionDetector._instance) {
+          window.UserInteractionDetector._instance = new UserInteractionDetector(options);
+        }
+
+        return window.UserInteractionDetector._instance;
+      }
+      /**
+         * Create a new UserInteractionDetector
+         * @param {Object} options - Configuration options
+         * @param {number} [options.interactionWindow=150] - Time window in ms to consider events related to user interaction
+         * @param {number} [options.interactionThrottle=50] - Minimum ms between interaction broadcasts
+         * @param {boolean} [options.debug=false] - Enable debug logging
+         * @param {string} [options.namespace='userscripts'] - Namespace for events
+         * @param {boolean} [options.trackGlobalInteractions=true] - Whether to track interactions on document/window level
+         * @param {boolean} [options.trackProgrammaticEvents=true] - Whether to track programmatic events like dispatchEvent
+         */
+      constructor(options = {}) {
+        // Configuration
+        this.interactionWindow = options.interactionWindow || 150; // Time window in ms
+        this.interactionThrottle = options.interactionThrottle || 50; // Throttle in ms
+        this.debug = options.debug || false;
+        this.namespace = options.namespace || 'userscripts';
+        this.trackGlobalInteractions = (false !== options.trackGlobalInteractions); // Default true
+        this.trackProgrammaticEvents = (false !== options.trackProgrammaticEvents); // Default true
+
+        // State tracking
+        this._isInteracting = false;
+        this._lastInteractionTime = 0;
+        this._interactionTypes = new Set();
+        this._lastEventTarget = null;
+        this._lastEventType = null;
+        this._interactionTimer = null;
+        this._throttleTimer = null;
+        this._overrideTimestamp = null;
+        this._userInteractionCounter = 0;
+        this._programmaticEventCounter = 0;
+        this._patched = new Set();
+
+        // Event tracking arrays
+        this._recentEvents = [];
+        this._trackedElements = new Map(); // element -> {events: [], handlers: []}
+
+        // Initialize
+        this._initTracking();
+
+        // Log initialization
+        if (this.debug) {
+          Logger.debug('UserInteractionDetector initialized with options:', {
+            interactionWindow: this.interactionWindow,
+            interactionThrottle: this.interactionThrottle,
+            namespace: this.namespace,
+            trackGlobalInteractions: this.trackGlobalInteractions,
+            trackProgrammaticEvents: this.trackProgrammaticEvents,
+          });
+        }
+      }
+
+
+      /**
+         * Track a specific element for interaction events
+         * You can use this for elements you want to specifically monitor
+         * @param {HTMLElement} element - The element to track
+         * @param {Array<string>} eventTypes - Event types to track
+         * @param {Function} callback - Callback to invoke with interaction info
+         * @return {Function} Unsubscribe function
+         */
+      trackElement(element, eventTypes = ['click', 'touchstart', 'keydown'], callback) {
+        if (!element || !element.addEventListener) {
+          this._logError('Invalid element provided to trackElement');
+          return () => {
+          }; // No-op unsubscribe
+        }
+
+        // Initialize tracking data for this element if needed
+        if (!this._trackedElements.has(element)) {
+          this._trackedElements.set(element, {
+            events: [],
+            handlers: [],
+          });
+        }
+
+        const elementData = this._trackedElements.get(element);
+        const handlers = [];
+
+        // Create handler for each event type
+        eventTypes.forEach((eventType) => {
+          const handler = (e) => {
+            const isUserInitiated = this.isUserEvent(e);
+            const interactionData = {
+              event: e,
+              timestamp: Date.now(),
+              isUserInitiated,
+              globalInteracting: this._isInteracting,
+              timeSinceLastInteraction: Date.now() - this._lastInteractionTime,
+            };
+
+            // Track this event
+            elementData.events.unshift(interactionData);
+            if (5 < elementData.events.length) {
+              elementData.events.pop();
+            }
+
+            // Call the callback
+            callback(interactionData);
+          };
+
+          // Attach the handler
+          element.addEventListener(eventType, handler);
+          handlers.push({eventType, handler});
+          elementData.handlers.push({eventType, handler});
+        });
+
+        this._log(`Now tracking ${eventTypes.join(', ')} events on element:`, element);
+
+        // Return unsubscribe function
+        return () => {
+          handlers.forEach(({eventType, handler}) => {
+            element.removeEventListener(eventType, handler);
+
+            // Remove from tracked handlers
+            if (this._trackedElements.has(element)) {
+              const data = this._trackedElements.get(element);
+              data.handlers = data.handlers.filter((h) => h.handler !== handler);
+
+              // Clean up if no more handlers
+              if (0 === data.handlers.length) {
+                this._trackedElements.delete(element);
+              }
+            }
+          });
+
+          this._log('Unsubscribed from element events');
+        };
+      }
+
+      /**
+         * Check if an event was initiated by a real user interaction
+         * @param {Event} event - The event to check
+         * @return {boolean} True if the event was likely initiated by a user
+         */
+      isUserEvent(event) {
+        if (!event) return false;
+
+        // Primary check: isTrusted property (most reliable)
+        if (event.isTrusted) {
+          return true;
+        }
+
+        // Secondary check: event occurred during known interaction window
+        if (this._isInteracting) {
+          const timeSinceInteraction = Date.now() - this._lastInteractionTime;
+          if (timeSinceInteraction < this.interactionWindow) {
+            this._log(`Event occurred ${timeSinceInteraction}ms after user interaction`);
+            return true;
+          }
+        }
+
+        // Tertiary check: was the event part of a trusted cascade?
+        // (sometimes events trigger other events programmatically, but they're still part of user input)
+        const cascadeWindow = 50; // ms to consider event cascades
+        const recentTrustedEvents = this._recentEvents.filter((e) =>
+          e.trusted && Date.now() - e.timestamp < cascadeWindow,
+        );
+
+        if (0 < recentTrustedEvents.length) {
+          this._log(`Event may be part of trusted cascade (${recentTrustedEvents.length} recent trusted events)`);
+          return true;
+        }
+
+        // Special check for specific event types that are always user-initiated
+        const alwaysUserEvents = ['beforeinput', 'mousedown', 'touchstart', 'keydown'];
+        if (alwaysUserEvents.includes(event.type) && !event._detectedByUserInteractionDetector) {
+          this._log(`Event type ${event.type} is typically user-initiated`);
+          return true;
+        }
+
+        return false;
+      }
+
+      /**
+         * Check if an element's event was likely initiated by a real user
+         * @param {HTMLElement} element - The element to check
+         * @param {string} eventType - The type of event
+         * @param {number} [timeWindow=500] - Time window to look back in ms
+         * @return {boolean} True if there's evidence the user interacted with this element
+         */
+      didUserInteractWith(element, eventType, timeWindow = 500) {
+        if (!element) return false;
+
+        // First check if we're tracking this element
+        if (this._trackedElements.has(element)) {
+          const data = this._trackedElements.get(element);
+          const recentEvents = data.events.filter((entry) =>
+            entry.event.type === eventType &&
+                    Date.now() - entry.timestamp < timeWindow &&
+                    entry.isUserInitiated,
+          );
+
+          if (0 < recentEvents.length) {
+            return true;
+          }
+        }
+
+        // Fallback: check if this element was the last interaction target
+        if (this._lastEventTarget === element &&
+                this._lastEventType === eventType &&
+                Date.now() - this._lastInteractionTime < timeWindow) {
+          return true;
+        }
+
+        // Final fallback: check if element contains last interaction target
+        if (this._lastEventTarget &&
+                element.contains(this._lastEventTarget) &&
+                Date.now() - this._lastInteractionTime < timeWindow) {
+          return true;
+        }
+
+        return false;
+      }
+
+      /**
+         * Check if the user is currently interacting with the page
+         * @return {boolean} True if user interaction was detected within the interaction window
+         */
+      isInteracting() {
+        return this._isInteracting;
+      }
+
+      /**
+         * Get time (ms) since last user interaction
+         * @return {number} Milliseconds since last interaction, or Infinity if no interaction yet
+         */
+      getTimeSinceLastInteraction() {
+        if (0 === this._lastInteractionTime) return Infinity;
+        return Date.now() - this._lastInteractionTime;
+      }
+
+      /**
+         * Check if an interaction happened recently within the given time window
+         * @param {number} withinMs - Time window in milliseconds
+         * @return {boolean} True if interaction happened within the specified window
+         */
+      interactedWithin(withinMs) {
+        return this.getTimeSinceLastInteraction() < withinMs;
+      }
+      /**
+         * Get statistics about detected interactions
+         * @return {Object} Interaction statistics
+         */
+      getStats() {
+        return {
+          isInteracting: this._isInteracting,
+          lastInteractionTime: this._lastInteractionTime,
+          timeSinceLastInteraction: this.getTimeSinceLastInteraction(),
+          interactionTypes: Array.from(this._interactionTypes),
+          userInteractionCount: this._userInteractionCounter,
+          programmaticEventCount: this._programmaticEventCounter,
+          trackedElements: this._trackedElements.size,
+          recentEvents: this._recentEvents.length,
+        };
+      }
+      /**
+         * Reset all tracking state
+         */
+      reset() {
+        this._resetInteractionState();
+        this._lastInteractionTime = 0;
+        this._userInteractionCounter = 0;
+        this._programmaticEventCounter = 0;
+        this._recentEvents = [];
+
+        // Clear tracked elements
+        this._trackedElements.forEach((data, element) => {
+          data.handlers.forEach(({eventType, handler}) => {
+            try {
+              element.removeEventListener(eventType, handler);
+            } catch (e) {
+              // Element might be gone from DOM
+            }
+          });
+        });
+        this._trackedElements.clear();
+
+        this._log('All tracking state reset');
+      }
+      /**
+         * Clean up resources when detector is no longer needed
+         */
+      destroy() {
+        this.reset();
+
+        // Could unpatch event methods here, but it's generally safer
+        // to leave them patched to avoid breaking other code
+
+        this._log('Detector destroyed');
+      }
+      /**
+         * Initialize event tracking
+         * @private
+         */
+      _initTracking() {
+        if (this.trackGlobalInteractions) {
+          // Track global user interactions (capture phase to get them early)
+          this._setupGlobalEventListeners();
+        }
+
+        if (this.trackProgrammaticEvents) {
+          // Track programmatic events by patching EventTarget.prototype
+          this._patchEventMethods();
+        }
+      }
+
+
+      /**
+         * Set up global event listeners to detect user interaction
+         * @private
+         */
+      _setupGlobalEventListeners() {
+        // Primary interaction events with capture to catch events early
+        const interactionEvents = [
+          'mousedown', 'mouseup', 'click', 'touchstart', 'touchend',
+          'keydown', 'keyup', 'keypress', 'input', 'change', 'focus',
+        ];
+
+        const handleInteraction = this._handleGlobalInteraction.bind(this);
+
+        interactionEvents.forEach((eventType) => {
+          document.addEventListener(eventType, handleInteraction, {
+            capture: true,
+            passive: true, // For better performance
+          });
+        });
+
+        // Special handling for scroll events (throttled)
+        let scrollTimeout = null;
+        const handleScroll = (e) => {
+          if (!scrollTimeout) {
+            scrollTimeout = setTimeout(() => {
+              handleInteraction(e);
+              scrollTimeout = null;
+            }, 100); // Throttle scroll events
+          }
+        };
+
+        window.addEventListener('scroll', handleScroll, {
+          capture: true,
+          passive: true,
+        });
+
+        // Track window focus/blur for tab switching context
+        window.addEventListener('focus', () => {
+          this._log('Window focused');
+          this._overrideTimestamp = Date.now();
+        });
+
+        window.addEventListener('blur', () => {
+          this._log('Window blurred - resetting interaction state');
+          this._resetInteractionState();
+        });
+
+        this._log('Global event listeners registered');
+      }
+
+
+      /**
+         * Handle a global interaction event
+         * @param {Event} e - The event object
+         * @private
+         */
+      _handleGlobalInteraction(e) {
+        // Only process trusted events from the user
+        if (!e.isTrusted) {
+          this._log(`Ignoring untrusted event: ${e.type}`);
+          return;
+        }
+
+        // Track this event in the recent events list
+        this._trackEvent(e);
+
+        // Update interaction state
+        this._setInteracting(e);
+      }
+
+
+      /**
+         * Reset interaction state
+         * @private
+         */
+      _resetInteractionState() {
+        this._isInteracting = false;
+        this._interactionTypes.clear();
+        this._lastEventTarget = null;
+        this._lastEventType = null;
+        clearTimeout(this._interactionTimer);
+        this._interactionTimer = null;
+
+        // Emit an event about interaction end
+        PubSub.publish(`${this.namespace}:interaction:end`, {
+          timestamp: Date.now(),
+          duration: Date.now() - this._lastInteractionTime,
+        });
+
+        this._log('Interaction state reset');
+      }
+
+
+      /**
+         * Set interaction state and schedule timeout
+         * @param {Event} e - The triggering event
+         * @private
+         */
+      _setInteracting(e) {
+        const now = Date.now();
+        const wasInteracting = this._isInteracting;
+
+        // Update state
+        this._isInteracting = true;
+        this._lastInteractionTime = now;
+        this._interactionTypes.add(e.type);
+        this._lastEventTarget = e.target;
+        this._lastEventType = e.type;
+        this._userInteractionCounter++;
+
+        // Clear any existing timeout and set a new one
+        clearTimeout(this._interactionTimer);
+        this._interactionTimer = setTimeout(() => {
+          this._log(`Interaction window timeout after ${this.interactionWindow}ms`);
+          this._resetInteractionState();
+        }, this.interactionWindow);
+
+        // Emit event (throttled)
+        if (!wasInteracting || !this._throttleTimer) {
+          if (this._throttleTimer) {
+            clearTimeout(this._throttleTimer);
+          }
+
+          // Immediate first notification
+          this._emitInteractionEvent(e);
+
+          // Throttle subsequent notifications
+          this._throttleTimer = setTimeout(() => {
+            this._throttleTimer = null;
+          }, this.interactionThrottle);
+        }
+      }
+
+
+      /**
+         * Emit interaction event via PubSub
+         * @param {Event} e - The triggering event
+         * @private
+         */
+      _emitInteractionEvent(e) {
+        PubSub.publish(`${this.namespace}:interaction`, {
+          timestamp: Date.now(),
+          event: {
+            type: e.type,
+            target: e.target,
+          },
+          interactionTypes: Array.from(this._interactionTypes),
+          interactionCount: this._userInteractionCounter,
+        });
+
+        this._log(`Emitted interaction event for ${e.type}`);
+      }
+
+
+      /**
+         * Track an event in the recent events list
+         * @param {Event} e - The event object
+         * @private
+         */
+      _trackEvent(e) {
+        const eventData = {
+          type: e.type,
+          timestamp: Date.now(),
+          target: e.target,
+          trusted: e.isTrusted,
+        };
+
+        // Add to recent events, keeping last 10
+        this._recentEvents.unshift(eventData);
+        if (10 < this._recentEvents.length) {
+          this._recentEvents.pop();
+        }
+      }
+
+
+      /**
+         * Patch event methods to detect programmatic events
+         * @private
+         */
+      _patchEventMethods() {
+        // Don't patch twice
+        if (this._patched.has('events')) return;
+
+        // Save original methods
+        const originalDispatchEvent = EventTarget.prototype.dispatchEvent;
+
+        // Patch dispatchEvent
+        EventTarget.prototype.dispatchEvent = function(event) {
+          // Mark the event as detected by our utility
+          event._detectedByUserInteractionDetector = true;
+
+          // Track programmatic event
+          if (window.UserInteractionDetector && window.UserInteractionDetector._instance) {
+            window.UserInteractionDetector._instance._programmaticEventCounter++;
+
+            window.UserInteractionDetector._instance._log(
+                `Programmatic event detected: ${event.type} on ${this.tagName || 'EventTarget'}`,
+            );
+          }
+
+          // Call original method
+          return originalDispatchEvent.apply(this, arguments);
+        };
+
+        this._patched.add('events');
+        this._log('Event methods patched to detect programmatic events');
+      }
+
+
+      /**
+         * Private logging helper
+         * @param {...any} args - Arguments to log
+         * @private
+         */
+      _log(...args) {
+        if (this.debug) {
+          Logger.debug('[UserInteractionDetector]', ...args);
+        }
+      }
+
+      /**
+         * Private error logging helper
+         * @param {...any} args - Arguments to log
+         * @private
+         */
+      _logError(...args) {
+        Logger.error('[UserInteractionDetector]', ...args);
+      }
+    }
+
+    class BaseStrategy {
+      constructor(callback) {
+        this.callback = callback;
+      }
+
+      start() {
+      }
+
+      stop() {
+      }
+    }
+
+    class PollingStrategy extends BaseStrategy {
+      constructor(callback, interval = 500) {
+        super(callback);
+        this.interval = interval;
+        this.lastUrl = location.href;
+      }
+
+      start() {
+        Logger.debug('PollingStrategy started');
+        this.timer = setInterval(() => {
+          const current = location.href;
+          if (current !== this.lastUrl) {
+            Logger.debug(`Polling detected change: ${this.lastUrl} → ${current}`);
+            this.callback(current, this.lastUrl);
+            this.lastUrl = current;
+          }
+        }, this.interval);
+      }
+
+      stop() {
+        clearInterval(this.timer);
+        Logger.debug('PollingStrategy stopped');
+      }
     }
 
     /**
@@ -1324,6 +2092,596 @@
 
     // Static property to track if styles have been initialized
     Notification.stylesInitialized = false;
+
+    /**
+     * FormStatePersistence - Generic form state persistence system
+     * Automatically saves and restores form values using GM storage
+     */
+    class FormStatePersistence {
+        static EVENTS = {
+            STATE_SAVED: 'formstate:state-saved',
+            STATE_LOADED: 'formstate:state-loaded',
+            STATE_CLEARED: 'formstate:state-cleared',
+            FIELD_CHANGED: 'formstate:field-changed'
+        };
+
+        /**
+         * @param {Object} options Configuration options
+         * @param {string} options.namespace - Namespace for storage keys
+         * @param {Object} options.fields - Field configurations {fieldName: {selector, type, defaultValue, validator}}
+         * @param {Function} options.getValue - Function to get values from GM storage
+         * @param {Function} options.setValue - Function to set values in GM storage
+         * @param {boolean} options.autoSave - Whether to auto-save on change (default: true)
+         * @param {number} options.debounceDelay - Debounce delay for auto-save (default: 500ms)
+         * @param {Object} options.pubsub - Optional PubSub instance for events
+         * @param {Object} options.logger - Optional logger instance
+         * @param {string} options.name - Optional name for this persistence manager
+         */
+        constructor(options) {
+            this.namespace = options.namespace || 'form-state';
+            this.fields = options.fields || {};
+            this.getValue = options.getValue;
+            this.setValue = options.setValue;
+            this.autoSave = options.autoSave !== false;
+            this.debounceDelay = options.debounceDelay || 500;
+            this.name = options.name || 'FormStatePersistence';
+            
+            // Optional user interaction detection for distinguishing user vs auto-save
+            this.enableInteractionDetection = options.enableInteractionDetection || false;
+            this.userInteraction = this.enableInteractionDetection ? 
+                UserInteractionDetector.getInstance({
+                    namespace: `formstate-${this.name}`,
+                    debug: Logger.DEBUG
+                }) : null;
+                
+            // Optional notifications
+            this.enableNotifications = options.enableNotifications || false;
+            
+            // Optional periodic save using PollingStrategy
+            this.enablePeriodicSave = options.enablePeriodicSave || false;
+            this.periodicSaveInterval = options.periodicSaveInterval || 30000; // 30 seconds
+            this.pollingStrategy = null;
+
+            this.fieldElements = new Map();
+            this.fieldValues = new Map();
+            this.saveTimeouts = new Map();
+            this.isInitialized = false;
+            
+            // Use core Debouncer for save operations
+            this.debouncedSave = Debouncer.debounce(this.performSave.bind(this), this.debounceDelay);
+            
+            // Use DataCache for backup storage
+            this.enableBackup = options.enableBackup || false;
+            this.backupCache = this.enableBackup ? new DataCache(Logger) : null;
+
+            // Import Debouncer if available
+            this.Debouncer = options.Debouncer;
+        }
+
+        /**
+         * Initialize the form state persistence
+         */
+        async initialize() {
+            if (this.isInitialized) {
+                Logger.warn(`[${this.name}] Already initialized`);
+                return;
+            }
+
+            Logger.info(`[${this.name}] Initializing form state persistence with ${Object.keys(this.fields).length} fields`);
+
+            // Find and cache field elements
+            this.findFieldElements();
+
+            // Load saved state
+            await this.loadState();
+
+            // Setup auto-save listeners
+            if (this.autoSave) {
+                this.setupAutoSave();
+            }
+
+            this.isInitialized = true;
+            Logger.info(`[${this.name}] Form state persistence initialized`);
+            
+            // Start periodic save if enabled
+            if (this.enablePeriodicSave) {
+                this.pollingStrategy = new PollingStrategy(() => {
+                    this.saveState();
+                }, this.periodicSaveInterval);
+                this.pollingStrategy.start();
+            }
+            
+            // Show initialization notification if enabled
+            if (this.enableNotifications) {
+                Notification.success(`Form state persistence initialized for ${Object.keys(this.fields).length} fields`, {
+                    duration: 3000,
+                    position: 'bottom-right'
+                });
+            }
+        }
+
+        /**
+         * Find and cache field elements
+         */
+        findFieldElements() {
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const element = document.querySelector(config.selector);
+                    if (element) {
+                        this.fieldElements.set(fieldName, element);
+                        Logger.debug(`[${this.name}] Found field element: ${fieldName}`);
+                    } else {
+                        Logger.warn(`[${this.name}] Field element not found: ${fieldName} (${config.selector})`);
+                    }
+                } catch (error) {
+                    Logger.error(`[${this.name}] Error finding field ${fieldName}:`, error);
+                }
+            }
+        }
+
+        /**
+         * Load saved state from storage
+         */
+        async loadState() {
+            if (!this.getValue) {
+                Logger.warn(`[${this.name}] No getValue function provided, cannot load state`);
+                return;
+            }
+
+            let loadedCount = 0;
+
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const storageKey = this.getStorageKey(fieldName);
+                    const savedValue = await this.getValue(storageKey, config.defaultValue);
+                    
+                    if (savedValue !== null && savedValue !== undefined) {
+                        this.fieldValues.set(fieldName, savedValue);
+                        await this.setFieldValue(fieldName, savedValue);
+                        loadedCount++;
+                        Logger.debug(`[${this.name}] Loaded field ${fieldName}:`, savedValue);
+                    }
+                } catch (error) {
+                    Logger.error(`[${this.name}] Error loading field ${fieldName}:`, error);
+                }
+            }
+
+            Logger.info(`[${this.name}] Loaded ${loadedCount} field values from storage`);
+            this.publishEvent(FormStatePersistence.EVENTS.STATE_LOADED, {
+                loadedCount,
+                totalFields: Object.keys(this.fields).length,
+                name: this.name
+            });
+        }
+
+        /**
+         * Save current state to storage
+         */
+        async saveState() {
+            if (!this.setValue) {
+                Logger.warn(`[${this.name}] No setValue function provided, cannot save state`);
+                return;
+            }
+
+            let savedCount = 0;
+
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const currentValue = await this.getFieldValue(fieldName);
+                    
+                    if (currentValue !== null && currentValue !== undefined) {
+                        // Validate value if validator provided
+                        if (config.validator && !config.validator(currentValue)) {
+                            Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
+                            continue;
+                        }
+
+                        const storageKey = this.getStorageKey(fieldName);
+                        await this.setValue(storageKey, currentValue);
+                        this.fieldValues.set(fieldName, currentValue);
+                        savedCount++;
+                        Logger.debug(`[${this.name}] Saved field ${fieldName}:`, currentValue);
+                    }
+                } catch (error) {
+                    Logger.error(`[${this.name}] Error saving field ${fieldName}:`, error);
+                }
+            }
+
+            Logger.info(`[${this.name}] Saved ${savedCount} field values to storage`);
+            this.publishEvent(FormStatePersistence.EVENTS.STATE_SAVED, {
+                savedCount,
+                totalFields: Object.keys(this.fields).length,
+                name: this.name
+            });
+        }
+
+        /**
+         * Get current value of a field
+         */
+        async getFieldValue(fieldName) {
+            const element = this.fieldElements.get(fieldName);
+            const config = this.fields[fieldName];
+            
+            if (!element || !config) {
+                return null;
+            }
+
+            try {
+                switch (config.type) {
+                    case 'text':
+                    case 'textarea':
+                    case 'number':
+                    case 'email':
+                    case 'url':
+                        return element.value;
+                    
+                    case 'checkbox':
+                        return element.checked;
+                    
+                    case 'radio':
+                        const radioGroup = document.querySelectorAll(`[name="${element.name}"]`);
+                        for (const radio of radioGroup) {
+                            if (radio.checked) {
+                                return radio.value;
+                            }
+                        }
+                        return null;
+                    
+                    case 'select':
+                        return element.value;
+                    
+                    case 'select-multiple':
+                        return Array.from(element.selectedOptions).map(option => option.value);
+                    
+                    case 'contenteditable':
+                        return element.textContent || element.innerText;
+                    
+                    default:
+                        return element.value;
+                }
+            } catch (error) {
+                Logger.error(`[${this.name}] Error getting value for field ${fieldName}:`, error);
+                return null;
+            }
+        }
+
+        /**
+         * Set value of a field
+         */
+        async setFieldValue(fieldName, value) {
+            const element = this.fieldElements.get(fieldName);
+            const config = this.fields[fieldName];
+            
+            if (!element || !config) {
+                return false;
+            }
+
+            try {
+                switch (config.type) {
+                    case 'text':
+                    case 'textarea':
+                    case 'number':
+                    case 'email':
+                    case 'url':
+                        element.value = value;
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        break;
+                    
+                    case 'checkbox':
+                        element.checked = Boolean(value);
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        break;
+                    
+                    case 'radio':
+                        const radioGroup = document.querySelectorAll(`[name="${element.name}"]`);
+                        for (const radio of radioGroup) {
+                            if (radio.value === value) {
+                                radio.checked = true;
+                                radio.dispatchEvent(new Event('change', { bubbles: true }));
+                                break;
+                            }
+                        }
+                        break;
+                    
+                    case 'select':
+                        element.value = value;
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        break;
+                    
+                    case 'select-multiple':
+                        if (Array.isArray(value)) {
+                            for (const option of element.options) {
+                                option.selected = value.includes(option.value);
+                            }
+                            element.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        break;
+                    
+                    case 'contenteditable':
+                        element.textContent = value;
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        break;
+                    
+                    default:
+                        element.value = value;
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                
+                return true;
+            } catch (error) {
+                Logger.error(`[${this.name}] Error setting value for field ${fieldName}:`, error);
+                return false;
+            }
+        }
+
+        /**
+         * Setup auto-save listeners
+         */
+        setupAutoSave() {
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                const element = this.fieldElements.get(fieldName);
+                if (!element) continue;
+
+                const eventTypes = this.getFieldEventTypes(config.type);
+                
+                for (const eventType of eventTypes) {
+                    element.addEventListener(eventType, () => {
+                        this.scheduleFieldSave(fieldName);
+                    });
+                }
+            }
+
+            Logger.debug(`[${this.name}] Auto-save listeners setup complete`);
+        }
+
+        /**
+         * Get appropriate event types for field type
+         */
+        getFieldEventTypes(fieldType) {
+            switch (fieldType) {
+                case 'text':
+                case 'textarea':
+                case 'number':
+                case 'email':
+                case 'url':
+                case 'contenteditable':
+                    return ['input', 'blur'];
+                
+                case 'checkbox':
+                case 'radio':
+                case 'select':
+                case 'select-multiple':
+                    return ['change'];
+                
+                default:
+                    return ['input', 'change'];
+            }
+        }
+
+        /**
+         * Schedule debounced save for a specific field using core Debouncer
+         */
+        scheduleFieldSave(fieldName) {
+            // Use the debounced save function
+            this.debouncedSave();
+        }
+
+        /**
+         * Perform the actual save operation (used by debouncer)
+         */
+        async performSave() {
+            await this.saveState();
+            
+            // Create backup if enabled
+            if (this.enableBackup && this.backupCache) {
+                const currentValues = this.getCurrentValues();
+                this.backupCache.set(`${this.namespace}-backup`, currentValues, 30); // 30 days
+            }
+        }
+
+        /**
+         * Wait for form elements using HTMLUtils
+         */
+        async waitForFormElements(timeout = 5000) {
+            const foundElements = new Map();
+            
+            for (const [fieldName, config] of Object.entries(this.fields)) {
+                try {
+                    const element = await HTMLUtils.waitForElement(config.selector, timeout);
+                    if (element) {
+                        foundElements.set(fieldName, element);
+                        Logger.debug(`[${this.name}] Found form element: ${fieldName}`);
+                    }
+                } catch (error) {
+                    Logger.warn(`[${this.name}] Form element not found: ${fieldName} (${config.selector})`);
+                }
+            }
+            
+            return foundElements;
+        }
+
+        /**
+         * Restore from backup using DataCache
+         */
+        async restoreFromBackup() {
+            if (!this.enableBackup || !this.backupCache) {
+                return false;
+            }
+            
+            try {
+                const backup = this.backupCache.get(`${this.namespace}-backup`);
+                if (backup) {
+                    for (const [fieldName, value] of Object.entries(backup)) {
+                        if (this.fields[fieldName]) {
+                            await this.setFieldValue(fieldName, value);
+                            this.fieldValues.set(fieldName, value);
+                        }
+                    }
+                    Logger.info(`[${this.name}] Restored form data from backup`);
+                    return true;
+                }
+            } catch (error) {
+                Logger.error(`[${this.name}] Error restoring from backup:`, error);
+            }
+            
+            return false;
+        }
+
+        /**
+         * Save a specific field
+         */
+        async saveField(fieldName) {
+            if (!this.setValue) {
+                return;
+            }
+
+            try {
+                const currentValue = await this.getFieldValue(fieldName);
+                const config = this.fields[fieldName];
+                
+                if (currentValue !== null && currentValue !== undefined) {
+                    // Validate value if validator provided
+                    if (config.validator && !config.validator(currentValue)) {
+                        Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
+                        return;
+                    }
+
+                    const storageKey = this.getStorageKey(fieldName);
+                    await this.setValue(storageKey, currentValue);
+                    this.fieldValues.set(fieldName, currentValue);
+                    
+                    Logger.debug(`[${this.name}] Auto-saved field ${fieldName}:`, currentValue);
+                    this.publishEvent(FormStatePersistence.EVENTS.FIELD_CHANGED, {
+                        fieldName,
+                        value: currentValue,
+                        name: this.name
+                    });
+                }
+            } catch (error) {
+                Logger.error(`[${this.name}] Error auto-saving field ${fieldName}:`, error);
+            }
+        }
+
+        /**
+         * Clear saved state for all fields
+         */
+        async clearState() {
+            if (!this.setValue) {
+                Logger.warn(`[${this.name}] No setValue function provided, cannot clear state`);
+                return;
+            }
+
+            let clearedCount = 0;
+
+            for (const fieldName of Object.keys(this.fields)) {
+                try {
+                    const storageKey = this.getStorageKey(fieldName);
+                    await this.setValue(storageKey, null);
+                    this.fieldValues.delete(fieldName);
+                    clearedCount++;
+                } catch (error) {
+                    Logger.error(`[${this.name}] Error clearing field ${fieldName}:`, error);
+                }
+            }
+
+            Logger.info(`[${this.name}] Cleared ${clearedCount} field values from storage`);
+            this.publishEvent(FormStatePersistence.EVENTS.STATE_CLEARED, {
+                clearedCount,
+                name: this.name
+            });
+        }
+
+        /**
+         * Get storage key for a field
+         */
+        getStorageKey(fieldName) {
+            return `${this.namespace}-${fieldName}`;
+        }
+
+        /**
+         * Add a new field to persistence
+         */
+        addField(fieldName, config) {
+            this.fields[fieldName] = config;
+            
+            // Find the element
+            try {
+                const element = document.querySelector(config.selector);
+                if (element) {
+                    this.fieldElements.set(fieldName, element);
+                    
+                    // Setup auto-save if enabled
+                    if (this.autoSave) {
+                        const eventTypes = this.getFieldEventTypes(config.type);
+                        for (const eventType of eventTypes) {
+                            element.addEventListener(eventType, () => {
+                                this.scheduleFieldSave(fieldName);
+                            });
+                        }
+                    }
+                    
+                    Logger.debug(`[${this.name}] Added field: ${fieldName}`);
+                }
+            } catch (error) {
+                Logger.error(`[${this.name}] Error adding field ${fieldName}:`, error);
+            }
+        }
+
+        /**
+         * Remove a field from persistence
+         */
+        removeField(fieldName) {
+            delete this.fields[fieldName];
+            this.fieldElements.delete(fieldName);
+            this.fieldValues.delete(fieldName);
+            
+            // Clear any pending save
+            if (this.saveTimeouts.has(fieldName)) {
+                clearTimeout(this.saveTimeouts.get(fieldName));
+                this.saveTimeouts.delete(fieldName);
+            }
+            
+            Logger.debug(`[${this.name}] Removed field: ${fieldName}`);
+        }
+
+        /**
+         * Get current field values
+         */
+        getCurrentValues() {
+            const values = {};
+            for (const fieldName of Object.keys(this.fields)) {
+                values[fieldName] = this.fieldValues.get(fieldName);
+            }
+            return values;
+        }
+
+        /**
+         * Publish event using core PubSub
+         */
+        publishEvent(eventName, data) {
+            PubSub.publish(eventName, data);
+        }
+
+        /**
+         * Cleanup resources
+         */
+        destroy() {
+            // Clear all pending timeouts
+            for (const timeoutId of this.saveTimeouts.values()) {
+                clearTimeout(timeoutId);
+            }
+            this.saveTimeouts.clear();
+
+            // Clear maps
+            this.fieldElements.clear();
+            this.fieldValues.clear();
+
+            this.isInitialized = false;
+            Logger.info(`[${this.name}] Form state persistence destroyed`);
+        }
+    }
 
     /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
@@ -4791,6 +6149,7 @@
             this.settings = { ...GeminiEnhancer.DEFAULT_SETTINGS };
             this.sidebarPanel = null;
             this.enhancerId = 'gemini-enhancer-container';
+            this.formStatePersistence = null;
 
             Logger.info("Initializing Gemini Enhancer");
 
@@ -4948,9 +6307,85 @@
             `);
 
                 this.createUI();
+                this.setupFormStatePersistence();
                 Logger.info("Gemini Enhancer initialized successfully");
             } catch (error) {
                 Logger.error("Error during initialization:", error);
+            }
+        }
+
+        /**
+         * Setup form state persistence for prompts textarea
+         */
+        setupFormStatePersistence() {
+            if (!this.promptsTextArea) {
+                Logger.warn("Prompts textarea not available for persistence");
+                return;
+            }
+
+            // Wait a bit for textarea to be fully initialized
+            setTimeout(() => {
+                try {
+                    const containerElement = this.promptsTextArea.getElement();
+                    if (!containerElement) {
+                        Logger.warn("Textarea container element not found");
+                        return;
+                    }
+
+                    // Find the actual textarea element inside the container
+                    const textareaElement = containerElement.querySelector('textarea');
+                    if (!textareaElement) {
+                        Logger.warn("Textarea element not found in container");
+                        return;
+                    }
+
+                    this.formStatePersistence = new FormStatePersistence({
+                        namespace: 'gemini-enhancer',
+                        fields: {
+                            prompts: {
+                                selector: () => textareaElement,
+                                type: 'textarea',
+                                defaultValue: '',
+                                validator: null
+                            }
+                        },
+                        getValue: getValue,
+                        setValue: setValue,
+                        autoSave: true,
+                        debounceDelay: 500,
+                        name: 'Gemini Enhancer Prompts'
+                    });
+
+                    Logger.debug("Form state persistence setup complete");
+                } catch (error) {
+                    Logger.error("Error setting up form state persistence:", error);
+                }
+            }, 1000);
+        }
+
+        /**
+         * Download a single image and wait for completion
+         */
+        async downloadSingleImage(button, index, total) {
+            try {
+                Logger.debug(`Downloading image ${index + 1}/${total}...`);
+                
+                // Scroll button into view
+                button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                await this.delay(300);
+                
+                // Click the download button
+                button.click();
+                Logger.debug(`Clicked download button ${index + 1}/${total}`);
+                
+                // Wait for download to complete
+                await this.waitForDownloadComplete(button);
+                
+                Logger.success(`Downloaded image ${index + 1}/${total}`);
+                return true;
+            } catch (error) {
+                Logger.error(`Error downloading image ${index + 1}:`, error);
+                return false;
             }
         }
 
@@ -5074,6 +6509,7 @@
                 placeholder: 'Enter prompts separated by ---:\nFirst prompt\n---\nSecond prompt\n---\nThird prompt',
                 rows: 10,
                 onChange: (textArea) => {
+                    // FormStatePersistence will handle saving, but we also save to settings for compatibility
                     this.settings.PROMPTS_QUEUE = textArea.getValue();
                     this.saveSettings();
                 },
@@ -5845,29 +7281,48 @@
         }
 
         /**
+         * Check if download button is in active/loading state (has active class or spinner)
+         */
+        isDownloadButtonActive(button) {
+            if (!button || button.offsetParent === null) {
+                return false;
+            }
+            
+            // Check for active class
+            const hasActiveClass = button.classList.contains('active');
+            
+            // Check for spinner
+            const hasSpinner = button.querySelector('mat-spinner') !== null;
+            
+            return hasActiveClass || hasSpinner;
+        }
+
+        /**
          * Wait for download to complete by monitoring the button state
          */
         async waitForDownloadComplete(button, timeout = 30000) {
             const start = Date.now();
-            const initialAriaExpanded = button.getAttribute('aria-expanded');
-            const initialClasses = button.className;
+            const initialHasActive = this.isDownloadButtonActive(button);
             
             Logger.debug("Waiting for download to start...");
             
-            // Wait for button state to change (download started)
+            // Wait for button to become active (download started)
             let downloadStarted = false;
             while (Date.now() - start < timeout) {
-                const currentAriaExpanded = button.getAttribute('aria-expanded');
-                const currentClasses = button.className;
+                if (this.shouldStopQueue) {
+                    throw new Error("Queue stopped by user");
+                }
                 
-                // Check if button state changed (download might have started)
-                if (currentAriaExpanded !== initialAriaExpanded || currentClasses !== initialClasses) {
+                const isActive = this.isDownloadButtonActive(button);
+                
+                // Check if button became active (download started)
+                if (isActive && !initialHasActive) {
                     downloadStarted = true;
-                    Logger.debug("Download started (button state changed)");
+                    Logger.debug("Download started (button is active with spinner)");
                     break;
                 }
                 
-                // Also check if button is no longer visible (menu might have closed)
+                // Also check if button is no longer visible
                 if (button.offsetParent === null) {
                     downloadStarted = true;
                     Logger.debug("Download started (button no longer visible)");
@@ -5881,29 +7336,33 @@
                 Logger.warn("Download start not detected, but continuing...");
             }
             
-            // Wait for download to complete - check if button is back to normal state or menu closed
+            // Wait for download to complete - button should return to normal state (no active class, no spinner)
             Logger.debug("Waiting for download to complete...");
             const completionStart = Date.now();
             
             while (Date.now() - completionStart < timeout) {
-                // Check if button is visible again (menu might have reopened)
+                if (this.shouldStopQueue) {
+                    throw new Error("Queue stopped by user");
+                }
+                
+                // Check if button is visible
                 if (button.offsetParent !== null) {
-                    // Check if aria-expanded is back to initial state
-                    const currentAriaExpanded = button.getAttribute('aria-expanded');
-                    if (currentAriaExpanded === initialAriaExpanded || currentAriaExpanded === 'false') {
-                        Logger.debug("Download completed (button state returned to normal)");
+                    const isActive = this.isDownloadButtonActive(button);
+                    
+                    // Download completed when button is no longer active
+                    if (!isActive) {
+                        Logger.debug("Download completed (button returned to normal state)");
                         await this.delay(1000); // Extra delay to ensure download is fully processed
                         return true;
                     }
                 } else {
-                    // Button not visible, might mean download completed and menu closed
-                    // Wait a bit more to be sure
+                    // Button not visible - wait a bit and assume download completed
                     await this.delay(2000);
                     Logger.debug("Download completed (button no longer visible)");
                     return true;
                 }
                 
-                await this.delay(500);
+                await this.delay(300);
             }
             
             Logger.warn("Download completion timeout, but continuing...");
