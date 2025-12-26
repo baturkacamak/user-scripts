@@ -1,0 +1,24 @@
+{
+  "name": "Gemini Enhancer",
+  "namespace": "https://github.com/baturkacamak/userscripts",
+  "version": "1.0.0",
+  "description": "Queue system for prompts with support for text, image, and video generation on Gemini",
+  "author": "Batur Kacamak",
+  "copyright": "2024+, Batur Kacamak (https://batur.info/)",
+  "license": "MIT",
+  "homepage": "https://github.com/baturkacamak/userscripts/tree/master/userscripts/gemini-enhancer#readme",
+  "homepageURL": "https://github.com/baturkacamak/userscripts/tree/master/userscripts/gemini-enhancer#readme",
+  "supportURL": "https://github.com/baturkacamak/userscripts/issues",
+  "downloadURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/gemini-enhancer/gemini-enhancer.user.js",
+  "updateURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/gemini-enhancer/gemini-enhancer.user.js",
+  "match": [
+    "https://gemini.google.com/app/*"
+  ],
+  "icon": "https://www.google.com/favicon.ico",
+  "run-at": "document-idle",
+  "grant": [
+    "GM_setValue",
+    "GM_getValue"
+  ]
+}
+

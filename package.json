@@ -33,6 +33,7 @@
     "build:googlemaps-image-downloader": "node config/build.js --dir userscripts/googlemaps-image-downloader",
     "build:discogs-tracklist-copier": "node config/build.js --dir userscripts/discogs-tracklist-copier",
     "build:idealista-house-listing-analyzer": "node config/build.js --dir userscripts/idealista-house-listing-analyzer",
-    "build:google-ai-studio-enhancer": "node config/build.js --dir userscripts/google-ai-studio-enhancer"
+    "build:google-ai-studio-enhancer": "node config/build.js --dir userscripts/google-ai-studio-enhancer",
+    "build:gemini-enhancer": "node config/build.js --dir userscripts/gemini-enhancer"
   }
 }
