@@ -4750,7 +4750,10 @@
                 'button[aria-label*="Herramientas"]' // Spanish
             ],
             // Buttons inside the toolbox drawer
-            TOOLBOX_DRAWER_BUTTONS: 'mat-action-list button.toolbox-drawer-item-list-button, mat-action-list button.mat-mdc-list-item'
+            TOOLBOX_DRAWER_BUTTONS: 'mat-action-list button.toolbox-drawer-item-list-button, mat-action-list button.mat-mdc-list-item',
+            // Deselect buttons that appear when image/video is already selected
+            IMAGE_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button:has(.toolbox-drawer-item-deselect-button-label)',
+            VIDEO_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button'
         };
 
         static SETTINGS_KEYS = {
@@ -5420,9 +5423,39 @@
         }
 
         /**
+         * Check if image generation is already selected
+         */
+        isImageSelected() {
+            // Check for deselect button with image-related text
+            const deselectButtons = document.querySelectorAll('button.toolbox-drawer-item-deselect-button');
+            for (const button of deselectButtons) {
+                if (button.offsetParent === null) continue;
+                
+                const label = button.querySelector('.toolbox-drawer-item-deselect-button-label');
+                if (label) {
+                    const text = label.textContent.trim().toLowerCase();
+                    if (text.includes('resim') || 
+                        text.includes('görüntü') || 
+                        text.includes('image') || 
+                        text.includes('imagen')) {
+                        Logger.debug("Image generation is already selected");
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
          * Click image generation button
          */
         async clickImageButton(retries = 10) {
+            // Check if image is already selected
+            if (this.isImageSelected()) {
+                Logger.debug("Image generation already selected, skipping button click");
+                return;
+            }
+
             for (let attempt = 0; attempt < retries; attempt++) {
                 // First try standard selectors (new chat)
                 for (const selector of GeminiEnhancer.SELECTORS.IMAGE_BUTTON) {
@@ -5516,9 +5549,37 @@
         }
 
         /**
+         * Check if video generation is already selected
+         */
+        isVideoSelected() {
+            // Check for deselect button with video-related text
+            const deselectButtons = document.querySelectorAll('button.toolbox-drawer-item-deselect-button');
+            for (const button of deselectButtons) {
+                if (button.offsetParent === null) continue;
+                
+                const label = button.querySelector('.toolbox-drawer-item-deselect-button-label');
+                if (label) {
+                    const text = label.textContent.trim().toLowerCase();
+                    if (text.includes('video') || 
+                        text.includes('veo')) {
+                        Logger.debug("Video generation is already selected");
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /**
          * Click video generation button
          */
         async clickVideoButton(retries = 10) {
+            // Check if video is already selected
+            if (this.isVideoSelected()) {
+                Logger.debug("Video generation already selected, skipping button click");
+                return;
+            }
+
             for (let attempt = 0; attempt < retries; attempt++) {
                 // First try standard selectors (new chat)
                 for (const selector of GeminiEnhancer.SELECTORS.VIDEO_BUTTON) {
