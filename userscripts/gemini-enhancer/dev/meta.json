@@ -12,7 +12,7 @@
   "downloadURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/gemini-enhancer/gemini-enhancer.user.js",
   "updateURL": "https://github.com/baturkacamak/userscripts/raw/master/userscripts/gemini-enhancer/gemini-enhancer.user.js",
   "match": [
-    "https://gemini.google.com/app/*"
+    "https://gemini.google.com/*"
   ],
   "icon": "https://www.google.com/favicon.ico",
   "run-at": "document-idle",
