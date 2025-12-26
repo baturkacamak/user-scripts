@@ -10,7 +10,7 @@
 // @supportURL  https://github.com/baturkacamak/userscripts/issues
 // @downloadURL https://github.com/baturkacamak/userscripts/raw/master/userscripts/gemini-enhancer/gemini-enhancer.user.js
 // @updateURL   https://github.com/baturkacamak/userscripts/raw/master/userscripts/gemini-enhancer/gemini-enhancer.user.js
-// @match       https://gemini.google.com/app/*
+// @match       https://gemini.google.com/*
 // @icon        https://www.google.com/favicon.ico
 // @run-at      document-idle
 // @grant       GM_setValue
@@ -4722,25 +4722,35 @@
                 ]
             },
             // Image generation button - multi-language
+            // Note: For existing chats, buttons are in mat-action-list
             IMAGE_BUTTON: [
-                'intent-card button[jslog*="intent_chip_image"]', // Most reliable - uses jslog attribute
+                'intent-card button[jslog*="intent_chip_image"]', // New chat - uses jslog attribute
                 'button[aria-label*="Resim Oluştur"]', // Turkish
+                'button[aria-label*="Görüntü oluşturun"]', // Turkish (existing chat)
                 'button[aria-label*="Create image"]', // English
                 'button[aria-label*="Crear imagen"]', // Spanish
-                'button[aria-label*="Image"]',
-                'button.card:has(.card-label:contains("Resim"))',
-                'button.card:has(.card-label:contains("Image"))',
-                'button.card:has(.card-label:contains("Imagen"))'
+                'button[aria-label*="Image"]'
             ],
             // Video generation button - multi-language
+            // Note: For existing chats, buttons are in mat-action-list
             VIDEO_BUTTON: [
-                'intent-card button[jslog*="intent_chip_video"]', // Most reliable - uses jslog attribute
+                'intent-card button[jslog*="intent_chip_video"]', // New chat - uses jslog attribute
                 'button[aria-label*="Video oluşturun"]', // Turkish
                 'button[aria-label*="Create video"]', // English
                 'button[aria-label*="Crear video"]', // Spanish
-                'button[aria-label*="Video"]',
-                'button.card:has(.card-label:contains("Video"))'
-            ]
+                'button[aria-label*="Video"]'
+            ],
+            // Selectors for existing chat buttons (in mat-action-list)
+            EXISTING_CHAT_CONTAINER: 'mat-action-list',
+            // Toolbox drawer button that opens the menu with image/video buttons
+            TOOLBOX_DRAWER_BUTTON: [
+                'button.toolbox-drawer-button',
+                'button[aria-label*="Araçlar"]', // Turkish
+                'button[aria-label*="Tools"]', // English
+                'button[aria-label*="Herramientas"]' // Spanish
+            ],
+            // Buttons inside the toolbox drawer
+            TOOLBOX_DRAWER_BUTTONS: 'mat-action-list button.toolbox-drawer-item-list-button, mat-action-list button.mat-mdc-list-item'
         };
 
         static SETTINGS_KEYS = {
@@ -4832,7 +4842,16 @@
          */
         showNotification(message, type = 'info') {
             if (!this.settings.SHOW_NOTIFICATIONS) return;
-            Notification.show(message, type);
+            // Use the correct Notification API
+            if (type === 'error') {
+                Notification.error(message);
+            } else if (type === 'success') {
+                Notification.success(message);
+            } else if (type === 'warning') {
+                Notification.warning(message);
+            } else {
+                Notification.info(message);
+            }
         }
 
         /**
@@ -5288,10 +5307,124 @@
         }
 
         /**
+         * Check if toolbox drawer is actually open (has visible buttons)
+         */
+        isToolboxDrawerOpen() {
+            const buttons = document.querySelectorAll(GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTONS);
+            const visibleButtons = Array.from(buttons).filter(btn => btn.offsetParent !== null);
+            Logger.debug(`Toolbox drawer check: found ${buttons.length} total buttons, ${visibleButtons.length} visible`);
+            return visibleButtons.length > 0;
+        }
+
+        /**
+         * Open toolbox drawer if needed (for existing chats)
+         */
+        async openToolboxDrawer() {
+            Logger.debug("Checking if toolbox drawer needs to be opened...");
+            
+            // Check if drawer is actually open by looking for visible buttons
+            if (this.isToolboxDrawerOpen()) {
+                Logger.debug("Toolbox drawer is already open (buttons visible)");
+                return true;
+            }
+
+            Logger.debug("Toolbox drawer is not open, searching for toolbox drawer button...");
+
+            // Try to find and click the toolbox drawer button
+            for (const selector of GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTON) {
+                const button = document.querySelector(selector);
+                Logger.debug(`Trying selector: ${selector}, found: ${!!button}, visible: ${button && button.offsetParent !== null}`);
+                
+                if (button && button.offsetParent !== null) {
+                    Logger.debug(`Found toolbox drawer button with selector: ${selector}`);
+                    button.click();
+                    Logger.debug(`Clicked toolbox drawer button using selector: ${selector}`);
+                    
+                    // Wait for the drawer to open
+                    await this.delay(1000);
+                    
+                    // Verify it opened by checking for visible buttons - try multiple times
+                    for (let i = 0; i < 10; i++) {
+                        if (this.isToolboxDrawerOpen()) {
+                            Logger.debug("Toolbox drawer opened successfully");
+                            return true;
+                        }
+                        await this.delay(200);
+                    }
+                    
+                    Logger.warn("Toolbox drawer button clicked but drawer did not open");
+                }
+            }
+            
+            Logger.warn("Toolbox drawer button not found");
+            return false;
+        }
+
+        /**
+         * Find image button in existing chat (mat-action-list)
+         */
+        async findImageButtonInExistingChat() {
+            Logger.debug("Searching for image button in existing chat...");
+            
+            // First, try to open the toolbox drawer if needed
+            const drawerOpened = await this.openToolboxDrawer();
+            if (!drawerOpened) {
+                Logger.debug("Could not open toolbox drawer, trying to find button anyway...");
+            }
+            
+            // Search for buttons with image-related text - use the selector directly
+            const buttons = document.querySelectorAll(GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTONS);
+            Logger.debug(`Found ${buttons.length} total buttons in toolbox drawer`);
+            
+            // Filter to only visible buttons
+            const visibleButtons = Array.from(buttons).filter(btn => btn.offsetParent !== null);
+            Logger.debug(`Found ${visibleButtons.length} visible buttons in toolbox drawer`);
+            
+            for (const button of visibleButtons) {
+                // Try multiple ways to find the label
+                let label = button.querySelector('.label.gds-label-l');
+                if (!label) {
+                    label = button.querySelector('.label');
+                }
+                if (!label) {
+                    // Try to get text from the button itself or its content
+                    const textContent = button.textContent || button.innerText || '';
+                    const text = textContent.trim().toLowerCase();
+                    Logger.debug(`Checking button (no label found): "${textContent.trim().substring(0, 50)}"`);
+                    
+                    if (text.includes('görüntü') || 
+                        text.includes('resim') || 
+                        text.includes('image') || 
+                        text.includes('imagen')) {
+                        Logger.debug(`Found image button by text content: "${textContent.trim()}"`);
+                        return button;
+                    }
+                    continue;
+                }
+                
+                const text = label.textContent.trim().toLowerCase();
+                Logger.debug(`Checking button with label: "${label.textContent.trim()}"`);
+                
+                // Check for image-related text in multiple languages
+                if (text.includes('görüntü') || 
+                    text.includes('resim') || 
+                    text.includes('image') || 
+                    text.includes('imagen')) {
+                    Logger.debug(`Found image button: "${label.textContent.trim()}"`);
+                    return button;
+                }
+            }
+            
+            Logger.debug("Image button not found in existing chat");
+            return null;
+        }
+
+        /**
          * Click image generation button
          */
         async clickImageButton(retries = 10) {
             for (let attempt = 0; attempt < retries; attempt++) {
+                // First try standard selectors (new chat)
                 for (const selector of GeminiEnhancer.SELECTORS.IMAGE_BUTTON) {
                     const button = document.querySelector(selector);
                     if (button && button.offsetParent !== null) {
@@ -5306,6 +5439,18 @@
                     }
                 }
                 
+                // Try finding in existing chat (mat-action-list)
+                const existingChatButton = await this.findImageButtonInExistingChat();
+                if (existingChatButton && existingChatButton.offsetParent !== null) {
+                    existingChatButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    await this.delay(300);
+                    
+                    existingChatButton.click();
+                    Logger.debug('Clicked image button in existing chat');
+                    await this.delay(200);
+                    return;
+                }
+                
                 if (attempt < retries - 1) {
                     Logger.debug(`Waiting for image button... (attempt ${attempt + 1}/${retries})`);
                     await this.delay(500);
@@ -5316,10 +5461,66 @@
         }
 
         /**
+         * Find video button in existing chat (mat-action-list)
+         */
+        async findVideoButtonInExistingChat() {
+            Logger.debug("Searching for video button in existing chat...");
+            
+            // First, try to open the toolbox drawer if needed
+            const drawerOpened = await this.openToolboxDrawer();
+            if (!drawerOpened) {
+                Logger.debug("Could not open toolbox drawer, trying to find button anyway...");
+            }
+            
+            // Search for buttons with video-related text - use the selector directly
+            const buttons = document.querySelectorAll(GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTONS);
+            Logger.debug(`Found ${buttons.length} total buttons in toolbox drawer`);
+            
+            // Filter to only visible buttons
+            const visibleButtons = Array.from(buttons).filter(btn => btn.offsetParent !== null);
+            Logger.debug(`Found ${visibleButtons.length} visible buttons in toolbox drawer`);
+            
+            for (const button of visibleButtons) {
+                // Try multiple ways to find the label
+                let label = button.querySelector('.label.gds-label-l');
+                if (!label) {
+                    label = button.querySelector('.label');
+                }
+                if (!label) {
+                    // Try to get text from the button itself or its content
+                    const textContent = button.textContent || button.innerText || '';
+                    const text = textContent.trim().toLowerCase();
+                    Logger.debug(`Checking button (no label found): "${textContent.trim().substring(0, 50)}"`);
+                    
+                    if (text.includes('video') || 
+                        text.includes('veo')) {
+                        Logger.debug(`Found video button by text content: "${textContent.trim()}"`);
+                        return button;
+                    }
+                    continue;
+                }
+                
+                const text = label.textContent.trim().toLowerCase();
+                Logger.debug(`Checking button with label: "${label.textContent.trim()}"`);
+                
+                // Check for video-related text in multiple languages
+                if (text.includes('video') || 
+                    text.includes('veo')) {
+                    Logger.debug(`Found video button: "${label.textContent.trim()}"`);
+                    return button;
+                }
+            }
+            
+            Logger.debug("Video button not found in existing chat");
+            return null;
+        }
+
+        /**
          * Click video generation button
          */
         async clickVideoButton(retries = 10) {
             for (let attempt = 0; attempt < retries; attempt++) {
+                // First try standard selectors (new chat)
                 for (const selector of GeminiEnhancer.SELECTORS.VIDEO_BUTTON) {
                     const button = document.querySelector(selector);
                     if (button && button.offsetParent !== null) {
@@ -5332,6 +5533,18 @@
                         await this.delay(200);
                         return;
                     }
+                }
+                
+                // Try finding in existing chat (mat-action-list)
+                const existingChatButton = await this.findVideoButtonInExistingChat();
+                if (existingChatButton && existingChatButton.offsetParent !== null) {
+                    existingChatButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    await this.delay(300);
+                    
+                    existingChatButton.click();
+                    Logger.debug('Clicked video button in existing chat');
+                    await this.delay(200);
+                    return;
                 }
                 
                 if (attempt < retries - 1) {
@@ -5379,22 +5592,65 @@
         }
 
         /**
+         * Check if send button is in loading state
+         */
+        isButtonLoading() {
+            // Find any send button
+            const sendButton = document.querySelector('button.send-button');
+            if (!sendButton || sendButton.offsetParent === null) {
+                return false;
+            }
+
+            // Check if it has the stop class (loading state)
+            const hasStopClass = sendButton.classList.contains('stop');
+            
+            // Also check if it doesn't have submit class (alternative loading indicator)
+            const hasSubmitClass = sendButton.classList.contains('submit');
+            
+            // Button is loading if it has stop class OR doesn't have submit class
+            return hasStopClass || !hasSubmitClass;
+        }
+
+        /**
+         * Check if send button is in ready state
+         */
+        isButtonReady() {
+            // Find any send button
+            const sendButton = document.querySelector('button.send-button');
+            if (!sendButton || sendButton.offsetParent === null) {
+                return false;
+            }
+
+            // Check if disabled
+            const isDisabled = sendButton.hasAttribute('disabled') || 
+                              sendButton.getAttribute('aria-disabled') === 'true';
+            
+            // Check classes
+            const hasStopClass = sendButton.classList.contains('stop');
+            const hasSubmitClass = sendButton.classList.contains('submit');
+            
+            // Button is ready if: not disabled, has submit class, and doesn't have stop class
+            return !isDisabled && hasSubmitClass && !hasStopClass;
+        }
+
+        /**
          * Wait for completion
          */
         async waitForCompletion(timeout = 300000) {
             const start = Date.now();
+            const loadingTimeout = 10000; // 10 seconds to detect loading state
             
             Logger.debug("Waiting for generation to start...");
             
             // Wait for button to change to loading state
             let loadingDetected = false;
-            while (Date.now() - start < timeout) {
+            const loadingStartTime = Date.now();
+            while (Date.now() - loadingStartTime < loadingTimeout) {
                 if (this.shouldStopQueue) {
                     throw new Error("Queue stopped by user");
                 }
 
-                const loadingButton = document.querySelector(GeminiEnhancer.SELECTORS.SEND_BUTTON.LOADING);
-                if (loadingButton && loadingButton.offsetParent !== null) {
+                if (this.isButtonLoading()) {
                     loadingDetected = true;
                     Logger.debug("Generation started (loading state detected)");
                     break;
@@ -5404,44 +5660,38 @@
             }
 
             if (!loadingDetected) {
-                throw new Error("Generation did not start within timeout");
+                Logger.warn("Loading state not detected, but continuing anyway...");
+                // Don't throw error, just continue - sometimes the button state changes too quickly
             }
 
             // Wait for button to return to ready state
             Logger.debug("Waiting for generation to complete...");
+            let lastLogTime = 0;
             while (Date.now() - start < timeout) {
                 if (this.shouldStopQueue) {
                     throw new Error("Queue stopped by user");
                 }
 
-                // Check if button is back to ready state
-                const readyButton = document.querySelector(GeminiEnhancer.SELECTORS.SEND_BUTTON.READY);
-                if (readyButton && readyButton.offsetParent !== null) {
-                    const isDisabled = readyButton.hasAttribute('disabled') || 
-                                     readyButton.getAttribute('aria-disabled') === 'true';
-                    if (!isDisabled) {
-                        Logger.debug("Generation completed");
-                        await this.delay(1000); // Extra delay to ensure response is fully rendered
-                        return;
-                    }
+                // Check if button is ready
+                if (this.isButtonReady()) {
+                    Logger.debug("Generation completed - button is ready");
+                    await this.delay(1500); // Extra delay to ensure response is fully rendered
+                    return;
                 }
 
-                // Also check alternative selectors
-                for (const selector of GeminiEnhancer.SELECTORS.SEND_BUTTON.READY_ALT) {
-                    const button = document.querySelector(selector);
-                    if (button && button.offsetParent !== null) {
-                        const isDisabled = button.hasAttribute('disabled') || 
-                                         button.getAttribute('aria-disabled') === 'true' ||
-                                         button.classList.contains('stop');
-                        if (!isDisabled) {
-                            Logger.debug("Generation completed (alternative selector)");
-                            await this.delay(1000);
-                            return;
-                        }
+                // Log progress every 5 seconds
+                const elapsed = Date.now() - start;
+                if (elapsed - lastLogTime > 5000) {
+                    lastLogTime = elapsed;
+                    const sendButton = document.querySelector('button.send-button');
+                    if (sendButton) {
+                        Logger.debug(`Still waiting... (${Math.round(elapsed / 1000)}s) - Button classes: ${sendButton.className}, disabled: ${sendButton.hasAttribute('disabled')}, aria-disabled: ${sendButton.getAttribute('aria-disabled')}`);
+                    } else {
+                        Logger.debug(`Still waiting... (${Math.round(elapsed / 1000)}s) - Send button not found`);
                     }
                 }
                 
-                await this.delay(500);
+                await this.delay(300);
             }
             
             throw new Error("Generation did not complete within timeout");
