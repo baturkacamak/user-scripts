@@ -1679,7 +1679,7 @@ class GeminiEnhancer {
      */
     async downloadViaCanvas(imgElement, index, total) {
         try {
-            Logger.debug(`Canvas downloading image ${index + 1}/${total}...`);
+            Logger.debug(`[APPROACH 1: Canvas] Trying canvas extraction for image ${index + 1}/${total}...`);
 
             // Wait for image to be fully loaded
             if (!imgElement.complete) {
@@ -1695,11 +1695,11 @@ class GeminiEnhancer {
             const height = imgElement.naturalHeight || imgElement.height;
 
             if (width === 0 || height === 0) {
-                Logger.warn(`Image ${index + 1} has zero dimensions`);
+                Logger.warn(`[APPROACH 1: Canvas] Image ${index + 1} has zero dimensions`);
                 return false;
             }
 
-            Logger.debug(`Image dimensions: ${width}x${height}`);
+            Logger.debug(`[APPROACH 1: Canvas] Image dimensions: ${width}x${height}`);
 
             // Create canvas
             const canvas = document.createElement('canvas');
@@ -1708,7 +1708,7 @@ class GeminiEnhancer {
 
             const ctx = canvas.getContext('2d');
             if (!ctx) {
-                Logger.error('Could not get canvas 2d context');
+                Logger.error('[APPROACH 1: Canvas] Could not get canvas 2d context');
                 return false;
             }
 
@@ -1721,7 +1721,7 @@ class GeminiEnhancer {
             });
 
             if (!blob) {
-                Logger.error(`Failed to create blob for image ${index + 1}`);
+                Logger.error(`[APPROACH 1: Canvas] Failed to create blob for image ${index + 1}`);
                 return false;
             }
 
@@ -1743,10 +1743,192 @@ class GeminiEnhancer {
             // Clean up
             URL.revokeObjectURL(downloadUrl);
 
-            Logger.success(`Canvas downloaded image ${index + 1}/${total} (${width}x${height})`);
+            Logger.success(`[APPROACH 1: Canvas] SUCCESS - Downloaded image ${index + 1}/${total} (${width}x${height})`);
             return true;
         } catch (error) {
-            Logger.error(`Canvas download failed for image ${index + 1}:`, error);
+            Logger.error(`[APPROACH 1: Canvas] FAILED for image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Download by opening image in new tab
+     * User can then right-click and save
+     */
+    async downloadViaNewTab(imageUrl, index, total) {
+        try {
+            Logger.debug(`[APPROACH 2: New Tab] Opening image ${index + 1}/${total} in new tab...`);
+
+            // Open in new tab
+            const newTab = window.open(imageUrl, '_blank');
+
+            if (!newTab) {
+                Logger.warn(`[APPROACH 2: New Tab] Popup blocked for image ${index + 1}`);
+                return false;
+            }
+
+            Logger.success(`[APPROACH 2: New Tab] SUCCESS - Opened image ${index + 1}/${total} in new tab`);
+            return true;
+        } catch (error) {
+            Logger.error(`[APPROACH 2: New Tab] FAILED for image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Download using right-click context menu simulation
+     */
+    async downloadViaContextMenu(imgElement, index, total) {
+        try {
+            Logger.debug(`[APPROACH 3: Context Menu] Trying context menu for image ${index + 1}/${total}...`);
+
+            // Scroll into view
+            imgElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(300);
+
+            // Create and dispatch context menu event
+            const rect = imgElement.getBoundingClientRect();
+            const contextEvent = new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                clientX: rect.left + rect.width / 2,
+                clientY: rect.top + rect.height / 2,
+                button: 2,
+                buttons: 2
+            });
+
+            imgElement.dispatchEvent(contextEvent);
+            await this.delay(500);
+
+            // Look for "Save image as" option in context menu
+            // This typically doesn't work programmatically but worth trying
+            Logger.debug(`[APPROACH 3: Context Menu] Context menu dispatched, but browser context menu cannot be automated`);
+
+            // Close context menu
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+            // This approach can't complete the download automatically
+            Logger.warn(`[APPROACH 3: Context Menu] Cannot automate browser context menu`);
+            return false;
+        } catch (error) {
+            Logger.error(`[APPROACH 3: Context Menu] FAILED for image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Download using keyboard navigation to focus the image
+     */
+    async downloadViaKeyboardNav(generatedImage, index, total) {
+        try {
+            Logger.debug(`[APPROACH 4: Keyboard Nav] Trying keyboard navigation for image ${index + 1}/${total}...`);
+
+            // Find the image button
+            const imageButton = generatedImage.querySelector('.image-button');
+            if (!imageButton) {
+                Logger.warn(`[APPROACH 4: Keyboard Nav] No image button found`);
+                return false;
+            }
+
+            // Scroll into view
+            imageButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(300);
+
+            // Focus the image button
+            imageButton.focus();
+            await this.delay(200);
+
+            // Dispatch focus events
+            imageButton.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+            imageButton.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+            await this.delay(300);
+
+            // Try pressing Enter to "select" the image
+            imageButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+            imageButton.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, cancelable: true }));
+            await this.delay(500);
+
+            // Now find and click the download button
+            const downloadButton = this.findDownloadButtonInImage(generatedImage);
+            if (!downloadButton) {
+                Logger.warn(`[APPROACH 4: Keyboard Nav] Download button not found after keyboard nav`);
+                return false;
+            }
+
+            // Focus download button
+            downloadButton.focus();
+            await this.delay(200);
+
+            // Press Enter on download button
+            downloadButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+            downloadButton.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, cancelable: true }));
+            await this.delay(500);
+
+            // Wait for menu
+            const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton, 3000);
+            if (!downloadLink) {
+                Logger.warn(`[APPROACH 4: Keyboard Nav] Menu not found`);
+                return false;
+            }
+
+            // Focus and press Enter on download link
+            downloadLink.focus();
+            await this.delay(200);
+            downloadLink.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+            Logger.success(`[APPROACH 4: Keyboard Nav] SUCCESS - Triggered download for image ${index + 1}/${total}`);
+            return true;
+        } catch (error) {
+            Logger.error(`[APPROACH 4: Keyboard Nav] FAILED for image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Download using native .click() method
+     */
+    async downloadViaNativeClick(generatedImage, index, total) {
+        try {
+            Logger.debug(`[APPROACH 5: Native Click] Trying native click for image ${index + 1}/${total}...`);
+
+            // Find the overlay container
+            const overlayContainer = generatedImage.querySelector('.overlay-container');
+            if (overlayContainer) {
+                // Hover to show controls
+                overlayContainer.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+                await this.delay(500);
+            }
+
+            // Find download button
+            const downloadButton = this.findDownloadButtonInImage(generatedImage);
+            if (!downloadButton) {
+                Logger.warn(`[APPROACH 5: Native Click] Download button not found`);
+                return false;
+            }
+
+            // Use native click
+            downloadButton.click();
+            Logger.debug(`[APPROACH 5: Native Click] Clicked download button`);
+            await this.delay(800);
+
+            // Wait for menu
+            const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton, 3000);
+            if (!downloadLink) {
+                Logger.warn(`[APPROACH 5: Native Click] Menu not found`);
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                return false;
+            }
+
+            // Use native click on download link
+            downloadLink.click();
+            Logger.debug(`[APPROACH 5: Native Click] Clicked download link`);
+            await this.delay(1000);
+
+            Logger.success(`[APPROACH 5: Native Click] SUCCESS - Triggered download for image ${index + 1}/${total}`);
+            return true;
+        } catch (error) {
+            Logger.error(`[APPROACH 5: Native Click] FAILED for image ${index + 1}:`, error);
             return false;
         }
     }
@@ -1822,11 +2004,11 @@ class GeminiEnhancer {
 
     /**
      * Download a single image and wait for completion
-     * Uses canvas extraction as primary method to bypass Angular's state management
+     * Tries multiple approaches as fallbacks to find which one works
      */
     async downloadSingleImage(container, index, total) {
         try {
-            Logger.debug(`Downloading image ${index + 1}/${total}...`);
+            Logger.info(`=== Downloading image ${index + 1}/${total} - Starting fallback chain ===`);
 
             // Get the generated-image element (may need fresh reference)
             let generatedImage = container.closest('generated-image');
@@ -1843,55 +2025,117 @@ class GeminiEnhancer {
             generatedImage.scrollIntoView({ behavior: 'smooth', block: 'center' });
             await this.delay(300);
 
-            // APPROACH 1: Try canvas extraction first (most reliable, bypasses all Angular issues)
+            // Get img element and URL for use by multiple approaches
             const imgElement = this.extractImageElement(generatedImage);
+            const imageUrl = this.extractImageUrl(generatedImage);
+
+            // APPROACH 1: Canvas extraction (most reliable, bypasses all Angular issues)
             if (imgElement) {
-                Logger.debug(`Found img element for image ${index + 1}/${total}, trying canvas extraction`);
+                Logger.info(`[APPROACH 1/6] Trying canvas extraction for image ${index + 1}/${total}...`);
                 const success = await this.downloadViaCanvas(imgElement, index, total);
                 if (success) {
+                    Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 1: Canvas ===`);
                     return true;
                 }
-                Logger.warn(`Canvas extraction failed for image ${index + 1}, trying direct URL`);
+                Logger.warn(`[APPROACH 1/6] Canvas extraction failed for image ${index + 1}`);
+            } else {
+                Logger.warn(`[APPROACH 1/6] No img element found, skipping canvas extraction`);
             }
 
-            // APPROACH 2: Try direct URL extraction
-            const imageUrl = this.extractImageUrl(generatedImage);
+            // APPROACH 2: Open in new tab (user can save manually)
             if (imageUrl) {
-                Logger.debug(`Found direct image URL for image ${index + 1}/${total}`);
+                Logger.info(`[APPROACH 2/6] Trying new tab for image ${index + 1}/${total}...`);
+                const success = await this.downloadViaNewTab(imageUrl, index, total);
+                if (success) {
+                    Logger.success(`=== Image ${index + 1}/${total} opened via APPROACH 2: New Tab ===`);
+                    // Don't return - continue to try other methods that actually download
+                    // return true;
+                }
+                Logger.warn(`[APPROACH 2/6] New tab failed for image ${index + 1}`);
+            } else {
+                Logger.warn(`[APPROACH 2/6] No image URL found, skipping new tab`);
+            }
+
+            // APPROACH 3: Direct URL with GM_download
+            if (imageUrl) {
+                Logger.info(`[APPROACH 3/6] Trying GM_download for image ${index + 1}/${total}...`);
                 const success = await this.downloadImageDirectly(imageUrl, index, total);
                 if (success) {
+                    Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 3: GM_download ===`);
                     return true;
                 }
-                Logger.warn(`Direct download failed for image ${index + 1}, falling back to UI method`);
+                Logger.warn(`[APPROACH 3/6] GM_download failed for image ${index + 1}`);
+            } else {
+                Logger.warn(`[APPROACH 3/6] No image URL found, skipping GM_download`);
             }
 
-            // APPROACH 3: Fallback to UI-based download if other methods fail
-            Logger.debug(`Falling back to UI-based download for image ${index + 1}/${total}`);
+            // APPROACH 4: Keyboard navigation
+            Logger.info(`[APPROACH 4/6] Trying keyboard navigation for image ${index + 1}/${total}...`);
+            const keyboardSuccess = await this.downloadViaKeyboardNav(generatedImage, index, total);
+            if (keyboardSuccess) {
+                Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 4: Keyboard Nav ===`);
+                return true;
+            }
+            Logger.warn(`[APPROACH 4/6] Keyboard navigation failed for image ${index + 1}`);
+
+            // APPROACH 5: Native click method
+            Logger.info(`[APPROACH 5/6] Trying native click for image ${index + 1}/${total}...`);
+            const nativeClickSuccess = await this.downloadViaNativeClick(generatedImage, index, total);
+            if (nativeClickSuccess) {
+                Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 5: Native Click ===`);
+                return true;
+            }
+            Logger.warn(`[APPROACH 5/6] Native click failed for image ${index + 1}`);
+
+            // APPROACH 6: Simulated pointer/mouse events (full event sequence)
+            Logger.info(`[APPROACH 6/6] Trying simulated events for image ${index + 1}/${total}...`);
+            const simulatedSuccess = await this.downloadViaSimulatedEvents(generatedImage, index, total);
+            if (simulatedSuccess) {
+                Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 6: Simulated Events ===`);
+                return true;
+            }
+            Logger.warn(`[APPROACH 6/6] Simulated events failed for image ${index + 1}`);
+
+            Logger.error(`=== All 6 approaches failed for image ${index + 1}/${total} ===`);
+            return false;
+        } catch (error) {
+            Logger.error(`Error downloading image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Download using simulated pointer/mouse events (full event sequence)
+     * This is the most comprehensive attempt to mimic real user interaction
+     */
+    async downloadViaSimulatedEvents(generatedImage, index, total) {
+        try {
+            Logger.debug(`[APPROACH 6: Simulated Events] Starting for image ${index + 1}/${total}...`);
 
             // Find the single-image element which contains the image and controls
             const singleImage = generatedImage.querySelector('single-image');
             if (!singleImage) {
-                Logger.warn(`Single image element not found for image ${index + 1}`);
+                Logger.warn(`[APPROACH 6: Simulated Events] Single image element not found`);
                 return false;
             }
 
             // Find the overlay-container which shows the controls on hover
             const overlayContainer = singleImage.querySelector('.overlay-container');
             if (!overlayContainer) {
-                Logger.warn(`Overlay container not found for image ${index + 1}`);
+                Logger.warn(`[APPROACH 6: Simulated Events] Overlay container not found`);
                 return false;
             }
 
             // Use complete hover simulation to trigger Angular's state update
             await this.simulateCompleteHover(overlayContainer, { delay: 50, focusElement: false });
-            Logger.debug(`Simulated complete hover on overlay container for image ${index + 1}/${total}`);
+            Logger.debug(`[APPROACH 6: Simulated Events] Simulated hover on overlay container`);
             await this.delay(600);
 
             // Re-query the download button after hover (DOM may have updated)
             let downloadButton = this.findDownloadButtonInImage(generatedImage);
 
             if (!downloadButton || downloadButton.offsetParent === null) {
-                Logger.debug(`Download button not visible yet, retrying hover on image ${index + 1}`);
+                Logger.debug(`[APPROACH 6: Simulated Events] Download button not visible, retrying hover`);
                 // Try hovering on the image button directly
                 const imageButton = overlayContainer.querySelector('.image-button');
                 if (imageButton) {
@@ -1902,14 +2146,14 @@ class GeminiEnhancer {
                 // Re-query again
                 downloadButton = this.findDownloadButtonInImage(generatedImage);
                 if (!downloadButton || downloadButton.offsetParent === null) {
-                    Logger.warn(`Download button ${index + 1} still not visible after retry`);
+                    Logger.warn(`[APPROACH 6: Simulated Events] Download button still not visible`);
                     return false;
                 }
             }
 
             // Simulate complete hover on the download button itself
             await this.simulateCompleteHover(downloadButton, { delay: 30, focusElement: true });
-            Logger.debug(`Simulated complete hover on download button ${index + 1}/${total}`);
+            Logger.debug(`[APPROACH 6: Simulated Events] Simulated hover on download button`);
             await this.delay(400);
 
             // Close any previously open menus
@@ -1919,24 +2163,23 @@ class GeminiEnhancer {
 
             // Use complete click simulation to trigger Angular's click handlers
             await this.simulateCompleteClick(downloadButton, { delay: 30, simulateHoverFirst: false });
-            Logger.debug(`Simulated complete click on download button ${index + 1}/${total}`);
+            Logger.debug(`[APPROACH 6: Simulated Events] Simulated click on download button`);
             await this.delay(800);
 
             // Wait for menu to open and find download link
             const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton);
             if (!downloadLink) {
-                Logger.warn(`Download link not found in menu for image ${index + 1}`);
-                // Close menu and continue
+                Logger.warn(`[APPROACH 6: Simulated Events] Download link not found in menu`);
                 document.dispatchEvent(escapeEvent);
                 await this.delay(300);
                 return false;
             }
 
-            Logger.debug(`Found download link for image ${index + 1}/${total}, href: ${downloadLink.href || 'no href'}`);
+            Logger.debug(`[APPROACH 6: Simulated Events] Found download link, href: ${downloadLink.href || 'no href'}`);
 
             // Click the download link using complete click simulation
             await this.simulateCompleteClick(downloadLink, { delay: 30, simulateHoverFirst: true });
-            Logger.debug(`Clicked download link for image ${index + 1}/${total}`);
+            Logger.debug(`[APPROACH 6: Simulated Events] Clicked download link`);
 
             // Wait for download to complete
             await this.waitForDownloadComplete(downloadButton);
@@ -1945,10 +2188,10 @@ class GeminiEnhancer {
             document.dispatchEvent(escapeEvent);
             await this.delay(200);
 
-            Logger.success(`Downloaded image ${index + 1}/${total}`);
+            Logger.success(`[APPROACH 6: Simulated Events] SUCCESS for image ${index + 1}/${total}`);
             return true;
         } catch (error) {
-            Logger.error(`Error downloading image ${index + 1}:`, error);
+            Logger.error(`[APPROACH 6: Simulated Events] FAILED for image ${index + 1}:`, error);
             return false;
         }
     }
