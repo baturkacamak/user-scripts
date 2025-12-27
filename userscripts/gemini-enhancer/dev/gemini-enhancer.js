@@ -4,6 +4,7 @@ import {
     FormStatePersistence,
     HTMLUtils,
     Logger,
+    MouseEventUtils,
     Notification,
     SidebarPanel,
     StyleManager,
@@ -1390,203 +1391,406 @@ class GeminiEnhancer {
     }
 
     /**
-     * Simulate realistic mouse hover over an element with proper coordinates
+     * Create event options with proper coordinates for an element
+     * @param {Element} element - Target element
+     * @returns {Object} Event options with coordinates
      */
-    simulateRealisticHover(element) {
-        if (!element) return;
-        
+    getEventOptionsForElement(element) {
         const rect = element.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-        
-        // Create mouse events with actual coordinates
-        const mouseOverEvent = new MouseEvent('mouseover', {
+
+        return {
             view: document.defaultView || window,
             bubbles: true,
             cancelable: true,
             clientX: centerX,
             clientY: centerY,
             screenX: centerX + window.screenX,
-            screenY: centerY + window.screenY
+            screenY: centerY + window.screenY,
+            pointerId: 1,
+            pointerType: 'mouse',
+            isPrimary: true,
+            button: 0,
+            buttons: 0
+        };
+    }
+
+    /**
+     * Simulate comprehensive user interaction for Angular SPAs
+     * Dispatches pointer events (which Angular's zone.js intercepts), mouse events, and focus
+     * @param {Element} element - Target element
+     * @param {boolean} includeFocus - Whether to focus the element
+     */
+    async simulateUserInteraction(element, includeFocus = false) {
+        if (!element) return;
+
+        const eventOptions = this.getEventOptionsForElement(element);
+
+        // Dispatch pointer events first (Angular listens to these)
+        const pointerEvents = ['pointerover', 'pointerenter', 'pointermove'];
+        for (const eventType of pointerEvents) {
+            try {
+                const pointerEvent = new PointerEvent(eventType, eventOptions);
+                element.dispatchEvent(pointerEvent);
+            } catch (e) {
+                Logger.debug(`Failed to dispatch ${eventType}: ${e.message}`);
+            }
+        }
+
+        // Then dispatch mouse events
+        const mouseEvents = ['mouseover', 'mouseenter', 'mousemove'];
+        for (const eventType of mouseEvents) {
+            const mouseEvent = new MouseEvent(eventType, eventOptions);
+            element.dispatchEvent(mouseEvent);
+        }
+
+        // Focus if requested (helps set active element in Angular)
+        if (includeFocus && element.focus) {
+            element.focus();
+            element.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+            element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+        }
+
+        // Allow Angular's change detection to run
+        await this.delay(50);
+
+        Logger.debug(`Simulated user interaction at (${Math.round(eventOptions.clientX)}, ${Math.round(eventOptions.clientY)})`);
+    }
+
+    /**
+     * Simulate a realistic click that Angular will recognize
+     * @param {Element} element - Target element
+     */
+    async simulateClick(element) {
+        if (!element) return;
+
+        const eventOptions = this.getEventOptionsForElement(element);
+
+        // Pointer down/up sequence
+        try {
+            element.dispatchEvent(new PointerEvent('pointerdown', { ...eventOptions, buttons: 1 }));
+            await this.delay(50);
+            element.dispatchEvent(new PointerEvent('pointerup', eventOptions));
+        } catch (e) {
+            Logger.debug(`Pointer events failed: ${e.message}`);
+        }
+
+        // Mouse down/up sequence
+        element.dispatchEvent(new MouseEvent('mousedown', { ...eventOptions, buttons: 1 }));
+        await this.delay(50);
+        element.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+
+        // Use MouseEventUtils for the click
+        const clickEvent = MouseEventUtils.createClickEvent({
+            ...eventOptions,
+            programmatic: true
         });
-        
-        const mouseEnterEvent = new MouseEvent('mouseenter', {
-            view: document.defaultView || window,
-            bubbles: true,
-            cancelable: true,
-            clientX: centerX,
-            clientY: centerY,
-            screenX: centerX + window.screenX,
-            screenY: centerY + window.screenY
-        });
-        
-        const mouseMoveEvent = new MouseEvent('mousemove', {
-            view: document.defaultView || window,
-            bubbles: true,
-            cancelable: true,
-            clientX: centerX,
-            clientY: centerY,
-            screenX: centerX + window.screenX,
-            screenY: centerY + window.screenY
-        });
-        
-        // Dispatch events in order (mouseover -> mouseenter -> mousemove)
-        element.dispatchEvent(mouseOverEvent);
-        element.dispatchEvent(mouseEnterEvent);
-        element.dispatchEvent(mouseMoveEvent);
-        
-        Logger.debug(`Simulated realistic hover at (${Math.round(centerX)}, ${Math.round(centerY)})`);
+        element.dispatchEvent(clickEvent);
+
+        // Native click as fallback
+        element.click();
+
+        await this.delay(100);
+    }
+
+    /**
+     * Activate a specific image in Angular's context by simulating user interactions
+     * on all parent elements and the image itself
+     * @param {Element} imageContainer - The generated-image or image container element
+     */
+    async activateImageContext(imageContainer) {
+        if (!imageContainer) return;
+
+        // Find the actual image element or clickable area
+        const generatedImage = imageContainer.closest('generated-image') || imageContainer;
+        const overlayContainer = generatedImage.querySelector('.overlay-container.ng-star-inserted');
+        const imgElement = generatedImage.querySelector('img');
+
+        Logger.debug('Activating image context...');
+
+        // First, scroll into view smoothly
+        generatedImage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await this.delay(300);
+
+        // Simulate hover on the generated-image container
+        await this.simulateUserInteraction(generatedImage, false);
+        await this.delay(100);
+
+        // Simulate hover on the overlay container (this triggers Angular to show controls)
+        if (overlayContainer) {
+            await this.simulateUserInteraction(overlayContainer, false);
+            await this.delay(200);
+        }
+
+        // If there's an img element, interact with it too
+        if (imgElement) {
+            await this.simulateUserInteraction(imgElement, false);
+            await this.delay(100);
+        }
+
+        // Extra delay for Angular's change detection
+        await this.delay(300);
+
+        Logger.debug('Image context activated');
+    }
+
+    /**
+     * Close any open Material menus
+     */
+    async closeOpenMenus() {
+        // Send escape key to close menus
+        const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+        document.dispatchEvent(escapeEvent);
+        await this.delay(200);
+
+        // Also try clicking outside any open overlay
+        const overlays = document.querySelectorAll('.cdk-overlay-backdrop');
+        for (const overlay of overlays) {
+            if (overlay.offsetParent !== null) {
+                overlay.click();
+                await this.delay(100);
+            }
+        }
+    }
+
+    /**
+     * Find the generated-image container for a download button container
+     * @param {Element} downloadContainer - The download-generated-image-button container
+     * @returns {Element|null} The parent generated-image element
+     */
+    findGeneratedImageContainer(downloadContainer) {
+        return downloadContainer.closest('generated-image');
+    }
+
+    /**
+     * Re-query for a fresh download button within a generated-image container
+     * This avoids stale element references after DOM re-renders
+     * @param {Element} generatedImage - The generated-image container
+     * @returns {Element|null} Fresh reference to the download button
+     */
+    getFreshDownloadButton(generatedImage) {
+        if (!generatedImage) return null;
+
+        for (const selector of GeminiEnhancer.SELECTORS.DOWNLOAD_IMAGE_BUTTON) {
+            const button = generatedImage.querySelector(selector);
+            if (button && button.offsetParent !== null) {
+                return button;
+            }
+        }
+        return null;
     }
 
     /**
      * Download a single image and wait for completion
+     * Uses comprehensive event simulation to properly update Angular's internal state
      */
     async downloadSingleImage(container, index, total) {
         try {
             Logger.debug(`Downloading image ${index + 1}/${total}...`);
-            
-            // Scroll container into view
-            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(500);
-            
-            // Find the overlay-container element that triggers the download button to appear
-            const overlayContainer = container.closest('generated-image')?.querySelector('.overlay-container.ng-star-inserted');
-            if (!overlayContainer) {
-                // Fallback: try finding it from the container itself
-                const imageElement = container.closest('generated-image');
-                if (imageElement) {
-                    const overlay = imageElement.querySelector('.overlay-container.ng-star-inserted');
-                    if (overlay) {
-                        // Simulate realistic hover over the overlay container to show the download button
-                        this.simulateRealisticHover(overlay);
-                        Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
-                        await this.delay(800); // Wait longer for controls to appear
-                    } else {
-                        // Fallback: hover over the image element
-                        this.simulateRealisticHover(imageElement);
-                        Logger.debug(`Fallback: hovered over image element for ${index + 1}/${total}`);
-                        await this.delay(800);
-                    }
-                }
-            } else {
-                // Simulate realistic hover over the overlay container to show the download button
-                this.simulateRealisticHover(overlayContainer);
-                Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
-                await this.delay(800); // Wait longer for controls to appear
-            }
-            
-            // Get the download button from container
-            const downloadButton = this.getDownloadButtonFromContainer(container);
-            if (!downloadButton) {
-                Logger.warn(`Download button not found in container ${index + 1}`);
+
+            // Close any previously open menus first
+            await this.closeOpenMenus();
+
+            // Find the parent generated-image container
+            const generatedImage = this.findGeneratedImageContainer(container);
+            if (!generatedImage) {
+                Logger.warn(`Generated image container not found for image ${index + 1}`);
                 return false;
             }
-            
-            // Check if button is visible
-            if (downloadButton.offsetParent === null) {
-                Logger.warn(`Download button ${index + 1} is not visible after hover`);
-                // Try hovering again with a longer delay
-                if (overlayContainer) {
-                    this.simulateRealisticHover(overlayContainer);
-                    await this.delay(1000);
-                }
-                // Re-check visibility
-                const retryButton = this.getDownloadButtonFromContainer(container);
-                if (!retryButton || retryButton.offsetParent === null) {
-                    Logger.warn(`Download button ${index + 1} still not visible after retry`);
+
+            // Activate this image's context using comprehensive user simulation
+            // This is crucial for Angular to update its internal "active image" state
+            await this.activateImageContext(generatedImage);
+
+            // After activation, re-query for a fresh download button reference
+            // (DOM may have been re-rendered by Angular)
+            let downloadButton = this.getFreshDownloadButton(generatedImage);
+
+            if (!downloadButton) {
+                Logger.warn(`Download button not found after activation for image ${index + 1}`);
+                // Try one more activation cycle
+                await this.activateImageContext(generatedImage);
+                await this.delay(500);
+                downloadButton = this.getFreshDownloadButton(generatedImage);
+
+                if (!downloadButton) {
+                    Logger.warn(`Download button still not found for image ${index + 1}`);
                     return false;
                 }
             }
-            
-            // Simulate realistic hover over the download button
-            this.simulateRealisticHover(downloadButton);
-            Logger.debug(`Hovered over download button ${index + 1}/${total}`);
-            await this.delay(800); // Wait longer for hover effects and URL generation
-            
-            // Close any previously open menus first
-            const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-            document.dispatchEvent(escapeEvent);
-            await this.delay(300);
-            
-            // Click the download button to open menu
-            downloadButton.click();
+
+            // Simulate hover over the download button itself (to prepare the download URL)
+            await this.simulateUserInteraction(downloadButton, true);
+            await this.delay(500);
+
+            // Use simulateClick for Angular-compatible clicking
+            await this.simulateClick(downloadButton);
             Logger.debug(`Clicked download button ${index + 1}/${total} to open menu`);
-            await this.delay(1000); // Wait longer for menu to appear and URLs to be generated
-            
-            // Wait for menu to open and find download link (pass the button, not container)
+            await this.delay(800);
+
+            // Wait for menu to open and find download link
             const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton);
             if (!downloadLink) {
                 Logger.warn(`Download link not found in menu for image ${index + 1}`);
-                // Try closing any open menus before continuing
-                document.dispatchEvent(escapeEvent);
-                await this.delay(500);
+                await this.closeOpenMenus();
                 return false;
             }
-            
+
             Logger.debug(`Found download link for image ${index + 1}/${total}, href: ${downloadLink.href || 'no href'}`);
-            
-            // Click the download link
-            downloadLink.click();
+
+            // Simulate interaction and click on the download link
+            await this.simulateUserInteraction(downloadLink, true);
+            await this.delay(200);
+            await this.simulateClick(downloadLink);
             Logger.debug(`Clicked download link for image ${index + 1}/${total}`);
-            
+
             // Wait for download to complete (monitor the button state)
-            await this.waitForDownloadComplete(downloadButton);
-            
+            // Re-query for fresh button reference since DOM may have changed
+            const freshButton = this.getFreshDownloadButton(generatedImage);
+            if (freshButton) {
+                await this.waitForDownloadComplete(freshButton);
+            } else {
+                // Button gone, assume download started, just wait
+                await this.delay(3000);
+            }
+
             Logger.success(`Downloaded image ${index + 1}/${total}`);
             return true;
         } catch (error) {
             Logger.error(`Error downloading image ${index + 1}:`, error);
+            // Clean up by closing menus
+            await this.closeOpenMenus();
             return false;
         }
     }
 
     /**
+     * Find all unique generated-image containers
+     * @returns {Element[]} Array of generated-image elements
+     */
+    findAllGeneratedImages() {
+        const generatedImages = document.querySelectorAll('generated-image');
+        const visibleImages = [];
+
+        for (const img of generatedImages) {
+            // Check if image is visible
+            if (img.offsetParent === null) continue;
+
+            // Check if it has a download button
+            const hasDownloadButton = this.getFreshDownloadButton(img) !== null;
+            if (hasDownloadButton) {
+                visibleImages.push(img);
+            }
+        }
+
+        return visibleImages;
+    }
+
+    /**
+     * Mark a generated-image element with a unique ID for tracking
+     * @param {Element} generatedImage - The generated-image element
+     * @param {number} index - The index to use
+     */
+    markImageWithId(generatedImage, index) {
+        const id = `gemini-enhancer-img-${index}-${Date.now()}`;
+        generatedImage.setAttribute('data-gemini-enhancer-id', id);
+        return id;
+    }
+
+    /**
+     * Find a generated-image by its marked ID
+     * @param {string} id - The data-gemini-enhancer-id value
+     * @returns {Element|null} The element or null if not found
+     */
+    findImageById(id) {
+        return document.querySelector(`generated-image[data-gemini-enhancer-id="${id}"]`);
+    }
+
+    /**
      * Download all available images (queued, one at a time)
+     * Uses unique identifiers to track images across DOM re-renders
      */
     async downloadAllImages() {
-        Logger.debug("Searching for download image containers...");
-        
-        const downloadContainers = this.findAllDownloadButtons();
-        
-        Logger.debug(`Found ${downloadContainers.length} download containers`);
-        
-        if (downloadContainers.length === 0) {
-            this.showNotification('No download buttons found', 'info');
+        Logger.debug("Searching for generated image containers...");
+
+        // Find and mark all images with unique IDs to track them across re-renders
+        const generatedImages = this.findAllGeneratedImages();
+        const imageIds = [];
+
+        for (let i = 0; i < generatedImages.length; i++) {
+            const id = this.markImageWithId(generatedImages[i], i);
+            imageIds.push(id);
+        }
+
+        Logger.debug(`Found ${imageIds.length} generated images`);
+
+        if (imageIds.length === 0) {
+            this.showNotification('No images with download buttons found', 'info');
             return;
         }
-        
-        this.showNotification(`Starting download queue for ${downloadContainers.length} image(s)...`, 'info');
-        
+
+        this.showNotification(`Starting download queue for ${imageIds.length} image(s)...`, 'info');
+
         let downloadedCount = 0;
-        
-        // Download each image sequentially
-        for (let i = 0; i < downloadContainers.length; i++) {
-            // Re-find containers in case DOM changed
-            const currentContainers = this.findAllDownloadButtons();
-            if (i >= currentContainers.length) {
-                Logger.warn(`Container ${i + 1} no longer available, skipping`);
+
+        // Download each image sequentially using tracked IDs
+        for (let i = 0; i < imageIds.length; i++) {
+            const imageId = imageIds[i];
+
+            // Find the image by its tracked ID (fresh DOM query)
+            const generatedImage = this.findImageById(imageId);
+
+            if (!generatedImage) {
+                Logger.warn(`Image ${i + 1} (ID: ${imageId}) no longer in DOM, skipping`);
                 continue;
             }
-            
-            const container = currentContainers[i];
-            
-            // Check if container is still visible
-            if (container.offsetParent === null) {
-                Logger.debug(`Container ${i + 1} is not visible, skipping`);
+
+            // Check if image is still visible
+            if (generatedImage.offsetParent === null) {
+                Logger.debug(`Image ${i + 1} is not visible, skipping`);
                 continue;
             }
-            
-            const success = await this.downloadSingleImage(container, i, downloadContainers.length);
+
+            // Get a fresh download button container for this image
+            const downloadContainer = this.getFreshDownloadButton(generatedImage);
+            if (!downloadContainer) {
+                // Try to activate context first and re-query
+                await this.activateImageContext(generatedImage);
+                const retryContainer = this.getFreshDownloadButton(generatedImage);
+                if (!retryContainer) {
+                    Logger.warn(`Download button not found for image ${i + 1}, skipping`);
+                    continue;
+                }
+            }
+
+            // Find the download-generated-image-button container
+            const downloadButtonContainer = generatedImage.querySelector('download-generated-image-button');
+
+            const success = await this.downloadSingleImage(
+                downloadButtonContainer || generatedImage,
+                i,
+                imageIds.length
+            );
+
             if (success) {
                 downloadedCount++;
             }
-            
-            // Small delay between downloads
-            if (i < downloadContainers.length - 1) {
-                await this.delay(1000);
+
+            // Delay between downloads to allow Angular to stabilize
+            if (i < imageIds.length - 1) {
+                await this.delay(1500);
             }
         }
-        
+
+        // Clean up marked IDs
+        for (const id of imageIds) {
+            const img = this.findImageById(id);
+            if (img) {
+                img.removeAttribute('data-gemini-enhancer-id');
+            }
+        }
+
         if (downloadedCount > 0) {
             this.showNotification(`Downloaded ${downloadedCount} image(s)`, 'success');
             Logger.success(`Downloaded ${downloadedCount} image(s)`);
