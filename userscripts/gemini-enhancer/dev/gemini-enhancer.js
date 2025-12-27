@@ -4,6 +4,7 @@ import {
     FormStatePersistence,
     HTMLUtils,
     Logger,
+    MouseEventUtils,
     Notification,
     SidebarPanel,
     StyleManager,
@@ -1390,148 +1391,293 @@ class GeminiEnhancer {
     }
 
     /**
+     * Create a PointerEvent with full coordinate and property support
+     * Angular heavily uses PointerEvents for state tracking
+     */
+    createPointerEvent(type, element, options = {}) {
+        const rect = element.getBoundingClientRect();
+        const centerX = options.clientX ?? (rect.left + rect.width / 2);
+        const centerY = options.clientY ?? (rect.top + rect.height / 2);
+
+        const eventOptions = {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            clientX: centerX,
+            clientY: centerY,
+            screenX: centerX + (window.screenX || 0),
+            screenY: centerY + (window.screenY || 0),
+            pointerId: 1,
+            pointerType: 'mouse',
+            isPrimary: true,
+            width: 1,
+            height: 1,
+            pressure: type === 'pointerdown' ? 0.5 : 0,
+            tangentialPressure: 0,
+            tiltX: 0,
+            tiltY: 0,
+            twist: 0,
+            button: options.button ?? 0,
+            buttons: type === 'pointerdown' ? 1 : 0,
+            relatedTarget: options.relatedTarget ?? null,
+            ...options
+        };
+
+        return new PointerEvent(type, eventOptions);
+    }
+
+    /**
+     * Create a MouseEvent with full coordinate and property support
+     */
+    createMouseEvent(type, element, options = {}) {
+        const rect = element.getBoundingClientRect();
+        const centerX = options.clientX ?? (rect.left + rect.width / 2);
+        const centerY = options.clientY ?? (rect.top + rect.height / 2);
+
+        const eventOptions = {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            clientX: centerX,
+            clientY: centerY,
+            screenX: centerX + (window.screenX || 0),
+            screenY: centerY + (window.screenY || 0),
+            button: options.button ?? 0,
+            buttons: type.includes('down') ? 1 : 0,
+            relatedTarget: options.relatedTarget ?? null,
+            ...options
+        };
+
+        return new MouseEvent(type, eventOptions);
+    }
+
+    /**
+     * Simulate a complete user hover interaction sequence
+     * This dispatches both PointerEvents and MouseEvents to ensure Angular state updates
+     */
+    async simulateCompleteHover(element, options = {}) {
+        if (!element) return;
+
+        const { delay: delayBetweenEvents = 50, focusElement = false } = options;
+
+        // Scroll element into view first
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await this.delay(200);
+
+        // Dispatch pointer events (Angular listens for these)
+        element.dispatchEvent(this.createPointerEvent('pointerover', element));
+        await this.delay(delayBetweenEvents);
+
+        element.dispatchEvent(this.createPointerEvent('pointerenter', element));
+        await this.delay(delayBetweenEvents);
+
+        element.dispatchEvent(this.createPointerEvent('pointermove', element));
+        await this.delay(delayBetweenEvents);
+
+        // Dispatch mouse events (for compatibility)
+        element.dispatchEvent(this.createMouseEvent('mouseover', element));
+        await this.delay(delayBetweenEvents);
+
+        element.dispatchEvent(this.createMouseEvent('mouseenter', element));
+        await this.delay(delayBetweenEvents);
+
+        element.dispatchEvent(this.createMouseEvent('mousemove', element));
+        await this.delay(delayBetweenEvents);
+
+        // Optionally focus the element to trigger Angular's focus-based state
+        if (focusElement && element.focus) {
+            element.focus();
+            element.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+            element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+            await this.delay(delayBetweenEvents);
+        }
+
+        const rect = element.getBoundingClientRect();
+        Logger.debug(`Simulated complete hover at (${Math.round(rect.left + rect.width/2)}, ${Math.round(rect.top + rect.height/2)})`);
+    }
+
+    /**
+     * Simulate a complete click interaction with proper event sequencing
+     * This triggers the full event sequence that Angular expects
+     */
+    async simulateCompleteClick(element, options = {}) {
+        if (!element) return;
+
+        const { delay: delayBetweenEvents = 30, simulateHoverFirst = true } = options;
+
+        // First simulate hover to establish the element as the target
+        if (simulateHoverFirst) {
+            await this.simulateCompleteHover(element, { delay: delayBetweenEvents, focusElement: true });
+            await this.delay(100);
+        }
+
+        // Pointer down sequence
+        element.dispatchEvent(this.createPointerEvent('pointerdown', element));
+        await this.delay(delayBetweenEvents);
+
+        element.dispatchEvent(this.createMouseEvent('mousedown', element));
+        await this.delay(delayBetweenEvents);
+
+        // Pointer up sequence
+        element.dispatchEvent(this.createPointerEvent('pointerup', element));
+        await this.delay(delayBetweenEvents);
+
+        element.dispatchEvent(this.createMouseEvent('mouseup', element));
+        await this.delay(delayBetweenEvents);
+
+        // Click event
+        element.dispatchEvent(this.createMouseEvent('click', element));
+
+        Logger.debug(`Simulated complete click on element`);
+    }
+
+    /**
      * Simulate realistic mouse hover over an element with proper coordinates
+     * @deprecated Use simulateCompleteHover for Angular SPAs
      */
     simulateRealisticHover(element) {
         if (!element) return;
-        
+
         const rect = element.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-        
-        // Create mouse events with actual coordinates
-        const mouseOverEvent = new MouseEvent('mouseover', {
-            view: document.defaultView || window,
-            bubbles: true,
-            cancelable: true,
-            clientX: centerX,
-            clientY: centerY,
-            screenX: centerX + window.screenX,
-            screenY: centerY + window.screenY
-        });
-        
-        const mouseEnterEvent = new MouseEvent('mouseenter', {
-            view: document.defaultView || window,
-            bubbles: true,
-            cancelable: true,
-            clientX: centerX,
-            clientY: centerY,
-            screenX: centerX + window.screenX,
-            screenY: centerY + window.screenY
-        });
-        
-        const mouseMoveEvent = new MouseEvent('mousemove', {
-            view: document.defaultView || window,
-            bubbles: true,
-            cancelable: true,
-            clientX: centerX,
-            clientY: centerY,
-            screenX: centerX + window.screenX,
-            screenY: centerY + window.screenY
-        });
-        
-        // Dispatch events in order (mouseover -> mouseenter -> mousemove)
-        element.dispatchEvent(mouseOverEvent);
-        element.dispatchEvent(mouseEnterEvent);
-        element.dispatchEvent(mouseMoveEvent);
-        
+
+        // Dispatch pointer events first (Angular)
+        element.dispatchEvent(this.createPointerEvent('pointerover', element));
+        element.dispatchEvent(this.createPointerEvent('pointerenter', element));
+        element.dispatchEvent(this.createPointerEvent('pointermove', element));
+
+        // Then dispatch mouse events (compatibility)
+        element.dispatchEvent(this.createMouseEvent('mouseover', element));
+        element.dispatchEvent(this.createMouseEvent('mouseenter', element));
+        element.dispatchEvent(this.createMouseEvent('mousemove', element));
+
         Logger.debug(`Simulated realistic hover at (${Math.round(centerX)}, ${Math.round(centerY)})`);
     }
 
     /**
+     * Get a fresh reference to the generated-image element by its index
+     * This avoids stale element references after Angular re-renders
+     */
+    getGeneratedImageByIndex(index) {
+        const allGeneratedImages = document.querySelectorAll('generated-image');
+        const visibleImages = Array.from(allGeneratedImages).filter(img => img.offsetParent !== null);
+        return visibleImages[index] || null;
+    }
+
+    /**
+     * Find the download button within a generated-image element
+     */
+    findDownloadButtonInImage(generatedImage) {
+        if (!generatedImage) return null;
+
+        const downloadButtonContainer = generatedImage.querySelector('download-generated-image-button');
+        if (!downloadButtonContainer) return null;
+
+        return downloadButtonContainer.querySelector('button[data-test-id="download-generated-image-button"]');
+    }
+
+    /**
      * Download a single image and wait for completion
+     * Uses enhanced event simulation for Angular SPAs with stale element handling
      */
     async downloadSingleImage(container, index, total) {
         try {
             Logger.debug(`Downloading image ${index + 1}/${total}...`);
-            
-            // Scroll container into view
-            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(500);
-            
-            // Find the overlay-container element that triggers the download button to appear
-            const overlayContainer = container.closest('generated-image')?.querySelector('.overlay-container.ng-star-inserted');
-            if (!overlayContainer) {
-                // Fallback: try finding it from the container itself
-                const imageElement = container.closest('generated-image');
-                if (imageElement) {
-                    const overlay = imageElement.querySelector('.overlay-container.ng-star-inserted');
-                    if (overlay) {
-                        // Simulate realistic hover over the overlay container to show the download button
-                        this.simulateRealisticHover(overlay);
-                        Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
-                        await this.delay(800); // Wait longer for controls to appear
-                    } else {
-                        // Fallback: hover over the image element
-                        this.simulateRealisticHover(imageElement);
-                        Logger.debug(`Fallback: hovered over image element for ${index + 1}/${total}`);
-                        await this.delay(800);
-                    }
+
+            // Get the generated-image element (may need fresh reference)
+            let generatedImage = container.closest('generated-image');
+            if (!generatedImage) {
+                // Try to get by index if container is stale
+                generatedImage = this.getGeneratedImageByIndex(index);
+                if (!generatedImage) {
+                    Logger.warn(`Generated image ${index + 1} not found in DOM`);
+                    return false;
                 }
-            } else {
-                // Simulate realistic hover over the overlay container to show the download button
-                this.simulateRealisticHover(overlayContainer);
-                Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
-                await this.delay(800); // Wait longer for controls to appear
             }
-            
-            // Get the download button from container
-            const downloadButton = this.getDownloadButtonFromContainer(container);
-            if (!downloadButton) {
-                Logger.warn(`Download button not found in container ${index + 1}`);
+
+            // Scroll the image into view
+            generatedImage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await this.delay(500);
+
+            // Find the single-image element which contains the image and controls
+            const singleImage = generatedImage.querySelector('single-image');
+            if (!singleImage) {
+                Logger.warn(`Single image element not found for image ${index + 1}`);
                 return false;
             }
-            
-            // Check if button is visible
-            if (downloadButton.offsetParent === null) {
-                Logger.warn(`Download button ${index + 1} is not visible after hover`);
-                // Try hovering again with a longer delay
-                if (overlayContainer) {
-                    this.simulateRealisticHover(overlayContainer);
-                    await this.delay(1000);
+
+            // Find the overlay-container which shows the controls on hover
+            const overlayContainer = singleImage.querySelector('.overlay-container');
+            if (!overlayContainer) {
+                Logger.warn(`Overlay container not found for image ${index + 1}`);
+                return false;
+            }
+
+            // Use complete hover simulation to trigger Angular's state update
+            // This dispatches PointerEvents which Angular uses for tracking the active image
+            await this.simulateCompleteHover(overlayContainer, { delay: 50, focusElement: false });
+            Logger.debug(`Simulated complete hover on overlay container for image ${index + 1}/${total}`);
+            await this.delay(600);
+
+            // Re-query the download button after hover (DOM may have updated)
+            let downloadButton = this.findDownloadButtonInImage(generatedImage);
+
+            if (!downloadButton || downloadButton.offsetParent === null) {
+                Logger.debug(`Download button not visible yet, retrying hover on image ${index + 1}`);
+                // Try hovering on the image button directly
+                const imageButton = overlayContainer.querySelector('.image-button');
+                if (imageButton) {
+                    await this.simulateCompleteHover(imageButton, { delay: 50, focusElement: true });
+                    await this.delay(600);
                 }
-                // Re-check visibility
-                const retryButton = this.getDownloadButtonFromContainer(container);
-                if (!retryButton || retryButton.offsetParent === null) {
+
+                // Re-query again
+                downloadButton = this.findDownloadButtonInImage(generatedImage);
+                if (!downloadButton || downloadButton.offsetParent === null) {
                     Logger.warn(`Download button ${index + 1} still not visible after retry`);
                     return false;
                 }
             }
-            
-            // Simulate realistic hover over the download button
-            this.simulateRealisticHover(downloadButton);
-            Logger.debug(`Hovered over download button ${index + 1}/${total}`);
-            await this.delay(800); // Wait longer for hover effects and URL generation
-            
-            // Close any previously open menus first
+
+            // Simulate complete hover on the download button itself
+            await this.simulateCompleteHover(downloadButton, { delay: 30, focusElement: true });
+            Logger.debug(`Simulated complete hover on download button ${index + 1}/${total}`);
+            await this.delay(400);
+
+            // Close any previously open menus
             const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
             document.dispatchEvent(escapeEvent);
-            await this.delay(300);
-            
-            // Click the download button to open menu
-            downloadButton.click();
-            Logger.debug(`Clicked download button ${index + 1}/${total} to open menu`);
-            await this.delay(1000); // Wait longer for menu to appear and URLs to be generated
-            
-            // Wait for menu to open and find download link (pass the button, not container)
+            await this.delay(200);
+
+            // Use complete click simulation to trigger Angular's click handlers
+            await this.simulateCompleteClick(downloadButton, { delay: 30, simulateHoverFirst: false });
+            Logger.debug(`Simulated complete click on download button ${index + 1}/${total}`);
+            await this.delay(800);
+
+            // Wait for menu to open and find download link
             const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton);
             if (!downloadLink) {
                 Logger.warn(`Download link not found in menu for image ${index + 1}`);
-                // Try closing any open menus before continuing
+                // Close menu and continue
                 document.dispatchEvent(escapeEvent);
-                await this.delay(500);
+                await this.delay(300);
                 return false;
             }
-            
+
             Logger.debug(`Found download link for image ${index + 1}/${total}, href: ${downloadLink.href || 'no href'}`);
-            
-            // Click the download link
-            downloadLink.click();
+
+            // Click the download link using complete click simulation
+            await this.simulateCompleteClick(downloadLink, { delay: 30, simulateHoverFirst: true });
             Logger.debug(`Clicked download link for image ${index + 1}/${total}`);
-            
-            // Wait for download to complete (monitor the button state)
+
+            // Wait for download to complete
             await this.waitForDownloadComplete(downloadButton);
-            
+
+            // Close any lingering menus
+            document.dispatchEvent(escapeEvent);
+            await this.delay(200);
+
             Logger.success(`Downloaded image ${index + 1}/${total}`);
             return true;
         } catch (error) {
@@ -1541,52 +1687,70 @@ class GeminiEnhancer {
     }
 
     /**
+     * Get all visible generated-image elements
+     */
+    getAllVisibleGeneratedImages() {
+        const allGeneratedImages = document.querySelectorAll('generated-image');
+        return Array.from(allGeneratedImages).filter(img => img.offsetParent !== null);
+    }
+
+    /**
      * Download all available images (queued, one at a time)
+     * Uses fresh element references for each download to handle Angular's DOM re-renders
      */
     async downloadAllImages() {
-        Logger.debug("Searching for download image containers...");
-        
-        const downloadContainers = this.findAllDownloadButtons();
-        
-        Logger.debug(`Found ${downloadContainers.length} download containers`);
-        
-        if (downloadContainers.length === 0) {
-            this.showNotification('No download buttons found', 'info');
+        Logger.debug("Searching for generated images...");
+
+        // Get initial count of images
+        let visibleImages = this.getAllVisibleGeneratedImages();
+        const initialCount = visibleImages.length;
+
+        Logger.debug(`Found ${initialCount} generated images`);
+
+        if (initialCount === 0) {
+            this.showNotification('No generated images found', 'info');
             return;
         }
-        
-        this.showNotification(`Starting download queue for ${downloadContainers.length} image(s)...`, 'info');
-        
+
+        this.showNotification(`Starting download queue for ${initialCount} image(s)...`, 'info');
+
         let downloadedCount = 0;
-        
-        // Download each image sequentially
-        for (let i = 0; i < downloadContainers.length; i++) {
-            // Re-find containers in case DOM changed
-            const currentContainers = this.findAllDownloadButtons();
-            if (i >= currentContainers.length) {
-                Logger.warn(`Container ${i + 1} no longer available, skipping`);
+
+        // Download each image sequentially using index-based lookup
+        // This avoids stale element references since we re-query for each image
+        for (let i = 0; i < initialCount; i++) {
+            // Always get a fresh reference to the generated-image element
+            const generatedImage = this.getGeneratedImageByIndex(i);
+
+            if (!generatedImage) {
+                Logger.warn(`Generated image ${i + 1} no longer available, skipping`);
                 continue;
             }
-            
-            const container = currentContainers[i];
-            
-            // Check if container is still visible
-            if (container.offsetParent === null) {
-                Logger.debug(`Container ${i + 1} is not visible, skipping`);
+
+            // Check if image is still visible
+            if (generatedImage.offsetParent === null) {
+                Logger.debug(`Generated image ${i + 1} is not visible, skipping`);
                 continue;
             }
-            
-            const success = await this.downloadSingleImage(container, i, downloadContainers.length);
+
+            // Find download button container within this image for passing to downloadSingleImage
+            const downloadButtonContainer = generatedImage.querySelector('download-generated-image-button');
+            if (!downloadButtonContainer) {
+                Logger.debug(`No download button container in image ${i + 1}, skipping`);
+                continue;
+            }
+
+            const success = await this.downloadSingleImage(downloadButtonContainer, i, initialCount);
             if (success) {
                 downloadedCount++;
             }
-            
-            // Small delay between downloads
-            if (i < downloadContainers.length - 1) {
-                await this.delay(1000);
+
+            // Delay between downloads to allow Angular to stabilize
+            if (i < initialCount - 1) {
+                await this.delay(1500);
             }
         }
-        
+
         if (downloadedCount > 0) {
             this.showNotification(`Downloaded ${downloadedCount} image(s)`, 'success');
             Logger.success(`Downloaded ${downloadedCount} image(s)`);
