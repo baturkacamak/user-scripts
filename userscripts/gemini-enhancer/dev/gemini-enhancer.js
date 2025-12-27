@@ -1658,6 +1658,100 @@ class GeminiEnhancer {
     }
 
     /**
+     * Extract the img element from a generated-image element
+     */
+    extractImageElement(generatedImage) {
+        if (!generatedImage) return null;
+
+        // Find the img element within the generated-image
+        const imgElement = generatedImage.querySelector('img.image');
+        if (imgElement) return imgElement;
+
+        // Try alternative selectors
+        return generatedImage.querySelector('single-image img') ||
+               generatedImage.querySelector('img[src*="googleusercontent"]');
+    }
+
+    /**
+     * Download an image using Canvas extraction
+     * This draws the image to a canvas and exports it as a blob
+     * Works regardless of CORS/authentication issues
+     */
+    async downloadViaCanvas(imgElement, index, total) {
+        try {
+            Logger.debug(`Canvas downloading image ${index + 1}/${total}...`);
+
+            // Wait for image to be fully loaded
+            if (!imgElement.complete) {
+                await new Promise((resolve, reject) => {
+                    imgElement.onload = resolve;
+                    imgElement.onerror = reject;
+                    setTimeout(reject, 5000); // 5s timeout
+                });
+            }
+
+            // Get natural dimensions (full size) or displayed dimensions
+            const width = imgElement.naturalWidth || imgElement.width;
+            const height = imgElement.naturalHeight || imgElement.height;
+
+            if (width === 0 || height === 0) {
+                Logger.warn(`Image ${index + 1} has zero dimensions`);
+                return false;
+            }
+
+            Logger.debug(`Image dimensions: ${width}x${height}`);
+
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                Logger.error('Could not get canvas 2d context');
+                return false;
+            }
+
+            // Draw image to canvas
+            ctx.drawImage(imgElement, 0, 0, width, height);
+
+            // Convert to blob
+            const blob = await new Promise((resolve) => {
+                canvas.toBlob(resolve, 'image/png', 1.0);
+            });
+
+            if (!blob) {
+                Logger.error(`Failed to create blob for image ${index + 1}`);
+                return false;
+            }
+
+            // Generate filename
+            const timestamp = Date.now();
+            const filename = `gemini-image-${index + 1}-${timestamp}.png`;
+
+            // Create download link
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Clean up
+            URL.revokeObjectURL(downloadUrl);
+
+            Logger.success(`Canvas downloaded image ${index + 1}/${total} (${width}x${height})`);
+            return true;
+        } catch (error) {
+            Logger.error(`Canvas download failed for image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
      * Download an image directly from URL using GM_download
      * This bypasses Angular's menu system entirely and handles authentication
      */
@@ -1728,7 +1822,7 @@ class GeminiEnhancer {
 
     /**
      * Download a single image and wait for completion
-     * Uses direct URL extraction to bypass Angular's state management
+     * Uses canvas extraction as primary method to bypass Angular's state management
      */
     async downloadSingleImage(container, index, total) {
         try {
@@ -1749,7 +1843,18 @@ class GeminiEnhancer {
             generatedImage.scrollIntoView({ behavior: 'smooth', block: 'center' });
             await this.delay(300);
 
-            // APPROACH 1: Try direct URL extraction first (most reliable)
+            // APPROACH 1: Try canvas extraction first (most reliable, bypasses all Angular issues)
+            const imgElement = this.extractImageElement(generatedImage);
+            if (imgElement) {
+                Logger.debug(`Found img element for image ${index + 1}/${total}, trying canvas extraction`);
+                const success = await this.downloadViaCanvas(imgElement, index, total);
+                if (success) {
+                    return true;
+                }
+                Logger.warn(`Canvas extraction failed for image ${index + 1}, trying direct URL`);
+            }
+
+            // APPROACH 2: Try direct URL extraction
             const imageUrl = this.extractImageUrl(generatedImage);
             if (imageUrl) {
                 Logger.debug(`Found direct image URL for image ${index + 1}/${total}`);
@@ -1760,7 +1865,7 @@ class GeminiEnhancer {
                 Logger.warn(`Direct download failed for image ${index + 1}, falling back to UI method`);
             }
 
-            // APPROACH 2: Fallback to UI-based download if direct extraction fails
+            // APPROACH 3: Fallback to UI-based download if other methods fail
             Logger.debug(`Falling back to UI-based download for image ${index + 1}/${total}`);
 
             // Find the single-image element which contains the image and controls
