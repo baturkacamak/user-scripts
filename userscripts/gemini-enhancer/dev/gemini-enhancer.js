@@ -1606,8 +1606,74 @@ class GeminiEnhancer {
     }
 
     /**
+     * Extract the image URL directly from a generated-image element
+     * This bypasses Angular's state management entirely
+     */
+    extractImageUrl(generatedImage) {
+        if (!generatedImage) return null;
+
+        // Find the img element within the generated-image
+        const imgElement = generatedImage.querySelector('img.image');
+        if (!imgElement) {
+            Logger.debug('No img.image element found, trying alternative selectors');
+            // Try alternative selectors
+            const altImg = generatedImage.querySelector('single-image img') ||
+                          generatedImage.querySelector('img[src*="googleusercontent"]');
+            if (altImg) {
+                return altImg.src;
+            }
+            return null;
+        }
+
+        return imgElement.src;
+    }
+
+    /**
+     * Download an image directly from URL using fetch and blob
+     * This bypasses Angular's menu system entirely
+     */
+    async downloadImageDirectly(imageUrl, index, total) {
+        try {
+            Logger.debug(`Direct downloading image ${index + 1}/${total} from URL: ${imageUrl.substring(0, 100)}...`);
+
+            // Fetch the image
+            const response = await fetch(imageUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const blob = await response.blob();
+
+            // Create a download link
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+
+            // Generate filename with timestamp
+            const timestamp = Date.now();
+            const extension = blob.type.includes('png') ? 'png' :
+                             blob.type.includes('webp') ? 'webp' : 'jpg';
+            link.download = `gemini-image-${index + 1}-${timestamp}.${extension}`;
+
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Clean up
+            URL.revokeObjectURL(downloadUrl);
+
+            Logger.success(`Direct downloaded image ${index + 1}/${total}`);
+            return true;
+        } catch (error) {
+            Logger.error(`Error direct downloading image ${index + 1}:`, error);
+            return false;
+        }
+    }
+
+    /**
      * Download a single image and wait for completion
-     * Uses enhanced event simulation for Angular SPAs with stale element handling
+     * Uses direct URL extraction to bypass Angular's state management
      */
     async downloadSingleImage(container, index, total) {
         try {
@@ -1626,7 +1692,21 @@ class GeminiEnhancer {
 
             // Scroll the image into view
             generatedImage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(500);
+            await this.delay(300);
+
+            // APPROACH 1: Try direct URL extraction first (most reliable)
+            const imageUrl = this.extractImageUrl(generatedImage);
+            if (imageUrl) {
+                Logger.debug(`Found direct image URL for image ${index + 1}/${total}`);
+                const success = await this.downloadImageDirectly(imageUrl, index, total);
+                if (success) {
+                    return true;
+                }
+                Logger.warn(`Direct download failed for image ${index + 1}, falling back to UI method`);
+            }
+
+            // APPROACH 2: Fallback to UI-based download if direct extraction fails
+            Logger.debug(`Falling back to UI-based download for image ${index + 1}/${total}`);
 
             // Find the single-image element which contains the image and controls
             const singleImage = generatedImage.querySelector('single-image');
@@ -1643,7 +1723,6 @@ class GeminiEnhancer {
             }
 
             // Use complete hover simulation to trigger Angular's state update
-            // This dispatches PointerEvents which Angular uses for tracking the active image
             await this.simulateCompleteHover(overlayContainer, { delay: 50, focusElement: false });
             Logger.debug(`Simulated complete hover on overlay container for image ${index + 1}/${total}`);
             await this.delay(600);
