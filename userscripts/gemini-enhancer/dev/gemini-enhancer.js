@@ -4,18 +4,102 @@ import {
     FormStatePersistence,
     HTMLUtils,
     Logger,
-    MouseEventUtils,
     Notification,
     SidebarPanel,
     StyleManager,
     TextArea,
     Tabs
 } from "../../common/core";
-import { getValue, setValue, GM_download } from "../../common/core/utils/GMFunctions";
+import { getValue, setValue } from "../../common/core/utils/GMFunctions";
 
 // Configure logger
 Logger.setPrefix("Gemini Enhancer");
 Logger.DEBUG = true;
+
+/**
+ * TODO: Image Download Functionality - TEMPORARILY REMOVED
+ * =========================================================
+ *
+ * ISSUE DESCRIPTION:
+ * When downloading multiple generated images from Google Gemini, clicking the download
+ * button for each image always downloads the FIRST image repeatedly, regardless of
+ * which image's download button was clicked. This happens because Google Gemini is an
+ * Angular Single Page Application (SPA) that maintains internal state about which image
+ * is "active" or "selected", and this state doesn't update with programmatic clicks.
+ *
+ * ROOT CAUSE:
+ * Angular (and Zone.js) tracks user interactions through the `isTrusted` property on
+ * events. When a user physically clicks with their mouse, the browser sets `isTrusted: true`
+ * on the event. However, programmatically dispatched events (via `element.click()` or
+ * `element.dispatchEvent(new MouseEvent(...))`) always have `isTrusted: false`.
+ *
+ * Angular's change detection and state management appears to rely on trusted events to
+ * update its internal "active image" context. Without this update, the download action
+ * always operates on the first/default image in the component's state.
+ *
+ * APPROACHES ATTEMPTED (ALL FAILED):
+ *
+ * 1. CANVAS EXTRACTION
+ *    - Draw the visible image to a canvas element and export as PNG blob
+ *    - Result: Canvas correctly drew the image but appeared to be tainted by CORS
+ *      or the image dimensions were reported as 0x0 in some cases
+ *    - The visible thumbnail may not have the full resolution data
+ *
+ * 2. OPEN IN NEW TAB
+ *    - Extract image URL from src attribute and open in new tab
+ *    - Result: Opens the image but doesn't trigger actual download
+ *    - URLs may be session-bound and expire or require authentication
+ *
+ * 3. DIRECT URL DOWNLOAD (GM_download + fetch)
+ *    - Extract image URL and download directly using GM_download or fetch with credentials
+ *    - Result: 403 Forbidden errors - Google's CDN requires authentication/cookies
+ *      that aren't passed correctly even with `credentials: 'include'`
+ *    - GM_download also failed with same authentication issues
+ *
+ * 4. KEYBOARD NAVIGATION
+ *    - Focus the image button, press Enter to "select" it, then focus download button
+ *    - Result: Focus events don't trigger Angular's state update either
+ *    - The "active image" context remains unchanged
+ *
+ * 5. NATIVE .click() METHOD
+ *    - Use the browser's native click() method on buttons
+ *    - Result: Same issue - isTrusted is false, Angular doesn't update state
+ *
+ * 6. SIMULATED POINTER/MOUSE EVENTS (Full Event Sequence)
+ *    - Dispatch complete event sequence: pointerover, pointerenter, pointermove,
+ *      mouseover, mouseenter, mousemove, focus, focusin, pointerdown, mousedown,
+ *      pointerup, mouseup, click
+ *    - Included proper coordinates, bubbling, and all event properties
+ *    - Result: Events are dispatched successfully but isTrusted remains false
+ *    - Angular's Zone.js still doesn't recognize these as user interactions
+ *
+ * ADDITIONAL COMPLICATIONS:
+ * - The download button opens a Material CDK overlay menu attached to document.body
+ * - Menu contains links with dynamic hrefs that are generated based on "active" image
+ * - Even when the menu opens, the download link always points to the first image
+ * - Angular re-renders the DOM frequently, causing stale element references
+ *
+ * WHY isTrusted CANNOT BE BYPASSED:
+ * The `isTrusted` property is read-only and set by the browser's rendering engine.
+ * It's a security feature that cannot be overridden by JavaScript. The only way to
+ * get `isTrusted: true` is through actual user hardware input (mouse, keyboard, touch).
+ *
+ * POTENTIAL FUTURE SOLUTIONS TO INVESTIGATE:
+ * 1. Browser extension with higher privileges (content scripts with activeTab permission
+ *    can potentially access more APIs)
+ * 2. Puppeteer/Playwright automation that controls actual browser input
+ * 3. Intercepting Angular's internal state management via injection
+ * 4. Using Chrome DevTools Protocol to simulate trusted input events
+ * 5. Modifying the download link href before clicking (if we can find the pattern)
+ * 6. Waiting for Google to provide a proper API for bulk downloads
+ *
+ * FILES THAT WERE INVOLVED:
+ * - userscripts/gemini-enhancer/dev/gemini-enhancer.js (this file)
+ * - userscripts/common/core/index.js (MouseEventUtils export)
+ * - userscripts/common/core/utils/GMFunctions.js (GM_download)
+ *
+ * DATE: December 2024
+ */
 
 /**
  * Gemini Enhancer
@@ -76,16 +160,7 @@ class GeminiEnhancer {
         TOOLBOX_DRAWER_BUTTONS: 'mat-action-list button.toolbox-drawer-item-list-button, mat-action-list button.mat-mdc-list-item',
         // Deselect buttons that appear when image/video is already selected
         IMAGE_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button:has(.toolbox-drawer-item-deselect-button-label)',
-        VIDEO_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button',
-        // Download image button
-        DOWNLOAD_IMAGE_BUTTON: [
-            'download-generated-image-button button[data-test-id="download-generated-image-button"]',
-            'button[aria-label*="Tam boyutlu resmi indir"]', // Turkish
-            'button[aria-label*="Download full size"]', // English
-            'button[aria-label*="Descargar tamaño completo"]', // Spanish
-            'button.generated-image-button',
-            'download-generated-image-button button'
-        ]
+        VIDEO_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button'
     };
 
     static SETTINGS_KEYS = {
@@ -93,8 +168,7 @@ class GeminiEnhancer {
         GENERATION_TYPE: 'gemini-generation-type',
         QUEUE_DELAY: 'gemini-queue-delay',
         SHOW_NOTIFICATIONS: 'gemini-show-notifications',
-        PANEL_POSITION: 'gemini-panel-position',
-        AUTO_DOWNLOAD_IMAGES: 'gemini-auto-download-images'
+        PANEL_POSITION: 'gemini-panel-position'
     };
 
     static DEFAULT_SETTINGS = {
@@ -102,15 +176,14 @@ class GeminiEnhancer {
         GENERATION_TYPE: 'text', // 'text', 'image', 'video'
         QUEUE_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
-        PANEL_POSITION: { x: 20, y: 20 },
-        AUTO_DOWNLOAD_IMAGES: false
+        PANEL_POSITION: { x: 20, y: 20 }
     };
 
     constructor() {
         // This check must be the first line
         if (window.GeminiEnhancerInstance) {
             console.warn("⚠️ [Gemini Enhancer] Instance already exists. Killing duplicate.");
-            return; 
+            return;
         }
         window.GeminiEnhancerInstance = this;
 
@@ -205,7 +278,7 @@ class GeminiEnhancer {
     async waitForPageReady() {
         let attempts = 0;
         const maxAttempts = 50;
-        
+
         while (attempts < maxAttempts) {
             if (document.readyState === 'complete' && document.body) {
                 // Check if Gemini UI is loaded
@@ -217,7 +290,7 @@ class GeminiEnhancer {
             await this.delay(200);
             attempts++;
         }
-        
+
         Logger.warn("Page ready timeout, proceeding anyway");
         return true;
     }
@@ -376,7 +449,7 @@ class GeminiEnhancer {
 
         // Create tabs container
         const tabsContainer = document.createElement('div');
-        
+
         this.tabs = new Tabs({
             tabs: [
                 {
@@ -414,23 +487,23 @@ class GeminiEnhancer {
 
         const typeSelect = document.createElement('select');
         typeSelect.className = 'generation-type-select';
-        
+
         // Create options using DOM methods to avoid TrustedHTML issues
         const textOption = document.createElement('option');
         textOption.value = 'text';
         textOption.textContent = 'Text Generation';
         typeSelect.appendChild(textOption);
-        
+
         const imageOption = document.createElement('option');
         imageOption.value = 'image';
         imageOption.textContent = 'Image Generation';
         typeSelect.appendChild(imageOption);
-        
+
         const videoOption = document.createElement('option');
         videoOption.value = 'video';
         videoOption.textContent = 'Video Generation';
         typeSelect.appendChild(videoOption);
-        
+
         typeSelect.value = this.settings.GENERATION_TYPE || 'text';
         typeSelect.onchange = (e) => {
             this.settings.GENERATION_TYPE = e.target.value;
@@ -472,26 +545,9 @@ class GeminiEnhancer {
         const buttonContainer = document.createElement('div');
         buttonContainer.style.cssText = 'display: flex; flex-direction: column; gap: 8px; margin-top: 12px;';
 
-        const queueButtonRow = document.createElement('div');
-        queueButtonRow.style.cssText = 'display: flex; gap: 8px;';
-
         this.queueToggleButton = new Button({
             text: 'Start Queue',
             onClick: () => this.toggleQueue(),
-            container: queueButtonRow
-        });
-
-        this.queueWithDownloadButton = new Button({
-            text: 'Start Queue & Download Images',
-            onClick: () => this.startQueueWithDownload(),
-            container: queueButtonRow
-        });
-
-        buttonContainer.appendChild(queueButtonRow);
-
-        this.downloadAllImagesButton = new Button({
-            text: 'Download All Images',
-            onClick: () => this.downloadAllImages(),
             container: buttonContainer
         });
 
@@ -555,27 +611,6 @@ class GeminiEnhancer {
     }
 
     /**
-     * Start queue with auto-download enabled
-     */
-    async startQueueWithDownload() {
-        if (this.isQueueRunning) {
-            this.showNotification('Queue is already running', 'warning');
-            return;
-        }
-
-        // Temporarily enable auto-download
-        const originalAutoDownload = this.settings.AUTO_DOWNLOAD_IMAGES;
-        this.settings.AUTO_DOWNLOAD_IMAGES = true;
-
-        try {
-            await this.startQueue();
-        } finally {
-            // Restore original setting
-            this.settings.AUTO_DOWNLOAD_IMAGES = originalAutoDownload;
-        }
-    }
-
-    /**
      * Start queue
      */
     async startQueue() {
@@ -613,7 +648,7 @@ class GeminiEnhancer {
 
         try {
             await this.processQueue();
-            
+
             if (!this.shouldStopQueue) {
                 this.showNotification('Queue completed successfully', 'success');
                 Logger.success('Queue completed successfully');
@@ -687,28 +722,16 @@ class GeminiEnhancer {
 
             // Type the prompt
             await this.typePrompt(prompt);
-            
+
             // Small delay to let the UI settle
             await this.delay(300);
-            
+
             // Click send button (for all types)
             await this.clickSendButton();
-            
+
             // Wait for completion
             await this.waitForCompletion();
-            
-            // Download image if auto-download is enabled and generation type is image
-            if (this.settings.AUTO_DOWNLOAD_IMAGES && generationType === 'image') {
-                await this.delay(2000); // Wait a bit for image to render
-                // Only download the newly generated image (the last one)
-                const downloadContainers = this.findAllDownloadButtons();
-                if (downloadContainers.length > 0) {
-                    // Download the last container (most recent image)
-                    const lastContainer = downloadContainers[downloadContainers.length - 1];
-                    await this.downloadSingleImage(lastContainer, 0, 1);
-                }
-            }
-            
+
             Logger.success(`Prompt ${this.currentPromptIndex} completed`);
         } catch (error) {
             Logger.error(`Error on prompt ${this.currentPromptIndex}:`, error.message);
@@ -740,7 +763,7 @@ class GeminiEnhancer {
 
         try {
             textarea.focus();
-            
+
             // Clear existing content
             textarea.textContent = '';
             textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
@@ -750,7 +773,7 @@ class GeminiEnhancer {
             textarea.textContent = prompt;
             textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
             textarea.dispatchEvent(new Event('change', { bubbles: true }));
-            
+
             Logger.debug(`Typed prompt: "${prompt.substring(0, 50)}..."`);
         } catch (error) {
             throw new Error("Typing failed: " + error.message);
@@ -772,7 +795,7 @@ class GeminiEnhancer {
      */
     async openToolboxDrawer() {
         Logger.debug("Checking if toolbox drawer needs to be opened...");
-        
+
         // Check if drawer is actually open by looking for visible buttons
         if (this.isToolboxDrawerOpen()) {
             Logger.debug("Toolbox drawer is already open (buttons visible)");
@@ -785,15 +808,15 @@ class GeminiEnhancer {
         for (const selector of GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTON) {
             const button = document.querySelector(selector);
             Logger.debug(`Trying selector: ${selector}, found: ${!!button}, visible: ${button && button.offsetParent !== null}`);
-            
+
             if (button && button.offsetParent !== null) {
                 Logger.debug(`Found toolbox drawer button with selector: ${selector}`);
                 button.click();
                 Logger.debug(`Clicked toolbox drawer button using selector: ${selector}`);
-                
+
                 // Wait for the drawer to open
                 await this.delay(1000);
-                
+
                 // Verify it opened by checking for visible buttons - try multiple times
                 for (let i = 0; i < 10; i++) {
                     if (this.isToolboxDrawerOpen()) {
@@ -802,11 +825,11 @@ class GeminiEnhancer {
                     }
                     await this.delay(200);
                 }
-                
+
                 Logger.warn("Toolbox drawer button clicked but drawer did not open");
             }
         }
-        
+
         Logger.warn("Toolbox drawer button not found");
         return false;
     }
@@ -816,21 +839,21 @@ class GeminiEnhancer {
      */
     async findImageButtonInExistingChat() {
         Logger.debug("Searching for image button in existing chat...");
-        
+
         // First, try to open the toolbox drawer if needed
         const drawerOpened = await this.openToolboxDrawer();
         if (!drawerOpened) {
             Logger.debug("Could not open toolbox drawer, trying to find button anyway...");
         }
-        
+
         // Search for buttons with image-related text - use the selector directly
         const buttons = document.querySelectorAll(GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTONS);
         Logger.debug(`Found ${buttons.length} total buttons in toolbox drawer`);
-        
+
         // Filter to only visible buttons
         const visibleButtons = Array.from(buttons).filter(btn => btn.offsetParent !== null);
         Logger.debug(`Found ${visibleButtons.length} visible buttons in toolbox drawer`);
-        
+
         for (const button of visibleButtons) {
             // Try multiple ways to find the label
             let label = button.querySelector('.label.gds-label-l');
@@ -842,30 +865,30 @@ class GeminiEnhancer {
                 const textContent = button.textContent || button.innerText || '';
                 const text = textContent.trim().toLowerCase();
                 Logger.debug(`Checking button (no label found): "${textContent.trim().substring(0, 50)}"`);
-                
-                if (text.includes('görüntü') || 
-                    text.includes('resim') || 
-                    text.includes('image') || 
+
+                if (text.includes('görüntü') ||
+                    text.includes('resim') ||
+                    text.includes('image') ||
                     text.includes('imagen')) {
                     Logger.debug(`Found image button by text content: "${textContent.trim()}"`);
                     return button;
                 }
                 continue;
             }
-            
+
             const text = label.textContent.trim().toLowerCase();
             Logger.debug(`Checking button with label: "${label.textContent.trim()}"`);
-            
+
             // Check for image-related text in multiple languages
-            if (text.includes('görüntü') || 
-                text.includes('resim') || 
-                text.includes('image') || 
+            if (text.includes('görüntü') ||
+                text.includes('resim') ||
+                text.includes('image') ||
                 text.includes('imagen')) {
                 Logger.debug(`Found image button: "${label.textContent.trim()}"`);
                 return button;
             }
         }
-        
+
         Logger.debug("Image button not found in existing chat");
         return null;
     }
@@ -878,13 +901,13 @@ class GeminiEnhancer {
         const deselectButtons = document.querySelectorAll('button.toolbox-drawer-item-deselect-button');
         for (const button of deselectButtons) {
             if (button.offsetParent === null) continue;
-            
+
             const label = button.querySelector('.toolbox-drawer-item-deselect-button-label');
             if (label) {
                 const text = label.textContent.trim().toLowerCase();
-                if (text.includes('resim') || 
-                    text.includes('görüntü') || 
-                    text.includes('image') || 
+                if (text.includes('resim') ||
+                    text.includes('görüntü') ||
+                    text.includes('image') ||
                     text.includes('imagen')) {
                     Logger.debug("Image generation is already selected");
                     return true;
@@ -912,32 +935,32 @@ class GeminiEnhancer {
                     // Scroll button into view if needed
                     button.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     await this.delay(300);
-                    
+
                     button.click();
                     Logger.debug(`Clicked image button using selector: ${selector}`);
                     await this.delay(200);
                     return;
                 }
             }
-            
+
             // Try finding in existing chat (mat-action-list)
             const existingChatButton = await this.findImageButtonInExistingChat();
             if (existingChatButton && existingChatButton.offsetParent !== null) {
                 existingChatButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 await this.delay(300);
-                
+
                 existingChatButton.click();
                 Logger.debug('Clicked image button in existing chat');
                 await this.delay(200);
                 return;
             }
-            
+
             if (attempt < retries - 1) {
                 Logger.debug(`Waiting for image button... (attempt ${attempt + 1}/${retries})`);
                 await this.delay(500);
             }
         }
-        
+
         throw new Error("Image button not found. Make sure the image generation option is visible on the page.");
     }
 
@@ -946,21 +969,21 @@ class GeminiEnhancer {
      */
     async findVideoButtonInExistingChat() {
         Logger.debug("Searching for video button in existing chat...");
-        
+
         // First, try to open the toolbox drawer if needed
         const drawerOpened = await this.openToolboxDrawer();
         if (!drawerOpened) {
             Logger.debug("Could not open toolbox drawer, trying to find button anyway...");
         }
-        
+
         // Search for buttons with video-related text - use the selector directly
         const buttons = document.querySelectorAll(GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTONS);
         Logger.debug(`Found ${buttons.length} total buttons in toolbox drawer`);
-        
+
         // Filter to only visible buttons
         const visibleButtons = Array.from(buttons).filter(btn => btn.offsetParent !== null);
         Logger.debug(`Found ${visibleButtons.length} visible buttons in toolbox drawer`);
-        
+
         for (const button of visibleButtons) {
             // Try multiple ways to find the label
             let label = button.querySelector('.label.gds-label-l');
@@ -972,26 +995,26 @@ class GeminiEnhancer {
                 const textContent = button.textContent || button.innerText || '';
                 const text = textContent.trim().toLowerCase();
                 Logger.debug(`Checking button (no label found): "${textContent.trim().substring(0, 50)}"`);
-                
-                if (text.includes('video') || 
+
+                if (text.includes('video') ||
                     text.includes('veo')) {
                     Logger.debug(`Found video button by text content: "${textContent.trim()}"`);
                     return button;
                 }
                 continue;
             }
-            
+
             const text = label.textContent.trim().toLowerCase();
             Logger.debug(`Checking button with label: "${label.textContent.trim()}"`);
-            
+
             // Check for video-related text in multiple languages
-            if (text.includes('video') || 
+            if (text.includes('video') ||
                 text.includes('veo')) {
                 Logger.debug(`Found video button: "${label.textContent.trim()}"`);
                 return button;
             }
         }
-        
+
         Logger.debug("Video button not found in existing chat");
         return null;
     }
@@ -1004,11 +1027,11 @@ class GeminiEnhancer {
         const deselectButtons = document.querySelectorAll('button.toolbox-drawer-item-deselect-button');
         for (const button of deselectButtons) {
             if (button.offsetParent === null) continue;
-            
+
             const label = button.querySelector('.toolbox-drawer-item-deselect-button-label');
             if (label) {
                 const text = label.textContent.trim().toLowerCase();
-                if (text.includes('video') || 
+                if (text.includes('video') ||
                     text.includes('veo')) {
                     Logger.debug("Video generation is already selected");
                     return true;
@@ -1036,32 +1059,32 @@ class GeminiEnhancer {
                     // Scroll button into view if needed
                     button.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     await this.delay(300);
-                    
+
                     button.click();
                     Logger.debug(`Clicked video button using selector: ${selector}`);
                     await this.delay(200);
                     return;
                 }
             }
-            
+
             // Try finding in existing chat (mat-action-list)
             const existingChatButton = await this.findVideoButtonInExistingChat();
             if (existingChatButton && existingChatButton.offsetParent !== null) {
                 existingChatButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 await this.delay(300);
-                
+
                 existingChatButton.click();
                 Logger.debug('Clicked video button in existing chat');
                 await this.delay(200);
                 return;
             }
-            
+
             if (attempt < retries - 1) {
                 Logger.debug(`Waiting for video button... (attempt ${attempt + 1}/${retries})`);
                 await this.delay(500);
             }
         }
-        
+
         throw new Error("Video button not found. Make sure the video generation option is visible on the page.");
     }
 
@@ -1078,10 +1101,10 @@ class GeminiEnhancer {
             for (const selector of selectors) {
                 const button = document.querySelector(selector);
                 if (button && button.offsetParent !== null) {
-                    const isDisabled = button.hasAttribute('disabled') || 
+                    const isDisabled = button.hasAttribute('disabled') ||
                                      button.getAttribute('aria-disabled') === 'true' ||
                                      button.classList.contains('stop');
-                    
+
                     if (!isDisabled) {
                         button.click();
                         Logger.debug(`Clicked send button using selector: ${selector}`);
@@ -1090,13 +1113,13 @@ class GeminiEnhancer {
                     }
                 }
             }
-            
+
             if (attempt < retries - 1) {
                 Logger.debug(`Waiting for send button... (attempt ${attempt + 1}/${retries})`);
                 await this.delay(500);
             }
         }
-        
+
         throw new Error("Send button not found or not ready");
     }
 
@@ -1112,10 +1135,10 @@ class GeminiEnhancer {
 
         // Check if it has the stop class (loading state)
         const hasStopClass = sendButton.classList.contains('stop');
-        
+
         // Also check if it doesn't have submit class (alternative loading indicator)
         const hasSubmitClass = sendButton.classList.contains('submit');
-        
+
         // Button is loading if it has stop class OR doesn't have submit class
         return hasStopClass || !hasSubmitClass;
     }
@@ -1131,13 +1154,13 @@ class GeminiEnhancer {
         }
 
         // Check if disabled
-        const isDisabled = sendButton.hasAttribute('disabled') || 
+        const isDisabled = sendButton.hasAttribute('disabled') ||
                           sendButton.getAttribute('aria-disabled') === 'true';
-        
+
         // Check classes
         const hasStopClass = sendButton.classList.contains('stop');
         const hasSubmitClass = sendButton.classList.contains('submit');
-        
+
         // Button is ready if: not disabled, has submit class, and doesn't have stop class
         return !isDisabled && hasSubmitClass && !hasStopClass;
     }
@@ -1148,9 +1171,9 @@ class GeminiEnhancer {
     async waitForCompletion(timeout = 300000) {
         const start = Date.now();
         const loadingTimeout = 10000; // 10 seconds to detect loading state
-        
+
         Logger.debug("Waiting for generation to start...");
-        
+
         // Wait for button to change to loading state
         let loadingDetected = false;
         const loadingStartTime = Date.now();
@@ -1164,7 +1187,7 @@ class GeminiEnhancer {
                 Logger.debug("Generation started (loading state detected)");
                 break;
             }
-            
+
             await this.delay(200);
         }
 
@@ -1200,1073 +1223,11 @@ class GeminiEnhancer {
                     Logger.debug(`Still waiting... (${Math.round(elapsed / 1000)}s) - Send button not found`);
                 }
             }
-            
+
             await this.delay(300);
         }
-        
+
         throw new Error("Generation did not complete within timeout");
-    }
-
-    /**
-     * Find all download button containers
-     */
-    findAllDownloadButtons() {
-        const downloadContainers = [];
-        
-        // Find all download-generated-image-button containers
-        for (const selector of GeminiEnhancer.SELECTORS.DOWNLOAD_IMAGE_BUTTON) {
-            const containers = document.querySelectorAll(selector);
-            for (const container of containers) {
-                // Check if the container is visible (part of a visible image)
-                if (container.offsetParent !== null && !downloadContainers.includes(container)) {
-                    downloadContainers.push(container);
-                }
-            }
-        }
-        
-        return downloadContainers;
-    }
-
-    /**
-     * Get the download button from a container
-     */
-    getDownloadButtonFromContainer(container) {
-        return container.querySelector('button[data-test-id="download-generated-image-button"]');
-    }
-
-    /**
-     * Wait for menu to open and find download link
-     * Material menus are attached to body, so we need to find the overlay panel
-     */
-    async waitForMenuAndFindDownloadLink(button, timeout = 5000) {
-        const start = Date.now();
-        const buttonRect = button.getBoundingClientRect();
-        Logger.debug(`Waiting for menu near button at (${Math.round(buttonRect.left)}, ${Math.round(buttonRect.top)})`);
-
-        while (Date.now() - start < timeout) {
-            // Material menus are typically in overlay panels attached to body
-            // Look for the menu panel that's currently visible
-            const menuPanels = document.querySelectorAll('.cdk-overlay-pane, .mat-mdc-menu-panel, [role="menu"]');
-            Logger.debug(`Found ${menuPanels.length} potential menu panels`);
-
-            let closestMenu = null;
-            let closestDistance = Infinity;
-
-            for (const menuPanel of menuPanels) {
-                // Check if this menu panel is visible
-                if (menuPanel.offsetParent === null) {
-                    continue;
-                }
-
-                const menuRect = menuPanel.getBoundingClientRect();
-                Logger.debug(`Visible menu panel at (${Math.round(menuRect.left)}, ${Math.round(menuRect.top)}), size: ${Math.round(menuRect.width)}x${Math.round(menuRect.height)}`);
-
-                // Check if menu has download links - try multiple selectors
-                const menuItems = menuPanel.querySelectorAll('a[href], button[href], a[download], button[download], a.mat-mdc-menu-item, button.mat-mdc-menu-item');
-                Logger.debug(`Menu panel has ${menuItems.length} potential menu items`);
-
-                // Log all menu items for debugging
-                menuItems.forEach((item, idx) => {
-                    Logger.debug(`  Menu item ${idx}: tag=${item.tagName}, href=${item.href || 'none'}, download=${item.download || 'none'}, text="${item.textContent?.trim().substring(0, 30)}"`);
-                });
-
-                if (menuItems.length > 0) {
-                    // Calculate distance from button to menu
-                    const distanceX = Math.abs(menuRect.left - buttonRect.right);
-                    const distanceY = Math.abs(menuRect.top - buttonRect.bottom);
-                    const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-                    Logger.debug(`Menu distance from button: ${Math.round(distance)}px`);
-
-                    // Find the closest menu (should be the one we just opened)
-                    if (distance < closestDistance && distance < 300) {
-                        closestDistance = distance;
-                        // Find the first item with href or download attribute
-                        for (const item of menuItems) {
-                            if (item.href || item.hasAttribute('download')) {
-                                closestMenu = item;
-                                break;
-                            }
-                        }
-                        // If no href/download found, take the first item anyway
-                        if (!closestMenu) {
-                            closestMenu = menuItems[0];
-                        }
-                    }
-                }
-            }
-
-            if (closestMenu) {
-                Logger.debug(`Found menu with download link, distance: ${Math.round(closestDistance)}px, href: ${closestMenu.href || 'none'}`);
-                return closestMenu;
-            }
-
-            // Also check for menu inside container (fallback)
-            const container = button.closest('download-generated-image-button');
-            if (container) {
-                const menu = container.querySelector('mat-menu');
-                if (menu) {
-                    const menuItems = menu.querySelectorAll('a[href], button[href], a[download], button[download]');
-                    Logger.debug(`Found mat-menu inside container with ${menuItems.length} items`);
-                    if (menuItems.length > 0) {
-                        Logger.debug(`Found menu inside container with ${menuItems.length} items`);
-                        return menuItems[0];
-                    }
-                }
-            }
-
-            // Check for any visible overlay content
-            const overlayContainers = document.querySelectorAll('.cdk-overlay-container .cdk-overlay-pane');
-            for (const overlay of overlayContainers) {
-                if (overlay.offsetParent !== null && overlay.innerHTML.length > 0) {
-                    Logger.debug(`Found overlay with content: ${overlay.innerHTML.substring(0, 200)}...`);
-                }
-            }
-
-            await this.delay(200);
-        }
-
-        Logger.warn("Menu not found or no download link in menu");
-        return null;
-    }
-
-    /**
-     * Check if download button is in active/loading state (has active class or spinner)
-     */
-    isDownloadButtonActive(button) {
-        if (!button || button.offsetParent === null) {
-            return false;
-        }
-        
-        // Check for active class
-        const hasActiveClass = button.classList.contains('active');
-        
-        // Check for spinner
-        const hasSpinner = button.querySelector('mat-spinner') !== null;
-        
-        return hasActiveClass || hasSpinner;
-    }
-
-    /**
-     * Wait for download to complete by monitoring the button state
-     */
-    async waitForDownloadComplete(button, timeout = 30000) {
-        const start = Date.now();
-        const initialHasActive = this.isDownloadButtonActive(button);
-        
-        Logger.debug("Waiting for download to start...");
-        
-        // Wait for button to become active (download started)
-        let downloadStarted = false;
-        while (Date.now() - start < timeout) {
-            if (this.shouldStopQueue) {
-                throw new Error("Queue stopped by user");
-            }
-            
-            const isActive = this.isDownloadButtonActive(button);
-            
-            // Check if button became active (download started)
-            if (isActive && !initialHasActive) {
-                downloadStarted = true;
-                Logger.debug("Download started (button is active with spinner)");
-                break;
-            }
-            
-            // Also check if button is no longer visible
-            if (button.offsetParent === null) {
-                downloadStarted = true;
-                Logger.debug("Download started (button no longer visible)");
-                break;
-            }
-            
-            await this.delay(200);
-        }
-        
-        if (!downloadStarted) {
-            Logger.warn("Download start not detected, but continuing...");
-        }
-        
-        // Wait for download to complete - button should return to normal state (no active class, no spinner)
-        Logger.debug("Waiting for download to complete...");
-        const completionStart = Date.now();
-        
-        while (Date.now() - completionStart < timeout) {
-            if (this.shouldStopQueue) {
-                throw new Error("Queue stopped by user");
-            }
-            
-            // Check if button is visible
-            if (button.offsetParent !== null) {
-                const isActive = this.isDownloadButtonActive(button);
-                
-                // Download completed when button is no longer active
-                if (!isActive) {
-                    Logger.debug("Download completed (button returned to normal state)");
-                    await this.delay(1000); // Extra delay to ensure download is fully processed
-                    return true;
-                }
-            } else {
-                // Button not visible - wait a bit and assume download completed
-                await this.delay(2000);
-                Logger.debug("Download completed (button no longer visible)");
-                return true;
-            }
-            
-            await this.delay(300);
-        }
-        
-        Logger.warn("Download completion timeout, but continuing...");
-        await this.delay(2000); // Extra delay before next download
-        return true;
-    }
-
-    /**
-     * Get the correct window reference for an element
-     * In userscript contexts, we need to use the element's ownerDocument's defaultView
-     */
-    getWindowForElement(element) {
-        return element?.ownerDocument?.defaultView || window;
-    }
-
-    /**
-     * Create a PointerEvent with full coordinate and property support
-     * Angular heavily uses PointerEvents for state tracking
-     */
-    createPointerEvent(type, element, options = {}) {
-        const rect = element.getBoundingClientRect();
-        const centerX = options.clientX ?? (rect.left + rect.width / 2);
-        const centerY = options.clientY ?? (rect.top + rect.height / 2);
-        const win = this.getWindowForElement(element);
-
-        const eventOptions = {
-            bubbles: true,
-            cancelable: true,
-            clientX: centerX,
-            clientY: centerY,
-            screenX: centerX + (win.screenX || 0),
-            screenY: centerY + (win.screenY || 0),
-            pointerId: 1,
-            pointerType: 'mouse',
-            isPrimary: true,
-            width: 1,
-            height: 1,
-            pressure: type === 'pointerdown' ? 0.5 : 0,
-            tangentialPressure: 0,
-            tiltX: 0,
-            tiltY: 0,
-            twist: 0,
-            button: options.button ?? 0,
-            buttons: type === 'pointerdown' ? 1 : 0,
-            relatedTarget: options.relatedTarget ?? null,
-            ...options
-        };
-
-        // Remove view from options if present, we'll set it separately
-        delete eventOptions.view;
-
-        try {
-            // Try creating with view (works in same-origin contexts)
-            return new PointerEvent(type, { ...eventOptions, view: win });
-        } catch (e) {
-            // Fallback: create without view (works in cross-origin/userscript contexts)
-            Logger.debug(`Creating PointerEvent without view property due to: ${e.message}`);
-            return new PointerEvent(type, eventOptions);
-        }
-    }
-
-    /**
-     * Create a MouseEvent with full coordinate and property support
-     */
-    createMouseEvent(type, element, options = {}) {
-        const rect = element.getBoundingClientRect();
-        const centerX = options.clientX ?? (rect.left + rect.width / 2);
-        const centerY = options.clientY ?? (rect.top + rect.height / 2);
-        const win = this.getWindowForElement(element);
-
-        const eventOptions = {
-            bubbles: true,
-            cancelable: true,
-            clientX: centerX,
-            clientY: centerY,
-            screenX: centerX + (win.screenX || 0),
-            screenY: centerY + (win.screenY || 0),
-            button: options.button ?? 0,
-            buttons: type.includes('down') ? 1 : 0,
-            relatedTarget: options.relatedTarget ?? null,
-            ...options
-        };
-
-        // Remove view from options if present, we'll set it separately
-        delete eventOptions.view;
-
-        try {
-            // Try creating with view (works in same-origin contexts)
-            return new MouseEvent(type, { ...eventOptions, view: win });
-        } catch (e) {
-            // Fallback: create without view (works in cross-origin/userscript contexts)
-            Logger.debug(`Creating MouseEvent without view property due to: ${e.message}`);
-            return new MouseEvent(type, eventOptions);
-        }
-    }
-
-    /**
-     * Simulate a complete user hover interaction sequence
-     * This dispatches both PointerEvents and MouseEvents to ensure Angular state updates
-     */
-    async simulateCompleteHover(element, options = {}) {
-        if (!element) return;
-
-        const { delay: delayBetweenEvents = 50, focusElement = false } = options;
-
-        // Scroll element into view first
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await this.delay(200);
-
-        // Dispatch pointer events (Angular listens for these)
-        element.dispatchEvent(this.createPointerEvent('pointerover', element));
-        await this.delay(delayBetweenEvents);
-
-        element.dispatchEvent(this.createPointerEvent('pointerenter', element));
-        await this.delay(delayBetweenEvents);
-
-        element.dispatchEvent(this.createPointerEvent('pointermove', element));
-        await this.delay(delayBetweenEvents);
-
-        // Dispatch mouse events (for compatibility)
-        element.dispatchEvent(this.createMouseEvent('mouseover', element));
-        await this.delay(delayBetweenEvents);
-
-        element.dispatchEvent(this.createMouseEvent('mouseenter', element));
-        await this.delay(delayBetweenEvents);
-
-        element.dispatchEvent(this.createMouseEvent('mousemove', element));
-        await this.delay(delayBetweenEvents);
-
-        // Optionally focus the element to trigger Angular's focus-based state
-        if (focusElement && element.focus) {
-            element.focus();
-            element.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-            element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-            await this.delay(delayBetweenEvents);
-        }
-
-        const rect = element.getBoundingClientRect();
-        Logger.debug(`Simulated complete hover at (${Math.round(rect.left + rect.width/2)}, ${Math.round(rect.top + rect.height/2)})`);
-    }
-
-    /**
-     * Simulate a complete click interaction with proper event sequencing
-     * This triggers the full event sequence that Angular expects
-     */
-    async simulateCompleteClick(element, options = {}) {
-        if (!element) return;
-
-        const { delay: delayBetweenEvents = 30, simulateHoverFirst = true } = options;
-
-        // First simulate hover to establish the element as the target
-        if (simulateHoverFirst) {
-            await this.simulateCompleteHover(element, { delay: delayBetweenEvents, focusElement: true });
-            await this.delay(100);
-        }
-
-        // Pointer down sequence
-        element.dispatchEvent(this.createPointerEvent('pointerdown', element));
-        await this.delay(delayBetweenEvents);
-
-        element.dispatchEvent(this.createMouseEvent('mousedown', element));
-        await this.delay(delayBetweenEvents);
-
-        // Pointer up sequence
-        element.dispatchEvent(this.createPointerEvent('pointerup', element));
-        await this.delay(delayBetweenEvents);
-
-        element.dispatchEvent(this.createMouseEvent('mouseup', element));
-        await this.delay(delayBetweenEvents);
-
-        // Click event
-        element.dispatchEvent(this.createMouseEvent('click', element));
-
-        Logger.debug(`Simulated complete click on element`);
-    }
-
-    /**
-     * Simulate realistic mouse hover over an element with proper coordinates
-     * @deprecated Use simulateCompleteHover for Angular SPAs
-     */
-    simulateRealisticHover(element) {
-        if (!element) return;
-
-        const rect = element.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        // Dispatch pointer events first (Angular)
-        element.dispatchEvent(this.createPointerEvent('pointerover', element));
-        element.dispatchEvent(this.createPointerEvent('pointerenter', element));
-        element.dispatchEvent(this.createPointerEvent('pointermove', element));
-
-        // Then dispatch mouse events (compatibility)
-        element.dispatchEvent(this.createMouseEvent('mouseover', element));
-        element.dispatchEvent(this.createMouseEvent('mouseenter', element));
-        element.dispatchEvent(this.createMouseEvent('mousemove', element));
-
-        Logger.debug(`Simulated realistic hover at (${Math.round(centerX)}, ${Math.round(centerY)})`);
-    }
-
-    /**
-     * Get a fresh reference to the generated-image element by its index
-     * This avoids stale element references after Angular re-renders
-     */
-    getGeneratedImageByIndex(index) {
-        const allGeneratedImages = document.querySelectorAll('generated-image');
-        const visibleImages = Array.from(allGeneratedImages).filter(img => img.offsetParent !== null);
-        return visibleImages[index] || null;
-    }
-
-    /**
-     * Find the download button within a generated-image element
-     */
-    findDownloadButtonInImage(generatedImage) {
-        if (!generatedImage) return null;
-
-        const downloadButtonContainer = generatedImage.querySelector('download-generated-image-button');
-        if (!downloadButtonContainer) return null;
-
-        return downloadButtonContainer.querySelector('button[data-test-id="download-generated-image-button"]');
-    }
-
-    /**
-     * Extract the image URL directly from a generated-image element
-     * This bypasses Angular's state management entirely
-     */
-    extractImageUrl(generatedImage) {
-        if (!generatedImage) return null;
-
-        // Find the img element within the generated-image
-        const imgElement = generatedImage.querySelector('img.image');
-        if (!imgElement) {
-            Logger.debug('No img.image element found, trying alternative selectors');
-            // Try alternative selectors
-            const altImg = generatedImage.querySelector('single-image img') ||
-                          generatedImage.querySelector('img[src*="googleusercontent"]');
-            if (altImg) {
-                return altImg.src;
-            }
-            return null;
-        }
-
-        return imgElement.src;
-    }
-
-    /**
-     * Extract the img element from a generated-image element
-     */
-    extractImageElement(generatedImage) {
-        if (!generatedImage) return null;
-
-        // Find the img element within the generated-image
-        const imgElement = generatedImage.querySelector('img.image');
-        if (imgElement) return imgElement;
-
-        // Try alternative selectors
-        return generatedImage.querySelector('single-image img') ||
-               generatedImage.querySelector('img[src*="googleusercontent"]');
-    }
-
-    /**
-     * Download an image using Canvas extraction
-     * This draws the image to a canvas and exports it as a blob
-     * Works regardless of CORS/authentication issues
-     */
-    async downloadViaCanvas(imgElement, index, total) {
-        try {
-            Logger.debug(`[APPROACH 1: Canvas] Trying canvas extraction for image ${index + 1}/${total}...`);
-
-            // Wait for image to be fully loaded
-            if (!imgElement.complete) {
-                await new Promise((resolve, reject) => {
-                    imgElement.onload = resolve;
-                    imgElement.onerror = reject;
-                    setTimeout(reject, 5000); // 5s timeout
-                });
-            }
-
-            // Get natural dimensions (full size) or displayed dimensions
-            const width = imgElement.naturalWidth || imgElement.width;
-            const height = imgElement.naturalHeight || imgElement.height;
-
-            if (width === 0 || height === 0) {
-                Logger.warn(`[APPROACH 1: Canvas] Image ${index + 1} has zero dimensions`);
-                return false;
-            }
-
-            Logger.debug(`[APPROACH 1: Canvas] Image dimensions: ${width}x${height}`);
-
-            // Create canvas
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                Logger.error('[APPROACH 1: Canvas] Could not get canvas 2d context');
-                return false;
-            }
-
-            // Draw image to canvas
-            ctx.drawImage(imgElement, 0, 0, width, height);
-
-            // Convert to blob
-            const blob = await new Promise((resolve) => {
-                canvas.toBlob(resolve, 'image/png', 1.0);
-            });
-
-            if (!blob) {
-                Logger.error(`[APPROACH 1: Canvas] Failed to create blob for image ${index + 1}`);
-                return false;
-            }
-
-            // Generate filename
-            const timestamp = Date.now();
-            const filename = `gemini-image-${index + 1}-${timestamp}.png`;
-
-            // Create download link
-            const downloadUrl = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = filename;
-
-            // Trigger download
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // Clean up
-            URL.revokeObjectURL(downloadUrl);
-
-            Logger.success(`[APPROACH 1: Canvas] SUCCESS - Downloaded image ${index + 1}/${total} (${width}x${height})`);
-            return true;
-        } catch (error) {
-            Logger.error(`[APPROACH 1: Canvas] FAILED for image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Download by opening image in new tab
-     * User can then right-click and save
-     */
-    async downloadViaNewTab(imageUrl, index, total) {
-        try {
-            Logger.debug(`[APPROACH 2: New Tab] Opening image ${index + 1}/${total} in new tab...`);
-
-            // Open in new tab
-            const newTab = window.open(imageUrl, '_blank');
-
-            if (!newTab) {
-                Logger.warn(`[APPROACH 2: New Tab] Popup blocked for image ${index + 1}`);
-                return false;
-            }
-
-            Logger.success(`[APPROACH 2: New Tab] SUCCESS - Opened image ${index + 1}/${total} in new tab`);
-            return true;
-        } catch (error) {
-            Logger.error(`[APPROACH 2: New Tab] FAILED for image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Download using right-click context menu simulation
-     */
-    async downloadViaContextMenu(imgElement, index, total) {
-        try {
-            Logger.debug(`[APPROACH 3: Context Menu] Trying context menu for image ${index + 1}/${total}...`);
-
-            // Scroll into view
-            imgElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(300);
-
-            // Create and dispatch context menu event
-            const rect = imgElement.getBoundingClientRect();
-            const contextEvent = new MouseEvent('contextmenu', {
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                clientX: rect.left + rect.width / 2,
-                clientY: rect.top + rect.height / 2,
-                button: 2,
-                buttons: 2
-            });
-
-            imgElement.dispatchEvent(contextEvent);
-            await this.delay(500);
-
-            // Look for "Save image as" option in context menu
-            // This typically doesn't work programmatically but worth trying
-            Logger.debug(`[APPROACH 3: Context Menu] Context menu dispatched, but browser context menu cannot be automated`);
-
-            // Close context menu
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-
-            // This approach can't complete the download automatically
-            Logger.warn(`[APPROACH 3: Context Menu] Cannot automate browser context menu`);
-            return false;
-        } catch (error) {
-            Logger.error(`[APPROACH 3: Context Menu] FAILED for image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Download using keyboard navigation to focus the image
-     */
-    async downloadViaKeyboardNav(generatedImage, index, total) {
-        try {
-            Logger.debug(`[APPROACH 4: Keyboard Nav] Trying keyboard navigation for image ${index + 1}/${total}...`);
-
-            // Find the image button
-            const imageButton = generatedImage.querySelector('.image-button');
-            if (!imageButton) {
-                Logger.warn(`[APPROACH 4: Keyboard Nav] No image button found`);
-                return false;
-            }
-
-            // Scroll into view
-            imageButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(300);
-
-            // Focus the image button
-            imageButton.focus();
-            await this.delay(200);
-
-            // Dispatch focus events
-            imageButton.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
-            imageButton.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-            await this.delay(300);
-
-            // Try pressing Enter to "select" the image
-            imageButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-            imageButton.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, cancelable: true }));
-            await this.delay(500);
-
-            // Now find and click the download button
-            const downloadButton = this.findDownloadButtonInImage(generatedImage);
-            if (!downloadButton) {
-                Logger.warn(`[APPROACH 4: Keyboard Nav] Download button not found after keyboard nav`);
-                return false;
-            }
-
-            // Focus download button
-            downloadButton.focus();
-            await this.delay(200);
-
-            // Press Enter on download button
-            downloadButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-            downloadButton.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true, cancelable: true }));
-            await this.delay(500);
-
-            // Wait for menu
-            const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton, 3000);
-            if (!downloadLink) {
-                Logger.warn(`[APPROACH 4: Keyboard Nav] Menu not found`);
-                return false;
-            }
-
-            // Focus and press Enter on download link
-            downloadLink.focus();
-            await this.delay(200);
-            downloadLink.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-
-            Logger.success(`[APPROACH 4: Keyboard Nav] SUCCESS - Triggered download for image ${index + 1}/${total}`);
-            return true;
-        } catch (error) {
-            Logger.error(`[APPROACH 4: Keyboard Nav] FAILED for image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Download using native .click() method
-     */
-    async downloadViaNativeClick(generatedImage, index, total) {
-        try {
-            Logger.debug(`[APPROACH 5: Native Click] Trying native click for image ${index + 1}/${total}...`);
-
-            // Find the overlay container
-            const overlayContainer = generatedImage.querySelector('.overlay-container');
-            if (overlayContainer) {
-                // Hover to show controls
-                overlayContainer.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-                await this.delay(500);
-            }
-
-            // Find download button
-            const downloadButton = this.findDownloadButtonInImage(generatedImage);
-            if (!downloadButton) {
-                Logger.warn(`[APPROACH 5: Native Click] Download button not found`);
-                return false;
-            }
-
-            // Use native click
-            downloadButton.click();
-            Logger.debug(`[APPROACH 5: Native Click] Clicked download button`);
-            await this.delay(800);
-
-            // Wait for menu
-            const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton, 3000);
-            if (!downloadLink) {
-                Logger.warn(`[APPROACH 5: Native Click] Menu not found`);
-                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-                return false;
-            }
-
-            // Use native click on download link
-            downloadLink.click();
-            Logger.debug(`[APPROACH 5: Native Click] Clicked download link`);
-            await this.delay(1000);
-
-            Logger.success(`[APPROACH 5: Native Click] SUCCESS - Triggered download for image ${index + 1}/${total}`);
-            return true;
-        } catch (error) {
-            Logger.error(`[APPROACH 5: Native Click] FAILED for image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Download an image directly from URL using GM_download
-     * This bypasses Angular's menu system entirely and handles authentication
-     */
-    async downloadImageDirectly(imageUrl, index, total) {
-        try {
-            Logger.debug(`Direct downloading image ${index + 1}/${total} from URL: ${imageUrl.substring(0, 100)}...`);
-
-            // Generate filename with timestamp
-            const timestamp = Date.now();
-            const filename = `gemini-image-${index + 1}-${timestamp}.jpg`;
-
-            // Use GM_download if available (handles cookies/authentication)
-            if (typeof GM_download !== 'undefined') {
-                return new Promise((resolve) => {
-                    GM_download({
-                        url: imageUrl,
-                        name: filename,
-                        onload: () => {
-                            Logger.success(`Direct downloaded image ${index + 1}/${total} via GM_download`);
-                            resolve(true);
-                        },
-                        onerror: (error) => {
-                            Logger.error(`GM_download failed for image ${index + 1}:`, error);
-                            resolve(false);
-                        },
-                        ontimeout: () => {
-                            Logger.error(`GM_download timeout for image ${index + 1}`);
-                            resolve(false);
-                        }
-                    });
-                });
-            }
-
-            // Fallback: Try fetch with credentials
-            Logger.debug(`GM_download not available, trying fetch with credentials`);
-            const response = await fetch(imageUrl, {
-                credentials: 'include',
-                mode: 'cors'
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const blob = await response.blob();
-
-            // Create a download link
-            const downloadUrl = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = filename;
-
-            // Trigger download
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // Clean up
-            URL.revokeObjectURL(downloadUrl);
-
-            Logger.success(`Direct downloaded image ${index + 1}/${total}`);
-            return true;
-        } catch (error) {
-            Logger.error(`Error direct downloading image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Download a single image and wait for completion
-     * Tries multiple approaches as fallbacks to find which one works
-     */
-    async downloadSingleImage(container, index, total) {
-        try {
-            Logger.info(`=== Downloading image ${index + 1}/${total} - Starting fallback chain ===`);
-
-            // Get the generated-image element (may need fresh reference)
-            let generatedImage = container.closest('generated-image');
-            if (!generatedImage) {
-                // Try to get by index if container is stale
-                generatedImage = this.getGeneratedImageByIndex(index);
-                if (!generatedImage) {
-                    Logger.warn(`Generated image ${index + 1} not found in DOM`);
-                    return false;
-                }
-            }
-
-            // Scroll the image into view
-            generatedImage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await this.delay(300);
-
-            // Get img element and URL for use by multiple approaches
-            const imgElement = this.extractImageElement(generatedImage);
-            const imageUrl = this.extractImageUrl(generatedImage);
-
-            // APPROACH 1: Canvas extraction (most reliable, bypasses all Angular issues)
-            if (imgElement) {
-                Logger.info(`[APPROACH 1/6] Trying canvas extraction for image ${index + 1}/${total}...`);
-                const success = await this.downloadViaCanvas(imgElement, index, total);
-                if (success) {
-                    Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 1: Canvas ===`);
-                    return true;
-                }
-                Logger.warn(`[APPROACH 1/6] Canvas extraction failed for image ${index + 1}`);
-            } else {
-                Logger.warn(`[APPROACH 1/6] No img element found, skipping canvas extraction`);
-            }
-
-            // APPROACH 2: Open in new tab (user can save manually)
-            if (imageUrl) {
-                Logger.info(`[APPROACH 2/6] Trying new tab for image ${index + 1}/${total}...`);
-                const success = await this.downloadViaNewTab(imageUrl, index, total);
-                if (success) {
-                    Logger.success(`=== Image ${index + 1}/${total} opened via APPROACH 2: New Tab ===`);
-                    // Don't return - continue to try other methods that actually download
-                    // return true;
-                }
-                Logger.warn(`[APPROACH 2/6] New tab failed for image ${index + 1}`);
-            } else {
-                Logger.warn(`[APPROACH 2/6] No image URL found, skipping new tab`);
-            }
-
-            // APPROACH 3: Direct URL with GM_download
-            if (imageUrl) {
-                Logger.info(`[APPROACH 3/6] Trying GM_download for image ${index + 1}/${total}...`);
-                const success = await this.downloadImageDirectly(imageUrl, index, total);
-                if (success) {
-                    Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 3: GM_download ===`);
-                    return true;
-                }
-                Logger.warn(`[APPROACH 3/6] GM_download failed for image ${index + 1}`);
-            } else {
-                Logger.warn(`[APPROACH 3/6] No image URL found, skipping GM_download`);
-            }
-
-            // APPROACH 4: Keyboard navigation
-            Logger.info(`[APPROACH 4/6] Trying keyboard navigation for image ${index + 1}/${total}...`);
-            const keyboardSuccess = await this.downloadViaKeyboardNav(generatedImage, index, total);
-            if (keyboardSuccess) {
-                Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 4: Keyboard Nav ===`);
-                return true;
-            }
-            Logger.warn(`[APPROACH 4/6] Keyboard navigation failed for image ${index + 1}`);
-
-            // APPROACH 5: Native click method
-            Logger.info(`[APPROACH 5/6] Trying native click for image ${index + 1}/${total}...`);
-            const nativeClickSuccess = await this.downloadViaNativeClick(generatedImage, index, total);
-            if (nativeClickSuccess) {
-                Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 5: Native Click ===`);
-                return true;
-            }
-            Logger.warn(`[APPROACH 5/6] Native click failed for image ${index + 1}`);
-
-            // APPROACH 6: Simulated pointer/mouse events (full event sequence)
-            Logger.info(`[APPROACH 6/6] Trying simulated events for image ${index + 1}/${total}...`);
-            const simulatedSuccess = await this.downloadViaSimulatedEvents(generatedImage, index, total);
-            if (simulatedSuccess) {
-                Logger.success(`=== Image ${index + 1}/${total} downloaded via APPROACH 6: Simulated Events ===`);
-                return true;
-            }
-            Logger.warn(`[APPROACH 6/6] Simulated events failed for image ${index + 1}`);
-
-            Logger.error(`=== All 6 approaches failed for image ${index + 1}/${total} ===`);
-            return false;
-        } catch (error) {
-            Logger.error(`Error downloading image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Download using simulated pointer/mouse events (full event sequence)
-     * This is the most comprehensive attempt to mimic real user interaction
-     */
-    async downloadViaSimulatedEvents(generatedImage, index, total) {
-        try {
-            Logger.debug(`[APPROACH 6: Simulated Events] Starting for image ${index + 1}/${total}...`);
-
-            // Find the single-image element which contains the image and controls
-            const singleImage = generatedImage.querySelector('single-image');
-            if (!singleImage) {
-                Logger.warn(`[APPROACH 6: Simulated Events] Single image element not found`);
-                return false;
-            }
-
-            // Find the overlay-container which shows the controls on hover
-            const overlayContainer = singleImage.querySelector('.overlay-container');
-            if (!overlayContainer) {
-                Logger.warn(`[APPROACH 6: Simulated Events] Overlay container not found`);
-                return false;
-            }
-
-            // Use complete hover simulation to trigger Angular's state update
-            await this.simulateCompleteHover(overlayContainer, { delay: 50, focusElement: false });
-            Logger.debug(`[APPROACH 6: Simulated Events] Simulated hover on overlay container`);
-            await this.delay(600);
-
-            // Re-query the download button after hover (DOM may have updated)
-            let downloadButton = this.findDownloadButtonInImage(generatedImage);
-
-            if (!downloadButton || downloadButton.offsetParent === null) {
-                Logger.debug(`[APPROACH 6: Simulated Events] Download button not visible, retrying hover`);
-                // Try hovering on the image button directly
-                const imageButton = overlayContainer.querySelector('.image-button');
-                if (imageButton) {
-                    await this.simulateCompleteHover(imageButton, { delay: 50, focusElement: true });
-                    await this.delay(600);
-                }
-
-                // Re-query again
-                downloadButton = this.findDownloadButtonInImage(generatedImage);
-                if (!downloadButton || downloadButton.offsetParent === null) {
-                    Logger.warn(`[APPROACH 6: Simulated Events] Download button still not visible`);
-                    return false;
-                }
-            }
-
-            // Simulate complete hover on the download button itself
-            await this.simulateCompleteHover(downloadButton, { delay: 30, focusElement: true });
-            Logger.debug(`[APPROACH 6: Simulated Events] Simulated hover on download button`);
-            await this.delay(400);
-
-            // Close any previously open menus
-            const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-            document.dispatchEvent(escapeEvent);
-            await this.delay(200);
-
-            // Use complete click simulation to trigger Angular's click handlers
-            await this.simulateCompleteClick(downloadButton, { delay: 30, simulateHoverFirst: false });
-            Logger.debug(`[APPROACH 6: Simulated Events] Simulated click on download button`);
-            await this.delay(800);
-
-            // Wait for menu to open and find download link
-            const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton);
-            if (!downloadLink) {
-                Logger.warn(`[APPROACH 6: Simulated Events] Download link not found in menu`);
-                document.dispatchEvent(escapeEvent);
-                await this.delay(300);
-                return false;
-            }
-
-            Logger.debug(`[APPROACH 6: Simulated Events] Found download link, href: ${downloadLink.href || 'no href'}`);
-
-            // Click the download link using complete click simulation
-            await this.simulateCompleteClick(downloadLink, { delay: 30, simulateHoverFirst: true });
-            Logger.debug(`[APPROACH 6: Simulated Events] Clicked download link`);
-
-            // Wait for download to complete
-            await this.waitForDownloadComplete(downloadButton);
-
-            // Close any lingering menus
-            document.dispatchEvent(escapeEvent);
-            await this.delay(200);
-
-            Logger.success(`[APPROACH 6: Simulated Events] SUCCESS for image ${index + 1}/${total}`);
-            return true;
-        } catch (error) {
-            Logger.error(`[APPROACH 6: Simulated Events] FAILED for image ${index + 1}:`, error);
-            return false;
-        }
-    }
-
-    /**
-     * Get all visible generated-image elements
-     */
-    getAllVisibleGeneratedImages() {
-        const allGeneratedImages = document.querySelectorAll('generated-image');
-        return Array.from(allGeneratedImages).filter(img => img.offsetParent !== null);
-    }
-
-    /**
-     * Download all available images (queued, one at a time)
-     * Uses fresh element references for each download to handle Angular's DOM re-renders
-     */
-    async downloadAllImages() {
-        Logger.debug("Searching for generated images...");
-
-        // Get initial count of images
-        let visibleImages = this.getAllVisibleGeneratedImages();
-        const initialCount = visibleImages.length;
-
-        Logger.debug(`Found ${initialCount} generated images`);
-
-        if (initialCount === 0) {
-            this.showNotification('No generated images found', 'info');
-            return;
-        }
-
-        this.showNotification(`Starting download queue for ${initialCount} image(s)...`, 'info');
-
-        let downloadedCount = 0;
-
-        // Download each image sequentially using index-based lookup
-        // This avoids stale element references since we re-query for each image
-        for (let i = 0; i < initialCount; i++) {
-            // Always get a fresh reference to the generated-image element
-            const generatedImage = this.getGeneratedImageByIndex(i);
-
-            if (!generatedImage) {
-                Logger.warn(`Generated image ${i + 1} no longer available, skipping`);
-                continue;
-            }
-
-            // Check if image is still visible
-            if (generatedImage.offsetParent === null) {
-                Logger.debug(`Generated image ${i + 1} is not visible, skipping`);
-                continue;
-            }
-
-            // Find download button container within this image for passing to downloadSingleImage
-            const downloadButtonContainer = generatedImage.querySelector('download-generated-image-button');
-            if (!downloadButtonContainer) {
-                Logger.debug(`No download button container in image ${i + 1}, skipping`);
-                continue;
-            }
-
-            const success = await this.downloadSingleImage(downloadButtonContainer, i, initialCount);
-            if (success) {
-                downloadedCount++;
-            }
-
-            // Delay between downloads to allow Angular to stabilize
-            if (i < initialCount - 1) {
-                await this.delay(1500);
-            }
-        }
-
-        if (downloadedCount > 0) {
-            this.showNotification(`Downloaded ${downloadedCount} image(s)`, 'success');
-            Logger.success(`Downloaded ${downloadedCount} image(s)`);
-        } else {
-            this.showNotification('No images were downloaded', 'warning');
-        }
     }
 
     /**
@@ -2307,4 +1268,3 @@ if (window.top === window.self) { // Only run in the main window, not iframes
         }
     }
 }
-
