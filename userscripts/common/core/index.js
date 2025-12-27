@@ -5,7 +5,7 @@
 
 // Utils
 import Logger from './utils/Logger.js';
-import HTMLUtils from './utils/HTMLUtils.js';
+import HTMLUtils, { MouseEventUtils } from './utils/HTMLUtils.js';
 import StyleManager from './utils/StyleManager.js';
 import Debouncer from './utils/Debouncer.js';
 import PubSub from './utils/PubSub.js';
@@ -48,6 +48,7 @@ export {
   // Utils
   Logger,
   HTMLUtils,
+  MouseEventUtils,
   StyleManager,
   Debouncer,
   PubSub,
@@ -90,6 +91,7 @@ export {
 export default {
   Logger,
   HTMLUtils,
+  MouseEventUtils,
   StyleManager,
   Debouncer,
   PubSub,
