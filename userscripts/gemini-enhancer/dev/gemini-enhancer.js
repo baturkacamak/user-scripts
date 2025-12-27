@@ -11,7 +11,7 @@ import {
     TextArea,
     Tabs
 } from "../../common/core";
-import { getValue, setValue } from "../../common/core/utils/GMFunctions";
+import { getValue, setValue, GM_download } from "../../common/core/utils/GMFunctions";
 
 // Configure logger
 Logger.setPrefix("Gemini Enhancer");
@@ -1241,61 +1241,90 @@ class GeminiEnhancer {
     async waitForMenuAndFindDownloadLink(button, timeout = 5000) {
         const start = Date.now();
         const buttonRect = button.getBoundingClientRect();
-        
+        Logger.debug(`Waiting for menu near button at (${Math.round(buttonRect.left)}, ${Math.round(buttonRect.top)})`);
+
         while (Date.now() - start < timeout) {
             // Material menus are typically in overlay panels attached to body
             // Look for the menu panel that's currently visible
             const menuPanels = document.querySelectorAll('.cdk-overlay-pane, .mat-mdc-menu-panel, [role="menu"]');
-            
+            Logger.debug(`Found ${menuPanels.length} potential menu panels`);
+
             let closestMenu = null;
             let closestDistance = Infinity;
-            
+
             for (const menuPanel of menuPanels) {
                 // Check if this menu panel is visible
                 if (menuPanel.offsetParent === null) {
                     continue;
                 }
-                
-                // Check if menu has download links
-                const menuItems = menuPanel.querySelectorAll('a[href], button[href], a[download], button[download]');
+
+                const menuRect = menuPanel.getBoundingClientRect();
+                Logger.debug(`Visible menu panel at (${Math.round(menuRect.left)}, ${Math.round(menuRect.top)}), size: ${Math.round(menuRect.width)}x${Math.round(menuRect.height)}`);
+
+                // Check if menu has download links - try multiple selectors
+                const menuItems = menuPanel.querySelectorAll('a[href], button[href], a[download], button[download], a.mat-mdc-menu-item, button.mat-mdc-menu-item');
+                Logger.debug(`Menu panel has ${menuItems.length} potential menu items`);
+
+                // Log all menu items for debugging
+                menuItems.forEach((item, idx) => {
+                    Logger.debug(`  Menu item ${idx}: tag=${item.tagName}, href=${item.href || 'none'}, download=${item.download || 'none'}, text="${item.textContent?.trim().substring(0, 30)}"`);
+                });
+
                 if (menuItems.length > 0) {
-                    // Verify this menu is associated with our button by checking if it's near the button
-                    const menuRect = menuPanel.getBoundingClientRect();
-                    
                     // Calculate distance from button to menu
                     const distanceX = Math.abs(menuRect.left - buttonRect.right);
                     const distanceY = Math.abs(menuRect.top - buttonRect.bottom);
                     const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-                    
+                    Logger.debug(`Menu distance from button: ${Math.round(distance)}px`);
+
                     // Find the closest menu (should be the one we just opened)
                     if (distance < closestDistance && distance < 300) {
                         closestDistance = distance;
-                        closestMenu = menuItems[0];
+                        // Find the first item with href or download attribute
+                        for (const item of menuItems) {
+                            if (item.href || item.hasAttribute('download')) {
+                                closestMenu = item;
+                                break;
+                            }
+                        }
+                        // If no href/download found, take the first item anyway
+                        if (!closestMenu) {
+                            closestMenu = menuItems[0];
+                        }
                     }
                 }
             }
-            
+
             if (closestMenu) {
-                Logger.debug(`Found menu with download link, distance: ${Math.round(closestDistance)}px`);
+                Logger.debug(`Found menu with download link, distance: ${Math.round(closestDistance)}px, href: ${closestMenu.href || 'none'}`);
                 return closestMenu;
             }
-            
+
             // Also check for menu inside container (fallback)
             const container = button.closest('download-generated-image-button');
             if (container) {
                 const menu = container.querySelector('mat-menu');
                 if (menu) {
                     const menuItems = menu.querySelectorAll('a[href], button[href], a[download], button[download]');
+                    Logger.debug(`Found mat-menu inside container with ${menuItems.length} items`);
                     if (menuItems.length > 0) {
                         Logger.debug(`Found menu inside container with ${menuItems.length} items`);
                         return menuItems[0];
                     }
                 }
             }
-            
+
+            // Check for any visible overlay content
+            const overlayContainers = document.querySelectorAll('.cdk-overlay-container .cdk-overlay-pane');
+            for (const overlay of overlayContainers) {
+                if (overlay.offsetParent !== null && overlay.innerHTML.length > 0) {
+                    Logger.debug(`Found overlay with content: ${overlay.innerHTML.substring(0, 200)}...`);
+                }
+            }
+
             await this.delay(200);
         }
-        
+
         Logger.warn("Menu not found or no download link in menu");
         return null;
     }
@@ -1629,15 +1658,46 @@ class GeminiEnhancer {
     }
 
     /**
-     * Download an image directly from URL using fetch and blob
-     * This bypasses Angular's menu system entirely
+     * Download an image directly from URL using GM_download
+     * This bypasses Angular's menu system entirely and handles authentication
      */
     async downloadImageDirectly(imageUrl, index, total) {
         try {
             Logger.debug(`Direct downloading image ${index + 1}/${total} from URL: ${imageUrl.substring(0, 100)}...`);
 
-            // Fetch the image
-            const response = await fetch(imageUrl);
+            // Generate filename with timestamp
+            const timestamp = Date.now();
+            const filename = `gemini-image-${index + 1}-${timestamp}.jpg`;
+
+            // Use GM_download if available (handles cookies/authentication)
+            if (typeof GM_download !== 'undefined') {
+                return new Promise((resolve) => {
+                    GM_download({
+                        url: imageUrl,
+                        name: filename,
+                        onload: () => {
+                            Logger.success(`Direct downloaded image ${index + 1}/${total} via GM_download`);
+                            resolve(true);
+                        },
+                        onerror: (error) => {
+                            Logger.error(`GM_download failed for image ${index + 1}:`, error);
+                            resolve(false);
+                        },
+                        ontimeout: () => {
+                            Logger.error(`GM_download timeout for image ${index + 1}`);
+                            resolve(false);
+                        }
+                    });
+                });
+            }
+
+            // Fallback: Try fetch with credentials
+            Logger.debug(`GM_download not available, trying fetch with credentials`);
+            const response = await fetch(imageUrl, {
+                credentials: 'include',
+                mode: 'cors'
+            });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -1648,12 +1708,7 @@ class GeminiEnhancer {
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
-
-            // Generate filename with timestamp
-            const timestamp = Date.now();
-            const extension = blob.type.includes('png') ? 'png' :
-                             blob.type.includes('webp') ? 'webp' : 'jpg';
-            link.download = `gemini-image-${index + 1}-${timestamp}.${extension}`;
+            link.download = filename;
 
             // Trigger download
             document.body.appendChild(link);
