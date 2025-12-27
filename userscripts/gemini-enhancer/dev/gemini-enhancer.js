@@ -1391,6 +1391,14 @@ class GeminiEnhancer {
     }
 
     /**
+     * Get the correct window reference for an element
+     * In userscript contexts, we need to use the element's ownerDocument's defaultView
+     */
+    getWindowForElement(element) {
+        return element?.ownerDocument?.defaultView || window;
+    }
+
+    /**
      * Create a PointerEvent with full coordinate and property support
      * Angular heavily uses PointerEvents for state tracking
      */
@@ -1398,15 +1406,15 @@ class GeminiEnhancer {
         const rect = element.getBoundingClientRect();
         const centerX = options.clientX ?? (rect.left + rect.width / 2);
         const centerY = options.clientY ?? (rect.top + rect.height / 2);
+        const win = this.getWindowForElement(element);
 
         const eventOptions = {
-            view: window,
             bubbles: true,
             cancelable: true,
             clientX: centerX,
             clientY: centerY,
-            screenX: centerX + (window.screenX || 0),
-            screenY: centerY + (window.screenY || 0),
+            screenX: centerX + (win.screenX || 0),
+            screenY: centerY + (win.screenY || 0),
             pointerId: 1,
             pointerType: 'mouse',
             isPrimary: true,
@@ -1423,7 +1431,17 @@ class GeminiEnhancer {
             ...options
         };
 
-        return new PointerEvent(type, eventOptions);
+        // Remove view from options if present, we'll set it separately
+        delete eventOptions.view;
+
+        try {
+            // Try creating with view (works in same-origin contexts)
+            return new PointerEvent(type, { ...eventOptions, view: win });
+        } catch (e) {
+            // Fallback: create without view (works in cross-origin/userscript contexts)
+            Logger.debug(`Creating PointerEvent without view property due to: ${e.message}`);
+            return new PointerEvent(type, eventOptions);
+        }
     }
 
     /**
@@ -1433,22 +1451,32 @@ class GeminiEnhancer {
         const rect = element.getBoundingClientRect();
         const centerX = options.clientX ?? (rect.left + rect.width / 2);
         const centerY = options.clientY ?? (rect.top + rect.height / 2);
+        const win = this.getWindowForElement(element);
 
         const eventOptions = {
-            view: window,
             bubbles: true,
             cancelable: true,
             clientX: centerX,
             clientY: centerY,
-            screenX: centerX + (window.screenX || 0),
-            screenY: centerY + (window.screenY || 0),
+            screenX: centerX + (win.screenX || 0),
+            screenY: centerY + (win.screenY || 0),
             button: options.button ?? 0,
             buttons: type.includes('down') ? 1 : 0,
             relatedTarget: options.relatedTarget ?? null,
             ...options
         };
 
-        return new MouseEvent(type, eventOptions);
+        // Remove view from options if present, we'll set it separately
+        delete eventOptions.view;
+
+        try {
+            // Try creating with view (works in same-origin contexts)
+            return new MouseEvent(type, { ...eventOptions, view: win });
+        } catch (e) {
+            // Fallback: create without view (works in cross-origin/userscript contexts)
+            Logger.debug(`Creating MouseEvent without view property due to: ${e.message}`);
+            return new MouseEvent(type, eventOptions);
+        }
     }
 
     /**
