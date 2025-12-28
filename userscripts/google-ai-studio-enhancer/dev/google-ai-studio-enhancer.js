@@ -2903,7 +2903,19 @@ also multiline`;
         
         // Wait for audio element to appear with data AND button to return to ready state
         // Track previous audio src to detect when a NEW audio is ready
-        let previousAudioSrc = this.lastTTSAudioSrc || null; // Track previous audio src
+        // First, check if there's existing audio on the page from a previous generation
+        let previousAudioSrc = this.lastTTSAudioSrc || null;
+        
+        // If we don't have a tracked audio src, check for existing audio on the page
+        // This handles the case where there's audio from a previous generation that wasn't processed by this script
+        if (!previousAudioSrc) {
+            const existingAudio = document.querySelector(AIStudioEnhancer.SELECTORS.TTS_AUDIO);
+            if (existingAudio && existingAudio.src) {
+                previousAudioSrc = existingAudio.src;
+                Logger.debug(`🔍 Found existing audio on page (length: ${existingAudio.src.length} chars), will wait for new audio`);
+            }
+        }
+        
         let audioDataUrl = null;
         let audioElement = null;
         let readyStateStartTime = null; // Track when button first becomes ready
