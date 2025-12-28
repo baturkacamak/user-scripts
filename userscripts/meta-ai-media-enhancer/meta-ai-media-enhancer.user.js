@@ -4736,6 +4736,7 @@
          * @param {Function} [options.validator] - Custom validation function
          * @param {HTMLElement} [options.container] - Container to append to
          * @param {string} [options.className] - Additional CSS class
+         * @param {Object} [options.attributes={}] - HTML attributes to set on the input element (e.g., {autocomplete: 'off'})
          */
         constructor(options = {}) {
             this.options = {
@@ -4755,6 +4756,7 @@
                 validator: null,
                 container: null,
                 className: '',
+                attributes: {},
                 ...options
             };
 
@@ -4809,6 +4811,13 @@
                 if (this.options.step !== undefined) {
                     this.inputElement.step = this.options.step;
                 }
+            }
+
+            // Apply custom attributes
+            if (this.options.attributes && typeof this.options.attributes === 'object') {
+                Object.entries(this.options.attributes).forEach(([key, value]) => {
+                    this.inputElement.setAttribute(key, value);
+                });
             }
 
             this.element.appendChild(this.inputElement);
@@ -5264,6 +5273,7 @@
          * @param {HTMLElement} [options.container] - Container to append to
          * @param {string} [options.className] - Additional CSS class
          * @param {string} [options.scopeSelector] - CSS selector to scope styles
+         * @param {Object} [options.attributes={}] - HTML attributes to set on the textarea element (e.g., {autocomplete: 'off'})
          */
         constructor(options = {}) {
             this.options = {
@@ -5288,6 +5298,7 @@
                 container: null,
                 className: '',
                 scopeSelector: '',
+                attributes: {},
                 ...options
             };
 
@@ -5339,6 +5350,13 @@
             }
             if (this.options.maxLength) {
                 this.textareaElement.maxLength = this.options.maxLength;
+            }
+
+            // Apply custom attributes
+            if (this.options.attributes && typeof this.options.attributes === 'object') {
+                Object.entries(this.options.attributes).forEach(([key, value]) => {
+                    this.textareaElement.setAttribute(key, value);
+                });
             }
 
             this.element.appendChild(this.textareaElement);

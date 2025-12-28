@@ -5480,6 +5480,7 @@
          * @param {HTMLElement} [options.container] - Container to append to
          * @param {string} [options.className] - Additional CSS class
          * @param {string} [options.scopeSelector] - CSS selector to scope styles
+         * @param {Object} [options.attributes={}] - HTML attributes to set on the textarea element (e.g., {autocomplete: 'off'})
          */
         constructor(options = {}) {
             this.options = {
@@ -5504,6 +5505,7 @@
                 container: null,
                 className: '',
                 scopeSelector: '',
+                attributes: {},
                 ...options
             };
 
@@ -5555,6 +5557,13 @@
             }
             if (this.options.maxLength) {
                 this.textareaElement.maxLength = this.options.maxLength;
+            }
+
+            // Apply custom attributes
+            if (this.options.attributes && typeof this.options.attributes === 'object') {
+                Object.entries(this.options.attributes).forEach(([key, value]) => {
+                    this.textareaElement.setAttribute(key, value);
+                });
             }
 
             this.element.appendChild(this.textareaElement);

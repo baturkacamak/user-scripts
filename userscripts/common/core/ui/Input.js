@@ -240,6 +240,7 @@ class Input {
      * @param {Function} [options.validator] - Custom validation function
      * @param {HTMLElement} [options.container] - Container to append to
      * @param {string} [options.className] - Additional CSS class
+     * @param {Object} [options.attributes={}] - HTML attributes to set on the input element (e.g., {autocomplete: 'off'})
      */
     constructor(options = {}) {
         this.options = {
@@ -259,6 +260,7 @@ class Input {
             validator: null,
             container: null,
             className: '',
+            attributes: {},
             ...options
         };
 
@@ -313,6 +315,13 @@ class Input {
             if (this.options.step !== undefined) {
                 this.inputElement.step = this.options.step;
             }
+        }
+
+        // Apply custom attributes
+        if (this.options.attributes && typeof this.options.attributes === 'object') {
+            Object.entries(this.options.attributes).forEach(([key, value]) => {
+                this.inputElement.setAttribute(key, value);
+            });
         }
 
         this.element.appendChild(this.inputElement);
