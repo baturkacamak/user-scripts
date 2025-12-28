@@ -9380,9 +9380,71 @@ also multiline`;
         }
 
         /**
+         * Expand the temperature accordion if it's collapsed
+         */
+        async expandTemperatureAccordion() {
+            try {
+                // Find the accordion header by aria-label
+                const accordionSelectors = [
+                    'div.settings-item.settings-group-header button[aria-label*="Model settings"]',
+                    'div.settings-group-header button[aria-label*="Model settings"]',
+                    'button[aria-label*="Expand or collapse Model settings"]'
+                ];
+
+                let accordionButton = null;
+                for (const selector of accordionSelectors) {
+                    accordionButton = document.querySelector(selector);
+                    if (accordionButton) break;
+                }
+
+                if (!accordionButton) {
+                    Logger.debug('Temperature accordion button not found (may already be expanded or not present)');
+                    return;
+                }
+
+                // Check if accordion is already expanded by looking at parent header
+                const header = accordionButton.closest('.settings-group-header');
+                if (header && header.classList.contains('expanded')) {
+                    Logger.debug('Temperature accordion is already expanded');
+                    return;
+                }
+
+                // Click to expand
+                accordionButton.click();
+                Logger.debug('Clicked to expand temperature accordion');
+
+                // Wait for accordion to expand (wait for input to become visible)
+                const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
+                let expanded = false;
+                for (let attempt = 0; attempt < 20; attempt++) {
+                    for (const selector of numberSelectors) {
+                        const el = document.querySelector(selector);
+                        if (el && el.offsetParent !== null) {
+                            expanded = true;
+                            break;
+                        }
+                    }
+                    if (expanded) break;
+                    await this.delay(100);
+                }
+
+                if (expanded) {
+                    Logger.debug('Temperature accordion expanded successfully');
+                } else {
+                    Logger.warn('Temperature accordion expansion may have failed - input not visible after wait');
+                }
+            } catch (error) {
+                Logger.warn('Error expanding temperature accordion:', error);
+            }
+        }
+
+        /**
          * Set temperature using the numeric input (preferred over slider)
          */
         async setTTSTemperature(value) {
+            // First, expand the accordion if needed
+            await this.expandTemperatureAccordion();
+
             const clamped = Math.min(2, Math.max(0, value));
             let applied = false;
 
