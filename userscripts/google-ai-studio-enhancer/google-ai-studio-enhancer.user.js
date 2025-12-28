@@ -2,7 +2,7 @@
 // @name        Google AI Studio Enhancer
 // @description Copy all AI chatbot responses and auto-click Run button for specified iterations
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     2.2.3
+// @version     2.2.4
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/google-ai-studio-enhancer#readme
@@ -2297,6 +2297,11 @@
          * @return {Object} Object containing references to all GM functions (either native or polyfilled)
          */
         static initialize() {
+
+            if (window.top !== window.self) {
+                return {};
+            }
+
             const isDevMode = this.isDevelopmentMode();
 
             Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');

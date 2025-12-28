@@ -654,6 +654,11 @@
          * @return {Object} Object containing references to all GM functions (either native or polyfilled)
          */
         static initialize() {
+
+            if (window.top !== window.self) {
+                return {};
+            }
+
             const isDevMode = this.isDevelopmentMode();
 
             Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');

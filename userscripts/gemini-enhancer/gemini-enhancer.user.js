@@ -2797,6 +2797,11 @@
          * @return {Object} Object containing references to all GM functions (either native or polyfilled)
          */
         static initialize() {
+
+            if (window.top !== window.self) {
+                return {};
+            }
+
             const isDevMode = this.isDevelopmentMode();
 
             Logger.debug('GMFunctions initializing', isDevMode ? 'in development mode' : 'in production mode');
@@ -6146,6 +6151,9 @@
     Logger.setPrefix("Gemini Enhancer");
     Logger.DEBUG = true;
 
+    // TODO: Image download functionality temporarily removed due to Angular SPA limitations.
+    // See TODO-IMAGE-DOWNLOAD.md for full details on the issue, attempted solutions, and future options.
+
     /**
      * Gemini Enhancer
      * Queue system for prompts with support for text, image, and video generation
@@ -6205,16 +6213,7 @@
             TOOLBOX_DRAWER_BUTTONS: 'mat-action-list button.toolbox-drawer-item-list-button, mat-action-list button.mat-mdc-list-item',
             // Deselect buttons that appear when image/video is already selected
             IMAGE_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button:has(.toolbox-drawer-item-deselect-button-label)',
-            VIDEO_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button',
-            // Download image button
-            DOWNLOAD_IMAGE_BUTTON: [
-                'download-generated-image-button button[data-test-id="download-generated-image-button"]',
-                'button[aria-label*="Tam boyutlu resmi indir"]', // Turkish
-                'button[aria-label*="Download full size"]', // English
-                'button[aria-label*="Descargar tamaño completo"]', // Spanish
-                'button.generated-image-button',
-                'download-generated-image-button button'
-            ]
+            VIDEO_DESELECT_BUTTON: 'button.toolbox-drawer-item-deselect-button'
         };
 
         static SETTINGS_KEYS = {
@@ -6222,8 +6221,7 @@
             GENERATION_TYPE: 'gemini-generation-type',
             QUEUE_DELAY: 'gemini-queue-delay',
             SHOW_NOTIFICATIONS: 'gemini-show-notifications',
-            PANEL_POSITION: 'gemini-panel-position',
-            AUTO_DOWNLOAD_IMAGES: 'gemini-auto-download-images'
+            PANEL_POSITION: 'gemini-panel-position'
         };
 
         static DEFAULT_SETTINGS = {
@@ -6231,15 +6229,14 @@
             GENERATION_TYPE: 'text', // 'text', 'image', 'video'
             QUEUE_DELAY: 2000,
             SHOW_NOTIFICATIONS: true,
-            PANEL_POSITION: { x: 20, y: 20 },
-            AUTO_DOWNLOAD_IMAGES: false
+            PANEL_POSITION: { x: 20, y: 20 }
         };
 
         constructor() {
             // This check must be the first line
             if (window.GeminiEnhancerInstance) {
                 console.warn("⚠️ [Gemini Enhancer] Instance already exists. Killing duplicate.");
-                return; 
+                return;
             }
             window.GeminiEnhancerInstance = this;
 
@@ -6334,7 +6331,7 @@
         async waitForPageReady() {
             let attempts = 0;
             const maxAttempts = 50;
-            
+
             while (attempts < maxAttempts) {
                 if (document.readyState === 'complete' && document.body) {
                     // Check if Gemini UI is loaded
@@ -6346,7 +6343,7 @@
                 await this.delay(200);
                 attempts++;
             }
-            
+
             Logger.warn("Page ready timeout, proceeding anyway");
             return true;
         }
@@ -6505,7 +6502,7 @@
 
             // Create tabs container
             const tabsContainer = document.createElement('div');
-            
+
             this.tabs = new Tabs({
                 tabs: [
                     {
@@ -6543,23 +6540,23 @@
 
             const typeSelect = document.createElement('select');
             typeSelect.className = 'generation-type-select';
-            
+
             // Create options using DOM methods to avoid TrustedHTML issues
             const textOption = document.createElement('option');
             textOption.value = 'text';
             textOption.textContent = 'Text Generation';
             typeSelect.appendChild(textOption);
-            
+
             const imageOption = document.createElement('option');
             imageOption.value = 'image';
             imageOption.textContent = 'Image Generation';
             typeSelect.appendChild(imageOption);
-            
+
             const videoOption = document.createElement('option');
             videoOption.value = 'video';
             videoOption.textContent = 'Video Generation';
             typeSelect.appendChild(videoOption);
-            
+
             typeSelect.value = this.settings.GENERATION_TYPE || 'text';
             typeSelect.onchange = (e) => {
                 this.settings.GENERATION_TYPE = e.target.value;
@@ -6601,26 +6598,9 @@
             const buttonContainer = document.createElement('div');
             buttonContainer.style.cssText = 'display: flex; flex-direction: column; gap: 8px; margin-top: 12px;';
 
-            const queueButtonRow = document.createElement('div');
-            queueButtonRow.style.cssText = 'display: flex; gap: 8px;';
-
             this.queueToggleButton = new Button({
                 text: 'Start Queue',
                 onClick: () => this.toggleQueue(),
-                container: queueButtonRow
-            });
-
-            this.queueWithDownloadButton = new Button({
-                text: 'Start Queue & Download Images',
-                onClick: () => this.startQueueWithDownload(),
-                container: queueButtonRow
-            });
-
-            buttonContainer.appendChild(queueButtonRow);
-
-            this.downloadAllImagesButton = new Button({
-                text: 'Download All Images',
-                onClick: () => this.downloadAllImages(),
                 container: buttonContainer
             });
 
@@ -6684,27 +6664,6 @@
         }
 
         /**
-         * Start queue with auto-download enabled
-         */
-        async startQueueWithDownload() {
-            if (this.isQueueRunning) {
-                this.showNotification('Queue is already running', 'warning');
-                return;
-            }
-
-            // Temporarily enable auto-download
-            const originalAutoDownload = this.settings.AUTO_DOWNLOAD_IMAGES;
-            this.settings.AUTO_DOWNLOAD_IMAGES = true;
-
-            try {
-                await this.startQueue();
-            } finally {
-                // Restore original setting
-                this.settings.AUTO_DOWNLOAD_IMAGES = originalAutoDownload;
-            }
-        }
-
-        /**
          * Start queue
          */
         async startQueue() {
@@ -6742,7 +6701,7 @@
 
             try {
                 await this.processQueue();
-                
+
                 if (!this.shouldStopQueue) {
                     this.showNotification('Queue completed successfully', 'success');
                     Logger.success('Queue completed successfully');
@@ -6816,28 +6775,16 @@
 
                 // Type the prompt
                 await this.typePrompt(prompt);
-                
+
                 // Small delay to let the UI settle
                 await this.delay(300);
-                
+
                 // Click send button (for all types)
                 await this.clickSendButton();
-                
+
                 // Wait for completion
                 await this.waitForCompletion();
-                
-                // Download image if auto-download is enabled and generation type is image
-                if (this.settings.AUTO_DOWNLOAD_IMAGES && generationType === 'image') {
-                    await this.delay(2000); // Wait a bit for image to render
-                    // Only download the newly generated image (the last one)
-                    const downloadContainers = this.findAllDownloadButtons();
-                    if (downloadContainers.length > 0) {
-                        // Download the last container (most recent image)
-                        const lastContainer = downloadContainers[downloadContainers.length - 1];
-                        await this.downloadSingleImage(lastContainer, 0, 1);
-                    }
-                }
-                
+
                 Logger.success(`Prompt ${this.currentPromptIndex} completed`);
             } catch (error) {
                 Logger.error(`Error on prompt ${this.currentPromptIndex}:`, error.message);
@@ -6869,7 +6816,7 @@
 
             try {
                 textarea.focus();
-                
+
                 // Clear existing content
                 textarea.textContent = '';
                 textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
@@ -6879,7 +6826,7 @@
                 textarea.textContent = prompt;
                 textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
                 textarea.dispatchEvent(new Event('change', { bubbles: true }));
-                
+
                 Logger.debug(`Typed prompt: "${prompt.substring(0, 50)}..."`);
             } catch (error) {
                 throw new Error("Typing failed: " + error.message);
@@ -6901,7 +6848,7 @@
          */
         async openToolboxDrawer() {
             Logger.debug("Checking if toolbox drawer needs to be opened...");
-            
+
             // Check if drawer is actually open by looking for visible buttons
             if (this.isToolboxDrawerOpen()) {
                 Logger.debug("Toolbox drawer is already open (buttons visible)");
@@ -6914,15 +6861,15 @@
             for (const selector of GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTON) {
                 const button = document.querySelector(selector);
                 Logger.debug(`Trying selector: ${selector}, found: ${!!button}, visible: ${button && button.offsetParent !== null}`);
-                
+
                 if (button && button.offsetParent !== null) {
                     Logger.debug(`Found toolbox drawer button with selector: ${selector}`);
                     button.click();
                     Logger.debug(`Clicked toolbox drawer button using selector: ${selector}`);
-                    
+
                     // Wait for the drawer to open
                     await this.delay(1000);
-                    
+
                     // Verify it opened by checking for visible buttons - try multiple times
                     for (let i = 0; i < 10; i++) {
                         if (this.isToolboxDrawerOpen()) {
@@ -6931,11 +6878,11 @@
                         }
                         await this.delay(200);
                     }
-                    
+
                     Logger.warn("Toolbox drawer button clicked but drawer did not open");
                 }
             }
-            
+
             Logger.warn("Toolbox drawer button not found");
             return false;
         }
@@ -6945,21 +6892,21 @@
          */
         async findImageButtonInExistingChat() {
             Logger.debug("Searching for image button in existing chat...");
-            
+
             // First, try to open the toolbox drawer if needed
             const drawerOpened = await this.openToolboxDrawer();
             if (!drawerOpened) {
                 Logger.debug("Could not open toolbox drawer, trying to find button anyway...");
             }
-            
+
             // Search for buttons with image-related text - use the selector directly
             const buttons = document.querySelectorAll(GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTONS);
             Logger.debug(`Found ${buttons.length} total buttons in toolbox drawer`);
-            
+
             // Filter to only visible buttons
             const visibleButtons = Array.from(buttons).filter(btn => btn.offsetParent !== null);
             Logger.debug(`Found ${visibleButtons.length} visible buttons in toolbox drawer`);
-            
+
             for (const button of visibleButtons) {
                 // Try multiple ways to find the label
                 let label = button.querySelector('.label.gds-label-l');
@@ -6971,30 +6918,30 @@
                     const textContent = button.textContent || button.innerText || '';
                     const text = textContent.trim().toLowerCase();
                     Logger.debug(`Checking button (no label found): "${textContent.trim().substring(0, 50)}"`);
-                    
-                    if (text.includes('görüntü') || 
-                        text.includes('resim') || 
-                        text.includes('image') || 
+
+                    if (text.includes('görüntü') ||
+                        text.includes('resim') ||
+                        text.includes('image') ||
                         text.includes('imagen')) {
                         Logger.debug(`Found image button by text content: "${textContent.trim()}"`);
                         return button;
                     }
                     continue;
                 }
-                
+
                 const text = label.textContent.trim().toLowerCase();
                 Logger.debug(`Checking button with label: "${label.textContent.trim()}"`);
-                
+
                 // Check for image-related text in multiple languages
-                if (text.includes('görüntü') || 
-                    text.includes('resim') || 
-                    text.includes('image') || 
+                if (text.includes('görüntü') ||
+                    text.includes('resim') ||
+                    text.includes('image') ||
                     text.includes('imagen')) {
                     Logger.debug(`Found image button: "${label.textContent.trim()}"`);
                     return button;
                 }
             }
-            
+
             Logger.debug("Image button not found in existing chat");
             return null;
         }
@@ -7007,13 +6954,13 @@
             const deselectButtons = document.querySelectorAll('button.toolbox-drawer-item-deselect-button');
             for (const button of deselectButtons) {
                 if (button.offsetParent === null) continue;
-                
+
                 const label = button.querySelector('.toolbox-drawer-item-deselect-button-label');
                 if (label) {
                     const text = label.textContent.trim().toLowerCase();
-                    if (text.includes('resim') || 
-                        text.includes('görüntü') || 
-                        text.includes('image') || 
+                    if (text.includes('resim') ||
+                        text.includes('görüntü') ||
+                        text.includes('image') ||
                         text.includes('imagen')) {
                         Logger.debug("Image generation is already selected");
                         return true;
@@ -7041,32 +6988,32 @@
                         // Scroll button into view if needed
                         button.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         await this.delay(300);
-                        
+
                         button.click();
                         Logger.debug(`Clicked image button using selector: ${selector}`);
                         await this.delay(200);
                         return;
                     }
                 }
-                
+
                 // Try finding in existing chat (mat-action-list)
                 const existingChatButton = await this.findImageButtonInExistingChat();
                 if (existingChatButton && existingChatButton.offsetParent !== null) {
                     existingChatButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     await this.delay(300);
-                    
+
                     existingChatButton.click();
                     Logger.debug('Clicked image button in existing chat');
                     await this.delay(200);
                     return;
                 }
-                
+
                 if (attempt < retries - 1) {
                     Logger.debug(`Waiting for image button... (attempt ${attempt + 1}/${retries})`);
                     await this.delay(500);
                 }
             }
-            
+
             throw new Error("Image button not found. Make sure the image generation option is visible on the page.");
         }
 
@@ -7075,21 +7022,21 @@
          */
         async findVideoButtonInExistingChat() {
             Logger.debug("Searching for video button in existing chat...");
-            
+
             // First, try to open the toolbox drawer if needed
             const drawerOpened = await this.openToolboxDrawer();
             if (!drawerOpened) {
                 Logger.debug("Could not open toolbox drawer, trying to find button anyway...");
             }
-            
+
             // Search for buttons with video-related text - use the selector directly
             const buttons = document.querySelectorAll(GeminiEnhancer.SELECTORS.TOOLBOX_DRAWER_BUTTONS);
             Logger.debug(`Found ${buttons.length} total buttons in toolbox drawer`);
-            
+
             // Filter to only visible buttons
             const visibleButtons = Array.from(buttons).filter(btn => btn.offsetParent !== null);
             Logger.debug(`Found ${visibleButtons.length} visible buttons in toolbox drawer`);
-            
+
             for (const button of visibleButtons) {
                 // Try multiple ways to find the label
                 let label = button.querySelector('.label.gds-label-l');
@@ -7101,26 +7048,26 @@
                     const textContent = button.textContent || button.innerText || '';
                     const text = textContent.trim().toLowerCase();
                     Logger.debug(`Checking button (no label found): "${textContent.trim().substring(0, 50)}"`);
-                    
-                    if (text.includes('video') || 
+
+                    if (text.includes('video') ||
                         text.includes('veo')) {
                         Logger.debug(`Found video button by text content: "${textContent.trim()}"`);
                         return button;
                     }
                     continue;
                 }
-                
+
                 const text = label.textContent.trim().toLowerCase();
                 Logger.debug(`Checking button with label: "${label.textContent.trim()}"`);
-                
+
                 // Check for video-related text in multiple languages
-                if (text.includes('video') || 
+                if (text.includes('video') ||
                     text.includes('veo')) {
                     Logger.debug(`Found video button: "${label.textContent.trim()}"`);
                     return button;
                 }
             }
-            
+
             Logger.debug("Video button not found in existing chat");
             return null;
         }
@@ -7133,11 +7080,11 @@
             const deselectButtons = document.querySelectorAll('button.toolbox-drawer-item-deselect-button');
             for (const button of deselectButtons) {
                 if (button.offsetParent === null) continue;
-                
+
                 const label = button.querySelector('.toolbox-drawer-item-deselect-button-label');
                 if (label) {
                     const text = label.textContent.trim().toLowerCase();
-                    if (text.includes('video') || 
+                    if (text.includes('video') ||
                         text.includes('veo')) {
                         Logger.debug("Video generation is already selected");
                         return true;
@@ -7165,32 +7112,32 @@
                         // Scroll button into view if needed
                         button.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         await this.delay(300);
-                        
+
                         button.click();
                         Logger.debug(`Clicked video button using selector: ${selector}`);
                         await this.delay(200);
                         return;
                     }
                 }
-                
+
                 // Try finding in existing chat (mat-action-list)
                 const existingChatButton = await this.findVideoButtonInExistingChat();
                 if (existingChatButton && existingChatButton.offsetParent !== null) {
                     existingChatButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     await this.delay(300);
-                    
+
                     existingChatButton.click();
                     Logger.debug('Clicked video button in existing chat');
                     await this.delay(200);
                     return;
                 }
-                
+
                 if (attempt < retries - 1) {
                     Logger.debug(`Waiting for video button... (attempt ${attempt + 1}/${retries})`);
                     await this.delay(500);
                 }
             }
-            
+
             throw new Error("Video button not found. Make sure the video generation option is visible on the page.");
         }
 
@@ -7207,10 +7154,10 @@
                 for (const selector of selectors) {
                     const button = document.querySelector(selector);
                     if (button && button.offsetParent !== null) {
-                        const isDisabled = button.hasAttribute('disabled') || 
+                        const isDisabled = button.hasAttribute('disabled') ||
                                          button.getAttribute('aria-disabled') === 'true' ||
                                          button.classList.contains('stop');
-                        
+
                         if (!isDisabled) {
                             button.click();
                             Logger.debug(`Clicked send button using selector: ${selector}`);
@@ -7219,13 +7166,13 @@
                         }
                     }
                 }
-                
+
                 if (attempt < retries - 1) {
                     Logger.debug(`Waiting for send button... (attempt ${attempt + 1}/${retries})`);
                     await this.delay(500);
                 }
             }
-            
+
             throw new Error("Send button not found or not ready");
         }
 
@@ -7241,10 +7188,10 @@
 
             // Check if it has the stop class (loading state)
             const hasStopClass = sendButton.classList.contains('stop');
-            
+
             // Also check if it doesn't have submit class (alternative loading indicator)
             const hasSubmitClass = sendButton.classList.contains('submit');
-            
+
             // Button is loading if it has stop class OR doesn't have submit class
             return hasStopClass || !hasSubmitClass;
         }
@@ -7260,13 +7207,13 @@
             }
 
             // Check if disabled
-            const isDisabled = sendButton.hasAttribute('disabled') || 
+            const isDisabled = sendButton.hasAttribute('disabled') ||
                               sendButton.getAttribute('aria-disabled') === 'true';
-            
+
             // Check classes
             const hasStopClass = sendButton.classList.contains('stop');
             const hasSubmitClass = sendButton.classList.contains('submit');
-            
+
             // Button is ready if: not disabled, has submit class, and doesn't have stop class
             return !isDisabled && hasSubmitClass && !hasStopClass;
         }
@@ -7277,9 +7224,9 @@
         async waitForCompletion(timeout = 300000) {
             const start = Date.now();
             const loadingTimeout = 10000; // 10 seconds to detect loading state
-            
+
             Logger.debug("Waiting for generation to start...");
-            
+
             // Wait for button to change to loading state
             let loadingDetected = false;
             const loadingStartTime = Date.now();
@@ -7293,7 +7240,7 @@
                     Logger.debug("Generation started (loading state detected)");
                     break;
                 }
-                
+
                 await this.delay(200);
             }
 
@@ -7329,400 +7276,11 @@
                         Logger.debug(`Still waiting... (${Math.round(elapsed / 1000)}s) - Send button not found`);
                     }
                 }
-                
+
                 await this.delay(300);
             }
-            
+
             throw new Error("Generation did not complete within timeout");
-        }
-
-        /**
-         * Find all download button containers
-         */
-        findAllDownloadButtons() {
-            const downloadContainers = [];
-            
-            // Find all download-generated-image-button containers
-            for (const selector of GeminiEnhancer.SELECTORS.DOWNLOAD_IMAGE_BUTTON) {
-                const containers = document.querySelectorAll(selector);
-                for (const container of containers) {
-                    // Check if the container is visible (part of a visible image)
-                    if (container.offsetParent !== null && !downloadContainers.includes(container)) {
-                        downloadContainers.push(container);
-                    }
-                }
-            }
-            
-            return downloadContainers;
-        }
-
-        /**
-         * Get the download button from a container
-         */
-        getDownloadButtonFromContainer(container) {
-            return container.querySelector('button[data-test-id="download-generated-image-button"]');
-        }
-
-        /**
-         * Wait for menu to open and find download link
-         * Material menus are attached to body, so we need to find the overlay panel
-         */
-        async waitForMenuAndFindDownloadLink(button, timeout = 5000) {
-            const start = Date.now();
-            const buttonRect = button.getBoundingClientRect();
-            
-            while (Date.now() - start < timeout) {
-                // Material menus are typically in overlay panels attached to body
-                // Look for the menu panel that's currently visible
-                const menuPanels = document.querySelectorAll('.cdk-overlay-pane, .mat-mdc-menu-panel, [role="menu"]');
-                
-                let closestMenu = null;
-                let closestDistance = Infinity;
-                
-                for (const menuPanel of menuPanels) {
-                    // Check if this menu panel is visible
-                    if (menuPanel.offsetParent === null) {
-                        continue;
-                    }
-                    
-                    // Check if menu has download links
-                    const menuItems = menuPanel.querySelectorAll('a[href], button[href], a[download], button[download]');
-                    if (menuItems.length > 0) {
-                        // Verify this menu is associated with our button by checking if it's near the button
-                        const menuRect = menuPanel.getBoundingClientRect();
-                        
-                        // Calculate distance from button to menu
-                        const distanceX = Math.abs(menuRect.left - buttonRect.right);
-                        const distanceY = Math.abs(menuRect.top - buttonRect.bottom);
-                        const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-                        
-                        // Find the closest menu (should be the one we just opened)
-                        if (distance < closestDistance && distance < 300) {
-                            closestDistance = distance;
-                            closestMenu = menuItems[0];
-                        }
-                    }
-                }
-                
-                if (closestMenu) {
-                    Logger.debug(`Found menu with download link, distance: ${Math.round(closestDistance)}px`);
-                    return closestMenu;
-                }
-                
-                // Also check for menu inside container (fallback)
-                const container = button.closest('download-generated-image-button');
-                if (container) {
-                    const menu = container.querySelector('mat-menu');
-                    if (menu) {
-                        const menuItems = menu.querySelectorAll('a[href], button[href], a[download], button[download]');
-                        if (menuItems.length > 0) {
-                            Logger.debug(`Found menu inside container with ${menuItems.length} items`);
-                            return menuItems[0];
-                        }
-                    }
-                }
-                
-                await this.delay(200);
-            }
-            
-            Logger.warn("Menu not found or no download link in menu");
-            return null;
-        }
-
-        /**
-         * Check if download button is in active/loading state (has active class or spinner)
-         */
-        isDownloadButtonActive(button) {
-            if (!button || button.offsetParent === null) {
-                return false;
-            }
-            
-            // Check for active class
-            const hasActiveClass = button.classList.contains('active');
-            
-            // Check for spinner
-            const hasSpinner = button.querySelector('mat-spinner') !== null;
-            
-            return hasActiveClass || hasSpinner;
-        }
-
-        /**
-         * Wait for download to complete by monitoring the button state
-         */
-        async waitForDownloadComplete(button, timeout = 30000) {
-            const start = Date.now();
-            const initialHasActive = this.isDownloadButtonActive(button);
-            
-            Logger.debug("Waiting for download to start...");
-            
-            // Wait for button to become active (download started)
-            let downloadStarted = false;
-            while (Date.now() - start < timeout) {
-                if (this.shouldStopQueue) {
-                    throw new Error("Queue stopped by user");
-                }
-                
-                const isActive = this.isDownloadButtonActive(button);
-                
-                // Check if button became active (download started)
-                if (isActive && !initialHasActive) {
-                    downloadStarted = true;
-                    Logger.debug("Download started (button is active with spinner)");
-                    break;
-                }
-                
-                // Also check if button is no longer visible
-                if (button.offsetParent === null) {
-                    downloadStarted = true;
-                    Logger.debug("Download started (button no longer visible)");
-                    break;
-                }
-                
-                await this.delay(200);
-            }
-            
-            if (!downloadStarted) {
-                Logger.warn("Download start not detected, but continuing...");
-            }
-            
-            // Wait for download to complete - button should return to normal state (no active class, no spinner)
-            Logger.debug("Waiting for download to complete...");
-            const completionStart = Date.now();
-            
-            while (Date.now() - completionStart < timeout) {
-                if (this.shouldStopQueue) {
-                    throw new Error("Queue stopped by user");
-                }
-                
-                // Check if button is visible
-                if (button.offsetParent !== null) {
-                    const isActive = this.isDownloadButtonActive(button);
-                    
-                    // Download completed when button is no longer active
-                    if (!isActive) {
-                        Logger.debug("Download completed (button returned to normal state)");
-                        await this.delay(1000); // Extra delay to ensure download is fully processed
-                        return true;
-                    }
-                } else {
-                    // Button not visible - wait a bit and assume download completed
-                    await this.delay(2000);
-                    Logger.debug("Download completed (button no longer visible)");
-                    return true;
-                }
-                
-                await this.delay(300);
-            }
-            
-            Logger.warn("Download completion timeout, but continuing...");
-            await this.delay(2000); // Extra delay before next download
-            return true;
-        }
-
-        /**
-         * Simulate realistic mouse hover over an element with proper coordinates
-         */
-        simulateRealisticHover(element) {
-            if (!element) return;
-            
-            const rect = element.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            
-            // Create mouse events with actual coordinates
-            const mouseOverEvent = new MouseEvent('mouseover', {
-                view: document.defaultView || window,
-                bubbles: true,
-                cancelable: true,
-                clientX: centerX,
-                clientY: centerY,
-                screenX: centerX + window.screenX,
-                screenY: centerY + window.screenY
-            });
-            
-            const mouseEnterEvent = new MouseEvent('mouseenter', {
-                view: document.defaultView || window,
-                bubbles: true,
-                cancelable: true,
-                clientX: centerX,
-                clientY: centerY,
-                screenX: centerX + window.screenX,
-                screenY: centerY + window.screenY
-            });
-            
-            const mouseMoveEvent = new MouseEvent('mousemove', {
-                view: document.defaultView || window,
-                bubbles: true,
-                cancelable: true,
-                clientX: centerX,
-                clientY: centerY,
-                screenX: centerX + window.screenX,
-                screenY: centerY + window.screenY
-            });
-            
-            // Dispatch events in order (mouseover -> mouseenter -> mousemove)
-            element.dispatchEvent(mouseOverEvent);
-            element.dispatchEvent(mouseEnterEvent);
-            element.dispatchEvent(mouseMoveEvent);
-            
-            Logger.debug(`Simulated realistic hover at (${Math.round(centerX)}, ${Math.round(centerY)})`);
-        }
-
-        /**
-         * Download a single image and wait for completion
-         */
-        async downloadSingleImage(container, index, total) {
-            try {
-                Logger.debug(`Downloading image ${index + 1}/${total}...`);
-                
-                // Scroll container into view
-                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await this.delay(500);
-                
-                // Find the overlay-container element that triggers the download button to appear
-                const overlayContainer = container.closest('generated-image')?.querySelector('.overlay-container.ng-star-inserted');
-                if (!overlayContainer) {
-                    // Fallback: try finding it from the container itself
-                    const imageElement = container.closest('generated-image');
-                    if (imageElement) {
-                        const overlay = imageElement.querySelector('.overlay-container.ng-star-inserted');
-                        if (overlay) {
-                            // Simulate realistic hover over the overlay container to show the download button
-                            this.simulateRealisticHover(overlay);
-                            Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
-                            await this.delay(800); // Wait longer for controls to appear
-                        } else {
-                            // Fallback: hover over the image element
-                            this.simulateRealisticHover(imageElement);
-                            Logger.debug(`Fallback: hovered over image element for ${index + 1}/${total}`);
-                            await this.delay(800);
-                        }
-                    }
-                } else {
-                    // Simulate realistic hover over the overlay container to show the download button
-                    this.simulateRealisticHover(overlayContainer);
-                    Logger.debug(`Hovered over overlay-container for image ${index + 1}/${total} to show controls`);
-                    await this.delay(800); // Wait longer for controls to appear
-                }
-                
-                // Get the download button from container
-                const downloadButton = this.getDownloadButtonFromContainer(container);
-                if (!downloadButton) {
-                    Logger.warn(`Download button not found in container ${index + 1}`);
-                    return false;
-                }
-                
-                // Check if button is visible
-                if (downloadButton.offsetParent === null) {
-                    Logger.warn(`Download button ${index + 1} is not visible after hover`);
-                    // Try hovering again with a longer delay
-                    if (overlayContainer) {
-                        this.simulateRealisticHover(overlayContainer);
-                        await this.delay(1000);
-                    }
-                    // Re-check visibility
-                    const retryButton = this.getDownloadButtonFromContainer(container);
-                    if (!retryButton || retryButton.offsetParent === null) {
-                        Logger.warn(`Download button ${index + 1} still not visible after retry`);
-                        return false;
-                    }
-                }
-                
-                // Simulate realistic hover over the download button
-                this.simulateRealisticHover(downloadButton);
-                Logger.debug(`Hovered over download button ${index + 1}/${total}`);
-                await this.delay(800); // Wait longer for hover effects and URL generation
-                
-                // Close any previously open menus first
-                const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-                document.dispatchEvent(escapeEvent);
-                await this.delay(300);
-                
-                // Click the download button to open menu
-                downloadButton.click();
-                Logger.debug(`Clicked download button ${index + 1}/${total} to open menu`);
-                await this.delay(1000); // Wait longer for menu to appear and URLs to be generated
-                
-                // Wait for menu to open and find download link (pass the button, not container)
-                const downloadLink = await this.waitForMenuAndFindDownloadLink(downloadButton);
-                if (!downloadLink) {
-                    Logger.warn(`Download link not found in menu for image ${index + 1}`);
-                    // Try closing any open menus before continuing
-                    document.dispatchEvent(escapeEvent);
-                    await this.delay(500);
-                    return false;
-                }
-                
-                Logger.debug(`Found download link for image ${index + 1}/${total}, href: ${downloadLink.href || 'no href'}`);
-                
-                // Click the download link
-                downloadLink.click();
-                Logger.debug(`Clicked download link for image ${index + 1}/${total}`);
-                
-                // Wait for download to complete (monitor the button state)
-                await this.waitForDownloadComplete(downloadButton);
-                
-                Logger.success(`Downloaded image ${index + 1}/${total}`);
-                return true;
-            } catch (error) {
-                Logger.error(`Error downloading image ${index + 1}:`, error);
-                return false;
-            }
-        }
-
-        /**
-         * Download all available images (queued, one at a time)
-         */
-        async downloadAllImages() {
-            Logger.debug("Searching for download image containers...");
-            
-            const downloadContainers = this.findAllDownloadButtons();
-            
-            Logger.debug(`Found ${downloadContainers.length} download containers`);
-            
-            if (downloadContainers.length === 0) {
-                this.showNotification('No download buttons found', 'info');
-                return;
-            }
-            
-            this.showNotification(`Starting download queue for ${downloadContainers.length} image(s)...`, 'info');
-            
-            let downloadedCount = 0;
-            
-            // Download each image sequentially
-            for (let i = 0; i < downloadContainers.length; i++) {
-                // Re-find containers in case DOM changed
-                const currentContainers = this.findAllDownloadButtons();
-                if (i >= currentContainers.length) {
-                    Logger.warn(`Container ${i + 1} no longer available, skipping`);
-                    continue;
-                }
-                
-                const container = currentContainers[i];
-                
-                // Check if container is still visible
-                if (container.offsetParent === null) {
-                    Logger.debug(`Container ${i + 1} is not visible, skipping`);
-                    continue;
-                }
-                
-                const success = await this.downloadSingleImage(container, i, downloadContainers.length);
-                if (success) {
-                    downloadedCount++;
-                }
-                
-                // Small delay between downloads
-                if (i < downloadContainers.length - 1) {
-                    await this.delay(1000);
-                }
-            }
-            
-            if (downloadedCount > 0) {
-                this.showNotification(`Downloaded ${downloadedCount} image(s)`, 'success');
-                Logger.success(`Downloaded ${downloadedCount} image(s)`);
-            } else {
-                this.showNotification('No images were downloaded', 'warning');
-            }
         }
 
         /**
