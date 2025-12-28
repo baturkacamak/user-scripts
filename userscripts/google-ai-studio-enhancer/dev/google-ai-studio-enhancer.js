@@ -525,13 +525,12 @@ class AIStudioEnhancer {
         promptModeLabel.textContent = 'Prompt Mode:';
         promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
 
-        const promptModeSelect = document.createElement('select');
-        promptModeSelect.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
-        HTMLUtils.setHTMLSafely(promptModeSelect, `
+        const promptModeSelect = HTMLUtils.createElementWithHTML('select', `
             <option value="single">Single Prompt (same for all iterations)</option>
             <option value="multiple">Multiple Prompts (different for each iteration)</option>
             <option value="template">Template Prompts (with variables)</option>
-        `);
+        `, {});
+        promptModeSelect.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
         promptModeSelect.value = this.settings.PROMPT_MODE || 'single';
         promptModeSelect.onchange = (event) => {
             this.settings.PROMPT_MODE = event.target.value;
@@ -576,12 +575,10 @@ class AIStudioEnhancer {
         const separatorInfo = document.createElement('div');
         separatorInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
         
-        const separatorTitle = document.createElement('div');
-        HTMLUtils.setHTMLSafely(separatorTitle, '<strong>Separator:</strong> Use <code>---</code> (three dashes) to separate prompts.');
+        const separatorTitle = HTMLUtils.createElementWithHTML('div', '<strong>Separator:</strong> Use <code>---</code> (three dashes) to separate prompts.', {});
         separatorTitle.style.marginBottom = '4px';
         
-        const exampleTitle = document.createElement('div');
-        HTMLUtils.setHTMLSafely(exampleTitle, '<strong>Example:</strong>');
+        const exampleTitle = HTMLUtils.createElementWithHTML('div', '<strong>Example:</strong>', {});
         exampleTitle.style.marginBottom = '4px';
         
         const exampleCode = document.createElement('code');
@@ -621,9 +618,8 @@ also multiline`;
         basePromptLabel.textContent = 'Base Prompt (will be appended to each prompt):';
         basePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; margin-top: 12px; font-size: 12px; color: #555; font-weight: 500;';
 
-        const basePromptInfo = document.createElement('div');
+        const basePromptInfo = HTMLUtils.createElementWithHTML('div', 'Each prompt will be combined with the base prompt as: <code>Prompt X\n[Base Prompt]</code>', {});
         basePromptInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
-        HTMLUtils.setHTMLSafely(basePromptInfo, 'Each prompt will be combined with the base prompt as: <code>Prompt X\n[Base Prompt]</code>');
 
         this.basePromptMultipleTextArea = new TextArea({
             value: this.settings.BASE_PROMPT_MULTIPLE || '',
@@ -1438,15 +1434,10 @@ also multiline`;
      */
     async typePrompt(prompt) {
         try {
-            const textarea = document.querySelector(AIStudioEnhancer.SELECTORS.PROMPT_INPUTS[0]);
+            // Use DOMObserver.waitForElements to wait for any of the prompt input selectors
+            const elements = await DOMObserver.waitForElements(AIStudioEnhancer.SELECTORS.PROMPT_INPUTS, 5000);
+            const textarea = elements[0];
             if (!textarea) {
-                // Try other selectors
-                for (const selector of AIStudioEnhancer.SELECTORS.PROMPT_INPUTS) {
-                    const element = document.querySelector(selector);
-                    if (element) {
-                        return await this.typeIntoElement(element, prompt);
-                    }
-                }
                 throw new Error("Prompt textarea not found");
             }
             
@@ -1986,8 +1977,18 @@ also multiline`;
     async collectResponsesFresh() {
         Logger.debug('Starting response collection...');
         
-        const autoscrollContainer = document.querySelector('ms-autoscroll-container') 
-                                 || document.querySelector('[ms-autoscroll-container]');
+        // Try to find autoscroll container using waitForElement
+        let autoscrollContainer = null;
+        try {
+            autoscrollContainer = await HTMLUtils.waitForElement('ms-autoscroll-container', 2000);
+        } catch (error) {
+            try {
+                autoscrollContainer = await HTMLUtils.waitForElement('[ms-autoscroll-container]', 2000);
+            } catch (error2) {
+                Logger.error('Autoscroll container not found');
+                return [];
+            }
+        }
         
         if (!autoscrollContainer) {
             Logger.error('Autoscroll container not found');
@@ -2014,13 +2015,13 @@ also multiline`;
             const responseSelectors = AIStudioEnhancer.SELECTORS.RESPONSE_CONTAINERS || [];
             let responseElements = [];
 
-            // Use the first selector that yields results; fallback to empty if none
-            for (const selector of responseSelectors) {
-                const found = Array.from(document.querySelectorAll(selector));
-                if (found.length > 0) {
-                    responseElements = found;
-                    break;
-                }
+            // Use DOMObserver.waitForElements to find elements using the first selector that yields results
+            try {
+                const elements = await DOMObserver.waitForElements(responseSelectors, 2000);
+                responseElements = Array.from(elements);
+            } catch (error) {
+                // If no elements found, responseElements remains empty
+                Logger.debug('No response elements found yet');
             }
             
             Logger.debug(`Found ${responseElements.length} response elements`);
@@ -2713,13 +2714,18 @@ also multiline`;
         try {
             let textarea = null;
             
-            // Try to find TTS textarea
-            for (const selector of AIStudioEnhancer.SELECTORS.TTS_TEXTAREA) {
-                const element = document.querySelector(selector);
-                if (element && element.offsetParent !== null) {
-                    textarea = element;
-                    break;
+            // Try to find TTS textarea using DOMObserver.waitForElements
+            try {
+                const elements = await DOMObserver.waitForElements(AIStudioEnhancer.SELECTORS.TTS_TEXTAREA, 5000);
+                // Find the first visible element
+                for (const element of Array.from(elements)) {
+                    if (element && element.offsetParent !== null) {
+                        textarea = element;
+                        break;
+                    }
                 }
+            } catch (error) {
+                // Fall through to check if textarea was found
             }
             
             if (!textarea) {
@@ -2756,13 +2762,18 @@ also multiline`;
      */
     async setTTSStylePrompt(text) {
         const selectors = AIStudioEnhancer.SELECTORS.TTS_STYLE_TEXTAREA || [];
-        for (const selector of selectors) {
-            const element = document.querySelector(selector);
-            if (element && element.offsetParent !== null) {
-                await this.typeIntoElement(element, text);
-                Logger.debug('✅ Applied TTS style prompt');
-                return;
+        try {
+            const elements = await DOMObserver.waitForElements(selectors, 5000);
+            // Find the first visible element
+            for (const element of Array.from(elements)) {
+                if (element && element.offsetParent !== null) {
+                    await this.typeIntoElement(element, text);
+                    Logger.debug('✅ Applied TTS style prompt');
+                    return;
+                }
             }
+        } catch (error) {
+            Logger.debug('TTS style textarea not found');
         }
         Logger.warn('TTS style prompt textarea not found');
     }
@@ -2780,9 +2791,12 @@ also multiline`;
             ];
 
             let accordionButton = null;
-            for (const selector of accordionSelectors) {
-                accordionButton = document.querySelector(selector);
-                if (accordionButton) break;
+            try {
+                const elements = await DOMObserver.waitForElements(accordionSelectors, 2000);
+                accordionButton = elements[0];
+            } catch (error) {
+                Logger.debug('Temperature accordion button not found (may already be expanded or not present)');
+                return;
             }
 
             if (!accordionButton) {
@@ -2804,16 +2818,32 @@ also multiline`;
             // Wait for accordion to expand (wait for input to become visible)
             const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
             let expanded = false;
-            for (let attempt = 0; attempt < 20; attempt++) {
-                for (const selector of numberSelectors) {
-                    const el = document.querySelector(selector);
+            try {
+                const elements = await DOMObserver.waitForElements(numberSelectors, 2000);
+                // Check if any element is visible
+                for (const el of Array.from(elements)) {
                     if (el && el.offsetParent !== null) {
                         expanded = true;
                         break;
                     }
                 }
-                if (expanded) break;
-                await this.delay(100);
+            } catch (error) {
+                // Accordion might not expand, continue
+            }
+            
+            if (!expanded) {
+                // Fallback: try checking manually for a few attempts
+                for (let attempt = 0; attempt < 20; attempt++) {
+                    for (const selector of numberSelectors) {
+                        const el = document.querySelector(selector);
+                        if (el && el.offsetParent !== null) {
+                            expanded = true;
+                            break;
+                        }
+                    }
+                    if (expanded) break;
+                    await this.delay(100);
+                }
             }
 
             if (expanded) {
@@ -2847,12 +2877,25 @@ also multiline`;
 
         // Prefer the numeric input control for temperature instead of the range slider
         const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
-        for (const selector of numberSelectors) {
-            const el = document.querySelector(selector);
-            if (el && el.offsetParent !== null) {
-                setValueAndDispatch(el);
-                applied = true;
-                break;
+        try {
+            const elements = await DOMObserver.waitForElements(numberSelectors, 2000);
+            // Find the first visible element
+            for (const el of Array.from(elements)) {
+                if (el && el.offsetParent !== null) {
+                    setValueAndDispatch(el);
+                    applied = true;
+                    break;
+                }
+            }
+        } catch (error) {
+            // Fallback to direct querySelector if waitForElements fails
+            for (const selector of numberSelectors) {
+                const el = document.querySelector(selector);
+                if (el && el.offsetParent !== null) {
+                    setValueAndDispatch(el);
+                    applied = true;
+                    break;
+                }
             }
         }
 
@@ -2870,11 +2913,23 @@ also multiline`;
         const selectors = AIStudioEnhancer.SELECTORS.TTS_VOICE_SELECT || [];
         let trigger = null;
 
-        for (const selector of selectors) {
-            const el = document.querySelector(selector);
-            if (el && el.offsetParent !== null) {
-                trigger = el;
-                break;
+        try {
+            const elements = await DOMObserver.waitForElements(selectors, 2000);
+            // Find the first visible element
+            for (const el of Array.from(elements)) {
+                if (el && el.offsetParent !== null) {
+                    trigger = el;
+                    break;
+                }
+            }
+        } catch (error) {
+            // Fallback to direct querySelector
+            for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (el && el.offsetParent !== null) {
+                    trigger = el;
+                    break;
+                }
             }
         }
 
@@ -2888,10 +2943,16 @@ also multiline`;
         await this.delay(200);
 
         let options = [];
-        for (let attempt = 0; attempt < 10; attempt++) {
-            options = Array.from(document.querySelectorAll('mat-option'));
-            if (options.length > 0) break;
-            await this.delay(100);
+        try {
+            const elements = await DOMObserver.waitForElements(['mat-option'], 2000);
+            options = Array.from(elements);
+        } catch (error) {
+            // Fallback: try checking manually for a few attempts
+            for (let attempt = 0; attempt < 10; attempt++) {
+                options = Array.from(document.querySelectorAll('mat-option'));
+                if (options.length > 0) break;
+                await this.delay(100);
+            }
         }
 
         const lowerVoice = voiceName.toLowerCase();
