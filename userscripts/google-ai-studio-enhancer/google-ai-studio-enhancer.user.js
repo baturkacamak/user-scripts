@@ -7201,7 +7201,7 @@
                 theme: 'primary',
                 size: 'medium',
                 className: 'auto-run-prompt-textarea',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 onInput: (event, textArea) => {
                     this.settings.AUTO_RUN_PROMPT = textArea.getValue();
                     this.saveSettings();
@@ -7250,7 +7250,7 @@ also multiline`;
                 theme: 'primary',
                 size: 'medium',
                 className: 'auto-run-multiple-prompts-textarea',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 onInput: (event, textArea) => {
                     this.settings.MULTIPLE_PROMPTS = textArea.getValue();
                     this.saveSettings();
@@ -7279,7 +7279,7 @@ also multiline`;
                 theme: 'primary',
                 size: 'medium',
                 className: 'auto-run-base-prompt-multiple-textarea',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 onInput: (event, textArea) => {
                     this.settings.BASE_PROMPT_MULTIPLE = textArea.getValue();
                     this.saveSettings();
@@ -7308,7 +7308,7 @@ also multiline`;
                 theme: 'primary',
                 size: 'medium',
                 className: 'auto-run-template-prompt-textarea',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 onInput: (event, textArea) => {
                     this.settings.TEMPLATE_PROMPT = textArea.getValue();
                     this.saveSettings();
@@ -7351,7 +7351,7 @@ also multiline`;
                 min: 1,
                 max: 100,
                 className: 'auto-run-iterations-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 validator: (value) => {
                     const num = parseInt(value, 10);
@@ -7447,7 +7447,7 @@ also multiline`;
                 theme: 'primary',
                 size: 'medium',
                 className: 'tts-text-textarea',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 onInput: (event, textArea) => {
                     this.settings.TTS_TEXT = textArea.getValue();
                     // Debounce the save to avoid too many writes
@@ -7481,7 +7481,7 @@ also multiline`;
                 theme: 'primary',
                 size: 'small',
                 className: 'tts-style-prompt-textarea',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 onInput: (event, textArea) => {
                     this.settings.TTS_STYLE_PROMPT = textArea.getValue();
                     this.ttsTextSaveDebouncer.trigger();
@@ -7511,7 +7511,7 @@ also multiline`;
                 min: 50,
                 max: 1000,
                 className: 'tts-words-per-chunk-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 validator: (value) => {
                     const num = parseInt(value, 10);
@@ -7553,7 +7553,7 @@ also multiline`;
                 max: 2,
                 step: 0.05,
                 className: 'tts-temperature-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 validator: (value) => {
                     const num = parseFloat(value);
@@ -7590,7 +7590,7 @@ also multiline`;
                 value: this.settings.TTS_VOICE || '',
                 placeholder: 'e.g., Charon',
                 className: 'tts-voice-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 onChange: (event, input) => {
                     this.settings.TTS_VOICE = input.getValue() || '';
@@ -7612,7 +7612,7 @@ also multiline`;
                 value: this.settings.TTS_FILENAME_PREFIX || 'tts-output',
                 placeholder: 'tts-output',
                 className: 'tts-filename-prefix-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 onChange: (event, input) => {
                     this.settings.TTS_FILENAME_PREFIX = input.getValue() || 'tts-output';
@@ -7638,7 +7638,7 @@ also multiline`;
                 min: 1,
                 max: 20,
                 className: 'tts-retry-count-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 validator: (value) => {
                     const num = parseInt(value, 10);
@@ -7677,7 +7677,7 @@ also multiline`;
                 min: 0,
                 max: 600000,
                 className: 'tts-download-delay-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 validator: (value) => {
                     const num = parseInt(value, 10);
@@ -7721,7 +7721,7 @@ also multiline`;
                 placeholder: '0',
                 min: 0,
                 className: 'tts-start-count-input',
-                attributes: { autocomplete: 'off' },
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 scopeSelector: `#${this.enhancerId}`,
                 validator: (value) => {
                     const num = parseInt(value, 10);
@@ -8110,6 +8110,9 @@ also multiline`;
             element.focus();
             
             if (element.tagName.toLowerCase() === 'textarea' || element.tagName.toLowerCase() === 'input') {
+                // Prevent LastPass and other password managers from interfering
+                element.setAttribute('autocomplete', 'off');
+                element.setAttribute('data-lpignore', 'true');
                 element.value = text;
                 element.dispatchEvent(new InputEvent('input', { bubbles: true }));
                 element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -9481,6 +9484,9 @@ also multiline`;
             let applied = false;
 
             const setValueAndDispatch = (el) => {
+                // Prevent LastPass and other password managers from interfering
+                el.setAttribute('autocomplete', 'off');
+                el.setAttribute('data-lpignore', 'true');
                 el.value = clamped;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
