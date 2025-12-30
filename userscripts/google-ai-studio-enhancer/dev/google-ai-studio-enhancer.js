@@ -16,6 +16,7 @@ import {
     SidebarPanel,
     StyleManager,
     TextArea,
+    TextChunker,
     ThrottleService,
     UrlChangeWatcher,
     UserInteractionDetector,
@@ -2469,61 +2470,14 @@ also multiline`;
 
     /**
      * Split text into chunks by word count, breaking at closest sentence boundary (.)
+     * Uses the shared TextChunker utility class
      */
     splitTextIntoChunks(text, wordsPerChunk) {
-        const words = text.trim().split(/\s+/);
-        const chunks = [];
-        let currentChunk = [];
-        let currentWordCount = 0;
-        
-        for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            currentChunk.push(word);
-            currentWordCount++;
-            
-            // Check if we've reached the target word count or exceeded it
-            if (currentWordCount >= wordsPerChunk) {
-                // Look for the closest sentence ending (.) in the current chunk
-                const chunkText = currentChunk.join(' ');
-                const lastPeriodIndex = chunkText.lastIndexOf('.');
-                
-                if (lastPeriodIndex > 0) {
-                    // Split at the last period found
-                    const beforePeriod = chunkText.substring(0, lastPeriodIndex + 1).trim();
-                    const afterPeriod = chunkText.substring(lastPeriodIndex + 1).trim();
-                    
-                    if (beforePeriod) {
-                        chunks.push(beforePeriod);
-                    }
-                    
-                    // Start new chunk with remaining text after the period
-                    if (afterPeriod) {
-                        currentChunk = afterPeriod.split(/\s+/);
-                        currentWordCount = currentChunk.length;
-                    } else {
-                        currentChunk = [];
-                        currentWordCount = 0;
-                    }
-                } else {
-                    // No period found, use the current chunk as-is
-                    if (chunkText.trim()) {
-                        chunks.push(chunkText.trim());
-                    }
-                    currentChunk = [];
-                    currentWordCount = 0;
-                }
-            }
-        }
-        
-        // Add any remaining words
-        if (currentChunk.length > 0) {
-            const remainingText = currentChunk.join(' ').trim();
-            if (remainingText) {
-                chunks.push(remainingText);
-            }
-        }
-        
-        return chunks;
+        return TextChunker.splitByWords(text, wordsPerChunk, {
+            sentenceDelimiter: '.',
+            preserveWhitespace: true,
+            minChunkSize: 1
+        });
     }
 
     /**

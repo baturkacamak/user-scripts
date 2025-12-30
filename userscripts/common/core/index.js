@@ -20,6 +20,7 @@ import * as GMFunctions from './utils/GMFunctions.js';
 import MarkdownConverter from './utils/MarkdownConverter.js';
 import ViewportStabilizer from './utils/ViewportStabilizer.js';
 import ContentFormatter from './utils/ContentFormatter.js';
+import TextChunker from './utils/TextChunker.js';
 
 // Services
 import ThrottleService from './services/ThrottleService.js';
@@ -63,6 +64,7 @@ export {
   MarkdownConverter,
   ViewportStabilizer,
   ContentFormatter,
+  TextChunker,
 
   // Services
   ThrottleService,
@@ -105,6 +107,7 @@ export default {
   GMFunctions,
   ViewportStabilizer,
   ContentFormatter,
+  TextChunker,
   ThrottleService,
   AsyncQueueService,
   ClipboardService,
