@@ -2474,11 +2474,16 @@ also multiline`;
     /**
      * Split text into chunks by word count, breaking at closest sentence boundary (.)
      * Uses the shared TextChunker utility class
+     * Automatically merges small last chunk with previous chunk if it's too small
      */
     splitTextIntoChunks(text, wordsPerChunk) {
+        // Calculate threshold: 50 words or 10% of target chunk size, whichever is smaller
+        const minLastChunkSize = Math.min(50, Math.floor(wordsPerChunk * 0.1));
+        
         return this.textChunker.splitByWords(text, wordsPerChunk, {
             preserveWhitespace: true,
-            minChunkSize: 1
+            minChunkSize: 1,
+            minLastChunkSize: minLastChunkSize
         });
     }
 

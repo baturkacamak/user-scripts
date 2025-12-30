@@ -10,6 +10,7 @@
  * - Configurable chunking strategies (SOFT_LIMIT vs HARD_LIMIT)
  * - Support for word-based, character-based, and line-based chunking
  * - Intelligent boundary detection to maintain readability
+ * - Automatic merging of small last chunks with previous chunk (configurable threshold)
  * 
  * @example
  * // English (default)
@@ -314,6 +315,39 @@ class TextChunker {
     }
 
     /**
+     * Merge small last chunk with previous chunk if it's below the threshold
+     * @param {string[]} chunks - Array of text chunks
+     * @param {number|null} minLastChunkSize - Minimum size for last chunk (null to disable)
+     * @param {number} targetChunkSize - Target chunk size (for calculating threshold)
+     * @param {boolean} preserveWhitespace - Whether to preserve whitespace when merging
+     * @param {Function} sizeCalculator - Function to calculate chunk size (takes chunk string, returns number)
+     * @returns {string[]} Modified chunks array (may have one less chunk if merged)
+     */
+    mergeSmallLastChunk(chunks, minLastChunkSize, targetChunkSize, preserveWhitespace, sizeCalculator) {
+        if (minLastChunkSize === null || chunks.length < 2) {
+            return chunks;
+        }
+
+        const lastChunk = chunks[chunks.length - 1];
+        const lastChunkSize = sizeCalculator(lastChunk);
+        
+        // Calculate threshold: use minLastChunkSize or 10% of target chunk size, whichever is smaller
+        const threshold = Math.min(minLastChunkSize, Math.floor(targetChunkSize * 0.1));
+        
+        if (lastChunkSize < threshold) {
+            // Merge last chunk with previous chunk
+            const previousChunk = chunks[chunks.length - 2];
+            const mergedChunk = preserveWhitespace 
+                ? previousChunk + ' ' + lastChunk
+                : (previousChunk + ' ' + lastChunk).trim();
+            chunks[chunks.length - 2] = mergedChunk;
+            chunks.pop(); // Remove the small last chunk
+        }
+
+        return chunks;
+    }
+
+    /**
      * Split text into chunks by word count with intelligent sentence boundary detection
      * 
      * This method intelligently splits text into chunks of approximately the specified
@@ -328,6 +362,7 @@ class TextChunker {
      * @param {number} [options.minChunkSize=1] - Minimum words required for a chunk
      * @param {number} [options.maxChunkSize] - Maximum words allowed in a chunk (overrides wordsPerChunk if exceeded)
      * @param {boolean} [options.respectSentenceBoundaries=true] - Whether to break at sentence boundaries
+     * @param {number|null} [options.minLastChunkSize=null] - Minimum words for the last chunk. If the last chunk is smaller, it will be merged with the previous chunk. Set to null to disable. Defaults to null (disabled). Recommended: 50 or 10% of wordsPerChunk.
      * @returns {string[]} Array of text chunks
      * 
      * @example
@@ -339,6 +374,12 @@ class TextChunker {
      * // Hard limit (for API/SMS) - strict cut, never exceeds limit
      * const chunker = new TextChunker();
      * const chunks = chunker.splitByWords(text, 300, { strategy: 'hard' });
+     * 
+     * @example
+     * // Merge small last chunk with previous chunk (e.g., for TTS processing)
+     * const chunker = new TextChunker();
+     * const chunks = chunker.splitByWords(text, 800, { minLastChunkSize: 50 });
+     * // If last chunk has < 50 words, it will be merged with the previous chunk
      */
     splitByWords(text, wordsPerChunk, options = {}) {
         const {
@@ -346,7 +387,8 @@ class TextChunker {
             preserveWhitespace = true,
             minChunkSize = 1,
             maxChunkSize = null,
-            respectSentenceBoundaries = true
+            respectSentenceBoundaries = true,
+            minLastChunkSize = null
         } = options;
 
         if (!text || typeof text !== 'string') {
@@ -415,6 +457,12 @@ class TextChunker {
             currentChunkStart = currentChunkEnd;
         }
 
+        // Merge small last chunk with previous chunk if enabled and applicable
+        const wordCountCalculator = (chunk) => {
+            return chunk.trim().split(/\s+/).filter(w => w.length > 0).length;
+        };
+        this.mergeSmallLastChunk(chunks, minLastChunkSize, wordsPerChunk, preserveWhitespace, wordCountCalculator);
+
         return chunks;
     }
 
@@ -428,6 +476,7 @@ class TextChunker {
      * @param {boolean} [options.preserveWhitespace=true] - Whether to preserve whitespace
      * @param {number} [options.minChunkSize=1] - Minimum characters required for a chunk
      * @param {boolean} [options.respectSentenceBoundaries=true] - Whether to break at sentence boundaries
+     * @param {number|null} [options.minLastChunkSize=null] - Minimum characters for the last chunk. If the last chunk is smaller, it will be merged with the previous chunk. Set to null to disable. Defaults to null (disabled). Recommended: 100 or 10% of charsPerChunk.
      * @returns {string[]} Array of text chunks
      * 
      * @example
@@ -439,13 +488,20 @@ class TextChunker {
      * // Hard limit - strict cut, never exceeds limit
      * const chunker = new TextChunker();
      * const chunks = chunker.splitByCharacters(text, 1000, { strategy: 'hard' });
+     * 
+     * @example
+     * // Merge small last chunk with previous chunk
+     * const chunker = new TextChunker();
+     * const chunks = chunker.splitByCharacters(text, 2000, { minLastChunkSize: 100 });
+     * // If last chunk has < 100 characters, it will be merged with the previous chunk
      */
     splitByCharacters(text, charsPerChunk, options = {}) {
         const {
             strategy = TextChunker.STRATEGY.SOFT_LIMIT,
             preserveWhitespace = true,
             minChunkSize = 1,
-            respectSentenceBoundaries = true
+            respectSentenceBoundaries = true,
+            minLastChunkSize = null
         } = options;
 
         if (!text || typeof text !== 'string') {
@@ -490,6 +546,10 @@ class TextChunker {
                 currentIndex++;
             }
         }
+
+        // Merge small last chunk with previous chunk if enabled and applicable
+        const charCountCalculator = (chunk) => chunk.length;
+        this.mergeSmallLastChunk(chunks, minLastChunkSize, charsPerChunk, preserveWhitespace, charCountCalculator);
 
         return chunks;
     }
