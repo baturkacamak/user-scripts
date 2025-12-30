@@ -168,6 +168,9 @@ class AIStudioEnhancer {
         this.ttsQuotaMonitor = null; // MutationObserver for quota errors
         this.lastTTSAudioSrc = null; // Track last downloaded audio src to detect new audio
         
+        // Initialize TextChunker instance
+        this.textChunker = new TextChunker();
+        
         // Debouncer for TTS text saving
         this.ttsTextSaveDebouncer = new Debouncer(() => {
             this.saveSettings();
@@ -2473,8 +2476,7 @@ also multiline`;
      * Uses the shared TextChunker utility class
      */
     splitTextIntoChunks(text, wordsPerChunk) {
-        return TextChunker.splitByWords(text, wordsPerChunk, {
-            sentenceDelimiter: '.',
+        return this.textChunker.splitByWords(text, wordsPerChunk, {
             preserveWhitespace: true,
             minChunkSize: 1
         });
