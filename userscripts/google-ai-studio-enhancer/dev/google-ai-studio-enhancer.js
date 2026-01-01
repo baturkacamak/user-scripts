@@ -8,6 +8,7 @@ import {
     DOMObserver,
     FormStatePersistence,
     HTMLUtils,
+    InfoBox,
     Input,
     Logger,
     Notification,
@@ -1420,16 +1421,22 @@ Third prompt`;
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
         // Info text
-        const infoText = document.createElement('div');
-        infoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px;';
-        infoText.appendChild(document.createTextNode('Chunk long text and post as a single prompt:'));
-        infoText.appendChild(document.createElement('br'));
-        infoText.appendChild(document.createTextNode('• Text will be split into chunks'));
-        infoText.appendChild(document.createElement('br'));
-        infoText.appendChild(document.createTextNode('• All chunks will be combined with "---" separator'));
-        infoText.appendChild(document.createElement('br'));
-        infoText.appendChild(document.createTextNode('• Final prompt: Base prompt + (chunk1 --- chunk2 --- ...)'));
-        section.appendChild(infoText);
+        const infoContent = [
+            document.createTextNode('Chunk long text and post as a single prompt:'),
+            document.createElement('br'),
+            document.createTextNode('• Text will be split into chunks'),
+            document.createElement('br'),
+            document.createTextNode('• All chunks will be combined with "---" separator'),
+            document.createElement('br'),
+            document.createTextNode('• Final prompt: Base prompt + (chunk1 --- chunk2 --- ...)')
+        ];
+        
+        InfoBox.create({
+            content: infoContent,
+            variant: 'default',
+            container: section,
+            scopeSelector: `#${this.enhancerId}`
+        });
 
         // Text to chunk
         const textLabel = document.createElement('label');

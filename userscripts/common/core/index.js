@@ -43,6 +43,7 @@ import Notification from './ui/Notification';
 import Input from './ui/Input.js';
 import TextArea from './ui/TextArea.js';
 import Tabs from './ui/Tabs.js';
+import InfoBox from './ui/InfoBox.js';
 
 // Export all components
 export {
@@ -87,6 +88,7 @@ export {
   Input,
   TextArea,
   Tabs,
+  InfoBox,
 };
 
 // Also export as default for convenience
@@ -122,4 +124,5 @@ export default {
   Input,
   TextArea,
   Tabs,
+  InfoBox,
 };
