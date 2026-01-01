@@ -14,6 +14,7 @@ import {
     PollingStrategy,
     PubSub,
     SidebarPanel,
+    SelectBox,
     StyleManager,
     TextArea,
     TextChunker,
@@ -342,6 +343,7 @@ class AIStudioEnhancer {
                 Input.useDefaultColors();
                 TextArea.initStyles();
                 TextArea.useDefaultColors();
+                SelectBox.initStyles();
                 Tabs.initStyles();
                 Tabs.useDefaultColors();
             } catch (error) {
@@ -521,10 +523,6 @@ class AIStudioEnhancer {
         const section = document.createElement('div');
         section.style.marginBottom = '20px';
 
-        const title = document.createElement('h3');
-        title.textContent = '🔄 Auto Runner';
-        title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
-
         // Prompt mode selector
         const promptModeContainer = document.createElement('div');
         promptModeContainer.style.marginBottom = '12px';
@@ -533,22 +531,26 @@ class AIStudioEnhancer {
         promptModeLabel.textContent = 'Prompt Mode:';
         promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
 
-        const promptModeSelect = HTMLUtils.createElementWithHTML('select', `
-            <option value="single">Single Prompt (same for all iterations)</option>
-            <option value="multiple">Multiple Prompts (different for each iteration)</option>
-            <option value="template">Template Prompts (with variables)</option>
-        `, {});
-        promptModeSelect.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
-        promptModeSelect.value = this.settings.PROMPT_MODE || 'single';
-        promptModeSelect.onchange = (event) => {
-            this.settings.PROMPT_MODE = event.target.value;
-            this.saveSettings();
-            this.updatePromptInputVisibility();
-        };
+        this.promptModeSelect = new SelectBox({
+            items: [
+                { value: 'single', label: 'Single Prompt (same for all iterations)', selected: (this.settings.PROMPT_MODE || 'single') === 'single' },
+                { value: 'multiple', label: 'Multiple Prompts (different for each iteration)', selected: (this.settings.PROMPT_MODE || 'single') === 'multiple' },
+                { value: 'template', label: 'Template Prompts (with variables)', selected: (this.settings.PROMPT_MODE || 'single') === 'template' }
+            ],
+            name: 'prompt-mode',
+            id: 'prompt-mode-select',
+            placeholder: 'Select prompt mode',
+            container: promptModeContainer,
+            theme: 'default',
+            size: 'medium',
+            onChange: (value) => {
+                this.settings.PROMPT_MODE = value;
+                this.saveSettings();
+                this.updatePromptInputVisibility();
+            }
+        });
 
         promptModeContainer.appendChild(promptModeLabel);
-        promptModeContainer.appendChild(promptModeSelect);
-        this.promptModeSelect = promptModeSelect;
 
         // Single prompt input
         this.singlePromptContainer = document.createElement('div');
@@ -617,20 +619,31 @@ Third prompt`;
         basePromptPositionLabel.textContent = 'Position:';
         basePromptPositionLabel.style.cssText = 'font-size: 12px; color: #555;';
 
-        const basePromptPositionSelect = HTMLUtils.createElementWithHTML('select', `
-            <option value="before">Before prompt</option>
-            <option value="after">After prompt</option>
-        `, {});
-        basePromptPositionSelect.style.cssText = 'padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
-        basePromptPositionSelect.value = this.settings.BASE_PROMPT_POSITION || 'after';
-        basePromptPositionSelect.onchange = (event) => {
-            this.settings.BASE_PROMPT_POSITION = event.target.value;
-            this.saveSettings();
-        };
+        const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
+        this.basePromptPositionSelect = new SelectBox({
+            items: [
+                { value: 'before', label: 'Before prompt', selected: basePromptPosition === 'before' },
+                { value: 'after', label: 'After prompt', selected: basePromptPosition === 'after' }
+            ],
+            name: 'base-prompt-position',
+            id: 'base-prompt-position-select',
+            placeholder: 'Select position',
+            container: basePromptPositionContainer,
+            theme: 'default',
+            size: 'small',
+            onChange: (value) => {
+                this.settings.BASE_PROMPT_POSITION = value;
+                this.saveSettings();
+                const newPlaceholder = value === 'before' 
+                    ? 'Enter base prompt to prepend to each prompt (optional)'
+                    : 'Enter base prompt to append to each prompt (optional)';
+                if (this.basePromptMultipleTextArea && this.basePromptMultipleTextArea.textareaElement) {
+                    this.basePromptMultipleTextArea.textareaElement.placeholder = newPlaceholder;
+                }
+            }
+        });
 
         basePromptPositionContainer.appendChild(basePromptPositionLabel);
-        basePromptPositionContainer.appendChild(basePromptPositionSelect);
-        this.basePromptPositionSelect = basePromptPositionSelect;
 
         const basePromptPlaceholder = (this.settings.BASE_PROMPT_POSITION || 'after') === 'before' 
             ? 'Enter base prompt to prepend to each prompt (optional)'
@@ -652,18 +665,6 @@ Third prompt`;
             autoResize: true,
             scopeSelector: `#${this.enhancerId}`
         });
-
-        // Update placeholder when position changes
-        basePromptPositionSelect.onchange = (event) => {
-            this.settings.BASE_PROMPT_POSITION = event.target.value;
-            this.saveSettings();
-            const newPlaceholder = event.target.value === 'before' 
-                ? 'Enter base prompt to prepend to each prompt (optional)'
-                : 'Enter base prompt to append to each prompt (optional)';
-            if (this.basePromptMultipleTextArea && this.basePromptMultipleTextArea.textareaElement) {
-                this.basePromptMultipleTextArea.textareaElement.placeholder = newPlaceholder;
-            }
-        };
 
         this.multiplePromptContainer.appendChild(basePromptLabel);
         this.multiplePromptContainer.appendChild(basePromptPositionContainer);
@@ -830,7 +831,6 @@ Third prompt`;
         this.statusElement.textContent = 'Ready to start';
         this.statusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center;';
 
-        section.appendChild(title);
         section.appendChild(promptModeContainer);
         section.appendChild(this.singlePromptContainer);
         section.appendChild(this.multiplePromptContainer);

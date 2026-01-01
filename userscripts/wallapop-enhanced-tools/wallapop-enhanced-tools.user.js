@@ -2592,7 +2592,7 @@
             // Add dropdown icon
             const triggerIcon = document.createElement('span');
             triggerIcon.className = `${SelectBox.BASE_SELECT_CLASS}-trigger-icon`;
-            triggerIcon.innerHTML = '▼';
+            triggerIcon.textContent = '▼';
             this.triggerElement.appendChild(triggerIcon);
 
             // Create dropdown
@@ -2663,7 +2663,7 @@
             // Add dropdown icon
             const triggerIcon = document.createElement('span');
             triggerIcon.className = `${SelectBox.BASE_SELECT_CLASS}-trigger-icon`;
-            triggerIcon.innerHTML = '▼';
+            triggerIcon.textContent = '▼';
             this.triggerElement.appendChild(triggerIcon);
 
             // Create dropdown
@@ -2725,7 +2725,7 @@
                 const toggleButton = document.createElement('button');
                 toggleButton.type = 'button';
                 toggleButton.className = `${SelectBox.BASE_SELECT_CLASS}-option-toggle`;
-                toggleButton.innerHTML = '⚙️';
+                toggleButton.textContent = '⚙️';
                 toggleButton.title = 'Options';
 
                 itemElement.appendChild(toggleButton);
