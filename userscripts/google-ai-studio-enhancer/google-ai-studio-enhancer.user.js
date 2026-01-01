@@ -8955,7 +8955,15 @@
                     '.thought-panel',  // Exclude thought panel
                     '.thinking-progress-icon',  // Exclude thinking icon
                     '[class*="thought"]',  // Exclude any element with "thought" in class name
-                    'mat-expansion-panel[class*="thought"]'  // Exclude thought expansion panels
+                    'mat-expansion-panel[class*="thought"]',  // Exclude thought expansion panels
+                    'a[href*="grounding-api-redirect"]',  // Exclude citation links (grounding API)
+                    'a[href*="vertexaisearch"]',  // Exclude citation links (vertex AI search)
+                    'a[target="_blank"][href*="google.com/url"]',  // Exclude Google redirect citation links
+                    'ms-grounding-sources',  // Exclude grounding sources section
+                    '.search-sources',  // Exclude search sources container
+                    'ms-search-entry-point',  // Exclude Google Search Suggestions section
+                    '.search-entry-point',  // Exclude search entry point container
+                    '.search-entry-container'  // Exclude search entry container
                 ]
             });
             
@@ -11242,6 +11250,32 @@ Third prompt`;
                     // Remove "Model" at the beginning if present
                     if (responseText) {
                         responseText = responseText.replace(/^Model\.?\s*/i, '').trim();
+                    }
+                    
+                    // Remove citation links and patterns (e.g., [1], [2], etc.)
+                    if (responseText) {
+                        // Remove citation patterns like [1], [2], [3], etc.
+                        // This handles cases where citation links were removed but brackets remain
+                        responseText = responseText.replace(/\[\s*\d+\s*\]/g, '');
+                        // Remove standalone citation numbers in brackets that might be on their own line
+                        responseText = responseText.replace(/^\s*\[\s*\d+\s*\]\s*$/gm, '');
+                        // Clean up any extra spaces left after removing citations
+                        responseText = responseText.replace(/\s+\[\s*\]/g, ''); // Remove empty brackets with spaces
+                        responseText = responseText.replace(/\[\s*\]/g, ''); // Remove empty brackets
+                    }
+                    
+                    // Remove sources and search suggestions sections
+                    if (responseText) {
+                        // Remove "Sources" section header and content
+                        responseText = responseText.replace(/^Sources\s*$/gmi, '');
+                        responseText = responseText.replace(/Sources\s*$/gmi, '');
+                        // Remove "Google Search Suggestions" section
+                        responseText = responseText.replace(/^Google Search Suggestions\s*$/gmi, '');
+                        responseText = responseText.replace(/Google Search Suggestions\s*$/gmi, '');
+                        // Remove "Learn more" links that might appear
+                        responseText = responseText.replace(/Learn more\s*/gi, '');
+                        // Remove lines that are just source URLs (common domains)
+                        responseText = responseText.replace(/^\s*(normalsozluk\.com|wikipedia\.org|youtube\.com|google\.com)\s*$/gmi, '');
                     }
                     
                     // Remove any remaining thinking-related text patterns
