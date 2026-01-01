@@ -574,10 +574,6 @@ class AIStudioEnhancer {
         const promptModeContainer = document.createElement('div');
         promptModeContainer.style.marginBottom = '12px';
 
-        const promptModeLabel = document.createElement('label');
-        promptModeLabel.textContent = 'Prompt Mode:';
-        promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
-
         this.promptModeSelect = new SelectBox({
             items: [
                 { value: 'single', label: 'Single Prompt (same for all iterations)', selected: (this.settings.PROMPT_MODE || 'single') === 'single' },
@@ -586,6 +582,7 @@ class AIStudioEnhancer {
             ],
             name: 'prompt-mode',
             id: 'prompt-mode-select',
+            label: 'Prompt Mode:',
             placeholder: 'Select prompt mode',
             container: promptModeContainer,
             theme: 'default',
@@ -596,8 +593,6 @@ class AIStudioEnhancer {
                 this.updatePromptInputVisibility();
             }
         });
-
-        promptModeContainer.appendChild(promptModeLabel);
 
         // Single prompt input
         this.singlePromptContainer = document.createElement('div');
@@ -658,10 +653,6 @@ Third prompt`;
         const basePromptPositionContainer = document.createElement('div');
         basePromptPositionContainer.style.cssText = 'margin-bottom: 8px; margin-top: 12px; display: flex; align-items: center; gap: 8px;';
 
-        const basePromptPositionLabel = document.createElement('label');
-        basePromptPositionLabel.textContent = 'Position:';
-        basePromptPositionLabel.style.cssText = 'font-size: 12px; color: #555; font-weight: 500;';
-
         const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
         this.basePromptPositionSelect = new SelectBox({
             items: [
@@ -670,6 +661,8 @@ Third prompt`;
             ],
             name: 'base-prompt-position',
             id: 'base-prompt-position-select',
+            label: 'Position:',
+            labelPosition: 'inline',
             placeholder: 'Select position',
             container: basePromptPositionContainer,
             theme: 'default',
@@ -685,8 +678,6 @@ Third prompt`;
                 }
             }
         });
-
-        basePromptPositionContainer.appendChild(basePromptPositionLabel);
 
         const basePromptPlaceholder = (this.settings.BASE_PROMPT_POSITION || 'after') === 'before' 
             ? 'Enter base prompt to prepend to each prompt (optional)'
@@ -891,10 +882,6 @@ Third prompt`;
         const ttsModeContainer = document.createElement('div');
         ttsModeContainer.style.marginBottom = '12px';
 
-        const ttsModeLabel = document.createElement('label');
-        ttsModeLabel.textContent = 'TTS Mode:';
-        ttsModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
-
         this.ttsModeSelect = new SelectBox({
             items: [
                 { value: 'single', label: 'Single Text (chunked automatically)', selected: (this.settings.TTS_MODE || 'single') === 'single' },
@@ -902,6 +889,7 @@ Third prompt`;
             ],
             name: 'tts-mode',
             id: 'tts-mode-select',
+            label: 'TTS Mode:',
             placeholder: 'Select TTS mode',
             container: ttsModeContainer,
             theme: 'default',
@@ -912,8 +900,6 @@ Third prompt`;
                 this.updateTTSInputVisibility();
             }
         });
-
-        ttsModeContainer.appendChild(ttsModeLabel);
 
         // Single text input container
         this.ttsSingleTextContainer = document.createElement('div');
@@ -1460,11 +1446,6 @@ Third prompt`;
         });
 
         // Strategy selector
-        const strategyLabel = document.createElement('label');
-        strategyLabel.textContent = 'Chunking strategy:';
-        strategyLabel.style.cssText = 'display: block; margin-top: 8px; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
-        optionsContainer.appendChild(strategyLabel);
-
         this.chunkedStrategySelect = new SelectBox({
             items: [
                 { value: 'soft', label: 'Soft (allow overflow to finish sentence)', selected: (this.settings.CHUNKED_STRATEGY || 'soft') === 'soft' },
@@ -1472,6 +1453,7 @@ Third prompt`;
             ],
             name: 'chunked-strategy',
             id: 'chunked-strategy-select',
+            label: 'Chunking strategy:',
             placeholder: 'Select strategy',
             container: optionsContainer,
             theme: 'default',

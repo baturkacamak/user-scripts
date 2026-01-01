@@ -2042,6 +2042,9 @@
             this.theme = options.theme || 'default';
             this.size = options.size || 'medium';
             this.useCategorizedUI = options.useCategorizedUI || false;
+            this.label = options.label || '';
+            this.required = options.required || false;
+            this.labelPosition = options.labelPosition || 'top'; // 'top' or 'inline'
 
             // Store instance ID for events
             this.instanceId = this.id;
@@ -2050,7 +2053,9 @@
             this.isCategorized = this.detectCategorizedItems();
 
             // DOM elements
-            this.containerElement = null;
+            this.element = null; // Main wrapper element (contains label + containerElement)
+            this.labelElement = null; // Label element
+            this.containerElement = null; // Select container element
             this.selectElement = null; // Native select element (hidden)
             this.triggerElement = null; // Button to open dropdown
             this.dropdownElement = null; // Custom dropdown
@@ -2092,6 +2097,32 @@
             if (SelectBox.stylesInitialized) return;
 
             StyleManager.addStyles(`
+      /* Main wrapper element */
+      .${SelectBox.BASE_SELECT_CLASS}-wrapper {
+        width: 100%;
+      }
+      
+      /* Label styles */
+      .${SelectBox.BASE_SELECT_CLASS}-label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #555;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-label--inline {
+        display: inline-block;
+        margin-bottom: 0;
+        margin-right: 0;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-wrapper--inline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
       /* Base container styles */
       .${SelectBox.BASE_SELECT_CLASS}-container {
         position: relative;
@@ -2447,9 +2478,32 @@
 
         /**
          * Create the enhanced select box
-         * @return {HTMLElement} The container element
+         * @return {HTMLElement} The wrapper element
          */
         create() {
+            // Create main wrapper element
+            this.element = document.createElement('div');
+            let wrapperClass = `${SelectBox.BASE_SELECT_CLASS}-wrapper`;
+            if (this.labelPosition === 'inline' && this.label) {
+                wrapperClass += ` ${SelectBox.BASE_SELECT_CLASS}-wrapper--inline`;
+            }
+            this.element.className = wrapperClass;
+
+            // Create label if provided
+            if (this.label) {
+                this.labelElement = document.createElement('label');
+                let labelClass = `${SelectBox.BASE_SELECT_CLASS}-label`;
+                if (this.labelPosition === 'inline') {
+                    labelClass += ` ${SelectBox.BASE_SELECT_CLASS}-label--inline`;
+                }
+                this.labelElement.className = labelClass;
+                this.labelElement.textContent = this.label;
+                if (this.required) {
+                    this.labelElement.textContent += ' *';
+                }
+                this.element.appendChild(this.labelElement);
+            }
+
             // Create main container
             this.containerElement = document.createElement('div');
             this.containerElement.className = `${SelectBox.BASE_SELECT_CLASS}-container ${SelectBox.BASE_SELECT_CLASS}-container--${this.theme} ${SelectBox.BASE_SELECT_CLASS}-container--${this.size}`;
@@ -2467,12 +2521,15 @@
             // Add event listeners
             this.addEventListeners();
 
+            // Add containerElement to wrapper
+            this.element.appendChild(this.containerElement);
+
             // Add to container if provided
             if (this.container) {
-                this.container.appendChild(this.containerElement);
+                this.container.appendChild(this.element);
             }
 
-            return this.containerElement;
+            return this.element;
         }
 
         /**

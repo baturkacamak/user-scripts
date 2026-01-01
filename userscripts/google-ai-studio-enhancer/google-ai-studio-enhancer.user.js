@@ -3830,6 +3830,9 @@
             this.theme = options.theme || 'default';
             this.size = options.size || 'medium';
             this.useCategorizedUI = options.useCategorizedUI || false;
+            this.label = options.label || '';
+            this.required = options.required || false;
+            this.labelPosition = options.labelPosition || 'top'; // 'top' or 'inline'
 
             // Store instance ID for events
             this.instanceId = this.id;
@@ -3838,7 +3841,9 @@
             this.isCategorized = this.detectCategorizedItems();
 
             // DOM elements
-            this.containerElement = null;
+            this.element = null; // Main wrapper element (contains label + containerElement)
+            this.labelElement = null; // Label element
+            this.containerElement = null; // Select container element
             this.selectElement = null; // Native select element (hidden)
             this.triggerElement = null; // Button to open dropdown
             this.dropdownElement = null; // Custom dropdown
@@ -3880,6 +3885,32 @@
             if (SelectBox.stylesInitialized) return;
 
             StyleManager.addStyles(`
+      /* Main wrapper element */
+      .${SelectBox.BASE_SELECT_CLASS}-wrapper {
+        width: 100%;
+      }
+      
+      /* Label styles */
+      .${SelectBox.BASE_SELECT_CLASS}-label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #555;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-label--inline {
+        display: inline-block;
+        margin-bottom: 0;
+        margin-right: 0;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-wrapper--inline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
       /* Base container styles */
       .${SelectBox.BASE_SELECT_CLASS}-container {
         position: relative;
@@ -4235,9 +4266,32 @@
 
         /**
          * Create the enhanced select box
-         * @return {HTMLElement} The container element
+         * @return {HTMLElement} The wrapper element
          */
         create() {
+            // Create main wrapper element
+            this.element = document.createElement('div');
+            let wrapperClass = `${SelectBox.BASE_SELECT_CLASS}-wrapper`;
+            if (this.labelPosition === 'inline' && this.label) {
+                wrapperClass += ` ${SelectBox.BASE_SELECT_CLASS}-wrapper--inline`;
+            }
+            this.element.className = wrapperClass;
+
+            // Create label if provided
+            if (this.label) {
+                this.labelElement = document.createElement('label');
+                let labelClass = `${SelectBox.BASE_SELECT_CLASS}-label`;
+                if (this.labelPosition === 'inline') {
+                    labelClass += ` ${SelectBox.BASE_SELECT_CLASS}-label--inline`;
+                }
+                this.labelElement.className = labelClass;
+                this.labelElement.textContent = this.label;
+                if (this.required) {
+                    this.labelElement.textContent += ' *';
+                }
+                this.element.appendChild(this.labelElement);
+            }
+
             // Create main container
             this.containerElement = document.createElement('div');
             this.containerElement.className = `${SelectBox.BASE_SELECT_CLASS}-container ${SelectBox.BASE_SELECT_CLASS}-container--${this.theme} ${SelectBox.BASE_SELECT_CLASS}-container--${this.size}`;
@@ -4255,12 +4309,15 @@
             // Add event listeners
             this.addEventListeners();
 
+            // Add containerElement to wrapper
+            this.element.appendChild(this.containerElement);
+
             // Add to container if provided
             if (this.container) {
-                this.container.appendChild(this.containerElement);
+                this.container.appendChild(this.element);
             }
 
-            return this.containerElement;
+            return this.element;
         }
 
         /**
@@ -9249,10 +9306,6 @@
             const promptModeContainer = document.createElement('div');
             promptModeContainer.style.marginBottom = '12px';
 
-            const promptModeLabel = document.createElement('label');
-            promptModeLabel.textContent = 'Prompt Mode:';
-            promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
-
             this.promptModeSelect = new SelectBox({
                 items: [
                     { value: 'single', label: 'Single Prompt (same for all iterations)', selected: (this.settings.PROMPT_MODE || 'single') === 'single' },
@@ -9261,6 +9314,7 @@
                 ],
                 name: 'prompt-mode',
                 id: 'prompt-mode-select',
+                label: 'Prompt Mode:',
                 placeholder: 'Select prompt mode',
                 container: promptModeContainer,
                 theme: 'default',
@@ -9271,8 +9325,6 @@
                     this.updatePromptInputVisibility();
                 }
             });
-
-            promptModeContainer.appendChild(promptModeLabel);
 
             // Single prompt input
             this.singlePromptContainer = document.createElement('div');
@@ -9333,10 +9385,6 @@ Third prompt`;
             const basePromptPositionContainer = document.createElement('div');
             basePromptPositionContainer.style.cssText = 'margin-bottom: 8px; margin-top: 12px; display: flex; align-items: center; gap: 8px;';
 
-            const basePromptPositionLabel = document.createElement('label');
-            basePromptPositionLabel.textContent = 'Position:';
-            basePromptPositionLabel.style.cssText = 'font-size: 12px; color: #555; font-weight: 500;';
-
             const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
             this.basePromptPositionSelect = new SelectBox({
                 items: [
@@ -9345,6 +9393,8 @@ Third prompt`;
                 ],
                 name: 'base-prompt-position',
                 id: 'base-prompt-position-select',
+                label: 'Position:',
+                labelPosition: 'inline',
                 placeholder: 'Select position',
                 container: basePromptPositionContainer,
                 theme: 'default',
@@ -9360,8 +9410,6 @@ Third prompt`;
                     }
                 }
             });
-
-            basePromptPositionContainer.appendChild(basePromptPositionLabel);
 
             const basePromptPlaceholder = (this.settings.BASE_PROMPT_POSITION || 'after') === 'before' 
                 ? 'Enter base prompt to prepend to each prompt (optional)'
@@ -9566,10 +9614,6 @@ Third prompt`;
             const ttsModeContainer = document.createElement('div');
             ttsModeContainer.style.marginBottom = '12px';
 
-            const ttsModeLabel = document.createElement('label');
-            ttsModeLabel.textContent = 'TTS Mode:';
-            ttsModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
-
             this.ttsModeSelect = new SelectBox({
                 items: [
                     { value: 'single', label: 'Single Text (chunked automatically)', selected: (this.settings.TTS_MODE || 'single') === 'single' },
@@ -9577,6 +9621,7 @@ Third prompt`;
                 ],
                 name: 'tts-mode',
                 id: 'tts-mode-select',
+                label: 'TTS Mode:',
                 placeholder: 'Select TTS mode',
                 container: ttsModeContainer,
                 theme: 'default',
@@ -9587,8 +9632,6 @@ Third prompt`;
                     this.updateTTSInputVisibility();
                 }
             });
-
-            ttsModeContainer.appendChild(ttsModeLabel);
 
             // Single text input container
             this.ttsSingleTextContainer = document.createElement('div');
@@ -10135,11 +10178,6 @@ Third prompt`;
             });
 
             // Strategy selector
-            const strategyLabel = document.createElement('label');
-            strategyLabel.textContent = 'Chunking strategy:';
-            strategyLabel.style.cssText = 'display: block; margin-top: 8px; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
-            optionsContainer.appendChild(strategyLabel);
-
             this.chunkedStrategySelect = new SelectBox({
                 items: [
                     { value: 'soft', label: 'Soft (allow overflow to finish sentence)', selected: (this.settings.CHUNKED_STRATEGY || 'soft') === 'soft' },
@@ -10147,6 +10185,7 @@ Third prompt`;
                 ],
                 name: 'chunked-strategy',
                 id: 'chunked-strategy-select',
+                label: 'Chunking strategy:',
                 placeholder: 'Select strategy',
                 container: optionsContainer,
                 theme: 'default',
