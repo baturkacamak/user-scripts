@@ -8604,7 +8604,11 @@
             TTS_DOWNLOAD_DELAY_MS: 'gaise-tts-download-delay-ms',
             TTS_STYLE_PROMPT: 'gaise-tts-style-prompt',
             TTS_TEMPERATURE: 'gaise-tts-temperature',
-            TTS_VOICE: 'gaise-tts-voice'
+            TTS_VOICE: 'gaise-tts-voice',
+            CHUNKED_TEXT: 'gaise-chunked-text',
+            CHUNKED_BASE_PROMPT: 'gaise-chunked-base-prompt',
+            CHUNKED_WORDS_PER_CHUNK: 'gaise-chunked-words-per-chunk',
+            CHUNKED_STRATEGY: 'gaise-chunked-strategy'
         };
 
         static DEFAULT_SETTINGS = {
@@ -8629,7 +8633,11 @@
             TTS_DOWNLOAD_DELAY_MS: 5000,
             TTS_STYLE_PROMPT: '',
             TTS_TEMPERATURE: 0.75,
-            TTS_VOICE: ''
+            TTS_VOICE: '',
+            CHUNKED_TEXT: '',
+            CHUNKED_BASE_PROMPT: '',
+            CHUNKED_WORDS_PER_CHUNK: 500,
+            CHUNKED_STRATEGY: 'soft'
         };
 
         static EVENTS = {
@@ -8859,8 +8867,14 @@
                 .auto-run-prompt-textarea textarea,
                 .auto-run-multiple-prompts-textarea textarea,
                 .auto-run-base-prompt-multiple-textarea textarea,
-                .auto-run-template-prompt-textarea textarea {
+                .auto-run-template-prompt-textarea textarea,
+                .chunked-base-prompt-textarea textarea {
                     max-height: 200px !important;
+                    overflow-y: auto !important;
+                }
+                
+                .chunked-text-textarea textarea {
+                    max-height: 300px !important;
                     overflow-y: auto !important;
                 }
                 
@@ -8982,6 +8996,15 @@
                         content: () => {
                             const tabContent = document.createElement('div');
                             this.createTTSSection(tabContent);
+                            return tabContent;
+                        }
+                    },
+                    {
+                        id: 'chunked-text',
+                        label: '📝 Chunked Text',
+                        content: () => {
+                            const tabContent = document.createElement('div');
+                            this.createChunkedTextSection(tabContent);
                             return tabContent;
                         }
                     },
@@ -9685,6 +9708,163 @@ Third prompt`;
             section.appendChild(startCountContainer);
             section.appendChild(ttsButtonContainer);
             section.appendChild(this.ttsStatusElement);
+
+            container.appendChild(section);
+        }
+
+        /**
+         * Create chunked text section
+         */
+        createChunkedTextSection(container) {
+            const section = document.createElement('div');
+            section.style.marginBottom = '20px';
+
+            const title = document.createElement('h3');
+            title.textContent = '📝 Chunked Text Posting';
+            title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+
+            // Info text
+            const infoText = document.createElement('div');
+            infoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px;';
+            infoText.appendChild(document.createTextNode('Chunk long text and post as a single prompt:'));
+            infoText.appendChild(document.createElement('br'));
+            infoText.appendChild(document.createTextNode('• Text will be split into chunks'));
+            infoText.appendChild(document.createElement('br'));
+            infoText.appendChild(document.createTextNode('• All chunks will be combined with "---" separator'));
+            infoText.appendChild(document.createElement('br'));
+            infoText.appendChild(document.createTextNode('• Final prompt: Base prompt + (chunk1 --- chunk2 --- ...)'));
+            section.appendChild(infoText);
+
+            // Text to chunk
+            const textLabel = document.createElement('label');
+            textLabel.textContent = 'Text to Chunk:';
+            textLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+            section.appendChild(textLabel);
+
+            this.chunkedTextArea = new TextArea({
+                value: this.settings.CHUNKED_TEXT || '',
+                placeholder: 'Enter the long text you want to chunk...',
+                rows: 8,
+                theme: 'primary',
+                size: 'medium',
+                className: 'chunked-text-textarea',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+                onInput: (event, textArea) => {
+                    this.settings.CHUNKED_TEXT = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: section,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            // Base prompt
+            const basePromptLabel = document.createElement('label');
+            basePromptLabel.textContent = 'Base Prompt:';
+            basePromptLabel.style.cssText = 'display: block; margin-top: 12px; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+            section.appendChild(basePromptLabel);
+
+            this.chunkedBasePromptArea = new TextArea({
+                value: this.settings.CHUNKED_BASE_PROMPT || '',
+                placeholder: 'Enter base prompt (chunks will be appended with --- separator)',
+                rows: 3,
+                theme: 'primary',
+                size: 'medium',
+                className: 'chunked-base-prompt-textarea',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+                onInput: (event, textArea) => {
+                    this.settings.CHUNKED_BASE_PROMPT = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: section,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            // Chunking options
+            const optionsContainer = document.createElement('div');
+            optionsContainer.style.cssText = 'margin-top: 12px; padding: 8px; background: #f9f9f9; border-radius: 4px;';
+
+            // Words per chunk
+            const wordsLabel = document.createElement('label');
+            wordsLabel.textContent = 'Words per chunk:';
+            wordsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            optionsContainer.appendChild(wordsLabel);
+
+            this.chunkedWordsPerChunkInput = new Input({
+                type: 'number',
+                value: this.settings.CHUNKED_WORDS_PER_CHUNK || 500,
+                placeholder: 'Words per chunk',
+                min: 10,
+                max: 5000,
+                className: 'chunked-words-per-chunk-input',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true', step: '50' },
+                scopeSelector: `#${this.enhancerId}`,
+                validator: (value) => {
+                    const num = parseInt(value, 10);
+                    if (isNaN(num) || num < 10) {
+                        return 'Please enter a number between 10 and 5000';
+                    }
+                    if (num > 5000) {
+                        return 'Maximum 5000 words per chunk';
+                    }
+                    return true;
+                },
+                onChange: (event, input) => {
+                    const value = parseInt(input.getValue(), 10);
+                    if (!isNaN(value) && value >= 10 && value <= 5000) {
+                        this.settings.CHUNKED_WORDS_PER_CHUNK = value;
+                        this.saveSettings();
+                    }
+                },
+                container: optionsContainer
+            });
+
+            // Strategy selector
+            const strategyLabel = document.createElement('label');
+            strategyLabel.textContent = 'Chunking strategy:';
+            strategyLabel.style.cssText = 'display: block; margin-top: 8px; margin-bottom: 4px; font-size: 12px; color: #555;';
+            optionsContainer.appendChild(strategyLabel);
+
+            this.chunkedStrategySelect = new SelectBox({
+                items: [
+                    { value: 'soft', label: 'Soft (allow overflow to finish sentence)', selected: (this.settings.CHUNKED_STRATEGY || 'soft') === 'soft' },
+                    { value: 'hard', label: 'Hard (strict cut at boundary)', selected: (this.settings.CHUNKED_STRATEGY || 'soft') === 'hard' }
+                ],
+                name: 'chunked-strategy',
+                id: 'chunked-strategy-select',
+                placeholder: 'Select strategy',
+                container: optionsContainer,
+                theme: 'default',
+                size: 'small',
+                onChange: (value) => {
+                    this.settings.CHUNKED_STRATEGY = value;
+                    this.saveSettings();
+                }
+            });
+
+            section.appendChild(optionsContainer);
+
+            // Post button
+            const postButtonContainer = document.createElement('div');
+            postButtonContainer.style.cssText = 'margin-top: 12px; margin-bottom: 10px;';
+
+            this.chunkedPostButton = new Button({
+                text: 'Chunk & Post to AI Studio',
+                theme: 'primary',
+                size: 'medium',
+                onClick: (event) => this.handleChunkedTextPost(event),
+                className: 'chunked-post-button',
+                container: postButtonContainer
+            });
+
+            section.appendChild(postButtonContainer);
+
+            // Status display
+            this.chunkedStatusElement = document.createElement('div');
+            this.chunkedStatusElement.textContent = 'Ready to chunk and post';
+            this.chunkedStatusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center; margin-top: 8px;';
+            section.appendChild(this.chunkedStatusElement);
 
             container.appendChild(section);
         }
@@ -10799,6 +10979,118 @@ Third prompt`;
                 this.toggleTTS();
             } else {
                 Logger.warn('Programmatic TTS toggle button click detected - ignoring');
+            }
+        }
+
+        /**
+         * Handle chunked text post button click
+         */
+        async handleChunkedTextPost(event) {
+            const isUserInitiated = this.userInteraction.isUserEvent(event);
+            
+            Logger.info('Chunked text post button clicked', {
+                isUserInitiated
+            });
+
+            if (!isUserInitiated) {
+                Logger.warn('Programmatic chunked text post button click detected - ignoring');
+                return;
+            }
+
+            await this.postChunkedText();
+        }
+
+        /**
+         * Post chunked text to AI Studio
+         */
+        async postChunkedText() {
+            try {
+                // Get text and base prompt
+                const text = this.settings.CHUNKED_TEXT || '';
+                const basePrompt = this.settings.CHUNKED_BASE_PROMPT || '';
+
+                if (!text.trim()) {
+                    this.showNotification('Please enter text to chunk', 'error');
+                    this.chunkedStatusElement.textContent = 'Error: No text to chunk';
+                    this.chunkedStatusElement.style.color = '#d32f2f';
+                    return;
+                }
+
+                // Update UI
+                if (this.chunkedPostButton) {
+                    this.chunkedPostButton.setText('Chunking & Posting...');
+                    this.chunkedPostButton.setDisabled(true);
+                }
+                this.chunkedStatusElement.textContent = 'Chunking text...';
+                this.chunkedStatusElement.style.color = '#666';
+
+                // Initialize TextChunker
+                const wordsPerChunk = this.settings.CHUNKED_WORDS_PER_CHUNK || 500;
+                const strategy = this.settings.CHUNKED_STRATEGY === 'hard' 
+                    ? TextChunker.STRATEGY.HARD_LIMIT 
+                    : TextChunker.STRATEGY.SOFT_LIMIT;
+
+                // Chunk the text
+                const chunks = this.textChunker.splitByWords(text, wordsPerChunk, {
+                    strategy: strategy,
+                    respectSentenceBoundaries: true,
+                    preserveWhitespace: true
+                });
+
+                if (chunks.length === 0) {
+                    this.showNotification('No chunks generated. Text might be too short.', 'warning');
+                    this.chunkedStatusElement.textContent = 'Error: No chunks generated';
+                    this.chunkedStatusElement.style.color = '#d32f2f';
+                    if (this.chunkedPostButton) {
+                        this.chunkedPostButton.setDisabled(false);
+                        this.chunkedPostButton.setText('Chunk & Post to AI Studio');
+                    }
+                    return;
+                }
+
+                Logger.info(`Generated ${chunks.length} chunks from text`);
+
+                // Combine chunks with "---" separator
+                const chunksCombined = chunks.join('\n---\n');
+
+                // Combine base prompt + chunks
+                let finalPrompt = '';
+                if (basePrompt.trim()) {
+                    finalPrompt = `${basePrompt.trim()}\n\n${chunksCombined}`;
+                } else {
+                    finalPrompt = chunksCombined;
+                }
+
+                // Update status
+                this.chunkedStatusElement.textContent = `Posting ${chunks.length} chunks to AI Studio...`;
+                this.chunkedStatusElement.style.color = '#666';
+
+                // Type the prompt into the textarea
+                await this.typePrompt(finalPrompt);
+
+                // Small delay to let the UI settle
+                await this.delay(300);
+
+                // Click run button
+                await this.clickRunButton();
+
+                // Update status
+                this.chunkedStatusElement.textContent = `Posted ${chunks.length} chunks successfully!`;
+                this.chunkedStatusElement.style.color = '#2e7d32';
+                this.showNotification(`Posted ${chunks.length} chunks to AI Studio`, 'success');
+
+                Logger.success(`Posted ${chunks.length} chunks to AI Studio`);
+
+            } catch (error) {
+                Logger.error('Error posting chunked text:', error);
+                this.showNotification(`Error: ${error.message}`, 'error');
+                this.chunkedStatusElement.textContent = `Error: ${error.message}`;
+                this.chunkedStatusElement.style.color = '#d32f2f';
+            } finally {
+                if (this.chunkedPostButton) {
+                    this.chunkedPostButton.setDisabled(false);
+                    this.chunkedPostButton.setText('Chunk & Post to AI Studio');
+                }
             }
         }
 
