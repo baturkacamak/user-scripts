@@ -122,10 +122,14 @@ class InfoBox {
         } else if (Array.isArray(content)) {
             // Append multiple elements
             content.forEach(item => {
-                if (item instanceof HTMLElement) {
+                if (item instanceof HTMLElement || item instanceof Text) {
+                    // Handle both HTML elements and Text nodes
                     infoBox.appendChild(item);
                 } else if (typeof item === 'string') {
                     infoBox.appendChild(document.createTextNode(item));
+                } else if (item instanceof Node) {
+                    // Handle any other Node type (e.g., Comment, DocumentFragment)
+                    infoBox.appendChild(item);
                 }
             });
         }

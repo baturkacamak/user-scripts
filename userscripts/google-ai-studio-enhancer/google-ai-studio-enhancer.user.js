@@ -8519,6 +8519,190 @@
       }
     }
 
+    /**
+     * InfoBox - A reusable UI component for informational callout boxes
+     * Provides consistent styling for info, warning, and notice boxes
+     */
+
+    class InfoBox {
+        static BASE_INFOBOX_CLASS = 'userscript-infobox';
+        static VARIANTS = {
+            info: 'info',
+            warning: 'warning',
+            success: 'success',
+            error: 'error',
+            default: 'default'
+        };
+
+        /**
+         * Initialize default styles for InfoBox components
+         */
+        static initStyles(options = {}) {
+            const { scopeSelector = '' } = options;
+            const styleId = `infobox-component${scopeSelector ? '-' + scopeSelector.replace(/[^a-zA-Z0-9]/g, '') : ''}`;
+
+            if (StyleManager.hasStyles(styleId)) {
+                return;
+            }
+
+            const selectorPrefix = scopeSelector ? `${scopeSelector} ` : '';
+
+            const styles = `
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS} {
+                font-size: 11px;
+                color: #666;
+                margin-bottom: 12px;
+                padding: 8px;
+                background: #f5f5f5;
+                border-radius: 4px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.5;
+            }
+
+            /* Variants */
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--info {
+                background: #e3f2fd;
+                color: #1565c0;
+                border-left: 3px solid #2196f3;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--warning {
+                background: #fff3e0;
+                color: #e65100;
+                border-left: 3px solid #ff9800;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--success {
+                background: #e8f5e9;
+                color: #2e7d32;
+                border-left: 3px solid #4caf50;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--error {
+                background: #ffebee;
+                color: #c62828;
+                border-left: 3px solid #f44336;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--default {
+                background: #f5f5f5;
+                color: #666;
+            }
+        `;
+
+            StyleManager.addStyles(styles, styleId);
+        }
+
+        /**
+         * Create an InfoBox element
+         * @param {Object} options - Configuration options
+         * @param {string|HTMLElement} options.content - Text content or HTML element(s) to display
+         * @param {string} [options.variant='default'] - Variant (info, warning, success, error, default)
+         * @param {HTMLElement} [options.container] - Container to append the InfoBox to
+         * @param {string} [options.className] - Additional CSS class
+         * @param {string} [options.scopeSelector] - Scope selector for styles
+         * @param {boolean} [options.html=false] - Whether to interpret content as HTML (use with caution)
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static create(options = {}) {
+            const {
+                content = '',
+                variant = 'default',
+                container = null,
+                className = '',
+                scopeSelector = '',
+                html = false
+            } = options;
+
+            // Initialize styles
+            InfoBox.initStyles({ scopeSelector });
+
+            // Create the InfoBox element
+            const infoBox = document.createElement('div');
+            infoBox.className = `${InfoBox.BASE_INFOBOX_CLASS} ${InfoBox.BASE_INFOBOX_CLASS}--${variant} ${className}`.trim();
+
+            // Set content
+            if (html && typeof content === 'string') {
+                // Use innerHTML only if explicitly requested (security risk, but sometimes needed)
+                infoBox.innerHTML = content;
+            } else if (typeof content === 'string') {
+                // Safe text content - split by newlines and create elements
+                const lines = content.split('\n');
+                lines.forEach((line, index) => {
+                    if (line.trim()) {
+                        infoBox.appendChild(document.createTextNode(line));
+                    }
+                    if (index < lines.length - 1) {
+                        infoBox.appendChild(document.createElement('br'));
+                    }
+                });
+            } else if (content instanceof HTMLElement) {
+                // Append element directly
+                infoBox.appendChild(content);
+            } else if (Array.isArray(content)) {
+                // Append multiple elements
+                content.forEach(item => {
+                    if (item instanceof HTMLElement || item instanceof Text) {
+                        // Handle both HTML elements and Text nodes
+                        infoBox.appendChild(item);
+                    } else if (typeof item === 'string') {
+                        infoBox.appendChild(document.createTextNode(item));
+                    } else if (item instanceof Node) {
+                        // Handle any other Node type (e.g., Comment, DocumentFragment)
+                        infoBox.appendChild(item);
+                    }
+                });
+            }
+
+            // Append to container if provided
+            if (container) {
+                container.appendChild(infoBox);
+            }
+
+            return infoBox;
+        }
+
+        /**
+         * Convenience method to create an info variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static info(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'info' });
+        }
+
+        /**
+         * Convenience method to create a warning variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static warning(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'warning' });
+        }
+
+        /**
+         * Convenience method to create a success variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static success(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'success' });
+        }
+
+        /**
+         * Convenience method to create an error variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static error(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'error' });
+        }
+    }
+
     // Import core components
 
     // Configure logger
@@ -9056,13 +9240,18 @@
             const section = document.createElement('div');
             section.style.marginBottom = '20px';
 
+            const title = document.createElement('h3');
+            title.textContent = '🔄 Prompt Automation';
+            title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+            section.appendChild(title);
+
             // Prompt mode selector
             const promptModeContainer = document.createElement('div');
             promptModeContainer.style.marginBottom = '12px';
 
             const promptModeLabel = document.createElement('label');
             promptModeLabel.textContent = 'Prompt Mode:';
-            promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            promptModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.promptModeSelect = new SelectBox({
                 items: [
@@ -9209,11 +9398,7 @@ Third prompt`;
 
             const startCountLabel = document.createElement('label');
             startCountLabel.textContent = 'Start from prompt number:';
-            startCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
-
-            const startCountInfo = document.createElement('div');
-            startCountInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
-            startCountInfo.textContent = 'Set to 0 to start from the first prompt (1-indexed)';
+            startCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.multiplePromptsStartCountInput = new Input({
                 type: 'number',
@@ -9243,7 +9428,13 @@ Third prompt`;
             });
 
             startCountContainer.appendChild(startCountLabel);
-            startCountContainer.appendChild(startCountInfo);
+
+            InfoBox.create({
+                content: 'Set to 0 to start from the first prompt (1-indexed)',
+                variant: 'default',
+                container: startCountContainer,
+                scopeSelector: `#${this.enhancerId}`
+            });
 
             this.multiplePromptContainer.appendChild(startCountContainer);
 
@@ -9254,7 +9445,7 @@ Third prompt`;
 
             const templatePromptLabel = document.createElement('label');
             templatePromptLabel.textContent = 'Template Prompt (use {iteration}, {total}, {timestamp}):';
-            templatePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            templatePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.templatePromptTextArea = new TextArea({
                 value: this.settings.TEMPLATE_PROMPT || 'This is iteration {iteration} of {total}. Please provide a response.',
@@ -9281,7 +9472,7 @@ Third prompt`;
 
             const iterationsLabel = document.createElement('label');
             iterationsLabel.textContent = 'Number of iterations:';
-            iterationsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            iterationsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.iterationsInfoText = document.createElement('div');
             this.iterationsInfoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
@@ -9423,7 +9614,7 @@ Third prompt`;
 
             const textLabel = document.createElement('label');
             textLabel.textContent = 'Text to convert (will be split into chunks):';
-            textLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            textLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsTextArea = new TextArea({
                 value: this.settings.TTS_TEXT || '',
@@ -9457,11 +9648,7 @@ Third prompt`;
 
             const episodesLabel = document.createElement('label');
             episodesLabel.textContent = 'Episodes (separated by ---):';
-            episodesLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
-
-            const episodesInfo = document.createElement('div');
-            episodesInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
-            episodesInfo.textContent = 'Each episode will be chunked independently. Example: Episode 1 text --- Episode 2 text --- Episode 3 text';
+            episodesLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsEpisodesArea = new TextArea({
                 value: this.settings.TTS_EPISODES || '',
@@ -9491,11 +9678,7 @@ Third prompt`;
 
             const episodeStartLabel = document.createElement('label');
             episodeStartLabel.textContent = 'Episode start number (processing):';
-            episodeStartLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
-
-            const episodeStartInfo = document.createElement('div');
-            episodeStartInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
-            episodeStartInfo.textContent = 'Which episode in the textarea to start processing from (1 = first episode)';
+            episodeStartLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsEpisodeStartInput = new Input({
                 type: 'number',
@@ -9525,7 +9708,13 @@ Third prompt`;
             });
 
             episodeStartContainer.appendChild(episodeStartLabel);
-            episodeStartContainer.appendChild(episodeStartInfo);
+
+            InfoBox.create({
+                content: 'Which episode in the textarea to start processing from (1 = first episode)',
+                variant: 'default',
+                container: episodeStartContainer,
+                scopeSelector: `#${this.enhancerId}`
+            });
 
             // Episode filename start number input (separate from processing start number)
             const episodeFilenameStartContainer = document.createElement('div');
@@ -9534,11 +9723,7 @@ Third prompt`;
 
             const episodeFilenameStartLabel = document.createElement('label');
             episodeFilenameStartLabel.textContent = 'Episode filename start number:';
-            episodeFilenameStartLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
-
-            const episodeFilenameStartInfo = document.createElement('div');
-            episodeFilenameStartInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
-            episodeFilenameStartInfo.textContent = 'The episode number to use in filenames (e.g., if pasting episodes 16-18, set to 16)';
+            episodeFilenameStartLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsEpisodeFilenameStartInput = new Input({
                 type: 'number',
@@ -9568,10 +9753,23 @@ Third prompt`;
             });
 
             episodeFilenameStartContainer.appendChild(episodeFilenameStartLabel);
-            episodeFilenameStartContainer.appendChild(episodeFilenameStartInfo);
+
+            InfoBox.create({
+                content: 'The episode number to use in filenames (e.g., if pasting episodes 16-18, set to 16)',
+                variant: 'default',
+                container: episodeFilenameStartContainer,
+                scopeSelector: `#${this.enhancerId}`
+            });
 
             this.ttsEpisodesContainer.appendChild(episodesLabel);
-            this.ttsEpisodesContainer.appendChild(episodesInfo);
+
+            InfoBox.create({
+                content: 'Each episode will be chunked independently. Example: Episode 1 text --- Episode 2 text --- Episode 3 text',
+                variant: 'default',
+                container: this.ttsEpisodesContainer,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
             this.ttsEpisodesContainer.appendChild(episodeStartContainer);
             this.ttsEpisodesContainer.appendChild(episodeFilenameStartContainer);
 
@@ -9582,7 +9780,7 @@ Third prompt`;
 
             const stylePromptLabel = document.createElement('label');
             stylePromptLabel.textContent = 'Style instructions (kept across refresh):';
-            stylePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            stylePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             stylePromptContainer.appendChild(stylePromptLabel);
 
@@ -9607,14 +9805,17 @@ Third prompt`;
                 scopeSelector: `#${this.enhancerId}`
             });
 
+            // TTS Options container (similar to Chunked Text)
+            const ttsOptionsContainer = document.createElement('div');
+            ttsOptionsContainer.style.cssText = 'margin-top: 12px; padding: 8px; background: #f9f9f9; border-radius: 4px;';
+
             // Words per chunk input
             const wordsPerChunkContainer = document.createElement('div');
             wordsPerChunkContainer.style.marginBottom = '12px';
-            wordsPerChunkContainer.style.marginTop = '12px';
 
             const wordsPerChunkLabel = document.createElement('label');
             wordsPerChunkLabel.textContent = 'Words per chunk:';
-            wordsPerChunkLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            wordsPerChunkLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsWordsPerChunkInput = new Input({
                 type: 'number',
@@ -9646,6 +9847,7 @@ Third prompt`;
             });
 
             wordsPerChunkContainer.appendChild(wordsPerChunkLabel);
+            ttsOptionsContainer.appendChild(wordsPerChunkContainer);
 
             // Temperature input
             const temperatureContainer = document.createElement('div');
@@ -9653,7 +9855,7 @@ Third prompt`;
 
             const temperatureLabel = document.createElement('label');
             temperatureLabel.textContent = 'Temperature (0 - 2):';
-            temperatureLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            temperatureLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             temperatureContainer.appendChild(temperatureLabel);
 
@@ -9687,13 +9889,15 @@ Third prompt`;
                 container: temperatureContainer
             });
 
+            ttsOptionsContainer.appendChild(temperatureContainer);
+
             // Voice selection input
             const voiceContainer = document.createElement('div');
             voiceContainer.style.marginBottom = '12px';
 
             const voiceLabel = document.createElement('label');
             voiceLabel.textContent = 'Voice name (as shown in selector):';
-            voiceLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            voiceLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             voiceContainer.appendChild(voiceLabel);
 
@@ -9717,13 +9921,7 @@ Third prompt`;
 
             const filenamePrefixLabel = document.createElement('label');
             filenamePrefixLabel.textContent = 'Filename pattern:';
-            filenamePrefixLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
-
-            const filenameInfo = document.createElement('div');
-            filenameInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
-            filenameInfo.appendChild(document.createTextNode('Use variables: {episodeNum}, {chunkNum}, {timestamp}'));
-            filenameInfo.appendChild(document.createElement('br'));
-            filenameInfo.appendChild(document.createTextNode('Example: agi-bolum-{episodeNum}-chunk-{chunkNum}-{timestamp}'));
+            filenamePrefixLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsFilenamePrefixInput = new Input({
                 type: 'text',
@@ -9740,7 +9938,19 @@ Third prompt`;
             });
 
             filenamePrefixContainer.appendChild(filenamePrefixLabel);
-            filenamePrefixContainer.appendChild(filenameInfo);
+
+            const filenameInfoContent = [
+                document.createTextNode('Use variables: {episodeNum}, {chunkNum}, {timestamp}'),
+                document.createElement('br'),
+                document.createTextNode('Example: agi-bolum-{episodeNum}-chunk-{chunkNum}-{timestamp}')
+            ];
+
+            InfoBox.create({
+                content: filenameInfoContent,
+                variant: 'default',
+                container: filenamePrefixContainer,
+                scopeSelector: `#${this.enhancerId}`
+            });
 
             // Retry count input
             const retryCountContainer = document.createElement('div');
@@ -9748,7 +9958,7 @@ Third prompt`;
 
             const retryCountLabel = document.createElement('label');
             retryCountLabel.textContent = 'Retry count (on timeout):';
-            retryCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            retryCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsRetryCountInput = new Input({
                 type: 'number',
@@ -9787,7 +9997,7 @@ Third prompt`;
 
             const downloadDelayLabel = document.createElement('label');
             downloadDelayLabel.textContent = 'Delay before download (ms):';
-            downloadDelayLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            downloadDelayLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             this.ttsDownloadDelayInput = new Input({
                 type: 'number',
@@ -9826,7 +10036,7 @@ Third prompt`;
 
             const startCountLabel = document.createElement('label');
             startCountLabel.textContent = 'Start from chunk number:';
-            startCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            startCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
 
             // Get current chunk number for default (1-indexed)
             const currentChunkNumber = this.currentTTSChunk || 0;
@@ -9884,8 +10094,7 @@ Third prompt`;
             section.appendChild(this.ttsSingleTextContainer);
             section.appendChild(this.ttsEpisodesContainer);
             section.appendChild(stylePromptContainer);
-            section.appendChild(wordsPerChunkContainer);
-            section.appendChild(temperatureContainer);
+            section.appendChild(ttsOptionsContainer);
             section.appendChild(voiceContainer);
             section.appendChild(filenamePrefixContainer);
             section.appendChild(retryCountContainer);
@@ -9912,16 +10121,22 @@ Third prompt`;
             title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
             // Info text
-            const infoText = document.createElement('div');
-            infoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px;';
-            infoText.appendChild(document.createTextNode('Chunk long text and post as a single prompt:'));
-            infoText.appendChild(document.createElement('br'));
-            infoText.appendChild(document.createTextNode('• Text will be split into chunks'));
-            infoText.appendChild(document.createElement('br'));
-            infoText.appendChild(document.createTextNode('• All chunks will be combined with "---" separator'));
-            infoText.appendChild(document.createElement('br'));
-            infoText.appendChild(document.createTextNode('• Final prompt: Base prompt + (chunk1 --- chunk2 --- ...)'));
-            section.appendChild(infoText);
+            const infoContent = [
+                document.createTextNode('Chunk long text and post as a single prompt:'),
+                document.createElement('br'),
+                document.createTextNode('• Text will be split into chunks'),
+                document.createElement('br'),
+                document.createTextNode('• All chunks will be combined with "---" separator'),
+                document.createElement('br'),
+                document.createTextNode('• Final prompt: Base prompt + (chunk1 --- chunk2 --- ...)')
+            ];
+            
+            InfoBox.create({
+                content: infoContent,
+                variant: 'default',
+                container: section,
+                scopeSelector: `#${this.enhancerId}`
+            });
 
             // Text to chunk
             const textLabel = document.createElement('label');
@@ -10062,6 +10277,7 @@ Third prompt`;
          */
         createSettingsSection(container) {
             const section = document.createElement('div');
+            section.style.marginBottom = '20px';
 
             const title = document.createElement('h3');
             title.textContent = '⚙️ Settings';
@@ -10072,7 +10288,7 @@ Third prompt`;
 
             const interactionTitle = document.createElement('h4');
             interactionTitle.textContent = '👆 User Interaction Detection';
-            interactionTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500; color: #555;';
+            interactionTitle.style.cssText = 'margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: #333;';
 
             this.interactionStatsElement = document.createElement('div');
             this.updateInteractionStats();
