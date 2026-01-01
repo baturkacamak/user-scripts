@@ -1,14 +1,16 @@
 // Import core components
 import {
     Button,
-    FormStatePersistence,
+    Checkbox,
     HTMLUtils,
+    Input,
     Logger,
     Notification,
     SidebarPanel,
     StyleManager,
     TextArea,
-    Tabs
+    Tabs,
+    TextChunker
 } from "../../common/core";
 import { getValue, setValue } from "../../common/core/utils/GMFunctions";
 
@@ -86,7 +88,12 @@ class GeminiEnhancer {
         GENERATION_TYPE: 'gemini-generation-type',
         QUEUE_DELAY: 'gemini-queue-delay',
         SHOW_NOTIFICATIONS: 'gemini-show-notifications',
-        PANEL_POSITION: 'gemini-panel-position'
+        PANEL_POSITION: 'gemini-panel-position',
+        CHUNKED_TEXT: 'gemini-chunked-text',
+        CHUNKED_BASE_PROMPT: 'gemini-chunked-base-prompt',
+        CHUNKED_WORDS_PER_CHUNK: 'gemini-chunked-words-per-chunk',
+        CHUNKED_STRATEGY: 'gemini-chunked-strategy',
+        CHUNKED_APPEND_TO_QUEUE: 'gemini-chunked-append-to-queue'
     };
 
     static DEFAULT_SETTINGS = {
@@ -94,7 +101,12 @@ class GeminiEnhancer {
         GENERATION_TYPE: 'text', // 'text', 'image', 'video'
         QUEUE_DELAY: 2000,
         SHOW_NOTIFICATIONS: true,
-        PANEL_POSITION: { x: 20, y: 20 }
+        PANEL_POSITION: { x: 20, y: 20 },
+        CHUNKED_TEXT: '',
+        CHUNKED_BASE_PROMPT: '',
+        CHUNKED_WORDS_PER_CHUNK: 500,
+        CHUNKED_STRATEGY: 'soft',
+        CHUNKED_APPEND_TO_QUEUE: false // false = clean and replace, true = append
     };
 
     constructor() {
@@ -112,7 +124,7 @@ class GeminiEnhancer {
         this.settings = { ...GeminiEnhancer.DEFAULT_SETTINGS };
         this.sidebarPanel = null;
         this.enhancerId = 'gemini-enhancer-container';
-        this.formStatePersistence = null;
+        this.generatedChunkedPrompts = [];
 
         Logger.info("Initializing Gemini Enhancer");
 
@@ -239,6 +251,10 @@ class GeminiEnhancer {
                 TextArea.useDefaultColors();
                 Tabs.initStyles();
                 Tabs.useDefaultColors();
+                Input.initStyles();
+                Input.useDefaultColors();
+                Checkbox.initStyles();
+                Checkbox.useDefaultColors();
             } catch (error) {
                 Logger.error('Error initializing styles:', error);
             }
@@ -270,61 +286,12 @@ class GeminiEnhancer {
             `);
 
             this.createUI();
-            this.setupFormStatePersistence();
             Logger.info("Gemini Enhancer initialized successfully");
         } catch (error) {
             Logger.error("Error during initialization:", error);
         }
     }
 
-    /**
-     * Setup form state persistence for prompts textarea
-     */
-    setupFormStatePersistence() {
-        if (!this.promptsTextArea) {
-            Logger.warn("Prompts textarea not available for persistence");
-            return;
-        }
-
-        // Wait a bit for textarea to be fully initialized
-        setTimeout(() => {
-            try {
-                const containerElement = this.promptsTextArea.getElement();
-                if (!containerElement) {
-                    Logger.warn("Textarea container element not found");
-                    return;
-                }
-
-                // Find the actual textarea element inside the container
-                const textareaElement = containerElement.querySelector('textarea');
-                if (!textareaElement) {
-                    Logger.warn("Textarea element not found in container");
-                    return;
-                }
-
-                this.formStatePersistence = new FormStatePersistence({
-                    namespace: 'gemini-enhancer',
-                    fields: {
-                        prompts: {
-                            selector: () => textareaElement,
-                            type: 'textarea',
-                            defaultValue: '',
-                            validator: null
-                        }
-                    },
-                    getValue: getValue,
-                    setValue: setValue,
-                    autoSave: true,
-                    debounceDelay: 500,
-                    name: 'Gemini Enhancer Prompts'
-                });
-
-                Logger.debug("Form state persistence setup complete");
-            } catch (error) {
-                Logger.error("Error setting up form state persistence:", error);
-            }
-        }, 1000);
-    }
 
     /**
      * Create the UI
@@ -374,6 +341,11 @@ class GeminiEnhancer {
                     id: 'queue',
                     label: '📋 Queue',
                     content: () => this.createQueueSection()
+                },
+                {
+                    id: 'chunked',
+                    label: '✂️ Chunked Prompts',
+                    content: () => this.createChunkedPromptsSection()
                 },
                 {
                     id: 'settings',
@@ -445,8 +417,7 @@ class GeminiEnhancer {
             value: this.settings.PROMPTS_QUEUE || '',
             placeholder: 'Enter prompts separated by ---:\nFirst prompt\n---\nSecond prompt\n---\nThird prompt',
             rows: 10,
-            onChange: (textArea) => {
-                // FormStatePersistence will handle saving, but we also save to settings for compatibility
+            onInput: (event, textArea) => {
                 this.settings.PROMPTS_QUEUE = textArea.getValue();
                 this.saveSettings();
             },
@@ -487,34 +458,332 @@ class GeminiEnhancer {
         delayLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
         container.appendChild(delayLabel);
 
-        const delayInput = document.createElement('input');
-        delayInput.type = 'number';
-        delayInput.min = '500';
-        delayInput.max = '10000';
-        delayInput.step = '100';
-        delayInput.value = this.settings.QUEUE_DELAY || 2000;
-        delayInput.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-bottom: 12px;';
-        delayInput.onchange = (e) => {
-            this.settings.QUEUE_DELAY = parseInt(e.target.value, 10);
-            this.saveSettings();
-        };
-        container.appendChild(delayInput);
+        this.delayInput = new Input({
+            type: 'number',
+            value: this.settings.QUEUE_DELAY || 2000,
+            placeholder: 'Delay in milliseconds',
+            min: 500,
+            max: 10000,
+            attributes: { step: '100' },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 500 && value <= 10000) {
+                    this.settings.QUEUE_DELAY = value;
+                    this.saveSettings();
+                }
+            },
+            container: container,
+            scopeSelector: `#${this.enhancerId}`
+        });
+        this.delayInput.getElement().style.marginBottom = '12px';
 
         // Show notifications checkbox
-        const notificationsCheckbox = document.createElement('input');
-        notificationsCheckbox.type = 'checkbox';
-        notificationsCheckbox.checked = this.settings.SHOW_NOTIFICATIONS !== false;
-        notificationsCheckbox.onchange = (e) => {
-            this.settings.SHOW_NOTIFICATIONS = e.target.checked;
-            this.saveSettings();
-        };
-        const notificationsLabel = document.createElement('label');
-        notificationsLabel.style.cssText = 'display: flex; align-items: center; gap: 8px; font-size: 12px; color: #555; margin-top: 12px;';
-        notificationsLabel.appendChild(notificationsCheckbox);
-        notificationsLabel.appendChild(document.createTextNode('Show notifications'));
-        container.appendChild(notificationsLabel);
+        this.notificationsCheckbox = new Checkbox({
+            label: 'Show notifications',
+            checked: this.settings.SHOW_NOTIFICATIONS !== false,
+            onChange: (event) => {
+                this.settings.SHOW_NOTIFICATIONS = this.notificationsCheckbox.isChecked();
+                this.saveSettings();
+            },
+            container: container,
+            size: 'small'
+        });
+        this.notificationsCheckbox.checkboxContainer.style.marginTop = '12px';
 
         return container;
+    }
+
+    /**
+     * Create chunked prompts section
+     */
+    createChunkedPromptsSection() {
+        const container = document.createElement('div');
+        container.style.padding = '12px';
+
+        // Info text
+        const infoText = HTMLUtils.createElementWithHTML('div', 
+            'Chunk text and use variables in base prompt:<br/>• Use $chunk for current chunk (auto in loop)<br/>• Use $1, $2, $3... for chunk variables<br/>• Use $counter for current chunk index (1-based)<br/>• Use $total for total chunk count',
+            {}
+        );
+        infoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px;';
+        container.appendChild(infoText);
+
+        // Text to chunk
+        const textLabel = document.createElement('label');
+        textLabel.textContent = 'Text to Chunk:';
+        textLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+        container.appendChild(textLabel);
+
+        this.chunkedTextArea = new TextArea({
+            value: this.settings.CHUNKED_TEXT || '',
+            placeholder: 'Enter the text you want to chunk...',
+            rows: 8,
+            onInput: (event, textArea) => {
+                this.settings.CHUNKED_TEXT = textArea.getValue();
+                this.saveSettings();
+            },
+            container: container
+        });
+
+        // Base prompt template
+        const promptLabel = document.createElement('label');
+        promptLabel.textContent = 'Base Prompt Template:';
+        promptLabel.style.cssText = 'display: block; margin-top: 12px; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+        container.appendChild(promptLabel);
+
+        this.chunkedBasePromptArea = new TextArea({
+            value: this.settings.CHUNKED_BASE_PROMPT || '',
+            placeholder: 'Enter base prompt with variables:\nExample: Analyze this text: $chunk\nChunk $counter of $total',
+            rows: 6,
+            onInput: (event, textArea) => {
+                this.settings.CHUNKED_BASE_PROMPT = textArea.getValue();
+                this.saveSettings();
+            },
+            container: container
+        });
+
+        // Chunking options
+        const optionsContainer = document.createElement('div');
+        optionsContainer.style.cssText = 'margin-top: 12px; padding: 8px; background: #f9f9f9; border-radius: 4px;';
+
+        // Words per chunk
+        const wordsLabel = document.createElement('label');
+        wordsLabel.textContent = 'Words per chunk:';
+        wordsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+        optionsContainer.appendChild(wordsLabel);
+
+        this.wordsPerChunkInput = new Input({
+            type: 'number',
+            value: this.settings.CHUNKED_WORDS_PER_CHUNK || 500,
+            placeholder: 'Words per chunk',
+            min: 10,
+            max: 5000,
+            attributes: { step: '50' },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 10 && value <= 5000) {
+                    this.settings.CHUNKED_WORDS_PER_CHUNK = value;
+                    this.saveSettings();
+                }
+            },
+            container: optionsContainer,
+            scopeSelector: `#${this.enhancerId}`
+        });
+        this.wordsPerChunkInput.getElement().style.marginBottom = '8px';
+
+        // Strategy selector
+        const strategyLabel = document.createElement('label');
+        strategyLabel.textContent = 'Chunking strategy:';
+        strategyLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+        optionsContainer.appendChild(strategyLabel);
+
+        const strategySelect = document.createElement('select');
+        strategySelect.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
+        strategySelect.value = this.settings.CHUNKED_STRATEGY || 'soft';
+
+        const softOption = document.createElement('option');
+        softOption.value = 'soft';
+        softOption.textContent = 'Soft (allow overflow to finish sentence)';
+        strategySelect.appendChild(softOption);
+
+        const hardOption = document.createElement('option');
+        hardOption.value = 'hard';
+        hardOption.textContent = 'Hard (strict cut at boundary)';
+        strategySelect.appendChild(hardOption);
+
+        strategySelect.onchange = (e) => {
+            this.settings.CHUNKED_STRATEGY = e.target.value;
+            this.saveSettings();
+        };
+        optionsContainer.appendChild(strategySelect);
+
+        container.appendChild(optionsContainer);
+
+        // Generate button
+        const generateButton = new Button({
+            text: 'Generate Prompts',
+            onClick: () => this.generateChunkedPrompts(),
+            container: container
+        });
+        generateButton.button.style.marginTop = '12px';
+        this.generateChunkedButton = generateButton;
+
+        // Preview/Result area
+        const previewLabel = document.createElement('label');
+        previewLabel.textContent = 'Generated Prompts Preview:';
+        previewLabel.style.cssText = 'display: block; margin-top: 12px; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+        container.appendChild(previewLabel);
+
+        this.chunkedPreviewArea = new TextArea({
+            value: '',
+            placeholder: 'Generated prompts will appear here...',
+            rows: 8,
+            onChange: () => {},
+            container: container,
+            disabled: true
+        });
+
+        // Append to queue checkbox
+        this.appendToQueueCheckbox = new Checkbox({
+            label: 'Append to existing prompts (unchecked = clean and replace)',
+            checked: this.settings.CHUNKED_APPEND_TO_QUEUE || false,
+            onChange: (event) => {
+                this.settings.CHUNKED_APPEND_TO_QUEUE = this.appendToQueueCheckbox.isChecked();
+                this.saveSettings();
+            },
+            container: container,
+            size: 'small'
+        });
+        this.appendToQueueCheckbox.checkboxContainer.style.marginTop = '12px';
+
+        // Add to queue button
+        const addToQueueButton = new Button({
+            text: 'Add to Queue',
+            onClick: () => this.addChunkedPromptsToQueue(),
+            container: container
+        });
+        addToQueueButton.button.style.marginTop = '8px';
+        this.addToQueueChunkedButton = addToQueueButton;
+
+        // Status message
+        this.chunkedStatus = document.createElement('div');
+        this.chunkedStatus.style.cssText = 'margin-top: 8px; padding: 6px; font-size: 11px; color: #666; text-align: center;';
+        this.chunkedStatus.textContent = '';
+        container.appendChild(this.chunkedStatus);
+
+        return container;
+    }
+
+    /**
+     * Generate prompts from chunked text
+     */
+    generateChunkedPrompts() {
+        const text = this.chunkedTextArea.getValue().trim();
+        const basePrompt = this.chunkedBasePromptArea.getValue().trim();
+
+        if (!text) {
+            this.showNotification('Please enter text to chunk', 'warning');
+            this.chunkedStatus.textContent = 'Error: No text to chunk';
+            this.chunkedStatus.style.color = '#d32f2f';
+            return;
+        }
+
+        if (!basePrompt) {
+            this.showNotification('Please enter base prompt template', 'warning');
+            this.chunkedStatus.textContent = 'Error: No base prompt template';
+            this.chunkedStatus.style.color = '#d32f2f';
+            return;
+        }
+
+        try {
+            // Initialize TextChunker
+            const chunker = new TextChunker();
+            const wordsPerChunk = this.settings.CHUNKED_WORDS_PER_CHUNK || 500;
+            const strategy = this.settings.CHUNKED_STRATEGY === 'hard' 
+                ? TextChunker.STRATEGY.HARD_LIMIT 
+                : TextChunker.STRATEGY.SOFT_LIMIT;
+
+            // Chunk the text
+            const chunks = chunker.splitByWords(text, wordsPerChunk, {
+                strategy: strategy,
+                respectSentenceBoundaries: true
+            });
+
+            if (chunks.length === 0) {
+                this.showNotification('No chunks generated. Text might be too short.', 'warning');
+                this.chunkedStatus.textContent = 'Error: No chunks generated';
+                this.chunkedStatus.style.color = '#d32f2f';
+                return;
+            }
+
+            // Generate prompts by replacing variables
+            const generatedPrompts = [];
+            const total = chunks.length;
+
+            for (let i = 0; i < chunks.length; i++) {
+                let prompt = basePrompt;
+                const counter = i + 1; // 1-based index
+                const currentChunk = chunks[i];
+
+                // Replace $chunk with current chunk (must be done first to avoid conflicts)
+                prompt = prompt.replace(/\$chunk/g, currentChunk);
+
+                // Replace $counter
+                prompt = prompt.replace(/\$counter/g, counter.toString());
+
+                // Replace $total
+                prompt = prompt.replace(/\$total/g, total.toString());
+
+                // Replace $1, $2, $3, etc. with corresponding chunks
+                // Replace variables with chunks
+                prompt = prompt.replace(/\$(\d+)/g, (match, varNum) => {
+                    const varIndex = parseInt(varNum, 10) - 1; // Convert to 0-based
+                    if (varIndex >= 0 && varIndex < chunks.length) {
+                        return chunks[varIndex];
+                    }
+                    return match; // Keep original if out of range
+                });
+
+                generatedPrompts.push(prompt);
+            }
+
+            // Store generated prompts
+            this.generatedChunkedPrompts = generatedPrompts;
+
+            // Display in preview
+            const previewText = generatedPrompts.join('\n---\n');
+            this.chunkedPreviewArea.setValue(previewText);
+
+            // Update status
+            this.chunkedStatus.textContent = `Generated ${generatedPrompts.length} prompts from ${chunks.length} chunks`;
+            this.chunkedStatus.style.color = '#2e7d32';
+            this.showNotification(`Generated ${generatedPrompts.length} prompts`, 'success');
+
+            Logger.info(`Generated ${generatedPrompts.length} prompts from ${chunks.length} chunks`);
+        } catch (error) {
+            Logger.error('Error generating chunked prompts:', error);
+            this.showNotification(`Error: ${error.message}`, 'error');
+            this.chunkedStatus.textContent = `Error: ${error.message}`;
+            this.chunkedStatus.style.color = '#d32f2f';
+        }
+    }
+
+    /**
+     * Add generated chunked prompts to queue
+     */
+    addChunkedPromptsToQueue() {
+        if (!this.generatedChunkedPrompts || this.generatedChunkedPrompts.length === 0) {
+            this.showNotification('No prompts generated. Please generate prompts first.', 'warning');
+            return;
+        }
+
+        const shouldAppend = this.settings.CHUNKED_APPEND_TO_QUEUE || false;
+        let newQueue;
+
+        if (shouldAppend) {
+            // Append to existing queue
+            const currentQueue = this.promptsTextArea.getValue().trim();
+            const separator = currentQueue ? '\n---\n' : '';
+            newQueue = currentQueue + separator + this.generatedChunkedPrompts.join('\n---\n');
+        } else {
+            // Clean and replace
+            newQueue = this.generatedChunkedPrompts.join('\n---\n');
+        }
+
+        this.promptsTextArea.setValue(newQueue);
+
+        // Save to settings
+        this.settings.PROMPTS_QUEUE = newQueue;
+        this.saveSettings();
+
+        const action = shouldAppend ? 'appended' : 'replaced';
+        this.showNotification(`${action.charAt(0).toUpperCase() + action.slice(1)} queue with ${this.generatedChunkedPrompts.length} prompts`, 'success');
+        Logger.info(`${action.charAt(0).toUpperCase() + action.slice(1)} queue with ${this.generatedChunkedPrompts.length} prompts`);
+
+        // Switch to queue tab to show the added prompts
+        if (this.tabs) {
+            this.tabs.switchToTab('queue');
+        }
     }
 
     /**

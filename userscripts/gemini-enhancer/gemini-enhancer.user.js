@@ -632,139 +632,6 @@
     }
 
     /**
-     * Debouncer - A utility class for creating debounced and throttled functions
-     *
-     * Provides sophisticated debouncing and throttling with options for immediate/delayed
-     * execution, cancellation, and flushing of pending operations.
-     */
-    class Debouncer {
-      /**
-         * Creates a debounced version of a function that delays invocation until after
-         * a specified wait time has elapsed since the last time the debounced function was called.
-         *
-         * @param {Function} func - The function to debounce.
-         * @param {number} wait - The number of milliseconds to delay.
-         * @param {Object} [options] - The options object.
-         * @param {boolean} [options.leading=false] - Specify invoking on the leading edge of the timeout.
-         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
-         * @return {Function} Returns the new debounced function.
-         */
-      static debounce(func, wait, options = {}) {
-        const {leading = false, trailing = true} = options;
-        let timeout;
-        let lastArgs;
-        let lastThis;
-        let lastCallTime;
-        let result;
-
-        function invokeFunc() {
-          const args = lastArgs;
-          const thisArg = lastThis;
-
-          lastArgs = lastThis = undefined;
-          result = func.apply(thisArg, args);
-          return result;
-        }
-
-        function startTimer(pendingFunc, wait) {
-          return setTimeout(pendingFunc, wait);
-        }
-
-        function cancelTimer(id) {
-          clearTimeout(id);
-        }
-
-        function trailingEdge() {
-          timeout = undefined;
-
-          // Only invoke if we have `lastArgs` which means `func` has been debounced at least once
-          if (trailing && lastArgs) {
-            return invokeFunc();
-          }
-
-          lastArgs = lastThis = undefined;
-          return result;
-        }
-
-        function leadingEdge() {
-          // Reset any `maxWait` timer
-          timeout = startTimer(trailingEdge, wait);
-
-          // Invoke the leading edge
-          return leading ? invokeFunc() : result;
-        }
-
-        function cancel() {
-          if (timeout !== undefined) {
-            cancelTimer(timeout);
-          }
-          lastArgs = lastThis = lastCallTime = undefined;
-          timeout = undefined;
-        }
-
-        function flush() {
-          return timeout === undefined ? result : trailingEdge();
-        }
-
-        function debounced(...args) {
-          const time = Date.now();
-          const isInvoking = shouldInvoke(time);
-
-          lastArgs = args;
-          lastThis = this;
-          lastCallTime = time;
-
-          if (isInvoking) {
-            if (timeout === undefined) {
-              return leadingEdge();
-            }
-            if (isInvoking) {
-              // Handle invocations in a tight loop
-              timeout = startTimer(trailingEdge, wait);
-              return invokeFunc();
-            }
-          }
-          if (timeout === undefined) {
-            timeout = startTimer(trailingEdge, wait);
-          }
-          return result;
-        }
-
-        function shouldInvoke(time) {
-          const timeSinceLastCall = time - (lastCallTime || 0);
-
-          // Either this is the first call, activity has stopped and we're at the
-          // trailing edge, the system time has gone backwards and we're treating
-          // it as the trailing edge, or we've hit the `maxWait` limit
-          return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
-                    (0 > timeSinceLastCall));
-        }
-
-        debounced.cancel = cancel;
-        debounced.flush = flush;
-        return debounced;
-      }
-
-      /**
-         * Creates a throttled function that only invokes func at most once per
-         * every wait milliseconds.
-         *
-         * @param {Function} func - The function to throttle.
-         * @param {number} wait - The number of milliseconds to throttle invocations to.
-         * @param {Object} [options] - The options object.
-         * @param {boolean} [options.leading=true] - Specify invoking on the leading edge of the timeout.
-         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
-         * @return {Function} Returns the new throttled function.
-         */
-      static throttle(func, wait, options = {}) {
-        return this.debounce(func, wait, {
-          leading: false !== options.leading,
-          trailing: false !== options.trailing,
-        });
-      }
-    }
-
-    /**
      * PubSub - A simple publish/subscribe pattern implementation
      * Enables components to communicate without direct references
      */
@@ -829,641 +696,6 @@
                 this.#events = {};
             }
         }
-    }
-
-    class DataCache {
-      constructor(logger) {
-        this.logger = logger;
-      }
-
-      get(key) {
-        try {
-          const value = localStorage.getItem(key);
-          if (value !== null) {
-            const { data, expires } = JSON.parse(value);
-            if (expires === null || new Date(expires) > new Date()) {
-              return data;
-            }
-            localStorage.removeItem(key);
-            this.logger.info(`Cache expired and removed for key: ${key}`);
-          }
-        } catch (e) {
-          this.logger.error(`Error getting cache for key ${key}:`, e);
-          localStorage.removeItem(key); // Remove potentially corrupted data
-        }
-        return null;
-      }
-
-      set(key, value, expirationDays) {
-        try {
-          const expires = expirationDays ?
-            new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000) :
-            null;
-          localStorage.setItem(key, JSON.stringify({ data: value, expires }));
-          this.logger.info(`Cache set for key: ${key}, expires: ${expires}`);
-        } catch (e) {
-          this.logger.error(`Error setting cache for key ${key}:`, e);
-        }
-      }
-    }
-
-    /**
-     * UserInteractionDetector - A utility class for detecting genuine user interactions
-     *
-     * Provides robust detection of user-initiated events vs programmatic ones
-     * with multiple fallback mechanisms and integration with other utility classes.
-     */
-
-    class UserInteractionDetector {
-      /**
-         * Get a singleton instance - this allows sharing the detector across modules
-         * @param {Object} [options] - Configuration options (only used for first initialization)
-         * @return {UserInteractionDetector} Singleton instance
-         * @static
-         */
-      static getInstance(options = {}) {
-        if (!window.UserInteractionDetector) {
-          window.UserInteractionDetector = {};
-        }
-
-        if (!window.UserInteractionDetector._instance) {
-          window.UserInteractionDetector._instance = new UserInteractionDetector(options);
-        }
-
-        return window.UserInteractionDetector._instance;
-      }
-      /**
-         * Create a new UserInteractionDetector
-         * @param {Object} options - Configuration options
-         * @param {number} [options.interactionWindow=150] - Time window in ms to consider events related to user interaction
-         * @param {number} [options.interactionThrottle=50] - Minimum ms between interaction broadcasts
-         * @param {boolean} [options.debug=false] - Enable debug logging
-         * @param {string} [options.namespace='userscripts'] - Namespace for events
-         * @param {boolean} [options.trackGlobalInteractions=true] - Whether to track interactions on document/window level
-         * @param {boolean} [options.trackProgrammaticEvents=true] - Whether to track programmatic events like dispatchEvent
-         */
-      constructor(options = {}) {
-        // Configuration
-        this.interactionWindow = options.interactionWindow || 150; // Time window in ms
-        this.interactionThrottle = options.interactionThrottle || 50; // Throttle in ms
-        this.debug = options.debug || false;
-        this.namespace = options.namespace || 'userscripts';
-        this.trackGlobalInteractions = (false !== options.trackGlobalInteractions); // Default true
-        this.trackProgrammaticEvents = (false !== options.trackProgrammaticEvents); // Default true
-
-        // State tracking
-        this._isInteracting = false;
-        this._lastInteractionTime = 0;
-        this._interactionTypes = new Set();
-        this._lastEventTarget = null;
-        this._lastEventType = null;
-        this._interactionTimer = null;
-        this._throttleTimer = null;
-        this._overrideTimestamp = null;
-        this._userInteractionCounter = 0;
-        this._programmaticEventCounter = 0;
-        this._patched = new Set();
-
-        // Event tracking arrays
-        this._recentEvents = [];
-        this._trackedElements = new Map(); // element -> {events: [], handlers: []}
-
-        // Initialize
-        this._initTracking();
-
-        // Log initialization
-        if (this.debug) {
-          Logger.debug('UserInteractionDetector initialized with options:', {
-            interactionWindow: this.interactionWindow,
-            interactionThrottle: this.interactionThrottle,
-            namespace: this.namespace,
-            trackGlobalInteractions: this.trackGlobalInteractions,
-            trackProgrammaticEvents: this.trackProgrammaticEvents,
-          });
-        }
-      }
-
-
-      /**
-         * Track a specific element for interaction events
-         * You can use this for elements you want to specifically monitor
-         * @param {HTMLElement} element - The element to track
-         * @param {Array<string>} eventTypes - Event types to track
-         * @param {Function} callback - Callback to invoke with interaction info
-         * @return {Function} Unsubscribe function
-         */
-      trackElement(element, eventTypes = ['click', 'touchstart', 'keydown'], callback) {
-        if (!element || !element.addEventListener) {
-          this._logError('Invalid element provided to trackElement');
-          return () => {
-          }; // No-op unsubscribe
-        }
-
-        // Initialize tracking data for this element if needed
-        if (!this._trackedElements.has(element)) {
-          this._trackedElements.set(element, {
-            events: [],
-            handlers: [],
-          });
-        }
-
-        const elementData = this._trackedElements.get(element);
-        const handlers = [];
-
-        // Create handler for each event type
-        eventTypes.forEach((eventType) => {
-          const handler = (e) => {
-            const isUserInitiated = this.isUserEvent(e);
-            const interactionData = {
-              event: e,
-              timestamp: Date.now(),
-              isUserInitiated,
-              globalInteracting: this._isInteracting,
-              timeSinceLastInteraction: Date.now() - this._lastInteractionTime,
-            };
-
-            // Track this event
-            elementData.events.unshift(interactionData);
-            if (5 < elementData.events.length) {
-              elementData.events.pop();
-            }
-
-            // Call the callback
-            callback(interactionData);
-          };
-
-          // Attach the handler
-          element.addEventListener(eventType, handler);
-          handlers.push({eventType, handler});
-          elementData.handlers.push({eventType, handler});
-        });
-
-        this._log(`Now tracking ${eventTypes.join(', ')} events on element:`, element);
-
-        // Return unsubscribe function
-        return () => {
-          handlers.forEach(({eventType, handler}) => {
-            element.removeEventListener(eventType, handler);
-
-            // Remove from tracked handlers
-            if (this._trackedElements.has(element)) {
-              const data = this._trackedElements.get(element);
-              data.handlers = data.handlers.filter((h) => h.handler !== handler);
-
-              // Clean up if no more handlers
-              if (0 === data.handlers.length) {
-                this._trackedElements.delete(element);
-              }
-            }
-          });
-
-          this._log('Unsubscribed from element events');
-        };
-      }
-
-      /**
-         * Check if an event was initiated by a real user interaction
-         * @param {Event} event - The event to check
-         * @return {boolean} True if the event was likely initiated by a user
-         */
-      isUserEvent(event) {
-        if (!event) return false;
-
-        // Primary check: isTrusted property (most reliable)
-        if (event.isTrusted) {
-          return true;
-        }
-
-        // Secondary check: event occurred during known interaction window
-        if (this._isInteracting) {
-          const timeSinceInteraction = Date.now() - this._lastInteractionTime;
-          if (timeSinceInteraction < this.interactionWindow) {
-            this._log(`Event occurred ${timeSinceInteraction}ms after user interaction`);
-            return true;
-          }
-        }
-
-        // Tertiary check: was the event part of a trusted cascade?
-        // (sometimes events trigger other events programmatically, but they're still part of user input)
-        const cascadeWindow = 50; // ms to consider event cascades
-        const recentTrustedEvents = this._recentEvents.filter((e) =>
-          e.trusted && Date.now() - e.timestamp < cascadeWindow,
-        );
-
-        if (0 < recentTrustedEvents.length) {
-          this._log(`Event may be part of trusted cascade (${recentTrustedEvents.length} recent trusted events)`);
-          return true;
-        }
-
-        // Special check for specific event types that are always user-initiated
-        const alwaysUserEvents = ['beforeinput', 'mousedown', 'touchstart', 'keydown'];
-        if (alwaysUserEvents.includes(event.type) && !event._detectedByUserInteractionDetector) {
-          this._log(`Event type ${event.type} is typically user-initiated`);
-          return true;
-        }
-
-        return false;
-      }
-
-      /**
-         * Check if an element's event was likely initiated by a real user
-         * @param {HTMLElement} element - The element to check
-         * @param {string} eventType - The type of event
-         * @param {number} [timeWindow=500] - Time window to look back in ms
-         * @return {boolean} True if there's evidence the user interacted with this element
-         */
-      didUserInteractWith(element, eventType, timeWindow = 500) {
-        if (!element) return false;
-
-        // First check if we're tracking this element
-        if (this._trackedElements.has(element)) {
-          const data = this._trackedElements.get(element);
-          const recentEvents = data.events.filter((entry) =>
-            entry.event.type === eventType &&
-                    Date.now() - entry.timestamp < timeWindow &&
-                    entry.isUserInitiated,
-          );
-
-          if (0 < recentEvents.length) {
-            return true;
-          }
-        }
-
-        // Fallback: check if this element was the last interaction target
-        if (this._lastEventTarget === element &&
-                this._lastEventType === eventType &&
-                Date.now() - this._lastInteractionTime < timeWindow) {
-          return true;
-        }
-
-        // Final fallback: check if element contains last interaction target
-        if (this._lastEventTarget &&
-                element.contains(this._lastEventTarget) &&
-                Date.now() - this._lastInteractionTime < timeWindow) {
-          return true;
-        }
-
-        return false;
-      }
-
-      /**
-         * Check if the user is currently interacting with the page
-         * @return {boolean} True if user interaction was detected within the interaction window
-         */
-      isInteracting() {
-        return this._isInteracting;
-      }
-
-      /**
-         * Get time (ms) since last user interaction
-         * @return {number} Milliseconds since last interaction, or Infinity if no interaction yet
-         */
-      getTimeSinceLastInteraction() {
-        if (0 === this._lastInteractionTime) return Infinity;
-        return Date.now() - this._lastInteractionTime;
-      }
-
-      /**
-         * Check if an interaction happened recently within the given time window
-         * @param {number} withinMs - Time window in milliseconds
-         * @return {boolean} True if interaction happened within the specified window
-         */
-      interactedWithin(withinMs) {
-        return this.getTimeSinceLastInteraction() < withinMs;
-      }
-      /**
-         * Get statistics about detected interactions
-         * @return {Object} Interaction statistics
-         */
-      getStats() {
-        return {
-          isInteracting: this._isInteracting,
-          lastInteractionTime: this._lastInteractionTime,
-          timeSinceLastInteraction: this.getTimeSinceLastInteraction(),
-          interactionTypes: Array.from(this._interactionTypes),
-          userInteractionCount: this._userInteractionCounter,
-          programmaticEventCount: this._programmaticEventCounter,
-          trackedElements: this._trackedElements.size,
-          recentEvents: this._recentEvents.length,
-        };
-      }
-      /**
-         * Reset all tracking state
-         */
-      reset() {
-        this._resetInteractionState();
-        this._lastInteractionTime = 0;
-        this._userInteractionCounter = 0;
-        this._programmaticEventCounter = 0;
-        this._recentEvents = [];
-
-        // Clear tracked elements
-        this._trackedElements.forEach((data, element) => {
-          data.handlers.forEach(({eventType, handler}) => {
-            try {
-              element.removeEventListener(eventType, handler);
-            } catch (e) {
-              // Element might be gone from DOM
-            }
-          });
-        });
-        this._trackedElements.clear();
-
-        this._log('All tracking state reset');
-      }
-      /**
-         * Clean up resources when detector is no longer needed
-         */
-      destroy() {
-        this.reset();
-
-        // Could unpatch event methods here, but it's generally safer
-        // to leave them patched to avoid breaking other code
-
-        this._log('Detector destroyed');
-      }
-      /**
-         * Initialize event tracking
-         * @private
-         */
-      _initTracking() {
-        if (this.trackGlobalInteractions) {
-          // Track global user interactions (capture phase to get them early)
-          this._setupGlobalEventListeners();
-        }
-
-        if (this.trackProgrammaticEvents) {
-          // Track programmatic events by patching EventTarget.prototype
-          this._patchEventMethods();
-        }
-      }
-
-
-      /**
-         * Set up global event listeners to detect user interaction
-         * @private
-         */
-      _setupGlobalEventListeners() {
-        // Primary interaction events with capture to catch events early
-        const interactionEvents = [
-          'mousedown', 'mouseup', 'click', 'touchstart', 'touchend',
-          'keydown', 'keyup', 'keypress', 'input', 'change', 'focus',
-        ];
-
-        const handleInteraction = this._handleGlobalInteraction.bind(this);
-
-        interactionEvents.forEach((eventType) => {
-          document.addEventListener(eventType, handleInteraction, {
-            capture: true,
-            passive: true, // For better performance
-          });
-        });
-
-        // Special handling for scroll events (throttled)
-        let scrollTimeout = null;
-        const handleScroll = (e) => {
-          if (!scrollTimeout) {
-            scrollTimeout = setTimeout(() => {
-              handleInteraction(e);
-              scrollTimeout = null;
-            }, 100); // Throttle scroll events
-          }
-        };
-
-        window.addEventListener('scroll', handleScroll, {
-          capture: true,
-          passive: true,
-        });
-
-        // Track window focus/blur for tab switching context
-        window.addEventListener('focus', () => {
-          this._log('Window focused');
-          this._overrideTimestamp = Date.now();
-        });
-
-        window.addEventListener('blur', () => {
-          this._log('Window blurred - resetting interaction state');
-          this._resetInteractionState();
-        });
-
-        this._log('Global event listeners registered');
-      }
-
-
-      /**
-         * Handle a global interaction event
-         * @param {Event} e - The event object
-         * @private
-         */
-      _handleGlobalInteraction(e) {
-        // Only process trusted events from the user
-        if (!e.isTrusted) {
-          this._log(`Ignoring untrusted event: ${e.type}`);
-          return;
-        }
-
-        // Track this event in the recent events list
-        this._trackEvent(e);
-
-        // Update interaction state
-        this._setInteracting(e);
-      }
-
-
-      /**
-         * Reset interaction state
-         * @private
-         */
-      _resetInteractionState() {
-        this._isInteracting = false;
-        this._interactionTypes.clear();
-        this._lastEventTarget = null;
-        this._lastEventType = null;
-        clearTimeout(this._interactionTimer);
-        this._interactionTimer = null;
-
-        // Emit an event about interaction end
-        PubSub.publish(`${this.namespace}:interaction:end`, {
-          timestamp: Date.now(),
-          duration: Date.now() - this._lastInteractionTime,
-        });
-
-        this._log('Interaction state reset');
-      }
-
-
-      /**
-         * Set interaction state and schedule timeout
-         * @param {Event} e - The triggering event
-         * @private
-         */
-      _setInteracting(e) {
-        const now = Date.now();
-        const wasInteracting = this._isInteracting;
-
-        // Update state
-        this._isInteracting = true;
-        this._lastInteractionTime = now;
-        this._interactionTypes.add(e.type);
-        this._lastEventTarget = e.target;
-        this._lastEventType = e.type;
-        this._userInteractionCounter++;
-
-        // Clear any existing timeout and set a new one
-        clearTimeout(this._interactionTimer);
-        this._interactionTimer = setTimeout(() => {
-          this._log(`Interaction window timeout after ${this.interactionWindow}ms`);
-          this._resetInteractionState();
-        }, this.interactionWindow);
-
-        // Emit event (throttled)
-        if (!wasInteracting || !this._throttleTimer) {
-          if (this._throttleTimer) {
-            clearTimeout(this._throttleTimer);
-          }
-
-          // Immediate first notification
-          this._emitInteractionEvent(e);
-
-          // Throttle subsequent notifications
-          this._throttleTimer = setTimeout(() => {
-            this._throttleTimer = null;
-          }, this.interactionThrottle);
-        }
-      }
-
-
-      /**
-         * Emit interaction event via PubSub
-         * @param {Event} e - The triggering event
-         * @private
-         */
-      _emitInteractionEvent(e) {
-        PubSub.publish(`${this.namespace}:interaction`, {
-          timestamp: Date.now(),
-          event: {
-            type: e.type,
-            target: e.target,
-          },
-          interactionTypes: Array.from(this._interactionTypes),
-          interactionCount: this._userInteractionCounter,
-        });
-
-        this._log(`Emitted interaction event for ${e.type}`);
-      }
-
-
-      /**
-         * Track an event in the recent events list
-         * @param {Event} e - The event object
-         * @private
-         */
-      _trackEvent(e) {
-        const eventData = {
-          type: e.type,
-          timestamp: Date.now(),
-          target: e.target,
-          trusted: e.isTrusted,
-        };
-
-        // Add to recent events, keeping last 10
-        this._recentEvents.unshift(eventData);
-        if (10 < this._recentEvents.length) {
-          this._recentEvents.pop();
-        }
-      }
-
-
-      /**
-         * Patch event methods to detect programmatic events
-         * @private
-         */
-      _patchEventMethods() {
-        // Don't patch twice
-        if (this._patched.has('events')) return;
-
-        // Save original methods
-        const originalDispatchEvent = EventTarget.prototype.dispatchEvent;
-
-        // Patch dispatchEvent
-        EventTarget.prototype.dispatchEvent = function(event) {
-          // Mark the event as detected by our utility
-          event._detectedByUserInteractionDetector = true;
-
-          // Track programmatic event
-          if (window.UserInteractionDetector && window.UserInteractionDetector._instance) {
-            window.UserInteractionDetector._instance._programmaticEventCounter++;
-
-            window.UserInteractionDetector._instance._log(
-                `Programmatic event detected: ${event.type} on ${this.tagName || 'EventTarget'}`,
-            );
-          }
-
-          // Call original method
-          return originalDispatchEvent.apply(this, arguments);
-        };
-
-        this._patched.add('events');
-        this._log('Event methods patched to detect programmatic events');
-      }
-
-
-      /**
-         * Private logging helper
-         * @param {...any} args - Arguments to log
-         * @private
-         */
-      _log(...args) {
-        if (this.debug) {
-          Logger.debug('[UserInteractionDetector]', ...args);
-        }
-      }
-
-      /**
-         * Private error logging helper
-         * @param {...any} args - Arguments to log
-         * @private
-         */
-      _logError(...args) {
-        Logger.error('[UserInteractionDetector]', ...args);
-      }
-    }
-
-    class BaseStrategy {
-      constructor(callback) {
-        this.callback = callback;
-      }
-
-      start() {
-      }
-
-      stop() {
-      }
-    }
-
-    class PollingStrategy extends BaseStrategy {
-      constructor(callback, interval = 500) {
-        super(callback);
-        this.interval = interval;
-        this.lastUrl = location.href;
-      }
-
-      start() {
-        Logger.debug('PollingStrategy started');
-        this.timer = setInterval(() => {
-          const current = location.href;
-          if (current !== this.lastUrl) {
-            Logger.debug(`Polling detected change: ${this.lastUrl} → ${current}`);
-            this.callback(current, this.lastUrl);
-            this.lastUrl = current;
-          }
-        }, this.interval);
-      }
-
-      stop() {
-        clearInterval(this.timer);
-        Logger.debug('PollingStrategy stopped');
-      }
     }
 
     /**
@@ -2188,596 +1420,6 @@
     Notification.stylesInitialized = false;
 
     /**
-     * FormStatePersistence - Generic form state persistence system
-     * Automatically saves and restores form values using GM storage
-     */
-    class FormStatePersistence {
-        static EVENTS = {
-            STATE_SAVED: 'formstate:state-saved',
-            STATE_LOADED: 'formstate:state-loaded',
-            STATE_CLEARED: 'formstate:state-cleared',
-            FIELD_CHANGED: 'formstate:field-changed'
-        };
-
-        /**
-         * @param {Object} options Configuration options
-         * @param {string} options.namespace - Namespace for storage keys
-         * @param {Object} options.fields - Field configurations {fieldName: {selector, type, defaultValue, validator}}
-         * @param {Function} options.getValue - Function to get values from GM storage
-         * @param {Function} options.setValue - Function to set values in GM storage
-         * @param {boolean} options.autoSave - Whether to auto-save on change (default: true)
-         * @param {number} options.debounceDelay - Debounce delay for auto-save (default: 500ms)
-         * @param {Object} options.pubsub - Optional PubSub instance for events
-         * @param {Object} options.logger - Optional logger instance
-         * @param {string} options.name - Optional name for this persistence manager
-         */
-        constructor(options) {
-            this.namespace = options.namespace || 'form-state';
-            this.fields = options.fields || {};
-            this.getValue = options.getValue;
-            this.setValue = options.setValue;
-            this.autoSave = options.autoSave !== false;
-            this.debounceDelay = options.debounceDelay || 500;
-            this.name = options.name || 'FormStatePersistence';
-            
-            // Optional user interaction detection for distinguishing user vs auto-save
-            this.enableInteractionDetection = options.enableInteractionDetection || false;
-            this.userInteraction = this.enableInteractionDetection ? 
-                UserInteractionDetector.getInstance({
-                    namespace: `formstate-${this.name}`,
-                    debug: Logger.DEBUG
-                }) : null;
-                
-            // Optional notifications
-            this.enableNotifications = options.enableNotifications || false;
-            
-            // Optional periodic save using PollingStrategy
-            this.enablePeriodicSave = options.enablePeriodicSave || false;
-            this.periodicSaveInterval = options.periodicSaveInterval || 30000; // 30 seconds
-            this.pollingStrategy = null;
-
-            this.fieldElements = new Map();
-            this.fieldValues = new Map();
-            this.saveTimeouts = new Map();
-            this.isInitialized = false;
-            
-            // Use core Debouncer for save operations
-            this.debouncedSave = Debouncer.debounce(this.performSave.bind(this), this.debounceDelay);
-            
-            // Use DataCache for backup storage
-            this.enableBackup = options.enableBackup || false;
-            this.backupCache = this.enableBackup ? new DataCache(Logger) : null;
-
-            // Import Debouncer if available
-            this.Debouncer = options.Debouncer;
-        }
-
-        /**
-         * Initialize the form state persistence
-         */
-        async initialize() {
-            if (this.isInitialized) {
-                Logger.warn(`[${this.name}] Already initialized`);
-                return;
-            }
-
-            Logger.info(`[${this.name}] Initializing form state persistence with ${Object.keys(this.fields).length} fields`);
-
-            // Find and cache field elements
-            this.findFieldElements();
-
-            // Load saved state
-            await this.loadState();
-
-            // Setup auto-save listeners
-            if (this.autoSave) {
-                this.setupAutoSave();
-            }
-
-            this.isInitialized = true;
-            Logger.info(`[${this.name}] Form state persistence initialized`);
-            
-            // Start periodic save if enabled
-            if (this.enablePeriodicSave) {
-                this.pollingStrategy = new PollingStrategy(() => {
-                    this.saveState();
-                }, this.periodicSaveInterval);
-                this.pollingStrategy.start();
-            }
-            
-            // Show initialization notification if enabled
-            if (this.enableNotifications) {
-                Notification.success(`Form state persistence initialized for ${Object.keys(this.fields).length} fields`, {
-                    duration: 3000,
-                    position: 'bottom-right'
-                });
-            }
-        }
-
-        /**
-         * Find and cache field elements
-         */
-        findFieldElements() {
-            for (const [fieldName, config] of Object.entries(this.fields)) {
-                try {
-                    const element = document.querySelector(config.selector);
-                    if (element) {
-                        this.fieldElements.set(fieldName, element);
-                        Logger.debug(`[${this.name}] Found field element: ${fieldName}`);
-                    } else {
-                        Logger.warn(`[${this.name}] Field element not found: ${fieldName} (${config.selector})`);
-                    }
-                } catch (error) {
-                    Logger.error(`[${this.name}] Error finding field ${fieldName}:`, error);
-                }
-            }
-        }
-
-        /**
-         * Load saved state from storage
-         */
-        async loadState() {
-            if (!this.getValue) {
-                Logger.warn(`[${this.name}] No getValue function provided, cannot load state`);
-                return;
-            }
-
-            let loadedCount = 0;
-
-            for (const [fieldName, config] of Object.entries(this.fields)) {
-                try {
-                    const storageKey = this.getStorageKey(fieldName);
-                    const savedValue = await this.getValue(storageKey, config.defaultValue);
-                    
-                    if (savedValue !== null && savedValue !== undefined) {
-                        this.fieldValues.set(fieldName, savedValue);
-                        await this.setFieldValue(fieldName, savedValue);
-                        loadedCount++;
-                        Logger.debug(`[${this.name}] Loaded field ${fieldName}:`, savedValue);
-                    }
-                } catch (error) {
-                    Logger.error(`[${this.name}] Error loading field ${fieldName}:`, error);
-                }
-            }
-
-            Logger.info(`[${this.name}] Loaded ${loadedCount} field values from storage`);
-            this.publishEvent(FormStatePersistence.EVENTS.STATE_LOADED, {
-                loadedCount,
-                totalFields: Object.keys(this.fields).length,
-                name: this.name
-            });
-        }
-
-        /**
-         * Save current state to storage
-         */
-        async saveState() {
-            if (!this.setValue) {
-                Logger.warn(`[${this.name}] No setValue function provided, cannot save state`);
-                return;
-            }
-
-            let savedCount = 0;
-
-            for (const [fieldName, config] of Object.entries(this.fields)) {
-                try {
-                    const currentValue = await this.getFieldValue(fieldName);
-                    
-                    if (currentValue !== null && currentValue !== undefined) {
-                        // Validate value if validator provided
-                        if (config.validator && !config.validator(currentValue)) {
-                            Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
-                            continue;
-                        }
-
-                        const storageKey = this.getStorageKey(fieldName);
-                        await this.setValue(storageKey, currentValue);
-                        this.fieldValues.set(fieldName, currentValue);
-                        savedCount++;
-                        Logger.debug(`[${this.name}] Saved field ${fieldName}:`, currentValue);
-                    }
-                } catch (error) {
-                    Logger.error(`[${this.name}] Error saving field ${fieldName}:`, error);
-                }
-            }
-
-            Logger.info(`[${this.name}] Saved ${savedCount} field values to storage`);
-            this.publishEvent(FormStatePersistence.EVENTS.STATE_SAVED, {
-                savedCount,
-                totalFields: Object.keys(this.fields).length,
-                name: this.name
-            });
-        }
-
-        /**
-         * Get current value of a field
-         */
-        async getFieldValue(fieldName) {
-            const element = this.fieldElements.get(fieldName);
-            const config = this.fields[fieldName];
-            
-            if (!element || !config) {
-                return null;
-            }
-
-            try {
-                switch (config.type) {
-                    case 'text':
-                    case 'textarea':
-                    case 'number':
-                    case 'email':
-                    case 'url':
-                        return element.value;
-                    
-                    case 'checkbox':
-                        return element.checked;
-                    
-                    case 'radio':
-                        const radioGroup = document.querySelectorAll(`[name="${element.name}"]`);
-                        for (const radio of radioGroup) {
-                            if (radio.checked) {
-                                return radio.value;
-                            }
-                        }
-                        return null;
-                    
-                    case 'select':
-                        return element.value;
-                    
-                    case 'select-multiple':
-                        return Array.from(element.selectedOptions).map(option => option.value);
-                    
-                    case 'contenteditable':
-                        return element.textContent || element.innerText;
-                    
-                    default:
-                        return element.value;
-                }
-            } catch (error) {
-                Logger.error(`[${this.name}] Error getting value for field ${fieldName}:`, error);
-                return null;
-            }
-        }
-
-        /**
-         * Set value of a field
-         */
-        async setFieldValue(fieldName, value) {
-            const element = this.fieldElements.get(fieldName);
-            const config = this.fields[fieldName];
-            
-            if (!element || !config) {
-                return false;
-            }
-
-            try {
-                switch (config.type) {
-                    case 'text':
-                    case 'textarea':
-                    case 'number':
-                    case 'email':
-                    case 'url':
-                        element.value = value;
-                        element.dispatchEvent(new Event('input', { bubbles: true }));
-                        element.dispatchEvent(new Event('change', { bubbles: true }));
-                        break;
-                    
-                    case 'checkbox':
-                        element.checked = Boolean(value);
-                        element.dispatchEvent(new Event('change', { bubbles: true }));
-                        break;
-                    
-                    case 'radio':
-                        const radioGroup = document.querySelectorAll(`[name="${element.name}"]`);
-                        for (const radio of radioGroup) {
-                            if (radio.value === value) {
-                                radio.checked = true;
-                                radio.dispatchEvent(new Event('change', { bubbles: true }));
-                                break;
-                            }
-                        }
-                        break;
-                    
-                    case 'select':
-                        element.value = value;
-                        element.dispatchEvent(new Event('change', { bubbles: true }));
-                        break;
-                    
-                    case 'select-multiple':
-                        if (Array.isArray(value)) {
-                            for (const option of element.options) {
-                                option.selected = value.includes(option.value);
-                            }
-                            element.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                        break;
-                    
-                    case 'contenteditable':
-                        element.textContent = value;
-                        element.dispatchEvent(new Event('input', { bubbles: true }));
-                        break;
-                    
-                    default:
-                        element.value = value;
-                        element.dispatchEvent(new Event('input', { bubbles: true }));
-                        element.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                
-                return true;
-            } catch (error) {
-                Logger.error(`[${this.name}] Error setting value for field ${fieldName}:`, error);
-                return false;
-            }
-        }
-
-        /**
-         * Setup auto-save listeners
-         */
-        setupAutoSave() {
-            for (const [fieldName, config] of Object.entries(this.fields)) {
-                const element = this.fieldElements.get(fieldName);
-                if (!element) continue;
-
-                const eventTypes = this.getFieldEventTypes(config.type);
-                
-                for (const eventType of eventTypes) {
-                    element.addEventListener(eventType, () => {
-                        this.scheduleFieldSave(fieldName);
-                    });
-                }
-            }
-
-            Logger.debug(`[${this.name}] Auto-save listeners setup complete`);
-        }
-
-        /**
-         * Get appropriate event types for field type
-         */
-        getFieldEventTypes(fieldType) {
-            switch (fieldType) {
-                case 'text':
-                case 'textarea':
-                case 'number':
-                case 'email':
-                case 'url':
-                case 'contenteditable':
-                    return ['input', 'blur'];
-                
-                case 'checkbox':
-                case 'radio':
-                case 'select':
-                case 'select-multiple':
-                    return ['change'];
-                
-                default:
-                    return ['input', 'change'];
-            }
-        }
-
-        /**
-         * Schedule debounced save for a specific field using core Debouncer
-         */
-        scheduleFieldSave(fieldName) {
-            // Use the debounced save function
-            this.debouncedSave();
-        }
-
-        /**
-         * Perform the actual save operation (used by debouncer)
-         */
-        async performSave() {
-            await this.saveState();
-            
-            // Create backup if enabled
-            if (this.enableBackup && this.backupCache) {
-                const currentValues = this.getCurrentValues();
-                this.backupCache.set(`${this.namespace}-backup`, currentValues, 30); // 30 days
-            }
-        }
-
-        /**
-         * Wait for form elements using HTMLUtils
-         */
-        async waitForFormElements(timeout = 5000) {
-            const foundElements = new Map();
-            
-            for (const [fieldName, config] of Object.entries(this.fields)) {
-                try {
-                    const element = await HTMLUtils.waitForElement(config.selector, timeout);
-                    if (element) {
-                        foundElements.set(fieldName, element);
-                        Logger.debug(`[${this.name}] Found form element: ${fieldName}`);
-                    }
-                } catch (error) {
-                    Logger.warn(`[${this.name}] Form element not found: ${fieldName} (${config.selector})`);
-                }
-            }
-            
-            return foundElements;
-        }
-
-        /**
-         * Restore from backup using DataCache
-         */
-        async restoreFromBackup() {
-            if (!this.enableBackup || !this.backupCache) {
-                return false;
-            }
-            
-            try {
-                const backup = this.backupCache.get(`${this.namespace}-backup`);
-                if (backup) {
-                    for (const [fieldName, value] of Object.entries(backup)) {
-                        if (this.fields[fieldName]) {
-                            await this.setFieldValue(fieldName, value);
-                            this.fieldValues.set(fieldName, value);
-                        }
-                    }
-                    Logger.info(`[${this.name}] Restored form data from backup`);
-                    return true;
-                }
-            } catch (error) {
-                Logger.error(`[${this.name}] Error restoring from backup:`, error);
-            }
-            
-            return false;
-        }
-
-        /**
-         * Save a specific field
-         */
-        async saveField(fieldName) {
-            if (!this.setValue) {
-                return;
-            }
-
-            try {
-                const currentValue = await this.getFieldValue(fieldName);
-                const config = this.fields[fieldName];
-                
-                if (currentValue !== null && currentValue !== undefined) {
-                    // Validate value if validator provided
-                    if (config.validator && !config.validator(currentValue)) {
-                        Logger.warn(`[${this.name}] Validation failed for field ${fieldName}, not saving`);
-                        return;
-                    }
-
-                    const storageKey = this.getStorageKey(fieldName);
-                    await this.setValue(storageKey, currentValue);
-                    this.fieldValues.set(fieldName, currentValue);
-                    
-                    Logger.debug(`[${this.name}] Auto-saved field ${fieldName}:`, currentValue);
-                    this.publishEvent(FormStatePersistence.EVENTS.FIELD_CHANGED, {
-                        fieldName,
-                        value: currentValue,
-                        name: this.name
-                    });
-                }
-            } catch (error) {
-                Logger.error(`[${this.name}] Error auto-saving field ${fieldName}:`, error);
-            }
-        }
-
-        /**
-         * Clear saved state for all fields
-         */
-        async clearState() {
-            if (!this.setValue) {
-                Logger.warn(`[${this.name}] No setValue function provided, cannot clear state`);
-                return;
-            }
-
-            let clearedCount = 0;
-
-            for (const fieldName of Object.keys(this.fields)) {
-                try {
-                    const storageKey = this.getStorageKey(fieldName);
-                    await this.setValue(storageKey, null);
-                    this.fieldValues.delete(fieldName);
-                    clearedCount++;
-                } catch (error) {
-                    Logger.error(`[${this.name}] Error clearing field ${fieldName}:`, error);
-                }
-            }
-
-            Logger.info(`[${this.name}] Cleared ${clearedCount} field values from storage`);
-            this.publishEvent(FormStatePersistence.EVENTS.STATE_CLEARED, {
-                clearedCount,
-                name: this.name
-            });
-        }
-
-        /**
-         * Get storage key for a field
-         */
-        getStorageKey(fieldName) {
-            return `${this.namespace}-${fieldName}`;
-        }
-
-        /**
-         * Add a new field to persistence
-         */
-        addField(fieldName, config) {
-            this.fields[fieldName] = config;
-            
-            // Find the element
-            try {
-                const element = document.querySelector(config.selector);
-                if (element) {
-                    this.fieldElements.set(fieldName, element);
-                    
-                    // Setup auto-save if enabled
-                    if (this.autoSave) {
-                        const eventTypes = this.getFieldEventTypes(config.type);
-                        for (const eventType of eventTypes) {
-                            element.addEventListener(eventType, () => {
-                                this.scheduleFieldSave(fieldName);
-                            });
-                        }
-                    }
-                    
-                    Logger.debug(`[${this.name}] Added field: ${fieldName}`);
-                }
-            } catch (error) {
-                Logger.error(`[${this.name}] Error adding field ${fieldName}:`, error);
-            }
-        }
-
-        /**
-         * Remove a field from persistence
-         */
-        removeField(fieldName) {
-            delete this.fields[fieldName];
-            this.fieldElements.delete(fieldName);
-            this.fieldValues.delete(fieldName);
-            
-            // Clear any pending save
-            if (this.saveTimeouts.has(fieldName)) {
-                clearTimeout(this.saveTimeouts.get(fieldName));
-                this.saveTimeouts.delete(fieldName);
-            }
-            
-            Logger.debug(`[${this.name}] Removed field: ${fieldName}`);
-        }
-
-        /**
-         * Get current field values
-         */
-        getCurrentValues() {
-            const values = {};
-            for (const fieldName of Object.keys(this.fields)) {
-                values[fieldName] = this.fieldValues.get(fieldName);
-            }
-            return values;
-        }
-
-        /**
-         * Publish event using core PubSub
-         */
-        publishEvent(eventName, data) {
-            PubSub.publish(eventName, data);
-        }
-
-        /**
-         * Cleanup resources
-         */
-        destroy() {
-            // Clear all pending timeouts
-            for (const timeoutId of this.saveTimeouts.values()) {
-                clearTimeout(timeoutId);
-            }
-            this.saveTimeouts.clear();
-
-            // Clear maps
-            this.fieldElements.clear();
-            this.fieldValues.clear();
-
-            this.isInitialized = false;
-            Logger.info(`[${this.name}] Form state persistence destroyed`);
-        }
-    }
-
-    /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
@@ -3150,6 +1792,647 @@
     }
 
     new ClipboardService();
+
+    /**
+     * TextChunker - Production-ready utility class for splitting text into chunks
+     * 
+     * Provides flexible text chunking strategies for various use cases,
+     * such as TTS processing, API rate limiting, or content pagination.
+     * 
+     * Features:
+     * - Advanced sentence tokenization with abbreviation handling
+     * - Multi-language support via Intl.Segmenter (supports 100+ languages)
+     * - Configurable chunking strategies (SOFT_LIMIT vs HARD_LIMIT)
+     * - Support for word-based, character-based, and line-based chunking
+     * - Intelligent boundary detection to maintain readability
+     * - Automatic merging of small last chunks with previous chunk (configurable threshold)
+     * 
+     * @example
+     * // English (default)
+     * const chunker = new TextChunker();
+     * 
+     * @example
+     * // Spanish
+     * const chunker = new TextChunker({ locale: 'es' });
+     * 
+     * @example
+     * // Japanese
+     * const chunker = new TextChunker({ locale: 'ja' });
+     */
+    class TextChunker {
+        /**
+         * Chunking strategy constants
+         * @readonly
+         */
+        static STRATEGY = {
+            /** Soft limit: Allow overflow to finish current sentence (natural flow priority) */
+            SOFT_LIMIT: 'soft',
+            /** Hard limit: Never exceed limit, strict cut at boundary */
+            HARD_LIMIT: 'hard'
+        };
+
+        /**
+         * Common abbreviations that should not be treated as sentence endings
+         * @readonly
+         */
+        static ABBREVIATIONS = new Set([
+            'prof.', 'dr.', 'mr.', 'mrs.', 'ms.', 'jr.', 'sr.', 'esq.',
+            'e.g.', 'i.e.', 'etc.', 'vs.', 'v.s.', 'a.m.', 'p.m.', 'am.', 'pm.',
+            'inc.', 'ltd.', 'corp.', 'co.', 'st.', 'ave.', 'blvd.', 'rd.',
+            'jan.', 'feb.', 'mar.', 'apr.', 'may.', 'jun.', 'jul.', 'aug.',
+            'sep.', 'oct.', 'nov.', 'dec.', 'mon.', 'tue.', 'wed.', 'thu.',
+            'fri.', 'sat.', 'sun.', 'no.', 'vol.', 'pp.', 'ed.', 'p.'
+        ]);
+
+        /**
+         * Locale for Intl.Segmenter (e.g., 'en', 'es', 'fr', 'de', 'ja', 'zh')
+         * @type {string}
+         */
+        locale = 'en';
+
+        /**
+         * Intl.Segmenter instance for advanced sentence segmentation (if available)
+         * @type {Intl.Segmenter|false|null}
+         */
+        segmenter = null;
+
+        /**
+         * Create a new TextChunker instance
+         * @param {Object} [options] - Configuration options
+         * @param {string} [options.locale='en'] - Locale for sentence segmentation (e.g., 'en', 'es', 'fr', 'de', 'ja', 'zh')
+         *                                       Uses BCP 47 language tags. Defaults to 'en' (English).
+         * 
+         * @example
+         * // English (default)
+         * const chunker = new TextChunker();
+         * 
+         * @example
+         * // Spanish
+         * const chunker = new TextChunker({ locale: 'es' });
+         * 
+         * @example
+         * // Japanese
+         * const chunker = new TextChunker({ locale: 'ja' });
+         */
+        constructor(options = {}) {
+            const { locale = 'en' } = options;
+            this.locale = locale;
+        }
+
+        /**
+         * Initialize Intl.Segmenter if available in the environment
+         * @returns {Intl.Segmenter|false} Segmenter instance or false if unavailable
+         */
+        initSegmenter() {
+            if (this.segmenter === null) {
+                if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+                    try {
+                        this.segmenter = new Intl.Segmenter(this.locale, { granularity: 'sentence' });
+                    } catch (e) {
+                        // Fallback to regex if Intl.Segmenter fails (e.g., unsupported locale)
+                        this.segmenter = false;
+                    }
+                } else {
+                    this.segmenter = false;
+                }
+            }
+            return this.segmenter;
+        }
+
+        /**
+         * Check if a period is part of an abbreviation
+         * @param {string} text - Full text
+         * @param {number} periodIndex - Index of the period in the text
+         * @returns {boolean} True if the period is part of an abbreviation
+         */
+        isAbbreviation(text, periodIndex) {
+            // Look backwards to find the word before the period
+            const beforePeriod = text.substring(Math.max(0, periodIndex - 15), periodIndex);
+            const wordMatch = beforePeriod.match(/\b([a-z]+\.?)\s*$/i);
+            
+            if (wordMatch) {
+                const potentialAbbr = wordMatch[1].toLowerCase();
+                return TextChunker.ABBREVIATIONS.has(potentialAbbr);
+            }
+            
+            return false;
+        }
+
+        /**
+         * Detect sentence boundaries using Intl.Segmenter or regex fallback
+         * @param {string} text - Text to analyze
+         * @returns {number[]} Array of character indices where sentences end
+         */
+        findSentenceBoundaries(text) {
+            const segmenter = this.initSegmenter();
+            const boundaries = [];
+
+            if (segmenter) {
+                // Use Intl.Segmenter for accurate sentence detection
+                const segments = Array.from(segmenter.segment(text));
+                for (const segment of segments) {
+                    // Each segment is a sentence, so the end of each segment is a boundary
+                    const endIndex = segment.index + segment.segment.length;
+                    if (endIndex < text.length) {
+                        boundaries.push(endIndex);
+                    }
+                }
+            } else {
+                // Fallback to regex-based detection with abbreviation handling
+                // Match sentence endings: . ! ? followed by whitespace or end of string
+                const sentenceEndPattern = /[.!?]+/g;
+                let match;
+                
+                while ((match = sentenceEndPattern.exec(text)) !== null) {
+                    const periodIndex = match.index;
+                    const periodChar = text[periodIndex];
+                    
+                    // Check if this is an abbreviation (only for periods, not ! or ?)
+                    if (periodChar === '.' && this.isAbbreviation(text, periodIndex)) {
+                        continue;
+                    }
+                    
+                    // Check if followed by whitespace or end of string
+                    const afterMatch = text.substring(periodIndex + match[0].length);
+                    if (afterMatch.match(/^\s+|$/)) {
+                        boundaries.push(periodIndex + match[0].length);
+                    }
+                }
+            }
+
+            return boundaries;
+        }
+
+        /**
+         * Find sentence boundaries in word space (for word-based chunking)
+         * @param {string[]} words - Array of words
+         * @param {string} fullText - Full text for boundary detection
+         * @returns {number[]} Array of word indices where sentences end (exclusive, so index means "after this word")
+         */
+        findSentenceBoundariesInWords(words, fullText) {
+            const charBoundaries = this.findSentenceBoundaries(fullText);
+            const wordBoundaries = [];
+            
+            if (charBoundaries.length === 0) {
+                return wordBoundaries;
+            }
+            
+            // Convert character positions to word indices by tracking character position
+            let charIndex = 0;
+            let boundaryIndex = 0;
+            
+            for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+                const word = words[wordIndex];
+                const wordEnd = charIndex + word.length;
+                
+                // Check if any remaining sentence boundary falls within or just after this word
+                while (boundaryIndex < charBoundaries.length) {
+                    const boundary = charBoundaries[boundaryIndex];
+                    
+                    // Boundary is after this word (accounting for space after word)
+                    if (boundary > wordEnd && boundary <= wordEnd + 1) {
+                        wordBoundaries.push(wordIndex + 1); // +1 because boundary is after the word
+                        boundaryIndex++;
+                    } else if (boundary <= wordEnd) {
+                        // Boundary is within this word, include it
+                        wordBoundaries.push(wordIndex + 1);
+                        boundaryIndex++;
+                    } else {
+                        // Boundary is beyond this word, move to next word
+                        break;
+                    }
+                }
+                
+                // Move character index forward (word + space)
+                charIndex = wordEnd + 1;
+            }
+            
+            // Remove duplicates and sort (should already be sorted, but ensure it)
+            return [...new Set(wordBoundaries)].sort((a, b) => a - b);
+        }
+
+        /**
+         * Find the best sentence boundary near a given word index
+         * @param {number[]} wordBoundaries - Array of word indices where sentences end
+         * @param {number} targetWordIndex - Target word index
+         * @param {string} strategy - Chunking strategy (SOFT_LIMIT or HARD_LIMIT)
+         * @returns {number} Best boundary word index
+         */
+        findBestWordBoundary(wordBoundaries, targetWordIndex, strategy) {
+            if (wordBoundaries.length === 0) {
+                return targetWordIndex;
+            }
+
+            if (strategy === TextChunker.STRATEGY.SOFT_LIMIT) {
+                // Find the first boundary after targetWordIndex (allow overflow)
+                for (const boundary of wordBoundaries) {
+                    if (boundary >= targetWordIndex) {
+                        return boundary;
+                    }
+                }
+                // If no boundary found after, use the last boundary
+                return wordBoundaries[wordBoundaries.length - 1];
+            } else {
+                // HARD_LIMIT: Find the last boundary before or at targetWordIndex
+                let bestBoundary = -1;
+                for (const boundary of wordBoundaries) {
+                    if (boundary <= targetWordIndex) {
+                        bestBoundary = boundary;
+                    } else {
+                        break;
+                    }
+                }
+                
+                if (bestBoundary > 0) {
+                    return bestBoundary;
+                }
+                
+                // If no boundary found before target, force split at target
+                return targetWordIndex;
+            }
+        }
+
+        /**
+         * Find the best sentence boundary near a given character position
+         * @param {string} text - Full text
+         * @param {number} targetPosition - Target character position
+         * @param {string} strategy - Chunking strategy (SOFT_LIMIT or HARD_LIMIT)
+         * @returns {number} Best boundary character position
+         */
+        findBestCharBoundary(text, targetPosition, strategy) {
+            const boundaries = this.findSentenceBoundaries(text);
+            
+            if (boundaries.length === 0) {
+                return targetPosition;
+            }
+
+            if (strategy === TextChunker.STRATEGY.SOFT_LIMIT) {
+                // Find the first boundary after targetPosition (allow overflow)
+                for (const boundary of boundaries) {
+                    if (boundary >= targetPosition) {
+                        return boundary;
+                    }
+                }
+                // If no boundary found after, use the last boundary or end of text
+                return boundaries[boundaries.length - 1] || text.length;
+            } else {
+                // HARD_LIMIT: Find the last boundary before or at targetPosition
+                let bestBoundary = -1;
+                for (const boundary of boundaries) {
+                    if (boundary <= targetPosition) {
+                        bestBoundary = boundary;
+                    } else {
+                        break;
+                    }
+                }
+                
+                if (bestBoundary > 0) {
+                    return bestBoundary;
+                }
+                
+                // If no boundary found before target, force split at target
+                return targetPosition;
+            }
+        }
+
+        /**
+         * Normalize whitespace in text
+         * @param {string} text - Text to normalize
+         * @param {boolean} preserveWhitespace - Whether to preserve original whitespace
+         * @returns {string} Normalized text
+         */
+        normalizeWhitespace(text, preserveWhitespace) {
+            if (preserveWhitespace) {
+                return text.trim();
+            }
+            return text.trim().replace(/\s+/g, ' ');
+        }
+
+        /**
+         * Merge small last chunk with previous chunk if it's below the threshold
+         * @param {string[]} chunks - Array of text chunks
+         * @param {number|null} minLastChunkSize - Minimum size for last chunk (null to disable)
+         * @param {number} targetChunkSize - Target chunk size (for calculating threshold)
+         * @param {boolean} preserveWhitespace - Whether to preserve whitespace when merging
+         * @param {Function} sizeCalculator - Function to calculate chunk size (takes chunk string, returns number)
+         * @returns {string[]} Modified chunks array (may have one less chunk if merged)
+         */
+        mergeSmallLastChunk(chunks, minLastChunkSize, targetChunkSize, preserveWhitespace, sizeCalculator) {
+            if (minLastChunkSize === null || chunks.length < 2) {
+                return chunks;
+            }
+
+            const lastChunk = chunks[chunks.length - 1];
+            const lastChunkSize = sizeCalculator(lastChunk);
+            
+            // Calculate threshold: use minLastChunkSize or 10% of target chunk size, whichever is smaller
+            const threshold = Math.min(minLastChunkSize, Math.floor(targetChunkSize * 0.1));
+            
+            if (lastChunkSize < threshold) {
+                // Merge last chunk with previous chunk
+                const previousChunk = chunks[chunks.length - 2];
+                const mergedChunk = preserveWhitespace 
+                    ? previousChunk + ' ' + lastChunk
+                    : (previousChunk + ' ' + lastChunk).trim();
+                chunks[chunks.length - 2] = mergedChunk;
+                chunks.pop(); // Remove the small last chunk
+            }
+
+            return chunks;
+        }
+
+        /**
+         * Split text into chunks by word count with intelligent sentence boundary detection
+         * 
+         * This method intelligently splits text into chunks of approximately the specified
+         * word count, preferring to break at sentence boundaries to maintain readability.
+         * Supports both SOFT_LIMIT (for TTS/video) and HARD_LIMIT (for API/SMS) strategies.
+         * 
+         * @param {string} text - The text to split into chunks
+         * @param {number} wordsPerChunk - Target number of words per chunk
+         * @param {Object} [options] - Optional configuration
+         * @param {string} [options.strategy='soft'] - Chunking strategy: 'soft' (SOFT_LIMIT) or 'hard' (HARD_LIMIT)
+         * @param {boolean} [options.preserveWhitespace=true] - Whether to preserve whitespace in chunks
+         * @param {number} [options.minChunkSize=1] - Minimum words required for a chunk
+         * @param {number} [options.maxChunkSize] - Maximum words allowed in a chunk (overrides wordsPerChunk if exceeded)
+         * @param {boolean} [options.respectSentenceBoundaries=true] - Whether to break at sentence boundaries
+         * @param {number|null} [options.minLastChunkSize=null] - Minimum words for the last chunk. If the last chunk is smaller, it will be merged with the previous chunk. Set to null to disable. Defaults to null (disabled). Recommended: 50 or 10% of wordsPerChunk.
+         * @returns {string[]} Array of text chunks
+         * 
+         * @example
+         * // Soft limit (for TTS/video) - allows overflow to finish sentence
+         * const chunker = new TextChunker();
+         * const chunks = chunker.splitByWords(text, 300, { strategy: 'soft' });
+         * 
+         * @example
+         * // Hard limit (for API/SMS) - strict cut, never exceeds limit
+         * const chunker = new TextChunker();
+         * const chunks = chunker.splitByWords(text, 300, { strategy: 'hard' });
+         * 
+         * @example
+         * // Merge small last chunk with previous chunk (e.g., for TTS processing)
+         * const chunker = new TextChunker();
+         * const chunks = chunker.splitByWords(text, 800, { minLastChunkSize: 50 });
+         * // If last chunk has < 50 words, it will be merged with the previous chunk
+         */
+        splitByWords(text, wordsPerChunk, options = {}) {
+            const {
+                strategy = TextChunker.STRATEGY.SOFT_LIMIT,
+                preserveWhitespace = true,
+                minChunkSize = 1,
+                maxChunkSize = null,
+                respectSentenceBoundaries = true,
+                minLastChunkSize = null
+            } = options;
+
+            if (!text || typeof text !== 'string') {
+                return [];
+            }
+
+            const normalizedText = this.normalizeWhitespace(text, preserveWhitespace);
+            if (!normalizedText) {
+                return [];
+            }
+
+            const words = normalizedText.split(/\s+/).filter(word => word.length > 0);
+            if (words.length === 0) {
+                return [];
+            }
+
+            const chunks = [];
+            let currentChunkStart = 0;
+            const effectiveLimit = maxChunkSize || wordsPerChunk;
+
+            // Pre-compute sentence boundaries in word space if needed
+            let wordBoundaries = [];
+            if (respectSentenceBoundaries) {
+                const fullText = words.join(' ');
+                wordBoundaries = this.findSentenceBoundariesInWords(words, fullText);
+            }
+
+            while (currentChunkStart < words.length) {
+                const targetWordIndex = currentChunkStart + effectiveLimit;
+                
+                // If we've reached the end, add remaining words
+                if (targetWordIndex >= words.length) {
+                    const remainingWords = words.slice(currentChunkStart);
+                    const remainingText = remainingWords.join(' ');
+                    if (remainingText.trim() && remainingWords.length >= minChunkSize) {
+                        chunks.push(remainingText);
+                    }
+                    break;
+                }
+
+                let currentChunkEnd = targetWordIndex;
+
+                if (respectSentenceBoundaries && wordBoundaries.length > 0) {
+                    // Find the best sentence boundary near the target
+                    const bestBoundary = this.findBestWordBoundary(
+                        wordBoundaries,
+                        targetWordIndex,
+                        strategy
+                    );
+                    
+                    // Ensure we don't go backwards beyond the start
+                    if (bestBoundary > currentChunkStart) {
+                        currentChunkEnd = bestBoundary;
+                    }
+                }
+
+                // Extract the chunk
+                const chunkWords = words.slice(currentChunkStart, currentChunkEnd);
+                const chunkText = chunkWords.join(' ').trim();
+
+                if (chunkText && chunkWords.length >= minChunkSize) {
+                    chunks.push(chunkText);
+                }
+
+                // Move to next chunk (skip the boundary if we found one)
+                currentChunkStart = currentChunkEnd;
+            }
+
+            // Merge small last chunk with previous chunk if enabled and applicable
+            const wordCountCalculator = (chunk) => {
+                return chunk.trim().split(/\s+/).filter(w => w.length > 0).length;
+            };
+            this.mergeSmallLastChunk(chunks, minLastChunkSize, wordsPerChunk, preserveWhitespace, wordCountCalculator);
+
+            return chunks;
+        }
+
+        /**
+         * Split text into chunks by character count with intelligent sentence boundary detection
+         * 
+         * @param {string} text - The text to split
+         * @param {number} charsPerChunk - Target number of characters per chunk
+         * @param {Object} [options] - Optional configuration
+         * @param {string} [options.strategy='soft'] - Chunking strategy: 'soft' (SOFT_LIMIT) or 'hard' (HARD_LIMIT)
+         * @param {boolean} [options.preserveWhitespace=true] - Whether to preserve whitespace
+         * @param {number} [options.minChunkSize=1] - Minimum characters required for a chunk
+         * @param {boolean} [options.respectSentenceBoundaries=true] - Whether to break at sentence boundaries
+         * @param {number|null} [options.minLastChunkSize=null] - Minimum characters for the last chunk. If the last chunk is smaller, it will be merged with the previous chunk. Set to null to disable. Defaults to null (disabled). Recommended: 100 or 10% of charsPerChunk.
+         * @returns {string[]} Array of text chunks
+         * 
+         * @example
+         * // Soft limit - allows overflow to finish sentence
+         * const chunker = new TextChunker();
+         * const chunks = chunker.splitByCharacters(text, 1000, { strategy: 'soft' });
+         * 
+         * @example
+         * // Hard limit - strict cut, never exceeds limit
+         * const chunker = new TextChunker();
+         * const chunks = chunker.splitByCharacters(text, 1000, { strategy: 'hard' });
+         * 
+         * @example
+         * // Merge small last chunk with previous chunk
+         * const chunker = new TextChunker();
+         * const chunks = chunker.splitByCharacters(text, 2000, { minLastChunkSize: 100 });
+         * // If last chunk has < 100 characters, it will be merged with the previous chunk
+         */
+        splitByCharacters(text, charsPerChunk, options = {}) {
+            const {
+                strategy = TextChunker.STRATEGY.SOFT_LIMIT,
+                preserveWhitespace = true,
+                minChunkSize = 1,
+                respectSentenceBoundaries = true,
+                minLastChunkSize = null
+            } = options;
+
+            if (!text || typeof text !== 'string') {
+                return [];
+            }
+
+            const normalizedText = this.normalizeWhitespace(text, preserveWhitespace);
+            if (!normalizedText) {
+                return [];
+            }
+
+            const chunks = [];
+            let currentIndex = 0;
+
+            while (currentIndex < normalizedText.length) {
+                const targetPosition = currentIndex + charsPerChunk;
+                let chunkEnd = Math.min(targetPosition, normalizedText.length);
+
+                if (respectSentenceBoundaries && chunkEnd < normalizedText.length) {
+                    // Find the best sentence boundary
+                    const bestBoundary = this.findBestCharBoundary(
+                        normalizedText,
+                        targetPosition,
+                        strategy
+                    );
+                    
+                    // Ensure we don't go backwards beyond the start
+                    if (bestBoundary > currentIndex) {
+                        chunkEnd = bestBoundary;
+                    }
+                }
+
+                const chunk = normalizedText.substring(currentIndex, chunkEnd).trim();
+                
+                if (chunk.length >= minChunkSize) {
+                    chunks.push(chunk);
+                }
+
+                // Move to next chunk (skip whitespace after boundary)
+                currentIndex = chunkEnd;
+                while (currentIndex < normalizedText.length && /\s/.test(normalizedText[currentIndex])) {
+                    currentIndex++;
+                }
+            }
+
+            // Merge small last chunk with previous chunk if enabled and applicable
+            const charCountCalculator = (chunk) => chunk.length;
+            this.mergeSmallLastChunk(chunks, minLastChunkSize, charsPerChunk, preserveWhitespace, charCountCalculator);
+
+            return chunks;
+        }
+
+        /**
+         * Split text into chunks by lines
+         * 
+         * @param {string} text - The text to split
+         * @param {number} linesPerChunk - Target number of lines per chunk
+         * @param {Object} [options] - Optional configuration
+         * @param {boolean} [options.preserveEmptyLines=false] - Whether to preserve empty lines
+         * @returns {string[]} Array of text chunks
+         * 
+         * @example
+         * const chunker = new TextChunker();
+         * const chunks = chunker.splitByLines(text, 10);
+         */
+        splitByLines(text, linesPerChunk, options = {}) {
+            const { preserveEmptyLines = false } = options;
+
+            if (!text || typeof text !== 'string') {
+                return [];
+            }
+
+            const lines = text.split(/\r?\n/);
+            const chunks = [];
+            let currentChunk = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                if (!preserveEmptyLines && !line.trim()) {
+                    continue;
+                }
+
+                currentChunk.push(line);
+
+                if (currentChunk.length >= linesPerChunk) {
+                    chunks.push(currentChunk.join('\n'));
+                    currentChunk = [];
+                }
+            }
+
+            // Add any remaining lines
+            if (currentChunk.length > 0) {
+                chunks.push(currentChunk.join('\n'));
+            }
+
+            return chunks;
+        }
+
+        /**
+         * Get statistics about text chunking
+         * 
+         * @param {string} text - The text to analyze
+         * @param {number} wordsPerChunk - Target words per chunk
+         * @param {Object} [options] - Options passed to splitByWords
+         * @returns {Object} Statistics object with chunk count, average words per chunk, etc.
+         * 
+         * @example
+         * const chunker = new TextChunker();
+         * const stats = chunker.getChunkingStats(text, 300);
+         * // Returns: { chunkCount: 5, avgWordsPerChunk: 285, minWords: 120, maxWords: 300, totalWords: 1425 }
+         */
+        getChunkingStats(text, wordsPerChunk, options = {}) {
+            const chunks = this.splitByWords(text, wordsPerChunk, options);
+            
+            if (chunks.length === 0) {
+                return {
+                    chunkCount: 0,
+                    avgWordsPerChunk: 0,
+                    minWords: 0,
+                    maxWords: 0,
+                    totalWords: 0
+                };
+            }
+
+            const wordCounts = chunks.map(chunk => chunk.split(/\s+/).length);
+            const totalWords = wordCounts.reduce((sum, count) => sum + count, 0);
+
+            return {
+                chunkCount: chunks.length,
+                avgWordsPerChunk: Math.round(totalWords / chunks.length),
+                minWords: Math.min(...wordCounts),
+                maxWords: Math.max(...wordCounts),
+                totalWords: totalWords
+            };
+        }
+    }
 
     /**
      * Button - A reusable UI component for buttons.
@@ -5214,6 +4497,517 @@
     }
 
     /**
+     * Input - A reusable input field component with theming and validation
+     * Provides consistent styling and behavior across userscripts
+     */
+
+    class Input {
+        static BASE_INPUT_CLASS = 'userscript-input';
+        static THEMES = {
+            default: 'default',
+            primary: 'primary',
+            success: 'success',
+            warning: 'warning',
+            danger: 'danger'
+        };
+        static SIZES = {
+            small: 'small',
+            medium: 'medium',
+            large: 'large'
+        };
+
+        /**
+         * Initialize default styles for Input components
+         */
+        static initStyles(options = {}) {
+            const { scopeSelector = '' } = options;
+            const styleId = `input-component${scopeSelector ? '-' + scopeSelector.replace(/[^a-zA-Z0-9]/g, '') : ''}`;
+
+            if (StyleManager.hasStyles(styleId)) {
+                return;
+            }
+
+            const selectorPrefix = scopeSelector ? `${scopeSelector} ` : '';
+
+            const styles = `
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS} {
+                position: relative;
+                display: inline-block;
+                width: 100%;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field {
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                font-size: 14px;
+                box-sizing: border-box;
+                transition: all 0.2s ease;
+                background: #fff;
+                color: #222;
+                outline: none;
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:focus {
+                border-color: #4285f4;
+                box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:disabled {
+                background: #f0f0f0;
+                color: #888;
+                cursor: not-allowed;
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field::placeholder {
+                color: #222;
+                opacity: 0.7;
+            }
+
+            /* Themes */
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+                border-color: #4285f4;
+                box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+                border-color: #28a745;
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+                border-color: #28a745;
+                box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+                border-color: #ffc107;
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+                border-color: #ffc107;
+                box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+                border-color: #dc3545;
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+                border-color: #dc3545;
+                box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+            }
+
+            /* Sizes */
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--small .${Input.BASE_INPUT_CLASS}-field {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--large .${Input.BASE_INPUT_CLASS}-field {
+                padding: 12px 16px;
+                font-size: 16px;
+            }
+
+            /* Label */
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-label {
+                display: block;
+                margin-bottom: 4px;
+                font-size: 13px;
+                font-weight: 500;
+                color: #333;
+            }
+
+            /* Error message */
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-error {
+                display: block;
+                margin-top: 4px;
+                font-size: 12px;
+                color: #dc3545;
+            }
+
+            /* Helper text */
+            ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-helper {
+                display: block;
+                margin-top: 4px;
+                font-size: 12px;
+                color: #666;
+            }
+
+            /* Dark theme */
+            @media (prefers-color-scheme: dark) {
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field {
+                    background: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #555;
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field:disabled {
+                    background: #444;
+                    color: #888;
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-field::placeholder {
+                    color: #e0e0e0;
+                    opacity: 0.5;
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-label {
+                    color: #e0e0e0;
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}-helper {
+                    color: #aaa;
+                }
+
+                /* Themes in dark mode */
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--primary .${Input.BASE_INPUT_CLASS}-field:focus {
+                    border-color: #4285f4;
+                    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.3);
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field {
+                    background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #28a745;
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--success .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field {
+                     background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #ffc107;
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--warning .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field {
+                     background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border-color: #dc3545;
+                }
+
+                ${selectorPrefix}.${Input.BASE_INPUT_CLASS}--danger .${Input.BASE_INPUT_CLASS}-field:focus {
+                    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+                }
+            }
+        `;
+
+            StyleManager.addStyles(styles, styleId);
+        }
+
+        /**
+         * Use default color scheme
+         */
+        static useDefaultColors() {
+            // Colors are already defined in initStyles
+            // This method exists for API consistency with other components
+        }
+
+        /**
+         * Create a new Input instance
+         * @param {Object} options - Configuration options
+         * @param {string} [options.type='text'] - Input type (text, number, email, password, etc.)
+         * @param {string} [options.value=''] - Initial value
+         * @param {string} [options.placeholder=''] - Placeholder text
+         * @param {string} [options.label=''] - Label text
+         * @param {string} [options.helperText=''] - Helper text
+         * @param {string} [options.theme='default'] - Theme (default, primary, success, warning, danger)
+         * @param {string} [options.size='medium'] - Size (small, medium, large)
+         * @param {boolean} [options.disabled=false] - Whether input is disabled
+         * @param {boolean} [options.required=false] - Whether input is required
+         * @param {string} [options.min] - Minimum value (for number inputs)
+         * @param {string} [options.max] - Maximum value (for number inputs)
+         * @param {string} [options.step] - Step value (for number inputs)
+         * @param {Function} [options.onInput] - Input event handler
+         * @param {Function} [options.onChange] - Change event handler
+         * @param {Function} [options.onFocus] - Focus event handler
+         * @param {Function} [options.onBlur] - Blur event handler
+         * @param {Function} [options.validator] - Custom validation function
+         * @param {HTMLElement} [options.container] - Container to append to
+         * @param {string} [options.className] - Additional CSS class
+         * @param {Object} [options.attributes={}] - HTML attributes to set on the input element (e.g., {autocomplete: 'off'})
+         */
+        constructor(options = {}) {
+            this.options = {
+                type: 'text',
+                value: '',
+                placeholder: '',
+                label: '',
+                helperText: '',
+                theme: Input.THEMES.default,
+                size: Input.SIZES.medium,
+                disabled: false,
+                required: false,
+                onInput: null,
+                onChange: null,
+                onFocus: null,
+                onBlur: null,
+                validator: null,
+                container: null,
+                className: '',
+                attributes: {},
+                ...options
+            };
+
+            this.isValid = true;
+            this.errorMessage = '';
+
+            Input.initStyles({ scopeSelector: this.options.scopeSelector });
+            this.createElement();
+            this.setupEventListeners();
+
+            if (this.options.container) {
+                this.options.container.appendChild(this.element);
+            }
+        }
+
+        /**
+         * Create the input element structure
+         */
+        createElement() {
+            // Main container
+            this.element = document.createElement('div');
+            this.element.className = this.buildClassName();
+
+            // Label
+            if (this.options.label) {
+                this.labelElement = document.createElement('label');
+                this.labelElement.className = `${Input.BASE_INPUT_CLASS}-label`;
+                this.labelElement.textContent = this.options.label;
+                if (this.options.required) {
+                    this.labelElement.textContent += ' *';
+                }
+                this.element.appendChild(this.labelElement);
+            }
+
+            // Input field
+            this.inputElement = document.createElement('input');
+            this.inputElement.type = this.options.type;
+            this.inputElement.className = `${Input.BASE_INPUT_CLASS}-field`;
+            this.inputElement.value = this.options.value;
+            this.inputElement.placeholder = this.options.placeholder;
+            this.inputElement.disabled = this.options.disabled;
+            this.inputElement.required = this.options.required;
+
+            // Set number-specific attributes
+            if (this.options.type === 'number') {
+                if (this.options.min !== undefined) {
+                    this.inputElement.min = this.options.min;
+                }
+                if (this.options.max !== undefined) {
+                    this.inputElement.max = this.options.max;
+                }
+                if (this.options.step !== undefined) {
+                    this.inputElement.step = this.options.step;
+                }
+            }
+
+            // Apply custom attributes
+            if (this.options.attributes && typeof this.options.attributes === 'object') {
+                Object.entries(this.options.attributes).forEach(([key, value]) => {
+                    this.inputElement.setAttribute(key, value);
+                });
+            }
+
+            this.element.appendChild(this.inputElement);
+
+            // Helper text
+            if (this.options.helperText) {
+                this.helperElement = document.createElement('span');
+                this.helperElement.className = `${Input.BASE_INPUT_CLASS}-helper`;
+                this.helperElement.textContent = this.options.helperText;
+                this.element.appendChild(this.helperElement);
+            }
+
+            // Error message container (initially hidden)
+            this.errorElement = document.createElement('span');
+            this.errorElement.className = `${Input.BASE_INPUT_CLASS}-error`;
+            this.errorElement.style.display = 'none';
+            this.element.appendChild(this.errorElement);
+        }
+
+        /**
+         * Setup event listeners
+         */
+        setupEventListeners() {
+            if (this.options.onInput) {
+                this.inputElement.addEventListener('input', (e) => {
+                    this.validate();
+                    this.options.onInput(e, this);
+                });
+            } else {
+                this.inputElement.addEventListener('input', () => {
+                    this.validate();
+                });
+            }
+
+            if (this.options.onChange) {
+                this.inputElement.addEventListener('change', (e) => {
+                    this.validate();
+                    this.options.onChange(e, this);
+                });
+            }
+
+            if (this.options.onFocus) {
+                this.inputElement.addEventListener('focus', (e) => {
+                    this.options.onFocus(e, this);
+                });
+            }
+
+            if (this.options.onBlur) {
+                this.inputElement.addEventListener('blur', (e) => {
+                    this.validate();
+                    this.options.onBlur(e, this);
+                });
+            }
+        }
+
+        /**
+         * Build CSS class name
+         */
+        buildClassName() {
+            const classes = [Input.BASE_INPUT_CLASS];
+            
+            if (this.options.theme && this.options.theme !== Input.THEMES.default) {
+                classes.push(`${Input.BASE_INPUT_CLASS}--${this.options.theme}`);
+            }
+            
+            if (this.options.size && this.options.size !== Input.SIZES.medium) {
+                classes.push(`${Input.BASE_INPUT_CLASS}--${this.options.size}`);
+            }
+            
+            if (this.options.className) {
+                classes.push(this.options.className);
+            }
+            
+            return classes.join(' ');
+        }
+
+        /**
+         * Validate input value
+         */
+        validate() {
+            this.isValid = true;
+            this.errorMessage = '';
+
+            // Required validation
+            if (this.options.required && !this.inputElement.value.trim()) {
+                this.isValid = false;
+                this.errorMessage = 'This field is required';
+            }
+
+            // Custom validation
+            if (this.isValid && this.options.validator) {
+                const validationResult = this.options.validator(this.inputElement.value, this);
+                if (validationResult !== true) {
+                    this.isValid = false;
+                    this.errorMessage = validationResult || 'Invalid value';
+                }
+            }
+
+            // Update error display
+            this.updateErrorDisplay();
+            return this.isValid;
+        }
+
+        /**
+         * Update error message display
+         */
+        updateErrorDisplay() {
+            if (!this.isValid && this.errorMessage) {
+                this.errorElement.textContent = this.errorMessage;
+                this.errorElement.style.display = 'block';
+                this.setTheme(Input.THEMES.danger);
+            } else {
+                this.errorElement.style.display = 'none';
+                this.setTheme(this.options.theme);
+            }
+        }
+
+        /**
+         * Get current value
+         */
+        getValue() {
+            return this.inputElement.value;
+        }
+
+        /**
+         * Set value
+         */
+        setValue(value) {
+            this.inputElement.value = value;
+            this.validate();
+        }
+
+        /**
+         * Set theme
+         */
+        setTheme(theme) {
+            // Remove existing theme classes
+            Object.values(Input.THEMES).forEach(t => {
+                if (t !== Input.THEMES.default) {
+                    this.element.classList.remove(`${Input.BASE_INPUT_CLASS}--${t}`);
+                }
+            });
+
+            // Add new theme class
+            if (theme && theme !== Input.THEMES.default) {
+                this.element.classList.add(`${Input.BASE_INPUT_CLASS}--${theme}`);
+            }
+        }
+
+        /**
+         * Set disabled state
+         */
+        setDisabled(disabled) {
+            this.options.disabled = disabled;
+            this.inputElement.disabled = disabled;
+        }
+
+        /**
+         * Focus the input
+         */
+        focus() {
+            this.inputElement.focus();
+        }
+
+        /**
+         * Blur the input
+         */
+        blur() {
+            this.inputElement.blur();
+        }
+
+        /**
+         * Get the DOM element
+         */
+        getElement() {
+            return this.element;
+        }
+
+        /**
+         * Destroy the input and clean up
+         */
+        destroy() {
+            if (this.element && this.element.parentNode) {
+                this.element.parentNode.removeChild(this.element);
+            }
+        }
+    }
+
+    /**
      * TextArea - A reusable textarea component with theming and validation
      * Provides consistent styling and behavior across userscripts
      */
@@ -6230,7 +6024,12 @@
             GENERATION_TYPE: 'gemini-generation-type',
             QUEUE_DELAY: 'gemini-queue-delay',
             SHOW_NOTIFICATIONS: 'gemini-show-notifications',
-            PANEL_POSITION: 'gemini-panel-position'
+            PANEL_POSITION: 'gemini-panel-position',
+            CHUNKED_TEXT: 'gemini-chunked-text',
+            CHUNKED_BASE_PROMPT: 'gemini-chunked-base-prompt',
+            CHUNKED_WORDS_PER_CHUNK: 'gemini-chunked-words-per-chunk',
+            CHUNKED_STRATEGY: 'gemini-chunked-strategy',
+            CHUNKED_APPEND_TO_QUEUE: 'gemini-chunked-append-to-queue'
         };
 
         static DEFAULT_SETTINGS = {
@@ -6238,7 +6037,12 @@
             GENERATION_TYPE: 'text', // 'text', 'image', 'video'
             QUEUE_DELAY: 2000,
             SHOW_NOTIFICATIONS: true,
-            PANEL_POSITION: { x: 20, y: 20 }
+            PANEL_POSITION: { x: 20, y: 20 },
+            CHUNKED_TEXT: '',
+            CHUNKED_BASE_PROMPT: '',
+            CHUNKED_WORDS_PER_CHUNK: 500,
+            CHUNKED_STRATEGY: 'soft',
+            CHUNKED_APPEND_TO_QUEUE: false // false = clean and replace, true = append
         };
 
         constructor() {
@@ -6256,7 +6060,7 @@
             this.settings = { ...GeminiEnhancer.DEFAULT_SETTINGS };
             this.sidebarPanel = null;
             this.enhancerId = 'gemini-enhancer-container';
-            this.formStatePersistence = null;
+            this.generatedChunkedPrompts = [];
 
             Logger.info("Initializing Gemini Enhancer");
 
@@ -6383,6 +6187,10 @@
                     TextArea.useDefaultColors();
                     Tabs.initStyles();
                     Tabs.useDefaultColors();
+                    Input.initStyles();
+                    Input.useDefaultColors();
+                    Checkbox.initStyles();
+                    Checkbox.useDefaultColors();
                 } catch (error) {
                     Logger.error('Error initializing styles:', error);
                 }
@@ -6414,61 +6222,12 @@
             `);
 
                 this.createUI();
-                this.setupFormStatePersistence();
                 Logger.info("Gemini Enhancer initialized successfully");
             } catch (error) {
                 Logger.error("Error during initialization:", error);
             }
         }
 
-        /**
-         * Setup form state persistence for prompts textarea
-         */
-        setupFormStatePersistence() {
-            if (!this.promptsTextArea) {
-                Logger.warn("Prompts textarea not available for persistence");
-                return;
-            }
-
-            // Wait a bit for textarea to be fully initialized
-            setTimeout(() => {
-                try {
-                    const containerElement = this.promptsTextArea.getElement();
-                    if (!containerElement) {
-                        Logger.warn("Textarea container element not found");
-                        return;
-                    }
-
-                    // Find the actual textarea element inside the container
-                    const textareaElement = containerElement.querySelector('textarea');
-                    if (!textareaElement) {
-                        Logger.warn("Textarea element not found in container");
-                        return;
-                    }
-
-                    this.formStatePersistence = new FormStatePersistence({
-                        namespace: 'gemini-enhancer',
-                        fields: {
-                            prompts: {
-                                selector: () => textareaElement,
-                                type: 'textarea',
-                                defaultValue: '',
-                                validator: null
-                            }
-                        },
-                        getValue: getValue,
-                        setValue: setValue,
-                        autoSave: true,
-                        debounceDelay: 500,
-                        name: 'Gemini Enhancer Prompts'
-                    });
-
-                    Logger.debug("Form state persistence setup complete");
-                } catch (error) {
-                    Logger.error("Error setting up form state persistence:", error);
-                }
-            }, 1000);
-        }
 
         /**
          * Create the UI
@@ -6518,6 +6277,11 @@
                         id: 'queue',
                         label: '📋 Queue',
                         content: () => this.createQueueSection()
+                    },
+                    {
+                        id: 'chunked',
+                        label: '✂️ Chunked Prompts',
+                        content: () => this.createChunkedPromptsSection()
                     },
                     {
                         id: 'settings',
@@ -6589,8 +6353,7 @@
                 value: this.settings.PROMPTS_QUEUE || '',
                 placeholder: 'Enter prompts separated by ---:\nFirst prompt\n---\nSecond prompt\n---\nThird prompt',
                 rows: 10,
-                onChange: (textArea) => {
-                    // FormStatePersistence will handle saving, but we also save to settings for compatibility
+                onInput: (event, textArea) => {
                     this.settings.PROMPTS_QUEUE = textArea.getValue();
                     this.saveSettings();
                 },
@@ -6631,34 +6394,332 @@
             delayLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
             container.appendChild(delayLabel);
 
-            const delayInput = document.createElement('input');
-            delayInput.type = 'number';
-            delayInput.min = '500';
-            delayInput.max = '10000';
-            delayInput.step = '100';
-            delayInput.value = this.settings.QUEUE_DELAY || 2000;
-            delayInput.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-bottom: 12px;';
-            delayInput.onchange = (e) => {
-                this.settings.QUEUE_DELAY = parseInt(e.target.value, 10);
-                this.saveSettings();
-            };
-            container.appendChild(delayInput);
+            this.delayInput = new Input({
+                type: 'number',
+                value: this.settings.QUEUE_DELAY || 2000,
+                placeholder: 'Delay in milliseconds',
+                min: 500,
+                max: 10000,
+                attributes: { step: '100' },
+                onChange: (event, input) => {
+                    const value = parseInt(input.getValue(), 10);
+                    if (!isNaN(value) && value >= 500 && value <= 10000) {
+                        this.settings.QUEUE_DELAY = value;
+                        this.saveSettings();
+                    }
+                },
+                container: container,
+                scopeSelector: `#${this.enhancerId}`
+            });
+            this.delayInput.getElement().style.marginBottom = '12px';
 
             // Show notifications checkbox
-            const notificationsCheckbox = document.createElement('input');
-            notificationsCheckbox.type = 'checkbox';
-            notificationsCheckbox.checked = this.settings.SHOW_NOTIFICATIONS !== false;
-            notificationsCheckbox.onchange = (e) => {
-                this.settings.SHOW_NOTIFICATIONS = e.target.checked;
-                this.saveSettings();
-            };
-            const notificationsLabel = document.createElement('label');
-            notificationsLabel.style.cssText = 'display: flex; align-items: center; gap: 8px; font-size: 12px; color: #555; margin-top: 12px;';
-            notificationsLabel.appendChild(notificationsCheckbox);
-            notificationsLabel.appendChild(document.createTextNode('Show notifications'));
-            container.appendChild(notificationsLabel);
+            this.notificationsCheckbox = new Checkbox({
+                label: 'Show notifications',
+                checked: this.settings.SHOW_NOTIFICATIONS !== false,
+                onChange: (event) => {
+                    this.settings.SHOW_NOTIFICATIONS = this.notificationsCheckbox.isChecked();
+                    this.saveSettings();
+                },
+                container: container,
+                size: 'small'
+            });
+            this.notificationsCheckbox.checkboxContainer.style.marginTop = '12px';
 
             return container;
+        }
+
+        /**
+         * Create chunked prompts section
+         */
+        createChunkedPromptsSection() {
+            const container = document.createElement('div');
+            container.style.padding = '12px';
+
+            // Info text
+            const infoText = HTMLUtils.createElementWithHTML('div', 
+                'Chunk text and use variables in base prompt:<br/>• Use $chunk for current chunk (auto in loop)<br/>• Use $1, $2, $3... for chunk variables<br/>• Use $counter for current chunk index (1-based)<br/>• Use $total for total chunk count',
+                {}
+            );
+            infoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px;';
+            container.appendChild(infoText);
+
+            // Text to chunk
+            const textLabel = document.createElement('label');
+            textLabel.textContent = 'Text to Chunk:';
+            textLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+            container.appendChild(textLabel);
+
+            this.chunkedTextArea = new TextArea({
+                value: this.settings.CHUNKED_TEXT || '',
+                placeholder: 'Enter the text you want to chunk...',
+                rows: 8,
+                onInput: (event, textArea) => {
+                    this.settings.CHUNKED_TEXT = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: container
+            });
+
+            // Base prompt template
+            const promptLabel = document.createElement('label');
+            promptLabel.textContent = 'Base Prompt Template:';
+            promptLabel.style.cssText = 'display: block; margin-top: 12px; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+            container.appendChild(promptLabel);
+
+            this.chunkedBasePromptArea = new TextArea({
+                value: this.settings.CHUNKED_BASE_PROMPT || '',
+                placeholder: 'Enter base prompt with variables:\nExample: Analyze this text: $chunk\nChunk $counter of $total',
+                rows: 6,
+                onInput: (event, textArea) => {
+                    this.settings.CHUNKED_BASE_PROMPT = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: container
+            });
+
+            // Chunking options
+            const optionsContainer = document.createElement('div');
+            optionsContainer.style.cssText = 'margin-top: 12px; padding: 8px; background: #f9f9f9; border-radius: 4px;';
+
+            // Words per chunk
+            const wordsLabel = document.createElement('label');
+            wordsLabel.textContent = 'Words per chunk:';
+            wordsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            optionsContainer.appendChild(wordsLabel);
+
+            this.wordsPerChunkInput = new Input({
+                type: 'number',
+                value: this.settings.CHUNKED_WORDS_PER_CHUNK || 500,
+                placeholder: 'Words per chunk',
+                min: 10,
+                max: 5000,
+                attributes: { step: '50' },
+                onChange: (event, input) => {
+                    const value = parseInt(input.getValue(), 10);
+                    if (!isNaN(value) && value >= 10 && value <= 5000) {
+                        this.settings.CHUNKED_WORDS_PER_CHUNK = value;
+                        this.saveSettings();
+                    }
+                },
+                container: optionsContainer,
+                scopeSelector: `#${this.enhancerId}`
+            });
+            this.wordsPerChunkInput.getElement().style.marginBottom = '8px';
+
+            // Strategy selector
+            const strategyLabel = document.createElement('label');
+            strategyLabel.textContent = 'Chunking strategy:';
+            strategyLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+            optionsContainer.appendChild(strategyLabel);
+
+            const strategySelect = document.createElement('select');
+            strategySelect.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
+            strategySelect.value = this.settings.CHUNKED_STRATEGY || 'soft';
+
+            const softOption = document.createElement('option');
+            softOption.value = 'soft';
+            softOption.textContent = 'Soft (allow overflow to finish sentence)';
+            strategySelect.appendChild(softOption);
+
+            const hardOption = document.createElement('option');
+            hardOption.value = 'hard';
+            hardOption.textContent = 'Hard (strict cut at boundary)';
+            strategySelect.appendChild(hardOption);
+
+            strategySelect.onchange = (e) => {
+                this.settings.CHUNKED_STRATEGY = e.target.value;
+                this.saveSettings();
+            };
+            optionsContainer.appendChild(strategySelect);
+
+            container.appendChild(optionsContainer);
+
+            // Generate button
+            const generateButton = new Button({
+                text: 'Generate Prompts',
+                onClick: () => this.generateChunkedPrompts(),
+                container: container
+            });
+            generateButton.button.style.marginTop = '12px';
+            this.generateChunkedButton = generateButton;
+
+            // Preview/Result area
+            const previewLabel = document.createElement('label');
+            previewLabel.textContent = 'Generated Prompts Preview:';
+            previewLabel.style.cssText = 'display: block; margin-top: 12px; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+            container.appendChild(previewLabel);
+
+            this.chunkedPreviewArea = new TextArea({
+                value: '',
+                placeholder: 'Generated prompts will appear here...',
+                rows: 8,
+                onChange: () => {},
+                container: container,
+                disabled: true
+            });
+
+            // Append to queue checkbox
+            this.appendToQueueCheckbox = new Checkbox({
+                label: 'Append to existing prompts (unchecked = clean and replace)',
+                checked: this.settings.CHUNKED_APPEND_TO_QUEUE || false,
+                onChange: (event) => {
+                    this.settings.CHUNKED_APPEND_TO_QUEUE = this.appendToQueueCheckbox.isChecked();
+                    this.saveSettings();
+                },
+                container: container,
+                size: 'small'
+            });
+            this.appendToQueueCheckbox.checkboxContainer.style.marginTop = '12px';
+
+            // Add to queue button
+            const addToQueueButton = new Button({
+                text: 'Add to Queue',
+                onClick: () => this.addChunkedPromptsToQueue(),
+                container: container
+            });
+            addToQueueButton.button.style.marginTop = '8px';
+            this.addToQueueChunkedButton = addToQueueButton;
+
+            // Status message
+            this.chunkedStatus = document.createElement('div');
+            this.chunkedStatus.style.cssText = 'margin-top: 8px; padding: 6px; font-size: 11px; color: #666; text-align: center;';
+            this.chunkedStatus.textContent = '';
+            container.appendChild(this.chunkedStatus);
+
+            return container;
+        }
+
+        /**
+         * Generate prompts from chunked text
+         */
+        generateChunkedPrompts() {
+            const text = this.chunkedTextArea.getValue().trim();
+            const basePrompt = this.chunkedBasePromptArea.getValue().trim();
+
+            if (!text) {
+                this.showNotification('Please enter text to chunk', 'warning');
+                this.chunkedStatus.textContent = 'Error: No text to chunk';
+                this.chunkedStatus.style.color = '#d32f2f';
+                return;
+            }
+
+            if (!basePrompt) {
+                this.showNotification('Please enter base prompt template', 'warning');
+                this.chunkedStatus.textContent = 'Error: No base prompt template';
+                this.chunkedStatus.style.color = '#d32f2f';
+                return;
+            }
+
+            try {
+                // Initialize TextChunker
+                const chunker = new TextChunker();
+                const wordsPerChunk = this.settings.CHUNKED_WORDS_PER_CHUNK || 500;
+                const strategy = this.settings.CHUNKED_STRATEGY === 'hard' 
+                    ? TextChunker.STRATEGY.HARD_LIMIT 
+                    : TextChunker.STRATEGY.SOFT_LIMIT;
+
+                // Chunk the text
+                const chunks = chunker.splitByWords(text, wordsPerChunk, {
+                    strategy: strategy,
+                    respectSentenceBoundaries: true
+                });
+
+                if (chunks.length === 0) {
+                    this.showNotification('No chunks generated. Text might be too short.', 'warning');
+                    this.chunkedStatus.textContent = 'Error: No chunks generated';
+                    this.chunkedStatus.style.color = '#d32f2f';
+                    return;
+                }
+
+                // Generate prompts by replacing variables
+                const generatedPrompts = [];
+                const total = chunks.length;
+
+                for (let i = 0; i < chunks.length; i++) {
+                    let prompt = basePrompt;
+                    const counter = i + 1; // 1-based index
+                    const currentChunk = chunks[i];
+
+                    // Replace $chunk with current chunk (must be done first to avoid conflicts)
+                    prompt = prompt.replace(/\$chunk/g, currentChunk);
+
+                    // Replace $counter
+                    prompt = prompt.replace(/\$counter/g, counter.toString());
+
+                    // Replace $total
+                    prompt = prompt.replace(/\$total/g, total.toString());
+
+                    // Replace $1, $2, $3, etc. with corresponding chunks
+                    // Replace variables with chunks
+                    prompt = prompt.replace(/\$(\d+)/g, (match, varNum) => {
+                        const varIndex = parseInt(varNum, 10) - 1; // Convert to 0-based
+                        if (varIndex >= 0 && varIndex < chunks.length) {
+                            return chunks[varIndex];
+                        }
+                        return match; // Keep original if out of range
+                    });
+
+                    generatedPrompts.push(prompt);
+                }
+
+                // Store generated prompts
+                this.generatedChunkedPrompts = generatedPrompts;
+
+                // Display in preview
+                const previewText = generatedPrompts.join('\n---\n');
+                this.chunkedPreviewArea.setValue(previewText);
+
+                // Update status
+                this.chunkedStatus.textContent = `Generated ${generatedPrompts.length} prompts from ${chunks.length} chunks`;
+                this.chunkedStatus.style.color = '#2e7d32';
+                this.showNotification(`Generated ${generatedPrompts.length} prompts`, 'success');
+
+                Logger.info(`Generated ${generatedPrompts.length} prompts from ${chunks.length} chunks`);
+            } catch (error) {
+                Logger.error('Error generating chunked prompts:', error);
+                this.showNotification(`Error: ${error.message}`, 'error');
+                this.chunkedStatus.textContent = `Error: ${error.message}`;
+                this.chunkedStatus.style.color = '#d32f2f';
+            }
+        }
+
+        /**
+         * Add generated chunked prompts to queue
+         */
+        addChunkedPromptsToQueue() {
+            if (!this.generatedChunkedPrompts || this.generatedChunkedPrompts.length === 0) {
+                this.showNotification('No prompts generated. Please generate prompts first.', 'warning');
+                return;
+            }
+
+            const shouldAppend = this.settings.CHUNKED_APPEND_TO_QUEUE || false;
+            let newQueue;
+
+            if (shouldAppend) {
+                // Append to existing queue
+                const currentQueue = this.promptsTextArea.getValue().trim();
+                const separator = currentQueue ? '\n---\n' : '';
+                newQueue = currentQueue + separator + this.generatedChunkedPrompts.join('\n---\n');
+            } else {
+                // Clean and replace
+                newQueue = this.generatedChunkedPrompts.join('\n---\n');
+            }
+
+            this.promptsTextArea.setValue(newQueue);
+
+            // Save to settings
+            this.settings.PROMPTS_QUEUE = newQueue;
+            this.saveSettings();
+
+            const action = shouldAppend ? 'appended' : 'replaced';
+            this.showNotification(`${action.charAt(0).toUpperCase() + action.slice(1)} queue with ${this.generatedChunkedPrompts.length} prompts`, 'success');
+            Logger.info(`${action.charAt(0).toUpperCase() + action.slice(1)} queue with ${this.generatedChunkedPrompts.length} prompts`);
+
+            // Switch to queue tab to show the added prompts
+            if (this.tabs) {
+                this.tabs.switchToTab('queue');
+            }
         }
 
         /**
