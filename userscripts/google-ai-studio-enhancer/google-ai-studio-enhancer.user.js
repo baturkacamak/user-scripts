@@ -8779,8 +8779,8 @@
                 DISABLED: 'button[aria-label="Run"][disabled]',
             },
             RESPONSE_CONTAINERS: [
-                '.ng-star-inserted .chat-turn-container.model.render .turn-content:not(:has(.mat-accordion))',
-                '.ng-star-inserted .chat-turn-container.model.render .turn-content:has(.turn-information)',
+                '.ng-star-inserted .chat-turn-container.model.render .turn-content:not(:has(.mat-accordion)):not(:has(ms-thought-chunk))',
+                '.ng-star-inserted .chat-turn-container.model.render .turn-content:has(.turn-information):not(:has(.mat-accordion)):not(:has(ms-thought-chunk))',
             ],
             PROMPT_INPUTS: [
                 'textarea[aria-label*="Start typing a prompt"]',
@@ -8948,7 +8948,14 @@
                     '[aria-label*="more"]',
                     '.action-buttons',
                     '.response-actions',
-                    '.author-label'  // Exclude "Model" label
+                    '.author-label',  // Exclude "Model" label
+                    'mat-accordion',  // Exclude thinking process accordion
+                    '.mat-accordion',  // Exclude thinking process accordion (with class)
+                    'ms-thought-chunk',  // Exclude thinking chunk component
+                    '.thought-panel',  // Exclude thought panel
+                    '.thinking-progress-icon',  // Exclude thinking icon
+                    '[class*="thought"]',  // Exclude any element with "thought" in class name
+                    'mat-expansion-panel[class*="thought"]'  // Exclude thought expansion panels
                 ]
             });
             
@@ -11144,23 +11151,37 @@ Third prompt`;
                     if (!element || !element.isConnected) {
                         return false;
                     }
-                    // Check that it doesn't have .mat-accordion inside it
-                    return !element.querySelector('.mat-accordion');
+                    // Check that it doesn't have thinking process elements inside it
+                    return !element.querySelector('.mat-accordion') &&
+                           !element.querySelector('mat-accordion') &&
+                           !element.querySelector('ms-thought-chunk') &&
+                           !element.querySelector('[class*="thought"]') &&
+                           !element.querySelector('.thought-panel');
                 };
                 
-                // Wait until the element has stabilized without .mat-accordion for a short period
-                const waitForNoAccordion = async (element, timeoutMs = 800, intervalMs = 80) => {
+                // Wait until the element has stabilized without thinking process elements for a short period
+                const waitForNoThinkingElements = async (element, timeoutMs = 800, intervalMs = 80) => {
                     const start = Date.now();
                     while (Date.now() - start < timeoutMs) {
                         if (!element.isConnected) {
                             return false;
                         }
-                        if (!element.querySelector('.mat-accordion')) {
+                        // Check for all thinking-related elements
+                        if (!element.querySelector('.mat-accordion') &&
+                            !element.querySelector('mat-accordion') &&
+                            !element.querySelector('ms-thought-chunk') &&
+                            !element.querySelector('[class*="thought"]') &&
+                            !element.querySelector('.thought-panel')) {
                             return true;
                         }
                         await this.delay(intervalMs);
                     }
-                    return !element.querySelector('.mat-accordion');
+                    // Final check
+                    return !element.querySelector('.mat-accordion') &&
+                           !element.querySelector('mat-accordion') &&
+                           !element.querySelector('ms-thought-chunk') &&
+                           !element.querySelector('[class*="thought"]') &&
+                           !element.querySelector('.thought-panel');
                 };
                 
                 // Configure ViewportStabilizer with custom hooks for accordion checking
@@ -11172,10 +11193,10 @@ Third prompt`;
                     scrollDelayMs: 120,
                     elementValidator: isValidResponseElement,
                     postScrollHook: async (element) => {
-                        // Wait for accordion to disappear after scrolling
-                        const stable = await waitForNoAccordion(element, 800, 80);
+                        // Wait for thinking elements to disappear after scrolling
+                        const stable = await waitForNoThinkingElements(element, 800, 80);
                         if (!stable) {
-                            throw new Error('Element still contains accordion after wait');
+                            throw new Error('Element still contains thinking process elements after wait');
                         }
                     },
                     enableDebugLogging: Logger.DEBUG,
@@ -11221,6 +11242,27 @@ Third prompt`;
                     // Remove "Model" at the beginning if present
                     if (responseText) {
                         responseText = responseText.replace(/^Model\.?\s*/i, '').trim();
+                    }
+                    
+                    // Remove any remaining thinking-related text patterns
+                    if (responseText) {
+                        // Remove lines that contain thinking-related keywords
+                        const thinkingPatterns = [
+                            /^Thoughts?\s*$/i,
+                            /^Expand to view model thoughts?\s*$/i,
+                            /^Considering the Impact/i,
+                            /^Analyzing/i,
+                            /^Unpacking/i,
+                            /^Dissecting/i,
+                            /^Crafting/i,
+                            /^Emphasizing/i
+                        ];
+                        const lines = responseText.split('\n');
+                        const filteredLines = lines.filter(line => {
+                            const trimmed = line.trim();
+                            return !thinkingPatterns.some(pattern => pattern.test(trimmed));
+                        });
+                        responseText = filteredLines.join('\n').trim();
                     }
                     
                     if (responseText && responseText.length > 10) {
