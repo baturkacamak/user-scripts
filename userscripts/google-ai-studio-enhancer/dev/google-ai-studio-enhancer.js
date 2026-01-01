@@ -113,6 +113,10 @@ class AIStudioEnhancer {
         TTS_STYLE_PROMPT: 'gaise-tts-style-prompt',
         TTS_TEMPERATURE: 'gaise-tts-temperature',
         TTS_VOICE: 'gaise-tts-voice',
+        TTS_MODE: 'gaise-tts-mode',
+        TTS_EPISODES: 'gaise-tts-episodes',
+        TTS_EPISODE_START_NUMBER: 'gaise-tts-episode-start-number',
+        TTS_EPISODE_FILENAME_START_NUMBER: 'gaise-tts-episode-filename-start-number',
         CHUNKED_TEXT: 'gaise-chunked-text',
         CHUNKED_BASE_PROMPT: 'gaise-chunked-base-prompt',
         CHUNKED_WORDS_PER_CHUNK: 'gaise-chunked-words-per-chunk',
@@ -142,6 +146,10 @@ class AIStudioEnhancer {
         TTS_STYLE_PROMPT: '',
         TTS_TEMPERATURE: 0.75,
         TTS_VOICE: '',
+        TTS_MODE: 'single',
+        TTS_EPISODES: '',
+        TTS_EPISODE_START_NUMBER: 1,
+        TTS_EPISODE_FILENAME_START_NUMBER: 1,
         CHUNKED_TEXT: '',
         CHUNKED_BASE_PROMPT: '',
         CHUNKED_WORDS_PER_CHUNK: 500,
@@ -180,6 +188,10 @@ class AIStudioEnhancer {
         this.totalTTSChunks = 0;
         this.ttsQuotaMonitor = null; // MutationObserver for quota errors
         this.lastTTSAudioSrc = null; // Track last downloaded audio src to detect new audio
+        // TTS Episodes state
+        this.currentTTSEpisode = 0;
+        this.totalTTSEpisodes = 0;
+        this.ttsEpisodes = []; // Array of episode objects: [{episodeNum, chunks: [...]}, ...]
         
         // Initialize TextChunker instance
         this.textChunker = new TextChunker();
@@ -382,6 +394,12 @@ class AIStudioEnhancer {
                 }
                 
                 .chunked-text-textarea textarea {
+                    max-height: 300px !important;
+                    overflow-y: auto !important;
+                }
+                
+                .tts-text-textarea textarea,
+                .tts-episodes-textarea textarea {
                     max-height: 300px !important;
                     overflow-y: auto !important;
                 }
@@ -879,7 +897,38 @@ Third prompt`;
         title.textContent = '🔊 Text-to-Speech Queue';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
 
-        // Text input
+        // TTS mode selector
+        const ttsModeContainer = document.createElement('div');
+        ttsModeContainer.style.marginBottom = '12px';
+
+        const ttsModeLabel = document.createElement('label');
+        ttsModeLabel.textContent = 'TTS Mode:';
+        ttsModeLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        this.ttsModeSelect = new SelectBox({
+            items: [
+                { value: 'single', label: 'Single Text (chunked automatically)', selected: (this.settings.TTS_MODE || 'single') === 'single' },
+                { value: 'episodes', label: 'Multiple Episodes (separated by ---)', selected: (this.settings.TTS_MODE || 'single') === 'episodes' }
+            ],
+            name: 'tts-mode',
+            id: 'tts-mode-select',
+            placeholder: 'Select TTS mode',
+            container: ttsModeContainer,
+            theme: 'default',
+            size: 'medium',
+            onChange: (value) => {
+                this.settings.TTS_MODE = value;
+                this.saveSettings();
+                this.updateTTSInputVisibility();
+            }
+        });
+
+        ttsModeContainer.appendChild(ttsModeLabel);
+
+        // Single text input container
+        this.ttsSingleTextContainer = document.createElement('div');
+        this.ttsSingleTextContainer.className = 'tts-single-text-container';
+
         const textLabel = document.createElement('label');
         textLabel.textContent = 'Text to convert (will be split into chunks):';
         textLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
@@ -902,10 +951,137 @@ Third prompt`;
                 this.settings.TTS_TEXT = textArea.getValue();
                 this.saveSettings();
             },
-            container: section,
+            container: this.ttsSingleTextContainer,
             autoResize: false,
             scopeSelector: `#${this.enhancerId}`
         });
+
+        this.ttsSingleTextContainer.appendChild(textLabel);
+
+        // Episodes input container
+        this.ttsEpisodesContainer = document.createElement('div');
+        this.ttsEpisodesContainer.className = 'tts-episodes-container';
+        this.ttsEpisodesContainer.style.display = 'none';
+
+        const episodesLabel = document.createElement('label');
+        episodesLabel.textContent = 'Episodes (separated by ---):';
+        episodesLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        const episodesInfo = document.createElement('div');
+        episodesInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+        episodesInfo.textContent = 'Each episode will be chunked independently. Example: Episode 1 text --- Episode 2 text --- Episode 3 text';
+
+        this.ttsEpisodesArea = new TextArea({
+            value: this.settings.TTS_EPISODES || '',
+            placeholder: 'Enter episodes separated by --- (three dashes):\n\nEpisode 1 text here\n---\nEpisode 2 text here\n---\nEpisode 3 text here',
+            rows: 8,
+            theme: 'primary',
+            size: 'medium',
+            className: 'tts-episodes-textarea',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            onInput: (event, textArea) => {
+                this.settings.TTS_EPISODES = textArea.getValue();
+                this.ttsTextSaveDebouncer.trigger();
+            },
+            onChange: (event, textArea) => {
+                this.settings.TTS_EPISODES = textArea.getValue();
+                this.saveSettings();
+            },
+            container: this.ttsEpisodesContainer,
+            autoResize: false,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        // Episode start number input (only for episodes mode)
+        const episodeStartContainer = document.createElement('div');
+        episodeStartContainer.style.marginBottom = '12px';
+        episodeStartContainer.style.marginTop = '12px';
+
+        const episodeStartLabel = document.createElement('label');
+        episodeStartLabel.textContent = 'Episode start number (processing):';
+        episodeStartLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        const episodeStartInfo = document.createElement('div');
+        episodeStartInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+        episodeStartInfo.textContent = 'Which episode in the textarea to start processing from (1 = first episode)';
+
+        this.ttsEpisodeStartInput = new Input({
+            type: 'number',
+            value: this.settings.TTS_EPISODE_START_NUMBER !== undefined 
+                ? this.settings.TTS_EPISODE_START_NUMBER 
+                : 1,
+            placeholder: '1',
+            min: 1,
+            className: 'tts-episode-start-input',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 1) {
+                    return 'Please enter a number >= 1';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 1) {
+                    this.settings.TTS_EPISODE_START_NUMBER = value;
+                    this.saveSettings();
+                }
+            },
+            container: episodeStartContainer
+        });
+
+        episodeStartContainer.appendChild(episodeStartLabel);
+        episodeStartContainer.appendChild(episodeStartInfo);
+
+        // Episode filename start number input (separate from processing start number)
+        const episodeFilenameStartContainer = document.createElement('div');
+        episodeFilenameStartContainer.style.marginBottom = '12px';
+        episodeFilenameStartContainer.style.marginTop = '12px';
+
+        const episodeFilenameStartLabel = document.createElement('label');
+        episodeFilenameStartLabel.textContent = 'Episode filename start number:';
+        episodeFilenameStartLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        const episodeFilenameStartInfo = document.createElement('div');
+        episodeFilenameStartInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+        episodeFilenameStartInfo.textContent = 'The episode number to use in filenames (e.g., if pasting episodes 16-18, set to 16)';
+
+        this.ttsEpisodeFilenameStartInput = new Input({
+            type: 'number',
+            value: this.settings.TTS_EPISODE_FILENAME_START_NUMBER !== undefined 
+                ? this.settings.TTS_EPISODE_FILENAME_START_NUMBER 
+                : 1,
+            placeholder: '1',
+            min: 1,
+            className: 'tts-episode-filename-start-input',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 1) {
+                    return 'Please enter a number >= 1';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 1) {
+                    this.settings.TTS_EPISODE_FILENAME_START_NUMBER = value;
+                    this.saveSettings();
+                }
+            },
+            container: episodeFilenameStartContainer
+        });
+
+        episodeFilenameStartContainer.appendChild(episodeFilenameStartLabel);
+        episodeFilenameStartContainer.appendChild(episodeFilenameStartInfo);
+
+        this.ttsEpisodesContainer.appendChild(episodesLabel);
+        this.ttsEpisodesContainer.appendChild(episodesInfo);
+        this.ttsEpisodesContainer.appendChild(episodeStartContainer);
+        this.ttsEpisodesContainer.appendChild(episodeFilenameStartContainer);
 
         // Style instructions (prompt) input
         const stylePromptContainer = document.createElement('div');
@@ -1048,24 +1224,31 @@ Third prompt`;
         filenamePrefixContainer.style.marginBottom = '12px';
 
         const filenamePrefixLabel = document.createElement('label');
-        filenamePrefixLabel.textContent = 'Filename prefix:';
+        filenamePrefixLabel.textContent = 'Filename pattern:';
         filenamePrefixLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        const filenameInfo = document.createElement('div');
+        filenameInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+        filenameInfo.appendChild(document.createTextNode('Use variables: {episodeNum}, {chunkNum}, {timestamp}'));
+        filenameInfo.appendChild(document.createElement('br'));
+        filenameInfo.appendChild(document.createTextNode('Example: agi-bolum-{episodeNum}-chunk-{chunkNum}-{timestamp}'));
 
         this.ttsFilenamePrefixInput = new Input({
             type: 'text',
-            value: this.settings.TTS_FILENAME_PREFIX || 'tts-output',
-            placeholder: 'tts-output',
+            value: this.settings.TTS_FILENAME_PREFIX || 'tts-output-chunk-{chunkNum}-{timestamp}',
+            placeholder: 'tts-output-chunk-{chunkNum}-{timestamp}',
             className: 'tts-filename-prefix-input',
             attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
             scopeSelector: `#${this.enhancerId}`,
             onChange: (event, input) => {
-                this.settings.TTS_FILENAME_PREFIX = input.getValue() || 'tts-output';
+                this.settings.TTS_FILENAME_PREFIX = input.getValue() || 'tts-output-chunk-{chunkNum}-{timestamp}';
                 this.saveSettings();
             },
             container: filenamePrefixContainer
         });
 
         filenamePrefixContainer.appendChild(filenamePrefixLabel);
+        filenamePrefixContainer.appendChild(filenameInfo);
 
         // Retry count input
         const retryCountContainer = document.createElement('div');
@@ -1205,7 +1388,9 @@ Third prompt`;
         this.ttsStatusElement.style.cssText = 'font-size: 12px; color: #666; text-align: center; margin-top: 8px;';
 
         section.appendChild(title);
-        section.appendChild(textLabel);
+        section.appendChild(ttsModeContainer);
+        section.appendChild(this.ttsSingleTextContainer);
+        section.appendChild(this.ttsEpisodesContainer);
         section.appendChild(stylePromptContainer);
         section.appendChild(wordsPerChunkContainer);
         section.appendChild(temperatureContainer);
@@ -1218,6 +1403,9 @@ Third prompt`;
         section.appendChild(this.ttsStatusElement);
 
         container.appendChild(section);
+        
+        // Update visibility based on current mode
+        this.updateTTSInputVisibility();
     }
 
     /**
@@ -2622,36 +2810,11 @@ Third prompt`;
             return;
         }
 
-        // Get text
-        const text = this.settings.TTS_TEXT || '';
-        if (!text.trim()) {
-            this.showNotification('Please enter text to convert', 'error');
-            return;
-        }
-
-        // Get words per chunk
+        const mode = this.settings.TTS_MODE || 'single';
         const wordsPerChunk = this.settings.TTS_WORDS_PER_CHUNK || 300;
+        
         if (wordsPerChunk < 50 || wordsPerChunk > 1000) {
             this.showNotification('Words per chunk must be between 50 and 1000', 'error');
-            return;
-        }
-
-        // Split text into chunks
-        const chunks = this.splitTextIntoChunks(text, wordsPerChunk);
-        if (chunks.length === 0) {
-            this.showNotification('No text chunks to process', 'warning');
-            return;
-        }
-
-        // Get start count (default to current chunk number if available, otherwise 0)
-        // Start count is 1-indexed (chunk number, not array index)
-        const startCount = this.settings.TTS_START_COUNT !== undefined 
-            ? this.settings.TTS_START_COUNT 
-            : (this.currentTTSChunk || 0);
-        
-        // Validate start count (1-indexed, so max is chunks.length)
-        if (startCount < 0 || startCount > chunks.length) {
-            this.showNotification(`Start count must be between 0 and ${chunks.length}`, 'error');
             return;
         }
 
@@ -2665,9 +2828,6 @@ Third prompt`;
         // Update state
         this.isTTSRunning = true;
         this.shouldStopTTS = false;
-        this.ttsChunks = chunks;
-        this.currentTTSChunk = startCount; // 1-indexed chunk number
-        this.totalTTSChunks = chunks.length;
         this.lastTTSAudioSrc = null; // Reset audio src tracking for new run
 
         // Update UI
@@ -2677,12 +2837,115 @@ Third prompt`;
         // Start monitoring for quota errors
         this.startTTSQuotaMonitor();
 
-        Logger.info(`Starting TTS queue with ${chunks.length} chunks`);
-        this.showNotification(`Starting TTS queue with ${chunks.length} chunks`, 'info');
-
-        // Process chunks sequentially
         try {
-            await this.processTTSChunks(chunks);
+            if (mode === 'episodes') {
+                // Episodes mode
+                const episodesText = this.settings.TTS_EPISODES || '';
+                if (!episodesText.trim()) {
+                    this.showNotification('Please enter episodes to convert', 'error');
+                    return;
+                }
+
+                // Split by --- to get episodes
+                const episodeTexts = episodesText.split('---')
+                    .map(ep => ep.trim())
+                    .filter(ep => ep.length > 0);
+
+                if (episodeTexts.length === 0) {
+                    this.showNotification('No episodes found. Use --- to separate episodes.', 'error');
+                    return;
+                }
+
+                // Get episode start number (for skipping episodes in textarea)
+                const episodeStartNumber = this.settings.TTS_EPISODE_START_NUMBER || 1;
+                // Get filename start number (for episode numbers in filenames)
+                const filenameStartNumber = this.settings.TTS_EPISODE_FILENAME_START_NUMBER || 1;
+
+                // Calculate which episodes to process (skip episodes before start number)
+                const startIndex = Math.max(0, episodeStartNumber - 1); // Convert to 0-indexed
+                const episodesToProcess = episodeTexts.slice(startIndex);
+
+                if (episodesToProcess.length === 0) {
+                    this.showNotification(`No episodes to process. Start number ${episodeStartNumber} exceeds available episodes.`, 'error');
+                    return;
+                }
+
+                // Process each episode
+                this.totalTTSEpisodes = episodesToProcess.length;
+                this.ttsEpisodes = [];
+
+                // Prepare episodes with their chunks
+                for (let i = 0; i < episodesToProcess.length; i++) {
+                    // Use filename start number for episode number in filenames
+                    const episodeFilenameNum = filenameStartNumber + i;
+                    const episodeText = episodesToProcess[i];
+                    const chunks = this.splitTextIntoChunks(episodeText, wordsPerChunk);
+                    
+                    if (chunks.length === 0) {
+                        Logger.warn(`Episode ${episodeFilenameNum} has no chunks, skipping`);
+                        continue;
+                    }
+
+                    this.ttsEpisodes.push({
+                        episodeNum: episodeFilenameNum, // Use filename number for episodeNum
+                        chunks: chunks
+                    });
+                }
+
+                if (this.ttsEpisodes.length === 0) {
+                    this.showNotification('No episodes with valid chunks to process', 'warning');
+                    return;
+                }
+
+                // Calculate total chunks across all episodes
+                this.totalTTSChunks = this.ttsEpisodes.reduce((sum, ep) => sum + ep.chunks.length, 0);
+                this.currentTTSChunk = 0;
+
+                Logger.info(`Starting TTS queue with ${this.ttsEpisodes.length} episodes, ${this.totalTTSChunks} total chunks`);
+                this.showNotification(`Starting TTS queue with ${this.ttsEpisodes.length} episodes, ${this.totalTTSChunks} total chunks`, 'info');
+
+                // Process episodes sequentially
+                await this.processTTSEpisodes();
+            } else {
+                // Single text mode (existing logic)
+                const text = this.settings.TTS_TEXT || '';
+                if (!text.trim()) {
+                    this.showNotification('Please enter text to convert', 'error');
+                    return;
+                }
+
+                // Split text into chunks
+                const chunks = this.splitTextIntoChunks(text, wordsPerChunk);
+                if (chunks.length === 0) {
+                    this.showNotification('No text chunks to process', 'warning');
+                    return;
+                }
+
+                // Get start count (default to current chunk number if available, otherwise 0)
+                // Start count is 1-indexed (chunk number, not array index)
+                const startCount = this.settings.TTS_START_COUNT !== undefined 
+                    ? this.settings.TTS_START_COUNT 
+                    : (this.currentTTSChunk || 0);
+                
+                // Validate start count (1-indexed, so max is chunks.length)
+                if (startCount < 0 || startCount > chunks.length) {
+                    this.showNotification(`Start count must be between 0 and ${chunks.length}`, 'error');
+                    return;
+                }
+
+                // Update state
+                this.ttsChunks = chunks;
+                this.currentTTSChunk = startCount; // 1-indexed chunk number
+                this.totalTTSChunks = chunks.length;
+                this.currentTTSEpisode = 0;
+                this.totalTTSEpisodes = 0;
+
+                Logger.info(`Starting TTS queue with ${chunks.length} chunks`);
+                this.showNotification(`Starting TTS queue with ${chunks.length} chunks`, 'info');
+
+                // Process chunks sequentially
+                await this.processTTSChunks(chunks);
+            }
             
             if (!this.shouldStopTTS) {
                 this.showNotification('TTS queue completed successfully', 'success');
@@ -2692,12 +2955,10 @@ Third prompt`;
             Logger.error('TTS queue error:', error);
             this.showNotification(`TTS queue error: ${error.message}`, 'error');
         } finally {
-            // Clean up state (but preserve currentTTSChunk for next run)
+            // Clean up state
             this.isTTSRunning = false;
             this.shouldStopTTS = false;
             this.stopTTSQuotaMonitor(); // Stop quota monitoring
-            // Don't reset currentTTSChunk to 0 - keep it for next run
-            // this.currentTTSChunk = 0;
             this.updateTTSButtonState();
             this.updateTTSStatus();
         }
@@ -2912,9 +3173,90 @@ Third prompt`;
     }
 
     /**
+     * Process TTS episodes sequentially
+     */
+    async processTTSEpisodes() {
+        Logger.info(`🎤 Starting TTS processing with ${this.ttsEpisodes.length} episodes...`);
+        
+        let globalChunkIndex = 0; // Track global chunk index across all episodes
+        
+        for (let episodeIdx = 0; episodeIdx < this.ttsEpisodes.length; episodeIdx++) {
+            const episode = this.ttsEpisodes[episodeIdx];
+            
+            // Check if we should stop
+            if (this.shouldStopTTS) {
+                Logger.info('TTS queue stopped by user');
+                break;
+            }
+
+            // Check for quota error before processing each episode
+            if (this.checkForQuotaError()) {
+                Logger.warn('⚠️ Quota error detected before processing episode, stopping TTS queue');
+                this.shouldStopTTS = true;
+                this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+                break;
+            }
+
+            this.currentTTSEpisode = episodeIdx + 1;
+            this.updateTTSStatus();
+
+            Logger.info(`📺 Processing episode ${episode.episodeNum} (${episode.chunks.length} chunks)`);
+
+            // Process chunks for this episode
+            for (let chunkIdx = 0; chunkIdx < episode.chunks.length; chunkIdx++) {
+                // Check if we should stop
+                if (this.shouldStopTTS) {
+                    Logger.info('TTS queue stopped by user');
+                    break;
+                }
+
+                // Check for quota error before processing each chunk
+                if (this.checkForQuotaError()) {
+                    Logger.warn('⚠️ Quota error detected before processing chunk, stopping TTS queue');
+                    this.shouldStopTTS = true;
+                    this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+                    break;
+                }
+
+                globalChunkIndex++;
+                this.currentTTSChunk = globalChunkIndex;
+                this.updateTTSStatus();
+
+                // Process chunk with episode number
+                await this.processTTSChunk(episode.chunks[chunkIdx], chunkIdx, episode.episodeNum, episode.chunks.length);
+
+                // Check for quota error after processing chunk
+                if (this.checkForQuotaError()) {
+                    Logger.warn('⚠️ Quota error detected after processing chunk, stopping TTS queue');
+                    this.shouldStopTTS = true;
+                    this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
+                    break;
+                }
+
+                // Add delay between chunks (except for the last chunk of the last episode)
+                if (!(episodeIdx === this.ttsEpisodes.length - 1 && chunkIdx === episode.chunks.length - 1) && !this.shouldStopTTS) {
+                    for (let j = 0; j < 10; j++) {
+                        if (this.shouldStopTTS) {
+                            break;
+                        }
+                        await this.delay(100); // 100ms at a time, checking stop flag
+                    }
+                }
+            }
+
+            // Check if we should stop after episode
+            if (this.shouldStopTTS) {
+                break;
+            }
+        }
+
+        Logger.info('🎉 All TTS episodes processed');
+    }
+
+    /**
      * Process a single TTS chunk with retry logic
      */
-    async processTTSChunk(chunk, index) {
+    async processTTSChunk(chunk, index, episodeNum = null, episodeChunkCount = null) {
         Logger.info(`➡️ Processing TTS chunk ${index + 1}/${this.totalTTSChunks}`);
         
         const retryCount = this.settings.TTS_RETRY_COUNT || 5;
@@ -3002,15 +3344,18 @@ Third prompt`;
                 
                 // Download the audio (non-blocking - don't wait for download to complete)
                 if (audioData) {
+                    // Calculate chunk number (1-indexed within episode or globally)
+                    const chunkNum = episodeNum !== null ? (index + 1) : (index + 1);
                     // Start download but don't await it - continue to next chunk
-                    this.downloadTTSAudio(audioData, index + 1).catch(error => {
-                        Logger.error(`Error downloading audio chunk ${index + 1}:`, error);
+                    this.downloadTTSAudio(audioData, chunkNum, episodeNum, episodeChunkCount).catch(error => {
+                        Logger.error(`Error downloading audio chunk ${chunkNum}:`, error);
                     });
                 } else {
                     throw new Error('Audio data not found');
                 }
                 
-                Logger.success(`✅ TTS chunk ${index + 1} completed, download started`);
+                const chunkNum = episodeNum !== null ? (index + 1) : (index + 1);
+                Logger.success(`✅ TTS chunk ${chunkNum} completed, download started`);
                 return; // Success, exit retry loop
                 } catch (error) {
                 lastError = error;
@@ -3614,13 +3959,36 @@ Third prompt`;
     /**
      * Download TTS audio (non-blocking)
      */
-    async downloadTTSAudio(audioDataUrl, chunkNumber) {
+    async downloadTTSAudio(audioDataUrl, chunkNumber, episodeNum = null, episodeChunkCount = null) {
         try {
-            const prefix = this.settings.TTS_FILENAME_PREFIX || 'tts-output';
+            const filenamePattern = this.settings.TTS_FILENAME_PREFIX || 'tts-output-chunk-{chunkNum}-{timestamp}';
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-            const filename = `${prefix}-chunk-${chunkNumber.toString().padStart(3, '0')}-${timestamp}.wav`;
             
-            Logger.debug(`📥 Starting download for chunk ${chunkNumber}...`);
+            // Replace variables in filename pattern
+            let filename = filenamePattern;
+            
+            // Replace {chunkNum} with padded chunk number
+            const chunkNumStr = chunkNumber.toString().padStart(3, '0');
+            filename = filename.replace(/\{chunkNum\}/g, chunkNumStr);
+            
+            // Replace {episodeNum} if provided
+            if (episodeNum !== null) {
+                const episodeNumStr = episodeNum.toString().padStart(3, '0');
+                filename = filename.replace(/\{episodeNum\}/g, episodeNumStr);
+            } else {
+                // Remove {episodeNum} if not in episodes mode
+                filename = filename.replace(/\{episodeNum\}/g, '');
+            }
+            
+            // Replace {timestamp}
+            filename = filename.replace(/\{timestamp\}/g, timestamp);
+            
+            // Ensure .wav extension
+            if (!filename.toLowerCase().endsWith('.wav')) {
+                filename = `${filename}.wav`;
+            }
+            
+            Logger.debug(`📥 Starting download for chunk ${chunkNumber}${episodeNum !== null ? ` (episode ${episodeNum})` : ''}...`);
             
             // Convert data URL to blob if needed
             let blob;
@@ -3701,12 +4069,41 @@ Third prompt`;
     }
 
     /**
+     * Update TTS input visibility based on mode
+     */
+    updateTTSInputVisibility() {
+        try {
+            const mode = this.settings.TTS_MODE || 'single';
+            
+            if (!this.ttsSingleTextContainer || !this.ttsEpisodesContainer) {
+                Logger.debug('TTS UI elements not yet created');
+                return;
+            }
+            
+            if (mode === 'single') {
+                this.ttsSingleTextContainer.style.display = 'block';
+                this.ttsEpisodesContainer.style.display = 'none';
+            } else if (mode === 'episodes') {
+                this.ttsSingleTextContainer.style.display = 'none';
+                this.ttsEpisodesContainer.style.display = 'block';
+            }
+        } catch (error) {
+            Logger.error('Error in updateTTSInputVisibility:', error);
+        }
+    }
+
+    /**
      * Update TTS status
      */
     updateTTSStatus() {
         if (this.ttsStatusElement) {
             if (this.isTTSRunning) {
-                this.ttsStatusElement.textContent = `Processing: ${this.currentTTSChunk}/${this.totalTTSChunks}`;
+                const mode = this.settings.TTS_MODE || 'single';
+                if (mode === 'episodes' && this.currentTTSEpisode !== undefined && this.totalTTSEpisodes !== undefined) {
+                    this.ttsStatusElement.textContent = `Episode ${this.currentTTSEpisode}/${this.totalTTSEpisodes}, Chunk ${this.currentTTSChunk}/${this.totalTTSChunks}`;
+                } else {
+                    this.ttsStatusElement.textContent = `Processing: ${this.currentTTSChunk}/${this.totalTTSChunks}`;
+                }
             } else {
                 this.ttsStatusElement.textContent = 'Ready to start';
             }
