@@ -99,6 +99,8 @@ class AIStudioEnhancer {
         PROMPT_MODE: 'gaise-prompt-mode',
         MULTIPLE_PROMPTS: 'gaise-multiple-prompts',
         BASE_PROMPT_MULTIPLE: 'gaise-base-prompt-multiple',
+        BASE_PROMPT_POSITION: 'gaise-base-prompt-position',
+        MULTIPLE_PROMPTS_START_COUNT: 'gaise-multiple-prompts-start-count',
         TEMPLATE_PROMPT: 'gaise-template-prompt',
         OVERRIDE_ITERATIONS: 'gaise-override-iterations',
         TTS_TEXT: 'gaise-tts-text',
@@ -121,6 +123,8 @@ class AIStudioEnhancer {
         PROMPT_MODE: 'single',
         MULTIPLE_PROMPTS: '',
         BASE_PROMPT_MULTIPLE: '',
+        BASE_PROMPT_POSITION: 'after',
+        MULTIPLE_PROMPTS_START_COUNT: 0,
         TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.',
         OVERRIDE_ITERATIONS: false,
         TTS_TEXT: '',
@@ -572,34 +576,19 @@ class AIStudioEnhancer {
         this.multiplePromptContainer.className = 'multiple-prompt-container';
         this.multiplePromptContainer.style.display = 'none';
 
-        const multiplePromptLabel = document.createElement('label');
-        multiplePromptLabel.textContent = 'Prompts (separated by ---, will cycle through):';
-        multiplePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+        const multiplePromptPlaceholder = `Enter prompts separated by --- (three dashes):
 
-        const separatorInfo = document.createElement('div');
-        separatorInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
-        
-        const separatorTitle = HTMLUtils.createElementWithHTML('div', '<strong>Separator:</strong> Use <code>---</code> (three dashes) to separate prompts.', {});
-        separatorTitle.style.marginBottom = '4px';
-        
-        const exampleTitle = HTMLUtils.createElementWithHTML('div', '<strong>Example:</strong>', {});
-        exampleTitle.style.marginBottom = '4px';
-        
-        const exampleCode = document.createElement('code');
-        exampleCode.textContent = `First prompt here
+First prompt here
 can be multiline
 ---
 Second prompt here
-also multiline`;
-        exampleCode.style.cssText = 'display: block; background: #f0f0f0; padding: 4px; border-radius: 3px; font-family: monospace; font-size: 10px; white-space: pre-line;';
-        
-        separatorInfo.appendChild(separatorTitle);
-        separatorInfo.appendChild(exampleTitle);
-        separatorInfo.appendChild(exampleCode);
+also multiline
+---
+Third prompt`;
 
         this.multiplePromptTextArea = new TextArea({
             value: this.settings.MULTIPLE_PROMPTS || '',
-            placeholder: 'Enter prompts separated by ---:\nFirst prompt\ncan be multiline\n---\nSecond prompt\nalso multiline\n---\nThird prompt',
+            placeholder: multiplePromptPlaceholder,
             rows: 8,
             theme: 'primary',
             size: 'medium',
@@ -608,26 +597,48 @@ also multiline`;
             onInput: (event, textArea) => {
                 this.settings.MULTIPLE_PROMPTS = textArea.getValue();
                 this.saveSettings();
+                this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'single');
             },
             container: this.multiplePromptContainer,
             autoResize: true,
             scopeSelector: `#${this.enhancerId}`
         });
 
-        this.multiplePromptContainer.appendChild(multiplePromptLabel);
-        this.multiplePromptContainer.appendChild(separatorInfo);
-
         // Base prompt for multiple prompts
         const basePromptLabel = document.createElement('label');
-        basePromptLabel.textContent = 'Base Prompt (will be appended to each prompt):';
+        basePromptLabel.textContent = 'Base Prompt (optional):';
         basePromptLabel.style.cssText = 'display: block; margin-bottom: 4px; margin-top: 12px; font-size: 12px; color: #555; font-weight: 500;';
 
-        const basePromptInfo = HTMLUtils.createElementWithHTML('div', 'Each prompt will be combined with the base prompt as: <code>Prompt X\n[Base Prompt]</code>', {});
-        basePromptInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
+        // Base prompt position selector
+        const basePromptPositionContainer = document.createElement('div');
+        basePromptPositionContainer.style.cssText = 'margin-bottom: 8px; display: flex; align-items: center; gap: 8px;';
+
+        const basePromptPositionLabel = document.createElement('label');
+        basePromptPositionLabel.textContent = 'Position:';
+        basePromptPositionLabel.style.cssText = 'font-size: 12px; color: #555;';
+
+        const basePromptPositionSelect = HTMLUtils.createElementWithHTML('select', `
+            <option value="before">Before prompt</option>
+            <option value="after">After prompt</option>
+        `, {});
+        basePromptPositionSelect.style.cssText = 'padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;';
+        basePromptPositionSelect.value = this.settings.BASE_PROMPT_POSITION || 'after';
+        basePromptPositionSelect.onchange = (event) => {
+            this.settings.BASE_PROMPT_POSITION = event.target.value;
+            this.saveSettings();
+        };
+
+        basePromptPositionContainer.appendChild(basePromptPositionLabel);
+        basePromptPositionContainer.appendChild(basePromptPositionSelect);
+        this.basePromptPositionSelect = basePromptPositionSelect;
+
+        const basePromptPlaceholder = (this.settings.BASE_PROMPT_POSITION || 'after') === 'before' 
+            ? 'Enter base prompt to prepend to each prompt (optional)'
+            : 'Enter base prompt to append to each prompt (optional)';
 
         this.basePromptMultipleTextArea = new TextArea({
             value: this.settings.BASE_PROMPT_MULTIPLE || '',
-            placeholder: 'Enter base prompt to append to each prompt (optional)',
+            placeholder: basePromptPlaceholder,
             rows: 3,
             theme: 'primary',
             size: 'medium',
@@ -642,8 +653,65 @@ also multiline`;
             scopeSelector: `#${this.enhancerId}`
         });
 
+        // Update placeholder when position changes
+        basePromptPositionSelect.onchange = (event) => {
+            this.settings.BASE_PROMPT_POSITION = event.target.value;
+            this.saveSettings();
+            const newPlaceholder = event.target.value === 'before' 
+                ? 'Enter base prompt to prepend to each prompt (optional)'
+                : 'Enter base prompt to append to each prompt (optional)';
+            if (this.basePromptMultipleTextArea && this.basePromptMultipleTextArea.textareaElement) {
+                this.basePromptMultipleTextArea.textareaElement.placeholder = newPlaceholder;
+            }
+        };
+
         this.multiplePromptContainer.appendChild(basePromptLabel);
-        this.multiplePromptContainer.appendChild(basePromptInfo);
+        this.multiplePromptContainer.appendChild(basePromptPositionContainer);
+
+        // Start count input for multiple prompts
+        const startCountContainer = document.createElement('div');
+        startCountContainer.style.marginBottom = '12px';
+        startCountContainer.style.marginTop = '12px';
+
+        const startCountLabel = document.createElement('label');
+        startCountLabel.textContent = 'Start from prompt number:';
+        startCountLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555;';
+
+        const startCountInfo = document.createElement('div');
+        startCountInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+        startCountInfo.textContent = 'Set to 0 to start from the first prompt (1-indexed)';
+
+        this.multiplePromptsStartCountInput = new Input({
+            type: 'number',
+            value: this.settings.MULTIPLE_PROMPTS_START_COUNT !== undefined 
+                ? this.settings.MULTIPLE_PROMPTS_START_COUNT 
+                : 0,
+            placeholder: '0',
+            min: 0,
+            className: 'multiple-prompts-start-count-input',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 0) {
+                    return 'Please enter a number >= 0';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 0) {
+                    this.settings.MULTIPLE_PROMPTS_START_COUNT = value;
+                    this.saveSettings();
+                }
+            },
+            container: startCountContainer
+        });
+
+        startCountContainer.appendChild(startCountLabel);
+        startCountContainer.appendChild(startCountInfo);
+
+        this.multiplePromptContainer.appendChild(startCountContainer);
 
         // Template prompts input
         this.templatePromptContainer = document.createElement('div');
@@ -1346,15 +1414,28 @@ also multiline`;
                 }
 
                 const basePrompt = (this.settings.BASE_PROMPT_MULTIPLE || '').trim();
+                const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
+                const startCount = this.settings.MULTIPLE_PROMPTS_START_COUNT || 0;
+                
+                // Validate start count (1-indexed, so max is multiplePrompts.length)
+                const validStartCount = Math.max(0, Math.min(startCount, multiplePrompts.length));
+                
+                // Calculate starting index (convert from 1-indexed to 0-indexed)
+                const startIndex = validStartCount > 0 ? validStartCount - 1 : 0;
 
-                // Fill prompts array by cycling through available prompts
+                // Fill prompts array by cycling through available prompts, starting from startIndex
                 for (let i = 0; i < iterations; i++) {
-                    const promptIndex = i % multiplePrompts.length;
-                    let combinedPrompt = multiplePrompts[promptIndex];
+                    // Calculate the actual prompt index (accounting for start count and cycling)
+                    const actualIndex = (startIndex + i) % multiplePrompts.length;
+                    let combinedPrompt = multiplePrompts[actualIndex];
                     
                     // Combine with base prompt if provided
                     if (basePrompt) {
-                        combinedPrompt = `${combinedPrompt}\n${basePrompt}`;
+                        if (basePromptPosition === 'before') {
+                            combinedPrompt = `${basePrompt}\n${combinedPrompt}`;
+                        } else {
+                            combinedPrompt = `${combinedPrompt}\n${basePrompt}`;
+                        }
                     }
                     
                     prompts.push(combinedPrompt);
