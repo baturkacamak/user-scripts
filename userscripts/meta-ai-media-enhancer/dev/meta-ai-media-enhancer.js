@@ -16,7 +16,10 @@ import {
     ThrottleService,
     UrlChangeWatcher,
     UserInteractionDetector,
-    ClipboardService
+    ClipboardService,
+    Tabs,
+    SelectBox,
+    InfoBox
 } from "../../common/core";
 import { getValue, setValue } from "../../common/core/utils/GMFunctions";
 import { MouseEventUtils } from '../../common/core/utils/HTMLUtils.js';
@@ -60,7 +63,15 @@ class MetaAIMediaEnhancer {
         DELAY_SECONDS: 'maime-delay-seconds',
         SHOW_NOTIFICATIONS: 'maime-show-notifications',
         PANEL_POSITION: 'maime-panel-position',
-        AUTO_CLEAR_PROMPT: 'maime-auto-clear-prompt'
+        AUTO_CLEAR_PROMPT: 'maime-auto-clear-prompt',
+        PROMPT_MODE: 'maime-prompt-mode',
+        AUTO_RUN_PROMPT: 'maime-auto-run-prompt',
+        BASE_PROMPT_MULTIPLE: 'maime-base-prompt-multiple',
+        BASE_PROMPT_POSITION: 'maime-base-prompt-position',
+        MULTIPLE_PROMPTS_START_COUNT: 'maime-multiple-prompts-start-count',
+        TEMPLATE_PROMPT: 'maime-template-prompt',
+        OVERRIDE_ITERATIONS: 'maime-override-iterations',
+        DEFAULT_ITERATIONS: 'maime-default-iterations'
     };
 
     static DEFAULT_SETTINGS = {
@@ -68,7 +79,15 @@ class MetaAIMediaEnhancer {
         DELAY_SECONDS: 3,
         SHOW_NOTIFICATIONS: true,
         PANEL_POSITION: { x: 20, y: 20 },
-        AUTO_CLEAR_PROMPT: true
+        AUTO_CLEAR_PROMPT: true,
+        PROMPT_MODE: 'multiple',
+        AUTO_RUN_PROMPT: '',
+        BASE_PROMPT_MULTIPLE: '',
+        BASE_PROMPT_POSITION: 'after',
+        MULTIPLE_PROMPTS_START_COUNT: 0,
+        TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.',
+        OVERRIDE_ITERATIONS: false,
+        DEFAULT_ITERATIONS: 10
     };
 
     static EVENTS = {
@@ -88,6 +107,11 @@ class MetaAIMediaEnhancer {
         this.sidebarPanel = null;
         this.enhancerId = 'meta-ai-media-enhancer-container';
         this.subscriptionIds = [];
+        
+        // Debouncer for text saving
+        this.textSaveDebouncer = new Debouncer(() => {
+            this.saveSettings();
+        }, 500);
         
         this.userInteraction = UserInteractionDetector.getInstance({
             debug: Logger.DEBUG,
@@ -208,18 +232,35 @@ class MetaAIMediaEnhancer {
                 Input.useDefaultColors();
                 TextArea.initStyles();
                 TextArea.useDefaultColors();
+                SelectBox.initStyles();
+                SelectBox.useDefaultColors();
+                Tabs.initStyles();
+                Tabs.useDefaultColors();
             } catch (error) {
                 Logger.error('Error initializing styles:', error);
             }
 
             StyleManager.addStyles(`
                 .meta-ai-prompts-textarea,
-                .meta-ai-delay-input {
+                .meta-ai-delay-input,
+                .auto-run-prompt-textarea,
+                .auto-run-multiple-prompts-textarea,
+                .auto-run-base-prompt-multiple-textarea,
+                .auto-run-template-prompt-textarea {
                     margin-bottom: 12px;
                 }
                 
-                .meta-ai-prompts-textarea textarea {
+                .meta-ai-prompts-textarea textarea,
+                .auto-run-multiple-prompts-textarea textarea,
+                .auto-run-base-prompt-multiple-textarea textarea,
+                .auto-run-template-prompt-textarea textarea {
                     max-height: 300px !important;
+                    overflow-y: auto !important;
+                }
+                
+                .auto-run-prompt-textarea textarea,
+                .auto-run-base-prompt-multiple-textarea textarea {
+                    max-height: 200px !important;
                     overflow-y: auto !important;
                 }
                 
@@ -249,6 +290,22 @@ class MetaAIMediaEnhancer {
                 
                 #meta-ai-media-enhancer-panel input[type="checkbox"] + label:hover {
                     color: #333;
+                }
+                
+                .single-prompt-container,
+                .multiple-prompt-container,
+                .template-prompt-container {
+                    margin-bottom: 12px;
+                }
+                
+                .single-prompt-container label,
+                .multiple-prompt-container label,
+                .template-prompt-container label {
+                    display: block;
+                    margin-bottom: 4px;
+                    font-size: 12px;
+                    color: #555;
+                    font-weight: 500;
                 }
             `, 'meta-ai-media-enhancer-custom-styles');
 
@@ -319,8 +376,35 @@ class MetaAIMediaEnhancer {
             font-size: 14px;
         `;
 
-        this.createAutomationSection(content);
-        this.createSettingsSection(content);
+        // Create tabs to separate prompt automation and settings
+        const tabsContainer = document.createElement('div');
+        
+        this.tabs = new Tabs({
+            tabs: [
+                {
+                    id: 'prompt-automation',
+                    label: '🔄 Prompt Automation',
+                    content: () => {
+                        const tabContent = document.createElement('div');
+                        this.createAutomationSection(tabContent);
+                        return tabContent;
+                    }
+                },
+                {
+                    id: 'settings',
+                    label: '⚙️ Settings',
+                    content: () => {
+                        const tabContent = document.createElement('div');
+                        this.createSettingsSection(tabContent);
+                        return tabContent;
+                    }
+                }
+            ],
+            defaultTab: 'prompt-automation',
+            container: tabsContainer
+        });
+
+        content.appendChild(tabsContainer);
 
         return content;
     }
@@ -335,53 +419,275 @@ class MetaAIMediaEnhancer {
         const title = document.createElement('h3');
         title.textContent = '🚀 Prompt Automation';
         title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+        section.appendChild(title);
 
-        // Prompts input
-        const promptsLabel = document.createElement('label');
-        promptsLabel.textContent = 'Prompts (separated by newlines or ---):';
-        promptsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+        // Prompt mode selector
+        const promptModeContainer = document.createElement('div');
+        promptModeContainer.style.marginBottom = '12px';
 
-        const separatorInfo = document.createElement('div');
-        separatorInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
-        
-        const separatorTitle = document.createElement('div');
-        HTMLUtils.setHTMLSafely(separatorTitle, '<strong>Separators:</strong> Use newlines or <code>---</code> (three dashes) to separate prompts.');
-        separatorTitle.style.marginBottom = '4px';
-        
-        const exampleTitle = document.createElement('div');
-        HTMLUtils.setHTMLSafely(exampleTitle, '<strong>Example:</strong>');
-        exampleTitle.style.marginBottom = '4px';
-        
-        const exampleCode = document.createElement('code');
-        exampleCode.textContent = `First prompt here
-can be multiline
----
-Second prompt here
-also multiline`;
-        exampleCode.style.cssText = 'display: block; background: #f0f0f0; padding: 4px; border-radius: 3px; font-family: monospace; font-size: 10px; white-space: pre-line;';
-        
-        separatorInfo.appendChild(separatorTitle);
-        separatorInfo.appendChild(exampleTitle);
-        separatorInfo.appendChild(exampleCode);
+        this.promptModeSelect = new SelectBox({
+            items: [
+                { value: 'single', label: 'Single Prompt (same for all iterations)', selected: (this.settings.PROMPT_MODE || 'multiple') === 'single' },
+                { value: 'multiple', label: 'Multiple Prompts (different for each iteration)', selected: (this.settings.PROMPT_MODE || 'multiple') === 'multiple' },
+                { value: 'template', label: 'Template Prompts (with variables)', selected: (this.settings.PROMPT_MODE || 'multiple') === 'template' }
+            ],
+            name: 'prompt-mode',
+            id: 'prompt-mode-select',
+            label: 'Prompt Mode:',
+            placeholder: 'Select prompt mode',
+            container: promptModeContainer,
+            theme: 'default',
+            size: 'medium',
+            onChange: (value) => {
+                this.settings.PROMPT_MODE = value;
+                this.saveSettings();
+                this.updatePromptInputVisibility();
+            }
+        });
 
-        const promptsContainer = document.createElement('div');
-        promptsContainer.className = 'meta-ai-prompts-textarea';
-
-        this.promptsTextArea = new TextArea({
-            value: this.settings.MULTIPLE_PROMPTS || '',
-            placeholder: 'Enter prompts separated by newlines or ---:\nFirst prompt\ncan be multiline\n---\nSecond prompt\nalso multiline',
-            rows: 10,
+        // Single prompt input
+        this.singlePromptContainer = document.createElement('div');
+        this.singlePromptContainer.className = 'single-prompt-container';
+        this.singlePromptContainer.style.display = (this.settings.PROMPT_MODE || 'multiple') === 'single' ? 'block' : 'none';
+        
+        this.promptTextArea = new TextArea({
+            value: this.settings.AUTO_RUN_PROMPT || '',
+            label: 'Single Prompt:',
+            placeholder: 'Enter prompt to use for all iterations (optional)',
+            rows: 3,
             theme: 'primary',
             size: 'medium',
-            className: 'meta-ai-prompts-textarea',
+            className: 'auto-run-prompt-textarea',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
             onInput: (event, textArea) => {
-                this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                this.settings.AUTO_RUN_PROMPT = textArea.getValue();
+                this.textSaveDebouncer.trigger();
+            },
+            onBlur: (event, textArea) => {
+                this.settings.AUTO_RUN_PROMPT = textArea.getValue();
                 this.saveSettings();
             },
-            container: promptsContainer,
+            container: this.singlePromptContainer,
             autoResize: true,
             scopeSelector: `#${this.enhancerId}`
         });
+
+        // Multiple prompts input
+        this.multiplePromptContainer = document.createElement('div');
+        this.multiplePromptContainer.className = 'multiple-prompt-container';
+        this.multiplePromptContainer.style.display = (this.settings.PROMPT_MODE || 'multiple') === 'multiple' ? 'block' : 'none';
+
+        const multiplePromptPlaceholder = `Enter prompts separated by --- (three dashes):
+
+First prompt here
+can be multiline
+---
+Second prompt here
+also multiline
+---
+Third prompt`;
+
+        this.multiplePromptTextArea = new TextArea({
+            value: this.settings.MULTIPLE_PROMPTS || '',
+            label: 'Multiple Prompts:',
+            placeholder: multiplePromptPlaceholder,
+            rows: 8,
+            theme: 'primary',
+            size: 'medium',
+            className: 'auto-run-multiple-prompts-textarea',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            onInput: (event, textArea) => {
+                this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                this.textSaveDebouncer.trigger();
+                this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'multiple');
+            },
+            onBlur: (event, textArea) => {
+                this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                this.saveSettings();
+            },
+            container: this.multiplePromptContainer,
+            autoResize: true,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        // Base prompt for multiple prompts
+        const basePromptPositionContainer = document.createElement('div');
+        basePromptPositionContainer.style.cssText = 'margin-bottom: 8px; margin-top: 12px; display: flex; align-items: center; gap: 8px;';
+
+        const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
+        this.basePromptPositionSelect = new SelectBox({
+            items: [
+                { value: 'before', label: 'Before prompt', selected: basePromptPosition === 'before' },
+                { value: 'after', label: 'After prompt', selected: basePromptPosition === 'after' }
+            ],
+            name: 'base-prompt-position',
+            id: 'base-prompt-position-select',
+            label: 'Position:',
+            labelPosition: 'inline',
+            placeholder: 'Select position',
+            container: basePromptPositionContainer,
+            theme: 'default',
+            size: 'small',
+            onChange: (value) => {
+                this.settings.BASE_PROMPT_POSITION = value;
+                this.saveSettings();
+                const newPlaceholder = value === 'before' 
+                    ? 'Enter base prompt to prepend to each prompt (optional)'
+                    : 'Enter base prompt to append to each prompt (optional)';
+                if (this.basePromptMultipleTextArea && this.basePromptMultipleTextArea.textareaElement) {
+                    this.basePromptMultipleTextArea.textareaElement.placeholder = newPlaceholder;
+                }
+            }
+        });
+
+        const basePromptPlaceholder = (this.settings.BASE_PROMPT_POSITION || 'after') === 'before' 
+            ? 'Enter base prompt to prepend to each prompt (optional)'
+            : 'Enter base prompt to append to each prompt (optional)';
+
+        this.basePromptMultipleTextArea = new TextArea({
+            value: this.settings.BASE_PROMPT_MULTIPLE || '',
+            label: 'Base Prompt (optional):',
+            placeholder: basePromptPlaceholder,
+            rows: 3,
+            theme: 'primary',
+            size: 'medium',
+            className: 'auto-run-base-prompt-multiple-textarea',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            onInput: (event, textArea) => {
+                this.settings.BASE_PROMPT_MULTIPLE = textArea.getValue();
+                this.textSaveDebouncer.trigger();
+            },
+            onBlur: (event, textArea) => {
+                this.settings.BASE_PROMPT_MULTIPLE = textArea.getValue();
+                this.saveSettings();
+            },
+            container: this.multiplePromptContainer,
+            autoResize: true,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        this.multiplePromptContainer.appendChild(basePromptPositionContainer);
+
+        // Start count input for multiple prompts
+        const startCountContainer = document.createElement('div');
+        startCountContainer.style.marginBottom = '12px';
+        startCountContainer.style.marginTop = '12px';
+
+        this.multiplePromptsStartCountInput = new Input({
+            type: 'number',
+            label: 'Start from prompt number:',
+            value: this.settings.MULTIPLE_PROMPTS_START_COUNT !== undefined 
+                ? this.settings.MULTIPLE_PROMPTS_START_COUNT 
+                : 0,
+            placeholder: '0',
+            min: 0,
+            className: 'multiple-prompts-start-count-input',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 0) {
+                    return 'Please enter a number >= 0';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value >= 0) {
+                    this.settings.MULTIPLE_PROMPTS_START_COUNT = value;
+                    this.saveSettings();
+                }
+            },
+            container: startCountContainer
+        });
+
+        InfoBox.create({
+            content: 'Set to 0 to start from the first prompt (1-indexed)',
+            variant: 'default',
+            container: startCountContainer,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        this.multiplePromptContainer.appendChild(startCountContainer);
+
+        // Template prompts input
+        this.templatePromptContainer = document.createElement('div');
+        this.templatePromptContainer.className = 'template-prompt-container';
+        this.templatePromptContainer.style.display = (this.settings.PROMPT_MODE || 'multiple') === 'template' ? 'block' : 'none';
+
+        this.templatePromptTextArea = new TextArea({
+            value: this.settings.TEMPLATE_PROMPT || 'This is iteration {iteration} of {total}. Please provide a response.',
+            label: 'Template Prompt (use {iteration}, {total}, {timestamp}):',
+            placeholder: 'Template with variables: {iteration}, {total}, {timestamp}',
+            rows: 3,
+            theme: 'primary',
+            size: 'medium',
+            className: 'auto-run-template-prompt-textarea',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            onInput: (event, textArea) => {
+                this.settings.TEMPLATE_PROMPT = textArea.getValue();
+                this.textSaveDebouncer.trigger();
+            },
+            onBlur: (event, textArea) => {
+                this.settings.TEMPLATE_PROMPT = textArea.getValue();
+                this.saveSettings();
+            },
+            container: this.templatePromptContainer,
+            autoResize: true,
+            scopeSelector: `#${this.enhancerId}`
+        });
+
+        // Iterations input container
+        const iterationsContainer = document.createElement('div');
+        iterationsContainer.style.marginBottom = '12px';
+
+        this.iterationsInfoText = document.createElement('div');
+        this.iterationsInfoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+        this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'multiple');
+
+        this.overrideIterationsCheckbox = new Checkbox({
+            label: 'Override automatic iteration count (run multiple cycles)',
+            checked: this.settings.OVERRIDE_ITERATIONS || false,
+            onChange: (event) => {
+                this.settings.OVERRIDE_ITERATIONS = this.overrideIterationsCheckbox.isChecked();
+                this.saveSettings();
+                this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'multiple');
+            },
+            container: iterationsContainer,
+            size: 'small'
+        });
+
+        this.iterationsInput = new Input({
+            type: 'number',
+            label: 'Number of iterations:',
+            value: this.settings.DEFAULT_ITERATIONS || 10,
+            placeholder: 'Number of iterations',
+            min: 1,
+            max: 100,
+            className: 'auto-run-iterations-input',
+            attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+            scopeSelector: `#${this.enhancerId}`,
+            validator: (value) => {
+                const num = parseInt(value, 10);
+                if (isNaN(num) || num < 1) {
+                    return 'Please enter a number greater than 0';
+                }
+                if (num > 100) {
+                    return 'Maximum 100 iterations allowed';
+                }
+                return true;
+            },
+            onChange: (event, input) => {
+                const value = parseInt(input.getValue(), 10);
+                if (!isNaN(value) && value > 0) {
+                    this.settings.DEFAULT_ITERATIONS = value;
+                    this.saveSettings();
+                }
+            },
+            container: iterationsContainer
+        });
+
+        iterationsContainer.appendChild(this.iterationsInfoText);
 
         // Delay input
         const delayContainer = document.createElement('div');
@@ -440,10 +746,11 @@ also multiline`;
         this.statusElement.className = 'meta-ai-status-display';
         this.statusElement.textContent = 'Ready to start';
 
-        section.appendChild(title);
-        section.appendChild(promptsLabel);
-        section.appendChild(separatorInfo);
-        section.appendChild(promptsContainer);
+        section.appendChild(promptModeContainer);
+        section.appendChild(this.singlePromptContainer);
+        section.appendChild(this.multiplePromptContainer);
+        section.appendChild(this.templatePromptContainer);
+        section.appendChild(iterationsContainer);
         section.appendChild(delayContainer);
         section.appendChild(buttonContainer);
         section.appendChild(this.statusElement);
@@ -530,6 +837,63 @@ also multiline`;
     }
 
     /**
+     * Show container based on mode selection
+     * @param {string} mode - Current mode value
+     * @param {Object} modeContainerMap - Map of mode values to container elements
+     */
+    showContainerByMode(mode, modeContainerMap) {
+        // Hide all containers first
+        Object.values(modeContainerMap).forEach(container => {
+            if (container) {
+                container.style.display = 'none';
+            }
+        });
+
+        // Show the container for the current mode
+        const activeContainer = modeContainerMap[mode];
+        if (activeContainer) {
+            activeContainer.style.display = 'block';
+        }
+    }
+
+    /**
+     * Update prompt input visibility based on mode
+     */
+    updatePromptInputVisibility() {
+        const mode = this.settings.PROMPT_MODE || 'multiple';
+        const modeContainerMap = {
+            'single': this.singlePromptContainer,
+            'multiple': this.multiplePromptContainer,
+            'template': this.templatePromptContainer
+        };
+        this.showContainerByMode(mode, modeContainerMap);
+    }
+
+    /**
+     * Update iteration input behavior based on mode
+     */
+    updateIterationInputBehavior(mode) {
+        if (!this.iterationsInfoText) return;
+
+        if (mode === 'multiple') {
+            const multiplePrompts = this.settings.MULTIPLE_PROMPTS
+                ? this.settings.MULTIPLE_PROMPTS.split('---')
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0)
+                : [];
+            
+            const promptCount = multiplePrompts.length;
+            if (promptCount > 0) {
+                this.iterationsInfoText.textContent = `Number of iterations to run (${promptCount} prompts available)`;
+            } else {
+                this.iterationsInfoText.textContent = 'Number of iterations to run';
+            }
+        } else {
+            this.iterationsInfoText.textContent = 'Number of iterations to run';
+        }
+    }
+
+    /**
      * Handle toggle button click
      */
     handleToggleButtonClick(event) {
@@ -559,6 +923,80 @@ also multiline`;
     }
 
     /**
+     * Get all prompts based on mode and iterations
+     */
+    getAllPrompts(iterations) {
+        const mode = this.settings.PROMPT_MODE || 'multiple';
+        const prompts = [];
+
+        switch (mode) {
+            case 'single':
+                const singlePrompt = this.settings.AUTO_RUN_PROMPT || '';
+                for (let i = 0; i < iterations; i++) {
+                    prompts.push(singlePrompt);
+                }
+                break;
+
+            case 'multiple':
+                const multiplePrompts = this.settings.MULTIPLE_PROMPTS
+                    ? this.settings.MULTIPLE_PROMPTS.split('---')
+                        .map(p => p.trim())
+                        .filter(p => p.length > 0)
+                    : [];
+                
+                if (multiplePrompts.length === 0) {
+                    break;
+                }
+
+                const basePrompt = (this.settings.BASE_PROMPT_MULTIPLE || '').trim();
+                const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
+                const startCount = this.settings.MULTIPLE_PROMPTS_START_COUNT || 0;
+                
+                // Validate start count (1-indexed, so max is multiplePrompts.length)
+                const validStartCount = Math.max(0, Math.min(startCount, multiplePrompts.length));
+                
+                // Calculate starting index (convert from 1-indexed to 0-indexed)
+                const startIndex = validStartCount > 0 ? validStartCount - 1 : 0;
+
+                // Fill prompts array by cycling through available prompts, starting from startIndex
+                for (let i = 0; i < iterations; i++) {
+                    // Calculate the actual prompt index (accounting for start count and cycling)
+                    const actualIndex = (startIndex + i) % multiplePrompts.length;
+                    let combinedPrompt = multiplePrompts[actualIndex];
+                    
+                    // Combine with base prompt if provided
+                    if (basePrompt) {
+                        if (basePromptPosition === 'before') {
+                            combinedPrompt = `${basePrompt}\n${combinedPrompt}`;
+                        } else {
+                            combinedPrompt = `${combinedPrompt}\n${basePrompt}`;
+                        }
+                    }
+                    
+                    prompts.push(combinedPrompt);
+                }
+                break;
+
+            case 'template':
+                const template = this.settings.TEMPLATE_PROMPT || '';
+                for (let i = 0; i < iterations; i++) {
+                    let prompt = template;
+                    const timestamp = new Date().toISOString();
+                    
+                    // Replace variables
+                    prompt = prompt.replace(/\{iteration\}/g, i + 1);
+                    prompt = prompt.replace(/\{total\}/g, iterations);
+                    prompt = prompt.replace(/\{timestamp\}/g, timestamp);
+                    
+                    prompts.push(prompt);
+                }
+                break;
+        }
+
+        return prompts;
+    }
+
+    /**
      * Start automation
      */
     async startAutomation() {
@@ -567,10 +1005,32 @@ also multiline`;
             return;
         }
 
-        // Parse prompts
-        const prompts = this.parsePrompts(this.settings.MULTIPLE_PROMPTS || '');
+        // Determine iterations
+        let iterations;
+        const mode = this.settings.PROMPT_MODE || 'multiple';
+        
+        if (mode === 'multiple' && !this.settings.OVERRIDE_ITERATIONS) {
+            // Auto-detect from multiple prompts
+            const multiplePrompts = this.settings.MULTIPLE_PROMPTS
+                ? this.settings.MULTIPLE_PROMPTS.split('---')
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0)
+                : [];
+            iterations = multiplePrompts.length;
+        } else {
+            // Use configured iterations
+            iterations = this.settings.DEFAULT_ITERATIONS || 10;
+        }
+
+        if (iterations <= 0) {
+            this.showNotification('No prompts found or invalid iteration count', 'error');
+            return;
+        }
+
+        // Get all prompts based on mode
+        const prompts = this.getAllPrompts(iterations);
         if (prompts.length === 0) {
-            this.showNotification('No prompts found. Please enter prompts separated by newlines or ---', 'error');
+            this.showNotification('No prompts found. Please configure prompts based on selected mode', 'error');
             return;
         }
 

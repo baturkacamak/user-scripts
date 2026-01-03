@@ -1,7 +1,7 @@
 {
   "name": "Meta AI Media Enhancer",
   "namespace": "https://github.com/baturkacamak/userscripts",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "description": "Automate prompt sending to Meta AI Media with multiple prompts and configurable delays",
   "author": "Batur Kacamak",
   "copyright": "2024+, Batur Kacamak (https://batur.info/)",

@@ -2,7 +2,7 @@
 // @name        Meta AI Media Enhancer
 // @description Automate prompt sending to Meta AI Media with multiple prompts and configurable delays
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     1.0.1
+// @version     1.2.0
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/meta-ai-media-enhancer#readme
@@ -851,6 +851,139 @@
 
             this.addStyles(css, 'animations');
         }
+    }
+
+    /**
+     * Debouncer - A utility class for creating debounced and throttled functions
+     *
+     * Provides sophisticated debouncing and throttling with options for immediate/delayed
+     * execution, cancellation, and flushing of pending operations.
+     */
+    class Debouncer {
+      /**
+         * Creates a debounced version of a function that delays invocation until after
+         * a specified wait time has elapsed since the last time the debounced function was called.
+         *
+         * @param {Function} func - The function to debounce.
+         * @param {number} wait - The number of milliseconds to delay.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=false] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new debounced function.
+         */
+      static debounce(func, wait, options = {}) {
+        const {leading = false, trailing = true} = options;
+        let timeout;
+        let lastArgs;
+        let lastThis;
+        let lastCallTime;
+        let result;
+
+        function invokeFunc() {
+          const args = lastArgs;
+          const thisArg = lastThis;
+
+          lastArgs = lastThis = undefined;
+          result = func.apply(thisArg, args);
+          return result;
+        }
+
+        function startTimer(pendingFunc, wait) {
+          return setTimeout(pendingFunc, wait);
+        }
+
+        function cancelTimer(id) {
+          clearTimeout(id);
+        }
+
+        function trailingEdge() {
+          timeout = undefined;
+
+          // Only invoke if we have `lastArgs` which means `func` has been debounced at least once
+          if (trailing && lastArgs) {
+            return invokeFunc();
+          }
+
+          lastArgs = lastThis = undefined;
+          return result;
+        }
+
+        function leadingEdge() {
+          // Reset any `maxWait` timer
+          timeout = startTimer(trailingEdge, wait);
+
+          // Invoke the leading edge
+          return leading ? invokeFunc() : result;
+        }
+
+        function cancel() {
+          if (timeout !== undefined) {
+            cancelTimer(timeout);
+          }
+          lastArgs = lastThis = lastCallTime = undefined;
+          timeout = undefined;
+        }
+
+        function flush() {
+          return timeout === undefined ? result : trailingEdge();
+        }
+
+        function debounced(...args) {
+          const time = Date.now();
+          const isInvoking = shouldInvoke(time);
+
+          lastArgs = args;
+          lastThis = this;
+          lastCallTime = time;
+
+          if (isInvoking) {
+            if (timeout === undefined) {
+              return leadingEdge();
+            }
+            if (isInvoking) {
+              // Handle invocations in a tight loop
+              timeout = startTimer(trailingEdge, wait);
+              return invokeFunc();
+            }
+          }
+          if (timeout === undefined) {
+            timeout = startTimer(trailingEdge, wait);
+          }
+          return result;
+        }
+
+        function shouldInvoke(time) {
+          const timeSinceLastCall = time - (lastCallTime || 0);
+
+          // Either this is the first call, activity has stopped and we're at the
+          // trailing edge, the system time has gone backwards and we're treating
+          // it as the trailing edge, or we've hit the `maxWait` limit
+          return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
+                    (0 > timeSinceLastCall));
+        }
+
+        debounced.cancel = cancel;
+        debounced.flush = flush;
+        return debounced;
+      }
+
+      /**
+         * Creates a throttled function that only invokes func at most once per
+         * every wait milliseconds.
+         *
+         * @param {Function} func - The function to throttle.
+         * @param {number} wait - The number of milliseconds to throttle invocations to.
+         * @param {Object} [options] - The options object.
+         * @param {boolean} [options.leading=true] - Specify invoking on the leading edge of the timeout.
+         * @param {boolean} [options.trailing=true] - Specify invoking on the trailing edge of the timeout.
+         * @return {Function} Returns the new throttled function.
+         */
+      static throttle(func, wait, options = {}) {
+        return this.debounce(func, wait, {
+          leading: false !== options.leading,
+          trailing: false !== options.trailing,
+        });
+      }
     }
 
     /**
@@ -2546,6 +2679,1269 @@
     }
 
     new ClipboardService();
+
+    /**
+     * SelectBox - A rich UI component for dropdown selects.
+     * Creates customizable, accessible dropdown selects with categories and configurable options.
+     */
+
+    class SelectBox {
+        /**
+         * Create a new select box.
+         * @param {Object} options - Configuration options.
+         * @param {Array} options.items - Array of items or item categories.
+         * @param {string} options.name - Name attribute for the select element.
+         * @param {string} options.id - ID attribute for the select element.
+         * @param {Function} options.onChange - Callback when selection changes.
+         * @param {string} options.placeholder - Placeholder text when no selection.
+         * @param {HTMLElement} options.container - Optional container to append the select box.
+         * @param {Object} options.attributes - Additional HTML attributes for the select element.
+         * @param {string} options.theme - Theme name (default, primary, etc.).
+         * @param {string} options.size - Size name (small, medium, large).
+         * @param {boolean} options.useCategorizedUI - Whether to use the rich category UI (default: false).
+         */
+        constructor(options) {
+            this.items = options.items || [];
+            this.name = options.name || '';
+            this.id = options.id || SelectBox.generateUniqueId();
+            this.onChange = options.onChange;
+            this.placeholder = options.placeholder || 'Select an option';
+            this.container = options.container;
+            this.attributes = options.attributes || {};
+            this.theme = options.theme || 'default';
+            this.size = options.size || 'medium';
+            this.useCategorizedUI = options.useCategorizedUI || false;
+            this.label = options.label || '';
+            this.required = options.required || false;
+            this.labelPosition = options.labelPosition || 'top'; // 'top' or 'inline'
+
+            // Store instance ID for events
+            this.instanceId = this.id;
+
+            // Detect if items are categorized or flat
+            this.isCategorized = this.detectCategorizedItems();
+
+            // DOM elements
+            this.element = null; // Main wrapper element (contains label + containerElement)
+            this.labelElement = null; // Label element
+            this.containerElement = null; // Select container element
+            this.selectElement = null; // Native select element (hidden)
+            this.triggerElement = null; // Button to open dropdown
+            this.dropdownElement = null; // Custom dropdown
+            this.selectedValue = ''; // Current selected value
+            this.selectedLabel = ''; // Current selected label
+
+            // Ensure styles are initialized
+            SelectBox.initStyles();
+
+            // Create the select component
+            this.create();
+        }
+
+        /**
+         * Returns the unique base CSS class for the SelectBox component.
+         * This class is used as the root for all styling and helps prevent CSS collisions.
+         *
+         * @return {string} The base CSS class name for select boxes.
+         */
+        static get BASE_SELECT_CLASS() {
+            return 'userscripts-select';
+        }
+
+        /**
+         * Returns the CSS variable prefix used for theming the SelectBox component.
+         * This prefix scopes all custom CSS variables (e.g., colors, borders) related to the select box.
+         *
+         * @return {string} The CSS variable prefix.
+         */
+        static get CSS_VAR_PREFIX() {
+            return '--userscripts-select-';
+        }
+
+        /**
+         * Initialize styles for all select boxes.
+         * These styles reference CSS variables using our defined prefix.
+         */
+        static initStyles() {
+            if (SelectBox.stylesInitialized) return;
+
+            StyleManager.addStyles(`
+      /* Main wrapper element */
+      .${SelectBox.BASE_SELECT_CLASS}-wrapper {
+        width: 100%;
+      }
+      
+      /* Label styles */
+      .${SelectBox.BASE_SELECT_CLASS}-label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #555;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-label--inline {
+        display: inline-block;
+        margin-bottom: 0;
+        margin-right: 0;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-wrapper--inline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      /* Base container styles */
+      .${SelectBox.BASE_SELECT_CLASS}-container {
+        position: relative;
+        width: 100%;
+      }
+      
+      /* Select trigger button */
+      .${SelectBox.BASE_SELECT_CLASS}-trigger {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}bg, #ffffff);
+        border: 1px solid var(${SelectBox.CSS_VAR_PREFIX}border, #d1d5db);
+        border-radius: 0.375rem;
+        font-family: inherit;
+        font-size: 0.875rem;
+        color: var(${SelectBox.CSS_VAR_PREFIX}color, #374151);
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s ease;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-trigger:hover {
+        border-color: var(${SelectBox.CSS_VAR_PREFIX}border-hover, #9ca3af);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-trigger:focus {
+        outline: none;
+        border-color: var(${SelectBox.CSS_VAR_PREFIX}focus-border, #3b82f6);
+        box-shadow: 0 0 0 3px var(${SelectBox.CSS_VAR_PREFIX}focus-shadow, rgba(59, 130, 246, 0.25));
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-trigger-icon {
+        margin-left: 0.5rem;
+        transition: transform 0.2s ease;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-trigger-icon.open {
+        transform: rotate(180deg);
+      }
+      
+      /* Dropdown styles */
+      .${SelectBox.BASE_SELECT_CLASS}-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 10;
+        width: 100%;
+        max-height: 0;
+        overflow: hidden;
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}dropdown-bg, #ffffff);
+        border-radius: 0.375rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: max-height 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+        opacity: 0;
+        transform: translateY(-10px);
+        margin-top: 0.25rem;
+        border: 1px solid var(${SelectBox.CSS_VAR_PREFIX}border, #d1d5db);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-dropdown.open {
+        max-height: 300px;
+        opacity: 1;
+        transform: translateY(0);
+        overflow-y: auto;
+        z-index: 100;
+      }
+      
+      /* Categories */
+      .${SelectBox.BASE_SELECT_CLASS}-category {
+        border-bottom: 1px solid var(${SelectBox.CSS_VAR_PREFIX}category-border, #e5e7eb);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-category:last-child {
+        border-bottom: none;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-category-label {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(${SelectBox.CSS_VAR_PREFIX}category-color, #6b7280);
+        text-transform: uppercase;
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}category-bg, #f9fafb);
+      }
+      
+      /* Items */
+      .${SelectBox.BASE_SELECT_CLASS}-items {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-item {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        color: var(${SelectBox.CSS_VAR_PREFIX}item-color, #374151);
+        cursor: pointer;
+        transition: background-color 0.1s ease;
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-item:hover {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}item-hover-bg, #f3f4f6);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-item.selected {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}selected-bg, #EFF6FF);
+        color: var(${SelectBox.CSS_VAR_PREFIX}selected-color, #2563EB);
+        font-weight: 500;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-item.selected::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}selected-indicator, #2563EB);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-item.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      /* Item options */
+      .${SelectBox.BASE_SELECT_CLASS}-item-options {
+        padding: 0.25rem 0.75rem 0.5rem 1.75rem;
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}options-bg, #f9fafb);
+        font-size: 0.8125rem;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transition: max-height 0.2s ease, opacity 0.2s ease, padding 0.2s ease;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-item-options.open {
+        max-height: 200px;
+        opacity: 1;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-option-row {
+        display: flex;
+        align-items: center;
+        margin: 0.25rem 0;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-option-checkbox {
+        margin-right: 0.5rem;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-option-label {
+        color: var(${SelectBox.CSS_VAR_PREFIX}option-label-color, #4b5563);
+      }
+      
+      /* Icon for options toggle */
+      .${SelectBox.BASE_SELECT_CLASS}-option-toggle {
+        margin-left: auto;
+        padding: 0.25rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(${SelectBox.CSS_VAR_PREFIX}option-toggle-color, #6b7280);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-option-toggle:hover {
+        color: var(${SelectBox.CSS_VAR_PREFIX}option-toggle-hover-color, #374151);
+      }
+      
+      /* Size variations */
+      .${SelectBox.BASE_SELECT_CLASS}-container--small .${SelectBox.BASE_SELECT_CLASS}-trigger {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--large .${SelectBox.BASE_SELECT_CLASS}-trigger {
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+      }
+      
+      /* Theme variations */
+      .${SelectBox.BASE_SELECT_CLASS}-container--primary .${SelectBox.BASE_SELECT_CLASS}-trigger {
+        border-color: var(${SelectBox.CSS_VAR_PREFIX}primary-border, #3b82f6);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--primary .${SelectBox.BASE_SELECT_CLASS}-item.selected {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}primary-selected-bg, #EFF6FF);
+        color: var(${SelectBox.CSS_VAR_PREFIX}primary-selected-color, #2563EB);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--primary .${SelectBox.BASE_SELECT_CLASS}-item.selected::before {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}primary-indicator, #2563EB);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--success .${SelectBox.BASE_SELECT_CLASS}-trigger {
+        border-color: var(${SelectBox.CSS_VAR_PREFIX}success-border, #10b981);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--success .${SelectBox.BASE_SELECT_CLASS}-item.selected {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}success-selected-bg, #ECFDF5);
+        color: var(${SelectBox.CSS_VAR_PREFIX}success-selected-color, #059669);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--success .${SelectBox.BASE_SELECT_CLASS}-item.selected::before {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}success-indicator, #10b981);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--danger .${SelectBox.BASE_SELECT_CLASS}-trigger {
+        border-color: var(${SelectBox.CSS_VAR_PREFIX}danger-border, #ef4444);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--danger .${SelectBox.BASE_SELECT_CLASS}-item.selected {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}danger-selected-bg, #FEF2F2);
+        color: var(${SelectBox.CSS_VAR_PREFIX}danger-selected-color, #DC2626);
+      }
+      
+      .${SelectBox.BASE_SELECT_CLASS}-container--danger .${SelectBox.BASE_SELECT_CLASS}-item.selected::before {
+        background-color: var(${SelectBox.CSS_VAR_PREFIX}danger-indicator, #ef4444);
+      }
+      
+      /* Placeholder for empty state */
+      .${SelectBox.BASE_SELECT_CLASS}-placeholder {
+        color: var(${SelectBox.CSS_VAR_PREFIX}placeholder-color, #9ca3af);
+        font-style: italic;
+      }
+      
+      /* Label */
+      .${SelectBox.BASE_SELECT_CLASS}-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(${SelectBox.CSS_VAR_PREFIX}label-color, #374151);
+      }
+      
+      /* Original select for accessibility and form submission */
+      .${SelectBox.BASE_SELECT_CLASS}-native {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border-width: 0;
+        cursor: not-allowed;
+      }
+
+      /* Media query for dark mode */
+      @media (prefers-color-scheme: dark) {
+        .${SelectBox.BASE_SELECT_CLASS}-trigger {
+          background-color: #2d2d2d;
+          border-color: #555;
+          color: #e0e0e0;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-trigger:hover {
+          border-color: #777;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-trigger:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-dropdown {
+          background-color: #2d2d2d;
+          border-color: #555;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-category {
+          border-bottom-color: #444;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-category-label {
+          color: #aaa;
+          background-color: #3a3a3a;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item {
+          color: #e0e0e0;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item:hover {
+          background-color: #4a4a4a;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item.selected {
+          background-color: #2c3e50;
+          color: #3b82f6;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item.selected::before {
+          background-color: #3b82f6;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-item-options {
+          background-color: #3a3a3a;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-option-label {
+          color: #ccc;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-option-toggle {
+          color: #aaa;
+        }
+        
+        .${SelectBox.BASE_SELECT_CLASS}-option-toggle:hover {
+          color: #fff;
+        }
+
+        .${SelectBox.BASE_SELECT_CLASS}-container.disabled .${SelectBox.BASE_SELECT_CLASS}-trigger {
+            background-color: #444;
+            color: #888;
+        }
+      }
+    `, 'userscripts-select-styles');
+
+            SelectBox.stylesInitialized = true;
+        }
+
+        /**
+         * Generate unique ID for the select box if not provided
+         * Used for pubsub events
+         */
+        static generateUniqueId() {
+            return `selectbox_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        }
+
+        /**
+         * Detect if items are categorized
+         * @return {boolean} True if items are categorized
+         */
+        detectCategorizedItems() {
+            // If useCategorizedUI is explicitly set, respect it
+            if (this.useCategorizedUI !== undefined) return this.useCategorizedUI;
+
+            // Otherwise, try to auto-detect based on items structure
+            if (!this.items || 0 === this.items.length) return false;
+
+            // Check if any item has a categories property
+            return this.items.some((item) => item.category !== undefined || item.items !== undefined);
+        }
+
+        /**
+         * Create the enhanced select box
+         * @return {HTMLElement} The wrapper element
+         */
+        create() {
+            // Create main wrapper element
+            this.element = document.createElement('div');
+            let wrapperClass = `${SelectBox.BASE_SELECT_CLASS}-wrapper`;
+            if (this.labelPosition === 'inline' && this.label) {
+                wrapperClass += ` ${SelectBox.BASE_SELECT_CLASS}-wrapper--inline`;
+            }
+            this.element.className = wrapperClass;
+
+            // Create label if provided
+            if (this.label) {
+                this.labelElement = document.createElement('label');
+                let labelClass = `${SelectBox.BASE_SELECT_CLASS}-label`;
+                if (this.labelPosition === 'inline') {
+                    labelClass += ` ${SelectBox.BASE_SELECT_CLASS}-label--inline`;
+                }
+                this.labelElement.className = labelClass;
+                this.labelElement.textContent = this.label;
+                if (this.required) {
+                    this.labelElement.textContent += ' *';
+                }
+                this.element.appendChild(this.labelElement);
+            }
+
+            // Create main container
+            this.containerElement = document.createElement('div');
+            this.containerElement.className = `${SelectBox.BASE_SELECT_CLASS}-container ${SelectBox.BASE_SELECT_CLASS}-container--${this.theme} ${SelectBox.BASE_SELECT_CLASS}-container--${this.size}`;
+
+            // Create native select element for form submission and accessibility
+            this.createNativeSelect();
+
+            // Create custom select UI
+            if (this.isCategorized) {
+                this.createCategorizedSelect();
+            } else {
+                this.createFlatSelect();
+            }
+
+            // Add event listeners
+            this.addEventListeners();
+
+            // Add containerElement to wrapper
+            this.element.appendChild(this.containerElement);
+
+            // Add to container if provided
+            if (this.container) {
+                this.container.appendChild(this.element);
+            }
+
+            return this.element;
+        }
+
+        /**
+         * Create the hidden native select element
+         */
+        createNativeSelect() {
+            this.selectElement = document.createElement('select');
+            this.selectElement.name = this.name;
+            this.selectElement.id = this.id;
+            this.selectElement.className = `${SelectBox.BASE_SELECT_CLASS}-native`;
+
+            // Apply additional attributes
+            Object.entries(this.attributes).forEach(([key, value]) => {
+                this.selectElement.setAttribute(key, value);
+            });
+
+            // Add placeholder option if needed
+            if (this.placeholder) {
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.textContent = this.placeholder;
+                placeholderOption.disabled = true;
+                placeholderOption.selected = !this.hasSelectedItem();
+                this.selectElement.appendChild(placeholderOption);
+            }
+
+            // Add options
+            this.addOptionsToNativeSelect();
+
+            // Add to container
+            this.containerElement.appendChild(this.selectElement);
+        }
+
+        /**
+         * Add options to the native select element
+         */
+        addOptionsToNativeSelect() {
+            // Helper function to add a single option
+            const addOption = (item) => {
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.textContent = item.label;
+
+                if (item.selected) {
+                    option.selected = true;
+                    this.selectedValue = item.value;
+                    this.selectedLabel = item.label;
+                }
+
+                if (item.disabled) {
+                    option.disabled = true;
+                }
+
+                this.selectElement.appendChild(option);
+            };
+
+            // For categorized items
+            if (this.isCategorized) {
+                this.items.forEach((category) => {
+                    if (category.items && Array.isArray(category.items)) {
+                        // Add optgroup if this is a category with a label
+                        if (category.label) {
+                            const optgroup = document.createElement('optgroup');
+                            optgroup.label = category.label;
+
+                            category.items.forEach((item) => {
+                                const option = document.createElement('option');
+                                option.value = item.value;
+                                option.textContent = item.label;
+
+                                if (item.selected) {
+                                    option.selected = true;
+                                    this.selectedValue = item.value;
+                                    this.selectedLabel = item.label;
+                                }
+
+                                if (item.disabled) {
+                                    option.disabled = true;
+                                }
+
+                                optgroup.appendChild(option);
+                            });
+
+                            this.selectElement.appendChild(optgroup);
+                        } else {
+                            // No category label, just add the items
+                            category.items.forEach(addOption);
+                        }
+                    } else {
+                        // This is a flat item, not a category
+                        addOption(category);
+                    }
+                });
+            } else {
+                // For flat items
+                this.items.forEach(addOption);
+            }
+        }
+
+        /**
+         * Create a categorized select UI
+         */
+        createCategorizedSelect() {
+            // Create trigger button
+            this.triggerElement = document.createElement('button');
+            this.triggerElement.type = 'button';
+            this.triggerElement.className = `${SelectBox.BASE_SELECT_CLASS}-trigger`;
+
+            // Set initial text
+            const triggerText = document.createElement('span');
+            triggerText.textContent = this.selectedLabel || this.placeholder;
+            if (!this.selectedLabel) {
+                triggerText.className = `${SelectBox.BASE_SELECT_CLASS}-placeholder`;
+            }
+            this.triggerElement.appendChild(triggerText);
+
+            // Add dropdown icon
+            const triggerIcon = document.createElement('span');
+            triggerIcon.className = `${SelectBox.BASE_SELECT_CLASS}-trigger-icon`;
+            triggerIcon.textContent = '▼';
+            this.triggerElement.appendChild(triggerIcon);
+
+            // Create dropdown
+            this.dropdownElement = document.createElement('div');
+            this.dropdownElement.className = `${SelectBox.BASE_SELECT_CLASS}-dropdown`;
+
+            // Add categories and items
+            this.items.forEach((category) => {
+                // Check if this is a category with items
+                if (category.items && Array.isArray(category.items)) {
+                    const categoryElement = document.createElement('div');
+                    categoryElement.className = `${SelectBox.BASE_SELECT_CLASS}-category`;
+
+                    // Add category label if it exists
+                    if (category.label) {
+                        const categoryLabel = document.createElement('div');
+                        categoryLabel.className = `${SelectBox.BASE_SELECT_CLASS}-category-label`;
+                        categoryLabel.textContent = category.label;
+                        categoryElement.appendChild(categoryLabel);
+                    }
+
+                    // Add items list
+                    const itemsList = document.createElement('ul');
+                    itemsList.className = `${SelectBox.BASE_SELECT_CLASS}-items`;
+
+                    // Add items
+                    category.items.forEach((item) => {
+                        const itemElement = this.createItemElement(item);
+                        itemsList.appendChild(itemElement);
+                    });
+
+                    categoryElement.appendChild(itemsList);
+                    this.dropdownElement.appendChild(categoryElement);
+                } else {
+                    // This is a flat item, not a category
+                    const itemsList = document.createElement('ul');
+                    itemsList.className = `${SelectBox.BASE_SELECT_CLASS}-items`;
+
+                    const itemElement = this.createItemElement(category);
+                    itemsList.appendChild(itemElement);
+
+                    this.dropdownElement.appendChild(itemsList);
+                }
+            });
+
+            // Add elements to container
+            this.containerElement.appendChild(this.triggerElement);
+            this.containerElement.appendChild(this.dropdownElement);
+        }
+
+        /**
+         * Create a flat select UI (simpler version)
+         */
+        createFlatSelect() {
+            // Create trigger button
+            this.triggerElement = document.createElement('button');
+            this.triggerElement.type = 'button';
+            this.triggerElement.className = `${SelectBox.BASE_SELECT_CLASS}-trigger`;
+
+            // Set initial text
+            const triggerText = document.createElement('span');
+            triggerText.textContent = this.selectedLabel || this.placeholder;
+            if (!this.selectedLabel) {
+                triggerText.className = `${SelectBox.BASE_SELECT_CLASS}-placeholder`;
+            }
+            this.triggerElement.appendChild(triggerText);
+
+            // Add dropdown icon
+            const triggerIcon = document.createElement('span');
+            triggerIcon.className = `${SelectBox.BASE_SELECT_CLASS}-trigger-icon`;
+            triggerIcon.textContent = '▼';
+            this.triggerElement.appendChild(triggerIcon);
+
+            // Create dropdown
+            this.dropdownElement = document.createElement('div');
+            this.dropdownElement.className = `${SelectBox.BASE_SELECT_CLASS}-dropdown`;
+
+            // Add items list
+            const itemsList = document.createElement('ul');
+            itemsList.className = `${SelectBox.BASE_SELECT_CLASS}-items`;
+
+            // Add items
+            this.items.forEach((item) => {
+                const itemElement = this.createItemElement(item);
+                itemsList.appendChild(itemElement);
+            });
+
+            this.dropdownElement.appendChild(itemsList);
+
+            // Add elements to container
+            this.containerElement.appendChild(this.triggerElement);
+            this.containerElement.appendChild(this.dropdownElement);
+        }
+
+        /**
+         * Create an item element
+         * @param {Object} item - The item data
+         * @return {HTMLElement} The item element
+         */
+        createItemElement(item) {
+            const itemElement = document.createElement('li');
+            itemElement.className = `${SelectBox.BASE_SELECT_CLASS}-item`;
+            itemElement.dataset.value = item.value;
+            itemElement.textContent = item.label;
+
+            if (item.selected) {
+                itemElement.classList.add('selected');
+            }
+
+            if (item.disabled) {
+                itemElement.classList.add('disabled');
+            }
+
+            // Handle item selection
+            itemElement.addEventListener('click', (e) => {
+                if (item.disabled) return;
+
+                this.selectItem(item.value, item.label);
+                this.closeDropdown();
+
+                // Trigger onChange callback
+                if (this.onChange) {
+                    this.onChange(item.value, e);
+                }
+            });
+
+            // Add options if available
+            if (item.options && 0 < item.options.length) {
+                // Add options toggle button
+                const toggleButton = document.createElement('button');
+                toggleButton.type = 'button';
+                toggleButton.className = `${SelectBox.BASE_SELECT_CLASS}-option-toggle`;
+                toggleButton.textContent = '⚙️';
+                toggleButton.title = 'Options';
+
+                itemElement.appendChild(toggleButton);
+
+                // Create options container
+                const optionsContainer = document.createElement('div');
+                optionsContainer.className = `${SelectBox.BASE_SELECT_CLASS}-item-options`;
+
+                // Add options
+                item.options.forEach((option) => {
+                    const optionRow = document.createElement('div');
+                    optionRow.className = `${SelectBox.BASE_SELECT_CLASS}-option-row`;
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `${this.id}-option-${item.value}-${option.id}`;
+                    checkbox.className = `${SelectBox.BASE_SELECT_CLASS}-option-checkbox`;
+                    checkbox.checked = option.defaultValue || false;
+
+                    const label = document.createElement('label');
+                    label.htmlFor = checkbox.id;
+                    label.className = `${SelectBox.BASE_SELECT_CLASS}-option-label`;
+                    label.textContent = option.label;
+
+                    if (option.description) {
+                        label.title = option.description;
+                    }
+
+                    // Handle option change
+                    checkbox.addEventListener('change', (e) => {
+                        // Update option value
+                        if (item.optionValues) {
+                            item.optionValues[option.id] = e.target.checked;
+                        }
+
+                        // Stop propagation to prevent selecting the item
+                        e.stopPropagation();
+                    });
+
+                    optionRow.appendChild(checkbox);
+                    optionRow.appendChild(label);
+                    optionsContainer.appendChild(optionRow);
+                });
+
+                // Add click handler for toggle button
+                toggleButton.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent item selection
+                    optionsContainer.classList.toggle('open');
+                });
+
+                // Add options container after the item
+                itemElement.insertAdjacentElement('afterend', optionsContainer);
+            }
+
+            return itemElement;
+        }
+
+        /**
+         * Add event listeners
+         */
+        addEventListeners() {
+            // Toggle dropdown on trigger click - using the bound handler
+            this.triggerElement.addEventListener('click', this._handleTriggerClick);
+
+            // Other event listeners remain the same
+            document.addEventListener('click', (e) => {
+                if (!this.containerElement.contains(e.target)) {
+                    this.closeDropdown();
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if ('Escape' === e.key) {
+                    this.closeDropdown();
+                }
+            });
+
+            // Sync with native select
+            this.selectElement.addEventListener('change', (e) => {
+                this.selectItemFromNative();
+            });
+        }
+
+        /**
+         * Toggle dropdown visibility
+         */
+        toggleDropdown() {
+            const isOpen = this.dropdownElement.classList.contains('open');
+
+            if (isOpen) {
+                this.closeDropdown();
+            } else {
+                this.openDropdown();
+            }
+        }
+
+        /**
+         * Open the dropdown
+         */
+        openDropdown() {
+            this.dropdownElement.classList.add('open');
+            this.triggerElement.querySelector(`.${SelectBox.BASE_SELECT_CLASS}-trigger-icon`).classList.add('open');
+
+            // Ensure the selected item is visible
+            const selectedItem = this.dropdownElement.querySelector(`.${SelectBox.BASE_SELECT_CLASS}-item.selected`);
+            if (selectedItem) {
+                selectedItem.scrollIntoView({block: 'nearest'});
+            }
+
+            // Get dropdown height for proper adjustment
+            const dropdownHeight = this.dropdownElement.scrollHeight;
+
+            // Publish event that dropdown is open with its height
+            PubSub.publish('selectbox:dropdown:open', {
+                id: this.instanceId,
+                height: dropdownHeight,
+            });
+        }
+
+        /**
+         * Close the dropdown
+         */
+        closeDropdown() {
+            this.dropdownElement.classList.remove('open');
+            this.triggerElement.querySelector(`.${SelectBox.BASE_SELECT_CLASS}-trigger-icon`).classList.remove('open');
+
+            // Close any open options
+            const openOptions = this.dropdownElement.querySelectorAll(`.${SelectBox.BASE_SELECT_CLASS}-item-options.open`);
+            openOptions.forEach((option) => {
+                option.classList.remove('open');
+            });
+
+            // Publish event that dropdown is closed
+            PubSub.publish('selectbox:dropdown:close', {
+                id: this.instanceId,
+            });
+        }
+
+        /**
+         * Select an item
+         * @param {string} value - The value to select
+         * @param {string} label - The label text
+         */
+        selectItem(value, label) {
+            // Update native select
+            this.selectElement.value = value;
+
+            // Update selected value and label
+            this.selectedValue = value;
+            this.selectedLabel = label;
+
+            // Update trigger text
+            const triggerText = this.triggerElement.querySelector('span:first-child');
+            triggerText.textContent = label;
+            triggerText.classList.remove(`${SelectBox.BASE_SELECT_CLASS}-placeholder`);
+
+            // Update item classes
+            const items = this.dropdownElement.querySelectorAll(`.${SelectBox.BASE_SELECT_CLASS}-item`);
+            items.forEach((item) => {
+                if (item.dataset.value === value) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        /**
+         * Select item based on native select value
+         */
+        selectItemFromNative() {
+            const value = this.selectElement.value;
+            const selectedOption = this.selectElement.options[this.selectElement.selectedIndex];
+            const label = selectedOption ? selectedOption.textContent : '';
+
+            if (value && label) {
+                this.selectItem(value, label);
+            }
+        }
+
+        /**
+         * Check if any item is selected
+         * @return {boolean} True if at least one item is selected
+         */
+        hasSelectedItem() {
+            if (this.isCategorized) {
+                // For categorized items
+                return this.items.some((category) => {
+                    if (category.items && Array.isArray(category.items)) {
+                        return category.items.some((item) => item.selected);
+                    }
+                    return category.selected;
+                });
+            }
+
+            // For flat items
+            return this.items.some((item) => item.selected);
+        }
+
+        /**
+         * Get the currently selected value
+         * @return {string} The value of the selected option
+         */
+        getValue() {
+            return this.selectedValue;
+        }
+
+        destroy() {
+            // Clean up any event listeners
+            if (this.triggerElement) {
+                this.triggerElement.removeEventListener('click', this._handleTriggerClick);
+            }
+
+            // Publish that this selectbox is being destroyed
+            PubSub.publish('selectbox:destroy', {
+                id: this.instanceId,
+            });
+        }
+
+        /**
+         * Set the selected value
+         * @param {string} value - The value to select
+         * @param {boolean} [triggerChange=false] - Whether to trigger the onChange event
+         */
+        setValue(value, triggerChange = false) {
+            // Find the item with the given value
+            let found = false;
+            let label = '';
+
+            const findInItems = (items) => {
+                for (const item of items) {
+                    if (item.value === value) {
+                        found = true;
+                        label = item.label;
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            if (this.isCategorized) {
+                // Search in categorized items
+                for (const category of this.items) {
+                    if (category.items && Array.isArray(category.items)) {
+                        if (findInItems(category.items)) {
+                            break;
+                        }
+                    } else if (category.value === value) {
+                        found = true;
+                        label = category.label;
+                        break;
+                    }
+                }
+            } else {
+                // Search in flat items
+                findInItems(this.items);
+            }
+
+            if (found) {
+                // Update the native select
+                this.selectElement.value = value;
+
+                // Update the custom UI
+                this.selectItem(value, label);
+
+                // Trigger change event if requested
+                if (triggerChange && this.onChange) {
+                    const event = new Event('change');
+                    this.selectElement.dispatchEvent(event);
+                }
+            }
+        }
+
+        /**
+         * Add a new option
+         * @param {Object} item - An object with {value: string, label: string, selected: boolean}
+         * @param {string} [categoryId] - Optional category ID to add the item to
+         */
+        addOption(item, categoryId) {
+            if (this.isCategorized && categoryId) {
+                // Add to specific category
+                const categoryIndex = this.items.findIndex((category) =>
+                    category.id === categoryId || category.value === categoryId,
+                );
+
+                if (0 <= categoryIndex) {
+                    const category = this.items[categoryIndex];
+
+                    if (!category.items) {
+                        category.items = [];
+                    }
+
+                    category.items.push(item);
+                } else {
+                    // Category not found, add as flat item
+                    this.items.push(item);
+                }
+            } else {
+                // Add to flat items
+                this.items.push(item);
+            }
+
+            // Update the native select
+            const option = document.createElement('option');
+            option.value = item.value;
+            option.textContent = item.label;
+
+            if (item.selected) {
+                option.selected = true;
+                this.selectedValue = item.value;
+                this.selectedLabel = item.label;
+            }
+
+            if (item.disabled) {
+                option.disabled = true;
+            }
+
+            this.selectElement.appendChild(option);
+
+            // If using custom UI, we need to rebuild it
+            this.rebuild();
+        }
+
+        /**
+         * Remove an option by value
+         * @param {string} value - The value of the option to remove
+         */
+        removeOption(value) {
+            // Helper function to remove from an array of items
+            const removeFromItems = (items) => {
+                const index = items.findIndex((item) => item.value === value);
+                if (0 <= index) {
+                    items.splice(index, 1);
+                    return true;
+                }
+                return false;
+            };
+
+            // Remove from the items array
+            if (this.isCategorized) {
+
+                for (const category of this.items) {
+                    if (category.items && Array.isArray(category.items)) {
+                        if (removeFromItems(category.items)) {
+                            break;
+                        }
+                    } else if (category.value === value) {
+                        const index = this.items.indexOf(category);
+                        this.items.splice(index, 1);
+                        break;
+                    }
+                }
+            } else {
+                // Remove from flat items
+                removeFromItems(this.items);
+            }
+
+            // Remove from the native select
+            const option = this.selectElement.querySelector(`option[value="${value}"]`);
+            if (option) {
+                option.remove();
+            }
+
+            // If it was the selected option, update selected value
+            if (this.selectedValue === value) {
+                this.selectedValue = '';
+                this.selectedLabel = '';
+
+                // Update trigger text to placeholder
+                const triggerText = this.triggerElement.querySelector('span:first-child');
+                triggerText.textContent = this.placeholder;
+                triggerText.classList.add(`${SelectBox.BASE_SELECT_CLASS}-placeholder`);
+            }
+
+            // If using custom UI, we need to rebuild it
+            this.rebuild();
+        }
+
+        /**
+         * Update the options in the select box
+         * @param {Array} items - New array of items
+         * @param {boolean} [reset=false] - Whether to completely reset the options
+         */
+        updateOptions(items, reset = false) {
+            if (reset) {
+                // Clear all options in native select
+                while (0 < this.selectElement.options.length) {
+                    this.selectElement.options[0].remove();
+                }
+
+                // Reset items array
+                this.items = [];
+
+                // Reset selected value
+                this.selectedValue = '';
+                this.selectedLabel = '';
+            }
+
+            // Add new items
+            this.items = items;
+
+            // Re-detect if categorized
+            this.isCategorized = this.detectCategorizedItems();
+
+            // Add to native select
+            this.addOptionsToNativeSelect();
+
+            // Rebuild the UI
+            this.rebuild();
+        }
+
+        _handleTriggerClick = (e) => {
+            e.stopPropagation();
+            this.toggleDropdown();
+        }
+
+        /**
+         * Rebuild the custom UI
+         */
+        rebuild() {
+            // Remove existing trigger and dropdown
+            if (this.triggerElement) {
+                this.triggerElement.remove();
+            }
+
+            if (this.dropdownElement) {
+                this.dropdownElement.remove();
+            }
+
+            // Recreate the UI
+            if (this.isCategorized) {
+                this.createCategorizedSelect();
+            } else {
+                this.createFlatSelect();
+            }
+
+            // Re-add event listeners
+            this.addEventListeners();
+        }
+
+        /**
+         * Disable the select box
+         * @param {boolean} disabled - Whether the select should be disabled
+         */
+        setDisabled(disabled) {
+            // Update native select
+            this.selectElement.disabled = disabled;
+
+            // Update custom UI
+            if (disabled) {
+                this.containerElement.classList.add(`${SelectBox.BASE_SELECT_CLASS}-container--disabled`);
+                this.triggerElement.disabled = true;
+            } else {
+                this.containerElement.classList.remove(`${SelectBox.BASE_SELECT_CLASS}-container--disabled`);
+                this.triggerElement.disabled = false;
+            }
+        }
+
+        /**
+         * Set the theme of the select box
+         * @param {string} theme - The new theme name
+         */
+        setTheme(theme) {
+            this.theme = theme;
+
+            // Update container class
+            const themeClasses = ['default', 'primary', 'success', 'danger'];
+            themeClasses.forEach((themeClass) => {
+                this.containerElement.classList.remove(`${SelectBox.BASE_SELECT_CLASS}-container--${themeClass}`);
+            });
+
+            this.containerElement.classList.add(`${SelectBox.BASE_SELECT_CLASS}-container--${theme}`);
+        }
+
+        /**
+         * Set the size of the select box
+         * @param {string} size - The new size (e.g., "small", "medium", "large")
+         */
+        setSize(size) {
+            this.size = size;
+
+            // Update container class
+            const sizeClasses = ['small', 'medium', 'large'];
+            sizeClasses.forEach((sizeClass) => {
+                this.containerElement.classList.remove(`${SelectBox.BASE_SELECT_CLASS}-container--${sizeClass}`);
+            });
+
+            this.containerElement.classList.add(`${SelectBox.BASE_SELECT_CLASS}-container--${size}`);
+        }
+    }
 
     /**
      * Button - A reusable UI component for buttons.
@@ -5728,6 +7124,523 @@
         }
     }
 
+    /**
+     * Tabs - A reusable UI component for tabbed interfaces.
+     * Creates accessible, customizable tabs with content panels.
+     */
+
+    /**
+     * A reusable UI component for creating accessible, customizable tabs.
+     */
+    class Tabs {
+      /**
+       * Returns the unique base CSS class for the Tabs component.
+       * @return {string} The base CSS class name for tabs.
+       */
+      static get BASE_TABS_CLASS() {
+        return 'userscripts-tabs';
+      }
+
+      /**
+       * Returns the CSS variable prefix used for theming the Tabs component.
+       * @return {string} The CSS variable prefix.
+       */
+      static get CSS_VAR_PREFIX() {
+        return '--userscripts-tabs-';
+      }
+
+      /**
+       * Initialize styles for all tabs.
+       */
+      static initStyles() {
+        if (Tabs.stylesInitialized) return;
+        StyleManager.addStyles(`
+      /* Scoped styles for Userscripts Tabs Component */
+      .${Tabs.BASE_TABS_CLASS} {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .${Tabs.BASE_TABS_CLASS}__header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        border-bottom: 2px solid var(${Tabs.CSS_VAR_PREFIX}border-color, #e5e7eb);
+        background-color: var(${Tabs.CSS_VAR_PREFIX}header-bg, #f9fafb);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        min-height: 2.75rem;
+      }
+      
+      .${Tabs.BASE_TABS_CLASS}__tab {
+        flex: 1 1 auto;
+        min-width: fit-content;
+        padding: 0.75rem 1rem;
+        background-color: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(${Tabs.CSS_VAR_PREFIX}tab-color, #6b7280);
+        transition: all 0.2s ease-in-out;
+        white-space: nowrap;
+        user-select: none;
+        position: relative;
+        margin-bottom: -2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        max-width: fit-content;
+      }
+      
+      .${Tabs.BASE_TABS_CLASS}__tab:hover:not(.${Tabs.BASE_TABS_CLASS}__tab--active) {
+        color: var(${Tabs.CSS_VAR_PREFIX}tab-hover-color, #374151);
+        background-color: var(${Tabs.CSS_VAR_PREFIX}tab-hover-bg, #f3f4f6);
+      }
+      
+      .${Tabs.BASE_TABS_CLASS}__tab--active {
+        color: var(${Tabs.CSS_VAR_PREFIX}tab-active-color, #2563eb);
+        border-bottom-color: var(${Tabs.CSS_VAR_PREFIX}tab-active-border, #2563eb);
+        background-color: var(${Tabs.CSS_VAR_PREFIX}tab-active-bg, #ffffff);
+        font-weight: 600;
+      }
+      
+      .${Tabs.BASE_TABS_CLASS}__tab:focus {
+        outline: 2px solid var(${Tabs.CSS_VAR_PREFIX}tab-focus-color, #2563eb);
+        outline-offset: -2px;
+      }
+      
+      .${Tabs.BASE_TABS_CLASS}__content {
+        display: none;
+        padding: 1rem 0;
+        animation: fadeIn 0.2s ease-in-out;
+      }
+      
+      .${Tabs.BASE_TABS_CLASS}__content--active {
+        display: block;
+      }
+      
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    `, 'userscripts-tabs-styles');
+        Tabs.stylesInitialized = true;
+      }
+
+      /**
+       * Use default color scheme
+       */
+      static useDefaultColors() {
+        StyleManager.addStyles(`
+      .${Tabs.BASE_TABS_CLASS} {
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-border-color: #e5e7eb;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-header-bg: #f9fafb;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-tab-color: #6b7280;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-tab-hover-color: #374151;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-tab-hover-bg: #f3f4f6;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-tab-active-color: #2563eb;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-tab-active-border: #2563eb;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-tab-active-bg: #ffffff;
+        --${Tabs.BASE_TABS_CLASS.replace('userscripts-', '')}-tab-focus-color: #2563eb;
+      }
+    `, 'userscripts-tabs-default-colors');
+      }
+
+      /**
+       * Create a new Tabs instance.
+       * @param {Object} options - Configuration options.
+       * @param {Array<Object>} options.tabs - Array of tab configurations.
+       * @param {string} options.tabs[].id - Unique ID for the tab.
+       * @param {string} options.tabs[].label - Label text for the tab button.
+       * @param {HTMLElement|Function} options.tabs[].content - Content element or function that returns content.
+       * @param {string} [options.defaultTab] - ID of the default active tab.
+       * @param {Function} [options.onTabChange] - Callback when tab changes (receives tabId).
+       * @param {HTMLElement} [options.container] - Container element to append tabs to.
+       * @param {string} [options.className] - Additional CSS class name.
+       */
+      constructor(options = {}) {
+        this.tabs = options.tabs || [];
+        this.defaultTab = options.defaultTab || (this.tabs.length > 0 ? this.tabs[0].id : null);
+        this.onTabChange = options.onTabChange || null;
+        this.container = options.container || null;
+        this.className = options.className || '';
+        
+        this.activeTabId = this.defaultTab;
+        this.tabElements = new Map();
+        this.contentElements = new Map();
+        
+        // Initialize styles if not already done
+        Tabs.initStyles();
+        
+        // Create the tabs structure
+        this.element = this.create();
+        
+        // Append to container if provided
+        if (this.container) {
+          this.container.appendChild(this.element);
+        }
+        
+        // Activate default tab
+        if (this.defaultTab) {
+          this.switchToTab(this.defaultTab);
+        }
+      }
+
+      /**
+       * Create the tabs DOM structure.
+       * @return {HTMLElement} The tabs container element.
+       */
+      create() {
+        const container = document.createElement('div');
+        container.className = `${Tabs.BASE_TABS_CLASS} ${this.className}`.trim();
+        
+        // Create header with tab buttons
+        const header = document.createElement('div');
+        header.className = `${Tabs.BASE_TABS_CLASS}__header`;
+        
+        // Create content container
+        const contentContainer = document.createElement('div');
+        contentContainer.className = `${Tabs.BASE_TABS_CLASS}__content-container`;
+        
+        // Create tabs and content panels
+        this.tabs.forEach((tabConfig, index) => {
+          // Create tab button
+          const tabButton = document.createElement('button');
+          tabButton.className = `${Tabs.BASE_TABS_CLASS}__tab`;
+          tabButton.setAttribute('role', 'tab');
+          tabButton.setAttribute('aria-selected', 'false');
+          tabButton.setAttribute('aria-controls', `tab-panel-${tabConfig.id}`);
+          tabButton.setAttribute('id', `tab-button-${tabConfig.id}`);
+          tabButton.textContent = tabConfig.label;
+          
+          tabButton.addEventListener('click', () => {
+            this.switchToTab(tabConfig.id);
+          });
+          
+          // Create content panel
+          const contentPanel = document.createElement('div');
+          contentPanel.className = `${Tabs.BASE_TABS_CLASS}__content`;
+          contentPanel.setAttribute('role', 'tabpanel');
+          contentPanel.setAttribute('aria-labelledby', `tab-button-${tabConfig.id}`);
+          contentPanel.setAttribute('id', `tab-panel-${tabConfig.id}`);
+          
+          // Set content
+          if (typeof tabConfig.content === 'function') {
+            const content = tabConfig.content();
+            if (content instanceof HTMLElement) {
+              contentPanel.appendChild(content);
+            } else if (typeof content === 'string') {
+              HTMLUtils.setHTMLSafely(contentPanel, content);
+            }
+          } else if (tabConfig.content instanceof HTMLElement) {
+            contentPanel.appendChild(tabConfig.content);
+          } else if (typeof tabConfig.content === 'string') {
+            HTMLUtils.setHTMLSafely(contentPanel, tabConfig.content);
+          }
+          
+          header.appendChild(tabButton);
+          contentContainer.appendChild(contentPanel);
+          
+          // Store references
+          this.tabElements.set(tabConfig.id, tabButton);
+          this.contentElements.set(tabConfig.id, contentPanel);
+        });
+        
+        container.appendChild(header);
+        container.appendChild(contentContainer);
+        
+        return container;
+      }
+
+      /**
+       * Switch to a specific tab.
+       * @param {string} tabId - ID of the tab to activate.
+       */
+      switchToTab(tabId) {
+        if (!this.tabElements.has(tabId) || !this.contentElements.has(tabId)) {
+          Logger.warn(`Tab with ID "${tabId}" not found`);
+          return;
+        }
+        
+        // Deactivate all tabs
+        this.tabElements.forEach((button, id) => {
+          button.classList.remove(`${Tabs.BASE_TABS_CLASS}__tab--active`);
+          button.setAttribute('aria-selected', 'false');
+        });
+        
+        this.contentElements.forEach((panel, id) => {
+          panel.classList.remove(`${Tabs.BASE_TABS_CLASS}__content--active`);
+        });
+        
+        // Activate selected tab
+        const activeButton = this.tabElements.get(tabId);
+        const activePanel = this.contentElements.get(tabId);
+        
+        if (activeButton && activePanel) {
+          activeButton.classList.add(`${Tabs.BASE_TABS_CLASS}__tab--active`);
+          activeButton.setAttribute('aria-selected', 'true');
+          activePanel.classList.add(`${Tabs.BASE_TABS_CLASS}__content--active`);
+          
+          this.activeTabId = tabId;
+          
+          // Call callback if provided
+          if (this.onTabChange) {
+            this.onTabChange(tabId);
+          }
+        }
+      }
+
+      /**
+       * Get the currently active tab ID.
+       * @return {string} The active tab ID.
+       */
+      getActiveTab() {
+        return this.activeTabId;
+      }
+
+      /**
+       * Get the tabs container element.
+       * @return {HTMLElement} The tabs container.
+       */
+      getElement() {
+        return this.element;
+      }
+
+      /**
+       * Update tab content.
+       * @param {string} tabId - ID of the tab to update.
+       * @param {HTMLElement|string|Function} content - New content.
+       */
+      updateTabContent(tabId, content) {
+        const panel = this.contentElements.get(tabId);
+        if (!panel) {
+          Logger.warn(`Tab panel with ID "${tabId}" not found`);
+          return;
+        }
+        
+        // Clear existing content
+        panel.innerHTML = '';
+        
+        // Set new content
+        if (typeof content === 'function') {
+          const newContent = content();
+          if (newContent instanceof HTMLElement) {
+            panel.appendChild(newContent);
+          } else if (typeof newContent === 'string') {
+            HTMLUtils.setHTMLSafely(panel, newContent);
+          }
+        } else if (content instanceof HTMLElement) {
+          panel.appendChild(content);
+        } else if (typeof content === 'string') {
+          HTMLUtils.setHTMLSafely(panel, content);
+        }
+      }
+
+      /**
+       * Destroy the tabs component and clean up.
+       */
+      destroy() {
+        if (this.element && this.element.parentNode) {
+          this.element.parentNode.removeChild(this.element);
+        }
+        this.tabElements.clear();
+        this.contentElements.clear();
+      }
+    }
+
+    /**
+     * InfoBox - A reusable UI component for informational callout boxes
+     * Provides consistent styling for info, warning, and notice boxes
+     */
+
+    class InfoBox {
+        static BASE_INFOBOX_CLASS = 'userscript-infobox';
+        static VARIANTS = {
+            info: 'info',
+            warning: 'warning',
+            success: 'success',
+            error: 'error',
+            default: 'default'
+        };
+
+        /**
+         * Initialize default styles for InfoBox components
+         */
+        static initStyles(options = {}) {
+            const { scopeSelector = '' } = options;
+            const styleId = `infobox-component${scopeSelector ? '-' + scopeSelector.replace(/[^a-zA-Z0-9]/g, '') : ''}`;
+
+            if (StyleManager.hasStyles(styleId)) {
+                return;
+            }
+
+            const selectorPrefix = scopeSelector ? `${scopeSelector} ` : '';
+
+            const styles = `
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS} {
+                font-size: 11px;
+                color: #666;
+                margin-bottom: 12px;
+                padding: 8px;
+                background: #f5f5f5;
+                border-radius: 4px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.5;
+            }
+
+            /* Variants */
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--info {
+                background: #e3f2fd;
+                color: #1565c0;
+                border-left: 3px solid #2196f3;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--warning {
+                background: #fff3e0;
+                color: #e65100;
+                border-left: 3px solid #ff9800;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--success {
+                background: #e8f5e9;
+                color: #2e7d32;
+                border-left: 3px solid #4caf50;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--error {
+                background: #ffebee;
+                color: #c62828;
+                border-left: 3px solid #f44336;
+            }
+
+            ${selectorPrefix}.${InfoBox.BASE_INFOBOX_CLASS}--default {
+                background: #f5f5f5;
+                color: #666;
+            }
+        `;
+
+            StyleManager.addStyles(styles, styleId);
+        }
+
+        /**
+         * Create an InfoBox element
+         * @param {Object} options - Configuration options
+         * @param {string|HTMLElement} options.content - Text content or HTML element(s) to display
+         * @param {string} [options.variant='default'] - Variant (info, warning, success, error, default)
+         * @param {HTMLElement} [options.container] - Container to append the InfoBox to
+         * @param {string} [options.className] - Additional CSS class
+         * @param {string} [options.scopeSelector] - Scope selector for styles
+         * @param {boolean} [options.html=false] - Whether to interpret content as HTML (use with caution)
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static create(options = {}) {
+            const {
+                content = '',
+                variant = 'default',
+                container = null,
+                className = '',
+                scopeSelector = '',
+                html = false
+            } = options;
+
+            // Initialize styles
+            InfoBox.initStyles({ scopeSelector });
+
+            // Create the InfoBox element
+            const infoBox = document.createElement('div');
+            infoBox.className = `${InfoBox.BASE_INFOBOX_CLASS} ${InfoBox.BASE_INFOBOX_CLASS}--${variant} ${className}`.trim();
+
+            // Set content
+            if (html && typeof content === 'string') {
+                // Use innerHTML only if explicitly requested (security risk, but sometimes needed)
+                infoBox.innerHTML = content;
+            } else if (typeof content === 'string') {
+                // Safe text content - split by newlines and create elements
+                const lines = content.split('\n');
+                lines.forEach((line, index) => {
+                    if (line.trim()) {
+                        infoBox.appendChild(document.createTextNode(line));
+                    }
+                    if (index < lines.length - 1) {
+                        infoBox.appendChild(document.createElement('br'));
+                    }
+                });
+            } else if (content instanceof HTMLElement) {
+                // Append element directly
+                infoBox.appendChild(content);
+            } else if (Array.isArray(content)) {
+                // Append multiple elements
+                content.forEach(item => {
+                    if (item instanceof HTMLElement || item instanceof Text) {
+                        // Handle both HTML elements and Text nodes
+                        infoBox.appendChild(item);
+                    } else if (typeof item === 'string') {
+                        infoBox.appendChild(document.createTextNode(item));
+                    } else if (item instanceof Node) {
+                        // Handle any other Node type (e.g., Comment, DocumentFragment)
+                        infoBox.appendChild(item);
+                    }
+                });
+            }
+
+            // Append to container if provided
+            if (container) {
+                container.appendChild(infoBox);
+            }
+
+            return infoBox;
+        }
+
+        /**
+         * Convenience method to create an info variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static info(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'info' });
+        }
+
+        /**
+         * Convenience method to create a warning variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static warning(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'warning' });
+        }
+
+        /**
+         * Convenience method to create a success variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static success(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'success' });
+        }
+
+        /**
+         * Convenience method to create an error variant InfoBox
+         * @param {string|HTMLElement} content - Content to display
+         * @param {Object} [options] - Additional options
+         * @return {HTMLElement} The created InfoBox element
+         */
+        static error(content, options = {}) {
+            return InfoBox.create({ ...options, content, variant: 'error' });
+        }
+    }
+
     // Import core components
 
     // Configure logger
@@ -5769,7 +7682,15 @@
             DELAY_SECONDS: 'maime-delay-seconds',
             SHOW_NOTIFICATIONS: 'maime-show-notifications',
             PANEL_POSITION: 'maime-panel-position',
-            AUTO_CLEAR_PROMPT: 'maime-auto-clear-prompt'
+            AUTO_CLEAR_PROMPT: 'maime-auto-clear-prompt',
+            PROMPT_MODE: 'maime-prompt-mode',
+            AUTO_RUN_PROMPT: 'maime-auto-run-prompt',
+            BASE_PROMPT_MULTIPLE: 'maime-base-prompt-multiple',
+            BASE_PROMPT_POSITION: 'maime-base-prompt-position',
+            MULTIPLE_PROMPTS_START_COUNT: 'maime-multiple-prompts-start-count',
+            TEMPLATE_PROMPT: 'maime-template-prompt',
+            OVERRIDE_ITERATIONS: 'maime-override-iterations',
+            DEFAULT_ITERATIONS: 'maime-default-iterations'
         };
 
         static DEFAULT_SETTINGS = {
@@ -5777,7 +7698,15 @@
             DELAY_SECONDS: 3,
             SHOW_NOTIFICATIONS: true,
             PANEL_POSITION: { x: 20, y: 20 },
-            AUTO_CLEAR_PROMPT: true
+            AUTO_CLEAR_PROMPT: true,
+            PROMPT_MODE: 'multiple',
+            AUTO_RUN_PROMPT: '',
+            BASE_PROMPT_MULTIPLE: '',
+            BASE_PROMPT_POSITION: 'after',
+            MULTIPLE_PROMPTS_START_COUNT: 0,
+            TEMPLATE_PROMPT: 'This is iteration {iteration} of {total}. Please provide a response.',
+            OVERRIDE_ITERATIONS: false,
+            DEFAULT_ITERATIONS: 10
         };
 
         static EVENTS = {
@@ -5797,6 +7726,11 @@
             this.sidebarPanel = null;
             this.enhancerId = 'meta-ai-media-enhancer-container';
             this.subscriptionIds = [];
+            
+            // Debouncer for text saving
+            this.textSaveDebouncer = new Debouncer(() => {
+                this.saveSettings();
+            }, 500);
             
             this.userInteraction = UserInteractionDetector.getInstance({
                 debug: Logger.DEBUG,
@@ -5917,18 +7851,35 @@
                     Input.useDefaultColors();
                     TextArea.initStyles();
                     TextArea.useDefaultColors();
+                    SelectBox.initStyles();
+                    SelectBox.useDefaultColors();
+                    Tabs.initStyles();
+                    Tabs.useDefaultColors();
                 } catch (error) {
                     Logger.error('Error initializing styles:', error);
                 }
 
                 StyleManager.addStyles(`
                 .meta-ai-prompts-textarea,
-                .meta-ai-delay-input {
+                .meta-ai-delay-input,
+                .auto-run-prompt-textarea,
+                .auto-run-multiple-prompts-textarea,
+                .auto-run-base-prompt-multiple-textarea,
+                .auto-run-template-prompt-textarea {
                     margin-bottom: 12px;
                 }
                 
-                .meta-ai-prompts-textarea textarea {
+                .meta-ai-prompts-textarea textarea,
+                .auto-run-multiple-prompts-textarea textarea,
+                .auto-run-base-prompt-multiple-textarea textarea,
+                .auto-run-template-prompt-textarea textarea {
                     max-height: 300px !important;
+                    overflow-y: auto !important;
+                }
+                
+                .auto-run-prompt-textarea textarea,
+                .auto-run-base-prompt-multiple-textarea textarea {
+                    max-height: 200px !important;
                     overflow-y: auto !important;
                 }
                 
@@ -5958,6 +7909,22 @@
                 
                 #meta-ai-media-enhancer-panel input[type="checkbox"] + label:hover {
                     color: #333;
+                }
+                
+                .single-prompt-container,
+                .multiple-prompt-container,
+                .template-prompt-container {
+                    margin-bottom: 12px;
+                }
+                
+                .single-prompt-container label,
+                .multiple-prompt-container label,
+                .template-prompt-container label {
+                    display: block;
+                    margin-bottom: 4px;
+                    font-size: 12px;
+                    color: #555;
+                    font-weight: 500;
                 }
             `, 'meta-ai-media-enhancer-custom-styles');
 
@@ -6028,8 +7995,35 @@
             font-size: 14px;
         `;
 
-            this.createAutomationSection(content);
-            this.createSettingsSection(content);
+            // Create tabs to separate prompt automation and settings
+            const tabsContainer = document.createElement('div');
+            
+            this.tabs = new Tabs({
+                tabs: [
+                    {
+                        id: 'prompt-automation',
+                        label: '🔄 Prompt Automation',
+                        content: () => {
+                            const tabContent = document.createElement('div');
+                            this.createAutomationSection(tabContent);
+                            return tabContent;
+                        }
+                    },
+                    {
+                        id: 'settings',
+                        label: '⚙️ Settings',
+                        content: () => {
+                            const tabContent = document.createElement('div');
+                            this.createSettingsSection(tabContent);
+                            return tabContent;
+                        }
+                    }
+                ],
+                defaultTab: 'prompt-automation',
+                container: tabsContainer
+            });
+
+            content.appendChild(tabsContainer);
 
             return content;
         }
@@ -6044,53 +8038,275 @@
             const title = document.createElement('h3');
             title.textContent = '🚀 Prompt Automation';
             title.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #333;';
+            section.appendChild(title);
 
-            // Prompts input
-            const promptsLabel = document.createElement('label');
-            promptsLabel.textContent = 'Prompts (separated by newlines or ---):';
-            promptsLabel.style.cssText = 'display: block; margin-bottom: 4px; font-size: 12px; color: #555; font-weight: 500;';
+            // Prompt mode selector
+            const promptModeContainer = document.createElement('div');
+            promptModeContainer.style.marginBottom = '12px';
 
-            const separatorInfo = document.createElement('div');
-            separatorInfo.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #f5f5f5; border-radius: 4px;';
-            
-            const separatorTitle = document.createElement('div');
-            HTMLUtils.setHTMLSafely(separatorTitle, '<strong>Separators:</strong> Use newlines or <code>---</code> (three dashes) to separate prompts.');
-            separatorTitle.style.marginBottom = '4px';
-            
-            const exampleTitle = document.createElement('div');
-            HTMLUtils.setHTMLSafely(exampleTitle, '<strong>Example:</strong>');
-            exampleTitle.style.marginBottom = '4px';
-            
-            const exampleCode = document.createElement('code');
-            exampleCode.textContent = `First prompt here
-can be multiline
----
-Second prompt here
-also multiline`;
-            exampleCode.style.cssText = 'display: block; background: #f0f0f0; padding: 4px; border-radius: 3px; font-family: monospace; font-size: 10px; white-space: pre-line;';
-            
-            separatorInfo.appendChild(separatorTitle);
-            separatorInfo.appendChild(exampleTitle);
-            separatorInfo.appendChild(exampleCode);
+            this.promptModeSelect = new SelectBox({
+                items: [
+                    { value: 'single', label: 'Single Prompt (same for all iterations)', selected: (this.settings.PROMPT_MODE || 'multiple') === 'single' },
+                    { value: 'multiple', label: 'Multiple Prompts (different for each iteration)', selected: (this.settings.PROMPT_MODE || 'multiple') === 'multiple' },
+                    { value: 'template', label: 'Template Prompts (with variables)', selected: (this.settings.PROMPT_MODE || 'multiple') === 'template' }
+                ],
+                name: 'prompt-mode',
+                id: 'prompt-mode-select',
+                label: 'Prompt Mode:',
+                placeholder: 'Select prompt mode',
+                container: promptModeContainer,
+                theme: 'default',
+                size: 'medium',
+                onChange: (value) => {
+                    this.settings.PROMPT_MODE = value;
+                    this.saveSettings();
+                    this.updatePromptInputVisibility();
+                }
+            });
 
-            const promptsContainer = document.createElement('div');
-            promptsContainer.className = 'meta-ai-prompts-textarea';
-
-            this.promptsTextArea = new TextArea({
-                value: this.settings.MULTIPLE_PROMPTS || '',
-                placeholder: 'Enter prompts separated by newlines or ---:\nFirst prompt\ncan be multiline\n---\nSecond prompt\nalso multiline',
-                rows: 10,
+            // Single prompt input
+            this.singlePromptContainer = document.createElement('div');
+            this.singlePromptContainer.className = 'single-prompt-container';
+            this.singlePromptContainer.style.display = (this.settings.PROMPT_MODE || 'multiple') === 'single' ? 'block' : 'none';
+            
+            this.promptTextArea = new TextArea({
+                value: this.settings.AUTO_RUN_PROMPT || '',
+                label: 'Single Prompt:',
+                placeholder: 'Enter prompt to use for all iterations (optional)',
+                rows: 3,
                 theme: 'primary',
                 size: 'medium',
-                className: 'meta-ai-prompts-textarea',
+                className: 'auto-run-prompt-textarea',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
                 onInput: (event, textArea) => {
-                    this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                    this.settings.AUTO_RUN_PROMPT = textArea.getValue();
+                    this.textSaveDebouncer.trigger();
+                },
+                onBlur: (event, textArea) => {
+                    this.settings.AUTO_RUN_PROMPT = textArea.getValue();
                     this.saveSettings();
                 },
-                container: promptsContainer,
+                container: this.singlePromptContainer,
                 autoResize: true,
                 scopeSelector: `#${this.enhancerId}`
             });
+
+            // Multiple prompts input
+            this.multiplePromptContainer = document.createElement('div');
+            this.multiplePromptContainer.className = 'multiple-prompt-container';
+            this.multiplePromptContainer.style.display = (this.settings.PROMPT_MODE || 'multiple') === 'multiple' ? 'block' : 'none';
+
+            const multiplePromptPlaceholder = `Enter prompts separated by --- (three dashes):
+
+First prompt here
+can be multiline
+---
+Second prompt here
+also multiline
+---
+Third prompt`;
+
+            this.multiplePromptTextArea = new TextArea({
+                value: this.settings.MULTIPLE_PROMPTS || '',
+                label: 'Multiple Prompts:',
+                placeholder: multiplePromptPlaceholder,
+                rows: 8,
+                theme: 'primary',
+                size: 'medium',
+                className: 'auto-run-multiple-prompts-textarea',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+                onInput: (event, textArea) => {
+                    this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                    this.textSaveDebouncer.trigger();
+                    this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'multiple');
+                },
+                onBlur: (event, textArea) => {
+                    this.settings.MULTIPLE_PROMPTS = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: this.multiplePromptContainer,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            // Base prompt for multiple prompts
+            const basePromptPositionContainer = document.createElement('div');
+            basePromptPositionContainer.style.cssText = 'margin-bottom: 8px; margin-top: 12px; display: flex; align-items: center; gap: 8px;';
+
+            const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
+            this.basePromptPositionSelect = new SelectBox({
+                items: [
+                    { value: 'before', label: 'Before prompt', selected: basePromptPosition === 'before' },
+                    { value: 'after', label: 'After prompt', selected: basePromptPosition === 'after' }
+                ],
+                name: 'base-prompt-position',
+                id: 'base-prompt-position-select',
+                label: 'Position:',
+                labelPosition: 'inline',
+                placeholder: 'Select position',
+                container: basePromptPositionContainer,
+                theme: 'default',
+                size: 'small',
+                onChange: (value) => {
+                    this.settings.BASE_PROMPT_POSITION = value;
+                    this.saveSettings();
+                    const newPlaceholder = value === 'before' 
+                        ? 'Enter base prompt to prepend to each prompt (optional)'
+                        : 'Enter base prompt to append to each prompt (optional)';
+                    if (this.basePromptMultipleTextArea && this.basePromptMultipleTextArea.textareaElement) {
+                        this.basePromptMultipleTextArea.textareaElement.placeholder = newPlaceholder;
+                    }
+                }
+            });
+
+            const basePromptPlaceholder = (this.settings.BASE_PROMPT_POSITION || 'after') === 'before' 
+                ? 'Enter base prompt to prepend to each prompt (optional)'
+                : 'Enter base prompt to append to each prompt (optional)';
+
+            this.basePromptMultipleTextArea = new TextArea({
+                value: this.settings.BASE_PROMPT_MULTIPLE || '',
+                label: 'Base Prompt (optional):',
+                placeholder: basePromptPlaceholder,
+                rows: 3,
+                theme: 'primary',
+                size: 'medium',
+                className: 'auto-run-base-prompt-multiple-textarea',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+                onInput: (event, textArea) => {
+                    this.settings.BASE_PROMPT_MULTIPLE = textArea.getValue();
+                    this.textSaveDebouncer.trigger();
+                },
+                onBlur: (event, textArea) => {
+                    this.settings.BASE_PROMPT_MULTIPLE = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: this.multiplePromptContainer,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            this.multiplePromptContainer.appendChild(basePromptPositionContainer);
+
+            // Start count input for multiple prompts
+            const startCountContainer = document.createElement('div');
+            startCountContainer.style.marginBottom = '12px';
+            startCountContainer.style.marginTop = '12px';
+
+            this.multiplePromptsStartCountInput = new Input({
+                type: 'number',
+                label: 'Start from prompt number:',
+                value: this.settings.MULTIPLE_PROMPTS_START_COUNT !== undefined 
+                    ? this.settings.MULTIPLE_PROMPTS_START_COUNT 
+                    : 0,
+                placeholder: '0',
+                min: 0,
+                className: 'multiple-prompts-start-count-input',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+                scopeSelector: `#${this.enhancerId}`,
+                validator: (value) => {
+                    const num = parseInt(value, 10);
+                    if (isNaN(num) || num < 0) {
+                        return 'Please enter a number >= 0';
+                    }
+                    return true;
+                },
+                onChange: (event, input) => {
+                    const value = parseInt(input.getValue(), 10);
+                    if (!isNaN(value) && value >= 0) {
+                        this.settings.MULTIPLE_PROMPTS_START_COUNT = value;
+                        this.saveSettings();
+                    }
+                },
+                container: startCountContainer
+            });
+
+            InfoBox.create({
+                content: 'Set to 0 to start from the first prompt (1-indexed)',
+                variant: 'default',
+                container: startCountContainer,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            this.multiplePromptContainer.appendChild(startCountContainer);
+
+            // Template prompts input
+            this.templatePromptContainer = document.createElement('div');
+            this.templatePromptContainer.className = 'template-prompt-container';
+            this.templatePromptContainer.style.display = (this.settings.PROMPT_MODE || 'multiple') === 'template' ? 'block' : 'none';
+
+            this.templatePromptTextArea = new TextArea({
+                value: this.settings.TEMPLATE_PROMPT || 'This is iteration {iteration} of {total}. Please provide a response.',
+                label: 'Template Prompt (use {iteration}, {total}, {timestamp}):',
+                placeholder: 'Template with variables: {iteration}, {total}, {timestamp}',
+                rows: 3,
+                theme: 'primary',
+                size: 'medium',
+                className: 'auto-run-template-prompt-textarea',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+                onInput: (event, textArea) => {
+                    this.settings.TEMPLATE_PROMPT = textArea.getValue();
+                    this.textSaveDebouncer.trigger();
+                },
+                onBlur: (event, textArea) => {
+                    this.settings.TEMPLATE_PROMPT = textArea.getValue();
+                    this.saveSettings();
+                },
+                container: this.templatePromptContainer,
+                autoResize: true,
+                scopeSelector: `#${this.enhancerId}`
+            });
+
+            // Iterations input container
+            const iterationsContainer = document.createElement('div');
+            iterationsContainer.style.marginBottom = '12px';
+
+            this.iterationsInfoText = document.createElement('div');
+            this.iterationsInfoText.style.cssText = 'font-size: 11px; color: #666; margin-bottom: 4px;';
+            this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'multiple');
+
+            this.overrideIterationsCheckbox = new Checkbox({
+                label: 'Override automatic iteration count (run multiple cycles)',
+                checked: this.settings.OVERRIDE_ITERATIONS || false,
+                onChange: (event) => {
+                    this.settings.OVERRIDE_ITERATIONS = this.overrideIterationsCheckbox.isChecked();
+                    this.saveSettings();
+                    this.updateIterationInputBehavior(this.settings.PROMPT_MODE || 'multiple');
+                },
+                container: iterationsContainer,
+                size: 'small'
+            });
+
+            this.iterationsInput = new Input({
+                type: 'number',
+                label: 'Number of iterations:',
+                value: this.settings.DEFAULT_ITERATIONS || 10,
+                placeholder: 'Number of iterations',
+                min: 1,
+                max: 100,
+                className: 'auto-run-iterations-input',
+                attributes: { autocomplete: 'off', 'data-lpignore': 'true' },
+                scopeSelector: `#${this.enhancerId}`,
+                validator: (value) => {
+                    const num = parseInt(value, 10);
+                    if (isNaN(num) || num < 1) {
+                        return 'Please enter a number greater than 0';
+                    }
+                    if (num > 100) {
+                        return 'Maximum 100 iterations allowed';
+                    }
+                    return true;
+                },
+                onChange: (event, input) => {
+                    const value = parseInt(input.getValue(), 10);
+                    if (!isNaN(value) && value > 0) {
+                        this.settings.DEFAULT_ITERATIONS = value;
+                        this.saveSettings();
+                    }
+                },
+                container: iterationsContainer
+            });
+
+            iterationsContainer.appendChild(this.iterationsInfoText);
 
             // Delay input
             const delayContainer = document.createElement('div');
@@ -6149,10 +8365,11 @@ also multiline`;
             this.statusElement.className = 'meta-ai-status-display';
             this.statusElement.textContent = 'Ready to start';
 
-            section.appendChild(title);
-            section.appendChild(promptsLabel);
-            section.appendChild(separatorInfo);
-            section.appendChild(promptsContainer);
+            section.appendChild(promptModeContainer);
+            section.appendChild(this.singlePromptContainer);
+            section.appendChild(this.multiplePromptContainer);
+            section.appendChild(this.templatePromptContainer);
+            section.appendChild(iterationsContainer);
             section.appendChild(delayContainer);
             section.appendChild(buttonContainer);
             section.appendChild(this.statusElement);
@@ -6239,6 +8456,63 @@ also multiline`;
         }
 
         /**
+         * Show container based on mode selection
+         * @param {string} mode - Current mode value
+         * @param {Object} modeContainerMap - Map of mode values to container elements
+         */
+        showContainerByMode(mode, modeContainerMap) {
+            // Hide all containers first
+            Object.values(modeContainerMap).forEach(container => {
+                if (container) {
+                    container.style.display = 'none';
+                }
+            });
+
+            // Show the container for the current mode
+            const activeContainer = modeContainerMap[mode];
+            if (activeContainer) {
+                activeContainer.style.display = 'block';
+            }
+        }
+
+        /**
+         * Update prompt input visibility based on mode
+         */
+        updatePromptInputVisibility() {
+            const mode = this.settings.PROMPT_MODE || 'multiple';
+            const modeContainerMap = {
+                'single': this.singlePromptContainer,
+                'multiple': this.multiplePromptContainer,
+                'template': this.templatePromptContainer
+            };
+            this.showContainerByMode(mode, modeContainerMap);
+        }
+
+        /**
+         * Update iteration input behavior based on mode
+         */
+        updateIterationInputBehavior(mode) {
+            if (!this.iterationsInfoText) return;
+
+            if (mode === 'multiple') {
+                const multiplePrompts = this.settings.MULTIPLE_PROMPTS
+                    ? this.settings.MULTIPLE_PROMPTS.split('---')
+                        .map(p => p.trim())
+                        .filter(p => p.length > 0)
+                    : [];
+                
+                const promptCount = multiplePrompts.length;
+                if (promptCount > 0) {
+                    this.iterationsInfoText.textContent = `Number of iterations to run (${promptCount} prompts available)`;
+                } else {
+                    this.iterationsInfoText.textContent = 'Number of iterations to run';
+                }
+            } else {
+                this.iterationsInfoText.textContent = 'Number of iterations to run';
+            }
+        }
+
+        /**
          * Handle toggle button click
          */
         handleToggleButtonClick(event) {
@@ -6268,6 +8542,80 @@ also multiline`;
         }
 
         /**
+         * Get all prompts based on mode and iterations
+         */
+        getAllPrompts(iterations) {
+            const mode = this.settings.PROMPT_MODE || 'multiple';
+            const prompts = [];
+
+            switch (mode) {
+                case 'single':
+                    const singlePrompt = this.settings.AUTO_RUN_PROMPT || '';
+                    for (let i = 0; i < iterations; i++) {
+                        prompts.push(singlePrompt);
+                    }
+                    break;
+
+                case 'multiple':
+                    const multiplePrompts = this.settings.MULTIPLE_PROMPTS
+                        ? this.settings.MULTIPLE_PROMPTS.split('---')
+                            .map(p => p.trim())
+                            .filter(p => p.length > 0)
+                        : [];
+                    
+                    if (multiplePrompts.length === 0) {
+                        break;
+                    }
+
+                    const basePrompt = (this.settings.BASE_PROMPT_MULTIPLE || '').trim();
+                    const basePromptPosition = this.settings.BASE_PROMPT_POSITION || 'after';
+                    const startCount = this.settings.MULTIPLE_PROMPTS_START_COUNT || 0;
+                    
+                    // Validate start count (1-indexed, so max is multiplePrompts.length)
+                    const validStartCount = Math.max(0, Math.min(startCount, multiplePrompts.length));
+                    
+                    // Calculate starting index (convert from 1-indexed to 0-indexed)
+                    const startIndex = validStartCount > 0 ? validStartCount - 1 : 0;
+
+                    // Fill prompts array by cycling through available prompts, starting from startIndex
+                    for (let i = 0; i < iterations; i++) {
+                        // Calculate the actual prompt index (accounting for start count and cycling)
+                        const actualIndex = (startIndex + i) % multiplePrompts.length;
+                        let combinedPrompt = multiplePrompts[actualIndex];
+                        
+                        // Combine with base prompt if provided
+                        if (basePrompt) {
+                            if (basePromptPosition === 'before') {
+                                combinedPrompt = `${basePrompt}\n${combinedPrompt}`;
+                            } else {
+                                combinedPrompt = `${combinedPrompt}\n${basePrompt}`;
+                            }
+                        }
+                        
+                        prompts.push(combinedPrompt);
+                    }
+                    break;
+
+                case 'template':
+                    const template = this.settings.TEMPLATE_PROMPT || '';
+                    for (let i = 0; i < iterations; i++) {
+                        let prompt = template;
+                        const timestamp = new Date().toISOString();
+                        
+                        // Replace variables
+                        prompt = prompt.replace(/\{iteration\}/g, i + 1);
+                        prompt = prompt.replace(/\{total\}/g, iterations);
+                        prompt = prompt.replace(/\{timestamp\}/g, timestamp);
+                        
+                        prompts.push(prompt);
+                    }
+                    break;
+            }
+
+            return prompts;
+        }
+
+        /**
          * Start automation
          */
         async startAutomation() {
@@ -6276,10 +8624,32 @@ also multiline`;
                 return;
             }
 
-            // Parse prompts
-            const prompts = this.parsePrompts(this.settings.MULTIPLE_PROMPTS || '');
+            // Determine iterations
+            let iterations;
+            const mode = this.settings.PROMPT_MODE || 'multiple';
+            
+            if (mode === 'multiple' && !this.settings.OVERRIDE_ITERATIONS) {
+                // Auto-detect from multiple prompts
+                const multiplePrompts = this.settings.MULTIPLE_PROMPTS
+                    ? this.settings.MULTIPLE_PROMPTS.split('---')
+                        .map(p => p.trim())
+                        .filter(p => p.length > 0)
+                    : [];
+                iterations = multiplePrompts.length;
+            } else {
+                // Use configured iterations
+                iterations = this.settings.DEFAULT_ITERATIONS || 10;
+            }
+
+            if (iterations <= 0) {
+                this.showNotification('No prompts found or invalid iteration count', 'error');
+                return;
+            }
+
+            // Get all prompts based on mode
+            const prompts = this.getAllPrompts(iterations);
             if (prompts.length === 0) {
-                this.showNotification('No prompts found. Please enter prompts separated by newlines or ---', 'error');
+                this.showNotification('No prompts found. Please configure prompts based on selected mode', 'error');
                 return;
             }
 
