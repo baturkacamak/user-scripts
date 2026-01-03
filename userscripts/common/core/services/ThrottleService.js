@@ -16,6 +16,26 @@ class ThrottleService {
     }
 
     /**
+     * Delay with periodic stop flag checking
+     * Adds cancellation support using a stop flag getter function
+     * 
+     * @param {number} totalMs - Total milliseconds to delay
+     * @param {Function} shouldStopGetter - Function that returns true if should stop
+     * @param {string} errorMessage - Error message to throw if stopped
+     * @param {number} checkIntervalMs - Interval to check stop flag (default 100ms)
+     * @returns {Promise<void>} Resolves after delay or rejects if stopped
+     */
+    async delayWithStopCheck(totalMs, shouldStopGetter, errorMessage = 'Operation stopped by user', checkIntervalMs = 100) {
+        const iterations = Math.ceil(totalMs / checkIntervalMs);
+        for (let i = 0; i < iterations; i++) {
+            if (shouldStopGetter()) {
+                throw new Error(errorMessage);
+            }
+            await this.delay(checkIntervalMs);
+        }
+    }
+
+    /**
      * Creates a throttled function that only invokes the provided function
      * at most once per every wait milliseconds
      * 

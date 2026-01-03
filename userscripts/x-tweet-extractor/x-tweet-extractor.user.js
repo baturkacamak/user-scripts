@@ -244,9 +244,202 @@
     }
 
     /**
+     * PubSub - A simple publish/subscribe pattern implementation
+     * Enables components to communicate without direct references
+     */
+    class PubSub {
+        static #events = {};
+
+        /**
+         * Subscribe to an event
+         * @param {string} event - Event name
+         * @param {Function} callback - Callback function
+         * @return {string} Subscription ID
+         */
+        static subscribe(event, callback) {
+            if (!this.#events[event]) {
+                this.#events[event] = [];
+            }
+
+            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            this.#events[event].push({callback, subscriptionId});
+            return subscriptionId;
+        }
+
+        /**
+         * Unsubscribe from an event
+         * @param {string} subscriptionId - Subscription ID
+         * @return {boolean} Success state
+         */
+        static unsubscribe(subscriptionId) {
+            for (const event in this.#events) {
+                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
+                if (index !== -1) {
+                    this.#events[event].splice(index, 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Publish an event
+         * @param {string} event - Event name
+         * @param {any} data - Data to pass to subscribers
+         */
+        static publish(event, data) {
+            if (!this.#events[event]) {
+                return;
+            }
+
+            this.#events[event].forEach(sub => {
+                sub.callback(data);
+            });
+        }
+
+        /**
+         * Clear all subscriptions
+         * @param {string} [event] - Optional event name to clear only specific event
+         */
+        static clear(event) {
+            if (event) {
+                delete this.#events[event];
+            } else {
+                this.#events = {};
+            }
+        }
+    }
+
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    /**
+     * DOMObserver - Observes DOM changes and URL changes
+     * Uses UrlChangeWatcher for URL change detection with configurable strategies
+     */
+    class DOMObserver {
+      /**
+         * Wait for elements matching a selector or any of multiple selectors
+         * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
+         * @param {number} timeout - Timeout in milliseconds
+         * @return {Promise<NodeList>} - Promise resolving to found elements
+         */
+      static waitForElements(selectorOrSelectors, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+          const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
+
+          function checkElements() {
+            for (const selector of selectors) {
+            const elements = document.querySelectorAll(selector);
+              if (elements.length > 0) {
+              resolve(elements);
+              return;
+              }
+            }
+
+            if (Date.now() - startTime > timeout) {
+              reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
+              return;
+            }
+
+            requestAnimationFrame(checkElements);
+          }
+
+          checkElements();
+        });
+      }
+      /**
+         * Create a new DOMObserver
+         * @param {Function} onMutation - Callback for handling mutations
+         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
+         */
+      constructor(onMutation, urlChangeStrategies = []) {
+        this.observer = new MutationObserver(this.handleMutations.bind(this));
+        this.lastUrl = location.href;
+        this.onMutation = onMutation;
+
+        // Initialize URL change watcher with provided strategies
+        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
+      }
+
+
+      /**
+         * Start observing DOM changes and URL changes
+         * @param {HTMLElement} target - Element to observe (defaults to document.body)
+         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
+         */
+      observe(target = document.body, config = {childList: true, subtree: true}) {
+        this.observer.observe(target, config);
+
+        // Start URL change watcher
+        this.urlChangeWatcher.start();
+      }
+
+      /**
+         * Stop observing DOM changes and URL changes
+         */
+      disconnect() {
+        this.observer.disconnect();
+
+        // Stop URL change watcher
+        this.urlChangeWatcher.stop();
+      }
+
+      /**
+         * Handle mutations
+         * @param {MutationRecord[]} mutations - Array of mutation records
+         * @private
+         */
+      handleMutations(mutations) {
+        if (this.onMutation) {
+          this.onMutation(mutations);
+        }
+      }
+    }
+
+    /**
      * HTMLUtils - Utilities for HTML manipulation
      * Provides functions for escaping HTML, encoding/decoding entities, etc.
      */
+
     class HTMLUtils {
         static #policy;
 
@@ -445,6 +638,34 @@
                 check(); // Initial check
             });
         }
+
+        /**
+         * Find first visible element from array of selectors
+         * Extends waitForElement() with visibility check
+         * @param {string[]} selectors - Array of CSS selectors to try
+         * @param {number} timeout - Timeout in milliseconds
+         * @returns {Promise<Element|null>} First visible element found or null
+         */
+        static async findFirstVisibleElement(selectors, timeout = 5000) {
+            try {
+                const elements = await DOMObserver.waitForElements(selectors, timeout);
+                for (const element of Array.from(elements)) {
+                    if (element && element.offsetParent !== null) {
+                        return element;
+                    }
+                }
+            } catch (error) {
+                // Fallback to direct querySelector
+                for (const selector of selectors) {
+                    const el = document.querySelector(selector);
+                    if (el && el.offsetParent !== null) {
+                        return el;
+                    }
+                }
+            }
+            return null;
+        }
+
     }
 
     /**
@@ -761,113 +982,6 @@
           leading: false !== options.leading,
           trailing: false !== options.trailing,
         });
-      }
-    }
-
-    /**
-     * PubSub - A simple publish/subscribe pattern implementation
-     * Enables components to communicate without direct references
-     */
-    class PubSub {
-        static #events = {};
-
-        /**
-         * Subscribe to an event
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         * @return {string} Subscription ID
-         */
-        static subscribe(event, callback) {
-            if (!this.#events[event]) {
-                this.#events[event] = [];
-            }
-
-            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            this.#events[event].push({callback, subscriptionId});
-            return subscriptionId;
-        }
-
-        /**
-         * Unsubscribe from an event
-         * @param {string} subscriptionId - Subscription ID
-         * @return {boolean} Success state
-         */
-        static unsubscribe(subscriptionId) {
-            for (const event in this.#events) {
-                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
-                if (index !== -1) {
-                    this.#events[event].splice(index, 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Publish an event
-         * @param {string} event - Event name
-         * @param {any} data - Data to pass to subscribers
-         */
-        static publish(event, data) {
-            if (!this.#events[event]) {
-                return;
-            }
-
-            this.#events[event].forEach(sub => {
-                sub.callback(data);
-            });
-        }
-
-        /**
-         * Clear all subscriptions
-         * @param {string} [event] - Optional event name to clear only specific event
-         */
-        static clear(event) {
-            if (event) {
-                delete this.#events[event];
-            } else {
-                this.#events = {};
-            }
-        }
-    }
-
-    class UrlChangeWatcher {
-      constructor(strategies = [], fireImmediately = true) {
-        this.strategies = strategies;
-        this.fireImmediately = fireImmediately;
-        this.lastUrl = location.href;
-        this.active = false;
-      }
-
-      start() {
-        if (this.active) return;
-        this.active = true;
-        Logger.debug('UrlChangeWatcher (Strategy) started');
-
-        this.strategies.forEach((strategy) =>
-          strategy.start?.(this._handleChange.bind(this)),
-        );
-
-        if (this.fireImmediately) {
-          this._handleChange(location.href, null, true);
-        }
-      }
-
-      stop() {
-        this.active = false;
-        this.strategies.forEach((strategy) => strategy.stop?.());
-        Logger.debug('UrlChangeWatcher (Strategy) stopped');
-      }
-
-      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
-        if (!force && newUrl === this.lastUrl) return;
-        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
-
-        this.lastUrl = newUrl;
-
-        if (PubSub?.publish) {
-          PubSub.publish('urlchange', {newUrl, oldUrl});
-        }
       }
     }
 
@@ -1593,91 +1707,6 @@
     Notification.stylesInitialized = false;
 
     /**
-     * DOMObserver - Observes DOM changes and URL changes
-     * Uses UrlChangeWatcher for URL change detection with configurable strategies
-     */
-    class DOMObserver {
-      /**
-         * Wait for elements matching a selector or any of multiple selectors
-         * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @return {Promise<NodeList>} - Promise resolving to found elements
-         */
-      static waitForElements(selectorOrSelectors, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-          const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
-
-          function checkElements() {
-            for (const selector of selectors) {
-            const elements = document.querySelectorAll(selector);
-              if (elements.length > 0) {
-              resolve(elements);
-              return;
-              }
-            }
-
-            if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
-              return;
-            }
-
-            requestAnimationFrame(checkElements);
-          }
-
-          checkElements();
-        });
-      }
-      /**
-         * Create a new DOMObserver
-         * @param {Function} onMutation - Callback for handling mutations
-         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
-         */
-      constructor(onMutation, urlChangeStrategies = []) {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-        this.onMutation = onMutation;
-
-        // Initialize URL change watcher with provided strategies
-        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
-      }
-
-
-      /**
-         * Start observing DOM changes and URL changes
-         * @param {HTMLElement} target - Element to observe (defaults to document.body)
-         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
-         */
-      observe(target = document.body, config = {childList: true, subtree: true}) {
-        this.observer.observe(target, config);
-
-        // Start URL change watcher
-        this.urlChangeWatcher.start();
-      }
-
-      /**
-         * Stop observing DOM changes and URL changes
-         */
-      disconnect() {
-        this.observer.disconnect();
-
-        // Stop URL change watcher
-        this.urlChangeWatcher.stop();
-      }
-
-      /**
-         * Handle mutations
-         * @param {MutationRecord[]} mutations - Array of mutation records
-         * @private
-         */
-      handleMutations(mutations) {
-        if (this.onMutation) {
-          this.onMutation(mutations);
-        }
-      }
-    }
-
-    /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
      * Ensures compatibility across different userscript managers and direct browser execution
      */
@@ -2066,6 +2095,26 @@
          */
         async delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Delay with periodic stop flag checking
+         * Adds cancellation support using a stop flag getter function
+         * 
+         * @param {number} totalMs - Total milliseconds to delay
+         * @param {Function} shouldStopGetter - Function that returns true if should stop
+         * @param {string} errorMessage - Error message to throw if stopped
+         * @param {number} checkIntervalMs - Interval to check stop flag (default 100ms)
+         * @returns {Promise<void>} Resolves after delay or rejects if stopped
+         */
+        async delayWithStopCheck(totalMs, shouldStopGetter, errorMessage = 'Operation stopped by user', checkIntervalMs = 100) {
+            const iterations = Math.ceil(totalMs / checkIntervalMs);
+            for (let i = 0; i < iterations; i++) {
+                if (shouldStopGetter()) {
+                    throw new Error(errorMessage);
+                }
+                await this.delay(checkIntervalMs);
+            }
         }
 
         /**

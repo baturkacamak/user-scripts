@@ -245,9 +245,202 @@
     }
 
     /**
+     * PubSub - A simple publish/subscribe pattern implementation
+     * Enables components to communicate without direct references
+     */
+    class PubSub {
+        static #events = {};
+
+        /**
+         * Subscribe to an event
+         * @param {string} event - Event name
+         * @param {Function} callback - Callback function
+         * @return {string} Subscription ID
+         */
+        static subscribe(event, callback) {
+            if (!this.#events[event]) {
+                this.#events[event] = [];
+            }
+
+            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            this.#events[event].push({callback, subscriptionId});
+            return subscriptionId;
+        }
+
+        /**
+         * Unsubscribe from an event
+         * @param {string} subscriptionId - Subscription ID
+         * @return {boolean} Success state
+         */
+        static unsubscribe(subscriptionId) {
+            for (const event in this.#events) {
+                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
+                if (index !== -1) {
+                    this.#events[event].splice(index, 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Publish an event
+         * @param {string} event - Event name
+         * @param {any} data - Data to pass to subscribers
+         */
+        static publish(event, data) {
+            if (!this.#events[event]) {
+                return;
+            }
+
+            this.#events[event].forEach(sub => {
+                sub.callback(data);
+            });
+        }
+
+        /**
+         * Clear all subscriptions
+         * @param {string} [event] - Optional event name to clear only specific event
+         */
+        static clear(event) {
+            if (event) {
+                delete this.#events[event];
+            } else {
+                this.#events = {};
+            }
+        }
+    }
+
+    class UrlChangeWatcher {
+      constructor(strategies = [], fireImmediately = true) {
+        this.strategies = strategies;
+        this.fireImmediately = fireImmediately;
+        this.lastUrl = location.href;
+        this.active = false;
+      }
+
+      start() {
+        if (this.active) return;
+        this.active = true;
+        Logger.debug('UrlChangeWatcher (Strategy) started');
+
+        this.strategies.forEach((strategy) =>
+          strategy.start?.(this._handleChange.bind(this)),
+        );
+
+        if (this.fireImmediately) {
+          this._handleChange(location.href, null, true);
+        }
+      }
+
+      stop() {
+        this.active = false;
+        this.strategies.forEach((strategy) => strategy.stop?.());
+        Logger.debug('UrlChangeWatcher (Strategy) stopped');
+      }
+
+      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
+        if (!force && newUrl === this.lastUrl) return;
+        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
+
+        this.lastUrl = newUrl;
+
+        if (PubSub?.publish) {
+          PubSub.publish('urlchange', {newUrl, oldUrl});
+        }
+      }
+    }
+
+    /**
+     * DOMObserver - Observes DOM changes and URL changes
+     * Uses UrlChangeWatcher for URL change detection with configurable strategies
+     */
+    class DOMObserver {
+      /**
+         * Wait for elements matching a selector or any of multiple selectors
+         * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
+         * @param {number} timeout - Timeout in milliseconds
+         * @return {Promise<NodeList>} - Promise resolving to found elements
+         */
+      static waitForElements(selectorOrSelectors, timeout = 10000) {
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+          const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
+
+          function checkElements() {
+            for (const selector of selectors) {
+            const elements = document.querySelectorAll(selector);
+              if (elements.length > 0) {
+              resolve(elements);
+              return;
+              }
+            }
+
+            if (Date.now() - startTime > timeout) {
+              reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
+              return;
+            }
+
+            requestAnimationFrame(checkElements);
+          }
+
+          checkElements();
+        });
+      }
+      /**
+         * Create a new DOMObserver
+         * @param {Function} onMutation - Callback for handling mutations
+         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
+         */
+      constructor(onMutation, urlChangeStrategies = []) {
+        this.observer = new MutationObserver(this.handleMutations.bind(this));
+        this.lastUrl = location.href;
+        this.onMutation = onMutation;
+
+        // Initialize URL change watcher with provided strategies
+        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
+      }
+
+
+      /**
+         * Start observing DOM changes and URL changes
+         * @param {HTMLElement} target - Element to observe (defaults to document.body)
+         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
+         */
+      observe(target = document.body, config = {childList: true, subtree: true}) {
+        this.observer.observe(target, config);
+
+        // Start URL change watcher
+        this.urlChangeWatcher.start();
+      }
+
+      /**
+         * Stop observing DOM changes and URL changes
+         */
+      disconnect() {
+        this.observer.disconnect();
+
+        // Stop URL change watcher
+        this.urlChangeWatcher.stop();
+      }
+
+      /**
+         * Handle mutations
+         * @param {MutationRecord[]} mutations - Array of mutation records
+         * @private
+         */
+      handleMutations(mutations) {
+        if (this.onMutation) {
+          this.onMutation(mutations);
+        }
+      }
+    }
+
+    /**
      * HTMLUtils - Utilities for HTML manipulation
      * Provides functions for escaping HTML, encoding/decoding entities, etc.
      */
+
     class HTMLUtils {
         static #policy;
 
@@ -446,6 +639,34 @@
                 check(); // Initial check
             });
         }
+
+        /**
+         * Find first visible element from array of selectors
+         * Extends waitForElement() with visibility check
+         * @param {string[]} selectors - Array of CSS selectors to try
+         * @param {number} timeout - Timeout in milliseconds
+         * @returns {Promise<Element|null>} First visible element found or null
+         */
+        static async findFirstVisibleElement(selectors, timeout = 5000) {
+            try {
+                const elements = await DOMObserver.waitForElements(selectors, timeout);
+                for (const element of Array.from(elements)) {
+                    if (element && element.offsetParent !== null) {
+                        return element;
+                    }
+                }
+            } catch (error) {
+                // Fallback to direct querySelector
+                for (const selector of selectors) {
+                    const el = document.querySelector(selector);
+                    if (el && el.offsetParent !== null) {
+                        return el;
+                    }
+                }
+            }
+            return null;
+        }
+
     }
 
     /**
@@ -763,73 +984,6 @@
           trailing: false !== options.trailing,
         });
       }
-    }
-
-    /**
-     * PubSub - A simple publish/subscribe pattern implementation
-     * Enables components to communicate without direct references
-     */
-    class PubSub {
-        static #events = {};
-
-        /**
-         * Subscribe to an event
-         * @param {string} event - Event name
-         * @param {Function} callback - Callback function
-         * @return {string} Subscription ID
-         */
-        static subscribe(event, callback) {
-            if (!this.#events[event]) {
-                this.#events[event] = [];
-            }
-
-            const subscriptionId = `${event}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-            this.#events[event].push({callback, subscriptionId});
-            return subscriptionId;
-        }
-
-        /**
-         * Unsubscribe from an event
-         * @param {string} subscriptionId - Subscription ID
-         * @return {boolean} Success state
-         */
-        static unsubscribe(subscriptionId) {
-            for (const event in this.#events) {
-                const index = this.#events[event].findIndex(sub => sub.subscriptionId === subscriptionId);
-                if (index !== -1) {
-                    this.#events[event].splice(index, 1);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Publish an event
-         * @param {string} event - Event name
-         * @param {any} data - Data to pass to subscribers
-         */
-        static publish(event, data) {
-            if (!this.#events[event]) {
-                return;
-            }
-
-            this.#events[event].forEach(sub => {
-                sub.callback(data);
-            });
-        }
-
-        /**
-         * Clear all subscriptions
-         * @param {string} [event] - Optional event name to clear only specific event
-         */
-        static clear(event) {
-            if (event) {
-                delete this.#events[event];
-            } else {
-                this.#events = {};
-            }
-        }
     }
 
     /**
@@ -1391,46 +1545,6 @@
          */
       _logError(...args) {
         Logger.error('[UserInteractionDetector]', ...args);
-      }
-    }
-
-    class UrlChangeWatcher {
-      constructor(strategies = [], fireImmediately = true) {
-        this.strategies = strategies;
-        this.fireImmediately = fireImmediately;
-        this.lastUrl = location.href;
-        this.active = false;
-      }
-
-      start() {
-        if (this.active) return;
-        this.active = true;
-        Logger.debug('UrlChangeWatcher (Strategy) started');
-
-        this.strategies.forEach((strategy) =>
-          strategy.start?.(this._handleChange.bind(this)),
-        );
-
-        if (this.fireImmediately) {
-          this._handleChange(location.href, null, true);
-        }
-      }
-
-      stop() {
-        this.active = false;
-        this.strategies.forEach((strategy) => strategy.stop?.());
-        Logger.debug('UrlChangeWatcher (Strategy) stopped');
-      }
-
-      _handleChange(newUrl, oldUrl = this.lastUrl, force = false) {
-        if (!force && newUrl === this.lastUrl) return;
-        Logger.debug(`URL changed: ${oldUrl} → ${newUrl}`);
-
-        this.lastUrl = newUrl;
-
-        if (PubSub?.publish) {
-          PubSub.publish('urlchange', {newUrl, oldUrl});
-        }
       }
     }
 
@@ -2191,91 +2305,6 @@
 
     // Static property to track if styles have been initialized
     Notification.stylesInitialized = false;
-
-    /**
-     * DOMObserver - Observes DOM changes and URL changes
-     * Uses UrlChangeWatcher for URL change detection with configurable strategies
-     */
-    class DOMObserver {
-      /**
-         * Wait for elements matching a selector or any of multiple selectors
-         * @param {string|string[]} selectorOrSelectors - CSS selector or array of selectors to wait for
-         * @param {number} timeout - Timeout in milliseconds
-         * @return {Promise<NodeList>} - Promise resolving to found elements
-         */
-      static waitForElements(selectorOrSelectors, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-          const startTime = Date.now();
-          const selectors = Array.isArray(selectorOrSelectors) ? selectorOrSelectors : [selectorOrSelectors];
-
-          function checkElements() {
-            for (const selector of selectors) {
-            const elements = document.querySelectorAll(selector);
-              if (elements.length > 0) {
-              resolve(elements);
-              return;
-              }
-            }
-
-            if (Date.now() - startTime > timeout) {
-              reject(new Error(`Timeout waiting for elements: ${selectors.join(', ')}`));
-              return;
-            }
-
-            requestAnimationFrame(checkElements);
-          }
-
-          checkElements();
-        });
-      }
-      /**
-         * Create a new DOMObserver
-         * @param {Function} onMutation - Callback for handling mutations
-         * @param {Array} urlChangeStrategies - Array of URL change detection strategies to use
-         */
-      constructor(onMutation, urlChangeStrategies = []) {
-        this.observer = new MutationObserver(this.handleMutations.bind(this));
-        this.lastUrl = location.href;
-        this.onMutation = onMutation;
-
-        // Initialize URL change watcher with provided strategies
-        this.urlChangeWatcher = new UrlChangeWatcher(urlChangeStrategies, false); // false = don't fire immediately
-      }
-
-
-      /**
-         * Start observing DOM changes and URL changes
-         * @param {HTMLElement} target - Element to observe (defaults to document.body)
-         * @param {Object} config - MutationObserver configuration (defaults to sensible values)
-         */
-      observe(target = document.body, config = {childList: true, subtree: true}) {
-        this.observer.observe(target, config);
-
-        // Start URL change watcher
-        this.urlChangeWatcher.start();
-      }
-
-      /**
-         * Stop observing DOM changes and URL changes
-         */
-      disconnect() {
-        this.observer.disconnect();
-
-        // Stop URL change watcher
-        this.urlChangeWatcher.stop();
-      }
-
-      /**
-         * Handle mutations
-         * @param {MutationRecord[]} mutations - Array of mutation records
-         * @private
-         */
-      handleMutations(mutations) {
-        if (this.onMutation) {
-          this.onMutation(mutations);
-        }
-      }
-    }
 
     /**
      * GMFunctions - Provides fallback implementations for Greasemonkey/Tampermonkey functions
@@ -3796,6 +3825,136 @@
                 maxWords: Math.max(...wordCounts),
                 totalWords: totalWords
             };
+        }
+    }
+
+    /**
+     * ThrottleService - A service for managing delays and throttling operations
+     * 
+     * Provides a simple interface for creating delays and managing throttled operations
+     * that can be used by other services like AsyncQueueService.
+     */
+    class ThrottleService {
+        /**
+         * Creates a delay for the specified number of milliseconds
+         * 
+         * @param {number} ms - The number of milliseconds to delay
+         * @returns {Promise<void>} A promise that resolves after the delay
+         */
+        async delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Delay with periodic stop flag checking
+         * Adds cancellation support using a stop flag getter function
+         * 
+         * @param {number} totalMs - Total milliseconds to delay
+         * @param {Function} shouldStopGetter - Function that returns true if should stop
+         * @param {string} errorMessage - Error message to throw if stopped
+         * @param {number} checkIntervalMs - Interval to check stop flag (default 100ms)
+         * @returns {Promise<void>} Resolves after delay or rejects if stopped
+         */
+        async delayWithStopCheck(totalMs, shouldStopGetter, errorMessage = 'Operation stopped by user', checkIntervalMs = 100) {
+            const iterations = Math.ceil(totalMs / checkIntervalMs);
+            for (let i = 0; i < iterations; i++) {
+                if (shouldStopGetter()) {
+                    throw new Error(errorMessage);
+                }
+                await this.delay(checkIntervalMs);
+            }
+        }
+
+        /**
+         * Creates a throttled function that only invokes the provided function
+         * at most once per every wait milliseconds
+         * 
+         * @param {Function} func - The function to throttle
+         * @param {number} wait - The number of milliseconds to throttle invocations to
+         * @param {Object} options - Throttle options
+         * @param {boolean} options.leading - Whether to invoke on the leading edge
+         * @param {boolean} options.trailing - Whether to invoke on the trailing edge
+         * @returns {Function} The throttled function
+         */
+        throttle(func, wait, options = {}) {
+            let timeout;
+            let lastArgs;
+            let lastThis;
+            let result;
+
+            const { leading = true, trailing = true } = options;
+
+            function invokeFunc() {
+                const args = lastArgs;
+                const thisArg = lastThis;
+                
+                lastArgs = lastThis = undefined;
+                result = func.apply(thisArg, args);
+                return result;
+            }
+
+            function startTimer(pendingFunc, wait) {
+                return setTimeout(pendingFunc, wait);
+            }
+
+            function cancelTimer(id) {
+                clearTimeout(id);
+            }
+
+            function trailingEdge() {
+                timeout = undefined;
+                
+                if (trailing && lastArgs) {
+                    return invokeFunc();
+                }
+                
+                lastArgs = lastThis = undefined;
+                return result;
+            }
+
+            function leadingEdge() {
+                timeout = startTimer(trailingEdge, wait);
+                return leading ? invokeFunc() : result;
+            }
+
+            function cancel() {
+                if (timeout !== undefined) {
+                    cancelTimer(timeout);
+                }
+                lastArgs = lastThis = undefined;
+                timeout = undefined;
+            }
+
+            function flush() {
+                return timeout === undefined ? result : trailingEdge();
+            }
+
+            function throttled(...args) {
+
+                lastArgs = args;
+                lastThis = this;
+
+                {
+                    if (timeout === undefined) {
+                        return leadingEdge();
+                    }
+                    if (timeout !== undefined) {
+                        timeout = startTimer(trailingEdge, wait);
+                        return invokeFunc();
+                    }
+                }
+                
+                if (timeout === undefined) {
+                    timeout = startTimer(trailingEdge, wait);
+                }
+                
+                return result;
+            }
+
+            throttled.cancel = cancel;
+            throttled.flush = flush;
+            
+            return throttled;
         }
     }
 
@@ -8913,6 +9072,9 @@
             this.isInitialLoad = true;
             this.enhancerId = 'ai-studio-enhancer-container';
             
+            // Initialize ThrottleService for delay utilities
+            this.throttleService = new ThrottleService();
+            
             // TTS state
             this.isTTSRunning = false;
             this.shouldStopTTS = false;
@@ -9005,7 +9167,175 @@
          * Simple delay function
          */
         delay(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
+            return this.throttleService.delay(ms);
+        }
+
+        /**
+         * Delay with periodic stop flag checking
+         * @param {number} totalMs - Total milliseconds to delay
+         * @param {Function} shouldStopGetter - Function that returns true if should stop
+         * @param {string} errorMessage - Error message to throw if stopped
+         * @param {number} checkIntervalMs - Interval to check stop flag (default 100ms)
+         */
+        async delayWithStopCheck(totalMs, shouldStopGetter, errorMessage = 'Operation stopped by user', checkIntervalMs = 100) {
+            return this.throttleService.delayWithStopCheck(totalMs, shouldStopGetter, errorMessage, checkIntervalMs);
+        }
+
+        /**
+         * Find first visible element from array of selectors
+         * @param {string[]} selectors - Array of CSS selectors to try
+         * @param {number} timeout - Timeout in milliseconds
+         * @returns {Promise<Element|null>} First visible element found or null
+         */
+        async findFirstVisibleElement(selectors, timeout = 5000) {
+            return HTMLUtils.findFirstVisibleElement(selectors, timeout);
+        }
+
+        /**
+         * Check if a run button is in loading state
+         * @param {string} readySelector - Selector for the ready state button
+         * @returns {boolean} True if button is loading
+         */
+        isRunButtonLoading(readySelector = null) {
+            const runButton = document.querySelector('button[aria-label="Run"]');
+            if (!runButton || runButton.offsetParent === null) {
+                return false;
+            }
+
+            // Check if button type changed from "submit" to "button" (indicates loading)
+            if (runButton.getAttribute('type') === 'button') {
+                return true;
+            }
+
+            // Check if button contains "Stop" text
+            const buttonText = runButton.textContent?.trim() || '';
+            if (buttonText.includes('Stop')) {
+                return true;
+            }
+
+            // Check if button has spinner icon
+            const hasSpinner = runButton.querySelector('.material-symbols-outlined.spin') ||
+                              runButton.querySelector('.material-symbols-outlined[class*="progress_activity"]') ||
+                              runButton.querySelector('span.spin');
+            if (hasSpinner) {
+                return true;
+            }
+
+            // Check if ready button is gone
+            if (readySelector) {
+                const readyButton = document.querySelector(readySelector);
+                if (!readyButton || readyButton.offsetParent === null) {
+                    if (runButton && runButton.getAttribute('type') !== 'submit') {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * Click a button with retry logic
+         * Project-specific method for Google AI Studio button interactions
+         * @param {string[]} selectors - Array of selectors to try
+         * @param {number} retries - Number of retry attempts
+         * @param {string} logPrefix - Prefix for log messages (e.g., 'Run' or 'TTS Run')
+         * @returns {Promise<void>}
+         */
+        async clickButtonWithRetry(selectors, retries = 10, logPrefix = 'Run') {
+            for (let attempt = 0; attempt < retries; attempt++) {
+                for (const selector of selectors) {
+                    const button = document.querySelector(selector);
+                    if (button && button.offsetParent !== null) {
+                        const isDisabled = button.hasAttribute('disabled') ||
+                                         button.getAttribute('aria-disabled') === 'true';
+                        const isTypeSubmit = button.getAttribute('type') === 'submit';
+                        const hasStopText = button.textContent?.trim().includes('Stop');
+                        const hasSpinner = button.querySelector('.material-symbols-outlined.spin') ||
+                                         button.querySelector('span.spin');
+
+                        if (!isDisabled && isTypeSubmit && !hasStopText && !hasSpinner) {
+                            button.click();
+                            Logger.debug(`📤 Clicked ${logPrefix} button using selector: ${selector}`);
+                            await this.delay(100);
+                            return;
+                        }
+                    }
+                }
+
+                Logger.debug(`⏱ Waiting for ${logPrefix} button to be ready... (attempt ${attempt + 1}/${retries})`);
+                await this.delay(500);
+            }
+
+            // Log available buttons for debugging
+            const allRunButtons = document.querySelectorAll('button[aria-label="Run"]');
+            Logger.error(`❌ ${logPrefix} button not found. Found ${allRunButtons.length} button(s) with aria-label="Run":`,
+                Array.from(allRunButtons).map(btn => ({
+                    type: btn.getAttribute('type'),
+                    ariaDisabled: btn.getAttribute('aria-disabled'),
+                    disabled: btn.hasAttribute('disabled'),
+                    textContent: btn.textContent?.trim(),
+                    hasSpinner: !!btn.querySelector('.material-symbols-outlined.spin'),
+                    classes: btn.className,
+                    visible: btn.offsetParent !== null
+                }))
+            );
+
+            throw new Error(`❌ ${logPrefix} button not found or never became ready`);
+        }
+
+        /**
+         * Update toggle button state based on running status
+         * @param {Button} button - The button instance to update
+         * @param {boolean} isRunning - Whether the operation is running
+         * @param {string} startText - Text to show when not running
+         * @param {string} stopText - Text to show when running
+         */
+        updateToggleButtonState(button, isRunning, startText, stopText) {
+            if (button) {
+                if (isRunning) {
+                    button.setText(stopText);
+                    button.setTheme('danger');
+                } else {
+                    button.setText(startText);
+                    button.setTheme('primary');
+                }
+            }
+        }
+
+        /**
+         * Show container based on mode selection
+         * @param {string} mode - Current mode value
+         * @param {Object} modeContainerMap - Map of mode values to container elements
+         */
+        showContainerByMode(mode, modeContainerMap) {
+            // Hide all containers first
+            Object.values(modeContainerMap).forEach(container => {
+                if (container) {
+                    container.style.display = 'none';
+                }
+            });
+
+            // Show the container for the current mode
+            const activeContainer = modeContainerMap[mode];
+            if (activeContainer) {
+                activeContainer.style.display = 'block';
+            }
+        }
+
+
+        /**
+         * Handle quota error if present - checks and handles quota exceeded errors
+         * @returns {boolean} True if quota error was detected
+         */
+        handleQuotaErrorIfPresent() {
+            if (this.checkForQuotaError()) {
+                Logger.warn('⚠️ Quota error detected, stopping queue');
+                this.shouldStopTTS = true;
+                this.showNotification('⚠️ Quota exceeded detected. Queue stopped.', 'warning');
+                return true;
+            }
+            return false;
         }
 
         /**
@@ -10599,7 +10929,6 @@ Third prompt`;
          * Click run button (based on your working example)
          */
         async clickRunButton(retries = 10) {
-            // Try multiple selector variations as fallbacks
             const selectors = [
                 AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY,
                 'button[type="submit"][aria-label="Run"][aria-disabled="false"]:not([disabled])',
@@ -10607,49 +10936,7 @@ Third prompt`;
                 'button.ms-button-primary[type="submit"][aria-label="Run"][aria-disabled="false"]',
                 'button[aria-label="Run"]:not([disabled]):not([aria-disabled="true"]):not([type="button"])'
             ];
-
-            for (let attempt = 0; attempt < retries; attempt++) {
-                // Try each selector
-                for (const selector of selectors) {
-                    const button = document.querySelector(selector);
-                    if (button && button.offsetParent !== null) { // Check if button is visible
-                        // Double-check it's actually enabled and ready (not in loading state)
-                        const isDisabled = button.hasAttribute('disabled') || 
-                                         button.getAttribute('aria-disabled') === 'true';
-                        const isTypeSubmit = button.getAttribute('type') === 'submit';
-                        const hasStopText = button.textContent?.trim().includes('Stop');
-                        const hasSpinner = button.querySelector('.material-symbols-outlined.spin') ||
-                                         button.querySelector('span.spin');
-                        
-                        if (!isDisabled && isTypeSubmit && !hasStopText && !hasSpinner) {
-                    button.click();
-                            Logger.debug(`📤 Clicked Run button using selector: ${selector}`);
-                            // Small delay to allow DOM to update after click
-                            await this.delay(100);
-                    return;
-                        }
-                    }
-                }
-                
-                Logger.debug(`⏱ Waiting for Run button to be ready... (attempt ${attempt + 1}/${retries})`);
-                await this.delay(500);
-            }
-            
-            // Log available buttons for debugging
-            const allRunButtons = document.querySelectorAll('button[aria-label="Run"]');
-            Logger.error(`❌ Run button not found. Found ${allRunButtons.length} button(s) with aria-label="Run":`, 
-                Array.from(allRunButtons).map(btn => ({
-                    type: btn.getAttribute('type'),
-                    ariaDisabled: btn.getAttribute('aria-disabled'),
-                    disabled: btn.hasAttribute('disabled'),
-                    textContent: btn.textContent?.trim(),
-                    hasSpinner: !!btn.querySelector('.material-symbols-outlined.spin'),
-                    classes: btn.className,
-                    visible: btn.offsetParent !== null
-                }))
-            );
-            
-            throw new Error("❌ Run button not found or never became ready");
+            return this.clickButtonWithRetry(selectors, retries, 'Run');
         }
 
         /**
@@ -10657,53 +10944,14 @@ Third prompt`;
          */
         async waitForPromptCompletion(timeout = 300000) {
             const start = Date.now();
-            
+            const readySelector = AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY;
+
             Logger.debug("🕐 Waiting for prompt to start...");
-            
-            // Helper function to check if button is in loading state
-            const isButtonLoading = () => {
-                // Check for loading state indicators
-                const runButton = document.querySelector('button[aria-label="Run"]');
-                if (!runButton || runButton.offsetParent === null) {
-                    return false;
-                }
-                
-                // Check if button type changed from "submit" to "button" (indicates loading)
-                if (runButton.getAttribute('type') === 'button') {
-                    return true;
-                }
-                
-                // Check if button contains "Stop" text
-                const buttonText = runButton.textContent?.trim() || '';
-                if (buttonText.includes('Stop')) {
-                    return true;
-                }
-                
-                // Check if button has spinner icon (progress_activity or spin class)
-                const hasSpinner = runButton.querySelector('.material-symbols-outlined.spin') ||
-                                  runButton.querySelector('.material-symbols-outlined[class*="progress_activity"]') ||
-                                  runButton.querySelector('span.spin');
-                if (hasSpinner) {
-                    return true;
-                }
-                
-                // Check if ready button is gone (might indicate loading)
-                const readyButton = document.querySelector(AIStudioEnhancer.SELECTORS.MAIN_SUBMIT_BUTTON.READY);
-                if (!readyButton || readyButton.offsetParent === null) {
-                    // If there's a Run button but it's not ready, it might be loading
-                    if (runButton && runButton.getAttribute('type') !== 'submit') {
-                        return true;
-                    }
-                }
-                
-                return false;
-            };
-            
+
             // Wait for loading state to appear
             let loadingCheckCount = 0;
-            while (!isButtonLoading()) {
+            while (!this.isRunButtonLoading(readySelector)) {
                 if (Date.now() - start > 10000) {
-                    // Log button state for debugging
                     const runButton = document.querySelector('button[aria-label="Run"]');
                     Logger.error('⚠️ Timeout waiting for response to start. Current button state:', {
                         exists: !!runButton,
@@ -10720,7 +10968,6 @@ Third prompt`;
                 }
                 loadingCheckCount++;
                 if (loadingCheckCount % 10 === 0) {
-                    // Log every 2 seconds (10 * 200ms)
                     const runButton = document.querySelector('button[aria-label="Run"]');
                     Logger.debug('Still waiting for loading state...', {
                         type: runButton?.getAttribute('type'),
@@ -10730,11 +10977,11 @@ Third prompt`;
                 }
                 await this.delay(200);
             }
-            
+
             Logger.debug("⏳ Response started... waiting for it to finish");
-            
+
             // Wait for loading state to disappear (button becomes ready again)
-            while (isButtonLoading()) {
+            while (this.isRunButtonLoading(readySelector)) {
                 if (Date.now() - start > timeout) {
                     throw new Error("⏰ Timeout: Prompt processing took too long");
                 }
@@ -10743,7 +10990,7 @@ Third prompt`;
                 }
                 await this.delay(500);
             }
-            
+
             Logger.debug("✅ Prompt completed");
         }
 
@@ -10753,28 +11000,18 @@ Third prompt`;
         updatePromptInputVisibility() {
             try {
                 const mode = this.settings.PROMPT_MODE || 'single';
-                
+
                 if (!this.singlePromptContainer || !this.multiplePromptContainer || !this.templatePromptContainer) {
                     Logger.debug('UI elements not yet created');
                     return;
                 }
-                
-                this.singlePromptContainer.style.display = 'none';
-                this.multiplePromptContainer.style.display = 'none';
-                this.templatePromptContainer.style.display = 'none';
-                
-                switch (mode) {
-                    case 'single':
-                        this.singlePromptContainer.style.display = 'block';
-                        break;
-                    case 'multiple':
-                        this.multiplePromptContainer.style.display = 'block';
-                        break;
-                    case 'template':
-                        this.templatePromptContainer.style.display = 'block';
-                        break;
-                }
-                
+
+                this.showContainerByMode(mode, {
+                    'single': this.singlePromptContainer,
+                    'multiple': this.multiplePromptContainer,
+                    'template': this.templatePromptContainer
+                });
+
                 this.updateIterationInputBehavior(mode);
             } catch (error) {
                 Logger.error('Error in updatePromptInputVisibility:', error);
@@ -10840,15 +11077,7 @@ Third prompt`;
          * Update button state
          */
         updateButtonState() {
-            if (this.toggleButton) {
-                if (this.isAutoRunning) {
-                    this.toggleButton.setText('Stop Auto Run');
-                    this.toggleButton.setTheme('danger');
-                } else {
-                    this.toggleButton.setText('Start Auto Run');
-                    this.toggleButton.setTheme('primary');
-                }
-            }
+            this.updateToggleButtonState(this.toggleButton, this.isAutoRunning, 'Start Auto Run', 'Stop Auto Run');
         }
 
         /**
@@ -11993,131 +12222,90 @@ Third prompt`;
          */
         async processTTSChunk(chunk, index, episodeNum = null, episodeChunkCount = null) {
             Logger.info(`➡️ Processing TTS chunk ${index + 1}/${this.totalTTSChunks}`);
-            
-            const retryCount = this.settings.TTS_RETRY_COUNT || 5;
-            let lastError = null;
-            
-                for (let attempt = 0; attempt < retryCount; attempt++) {
-                    // Check if we should stop before starting a new attempt
-                    if (this.shouldStopTTS) {
-                        Logger.info('TTS queue stopped by user - aborting chunk processing');
-                        throw new Error('TTS queue stopped by user');
-                    }
-                    
-                    try {
-                        // Check for quota error before each attempt
-                        if (this.checkForQuotaError()) {
-                            Logger.warn('⚠️ Quota error detected before processing chunk, stopping TTS queue');
-                            this.shouldStopTTS = true;
-                            this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
-                            throw new Error('Quota exceeded - TTS queue stopped');
-                        }
 
-                        if (attempt > 0) {
-                            Logger.info(`🔄 Retry attempt ${attempt + 1}/${retryCount} for chunk ${index + 1}`);
-                            // Check shouldStopTTS during retry delay
-                            for (let i = 0; i < 20; i++) {
-                                if (this.shouldStopTTS) {
-                                    throw new Error('TTS queue stopped by user');
-                                }
-                                await this.delay(100); // Wait 100ms at a time, checking stop flag
-                            }
-                        }
-                        
-                        // Type the text into TTS textarea
-                        await this.typeTTSText(chunk);
-                        
-                        // Small delay to let the UI settle (check shouldStopTTS during delay)
-                        for (let i = 0; i < 3; i++) {
-                            if (this.shouldStopTTS) {
-                                throw new Error('TTS queue stopped by user');
-                            }
-                            await this.delay(100);
-                        }
-                        
-                        // Click run button
-                        await this.clickTTSRunButton();
-                        
-                        // Check for quota error immediately after clicking (error might appear quickly)
-                        // Check shouldStopTTS during delay
-                        for (let i = 0; i < 5; i++) {
-                            if (this.shouldStopTTS) {
-                                throw new Error('TTS queue stopped by user');
-                            }
-                            await this.delay(100);
-                        }
-                        if (this.checkForQuotaError()) {
-                            Logger.warn('⚠️ Quota error detected after clicking run button, stopping TTS queue');
-                            this.shouldStopTTS = true;
-                            this.showNotification('⚠️ Quota exceeded detected. TTS queue stopped.', 'warning');
-                            throw new Error('Quota exceeded - TTS queue stopped');
-                        }
-                    
-                    // Calculate timeout based on word count (approximately 1 minute per 100 words, minimum 2 minutes)
+            const retryCount = this.settings.TTS_RETRY_COUNT || 5;
+            const stopCheck = () => this.shouldStopTTS;
+            const stopError = 'TTS queue stopped by user';
+            let lastError = null;
+
+            for (let attempt = 0; attempt < retryCount; attempt++) {
+                if (this.shouldStopTTS) {
+                    Logger.info('TTS queue stopped by user - aborting chunk processing');
+                    throw new Error(stopError);
+                }
+
+                try {
+                    // Check for quota error before each attempt
+                    if (this.handleQuotaErrorIfPresent()) {
+                        throw new Error('Quota exceeded - TTS queue stopped');
+                    }
+
+                    if (attempt > 0) {
+                        Logger.info(`🔄 Retry attempt ${attempt + 1}/${retryCount} for chunk ${index + 1}`);
+                        await this.delayWithStopCheck(2000, stopCheck, stopError);
+                    }
+
+                    // Type the text into TTS textarea
+                    await this.typeTTSText(chunk);
+
+                    // Small delay to let the UI settle
+                    await this.delayWithStopCheck(300, stopCheck, stopError);
+
+                    // Click run button
+                    await this.clickTTSRunButton();
+
+                    // Check for quota error after clicking
+                    await this.delayWithStopCheck(500, stopCheck, stopError);
+                    if (this.handleQuotaErrorIfPresent()) {
+                        throw new Error('Quota exceeded - TTS queue stopped');
+                    }
+
+                    // Calculate timeout based on word count
                     const wordCount = chunk.trim().split(/\s+/).length;
                     const timeoutMinutes = Math.max(2, Math.ceil(wordCount / 100));
                     const timeoutMs = timeoutMinutes * 60 * 1000;
-                    
+
                     Logger.debug(`⏱️ Timeout set to ${timeoutMinutes} minutes for ${wordCount} words`);
-                    
-                    // Wait for audio to be ready with calculated timeout
+
+                    // Wait for audio to be ready
                     const audioData = await this.waitForTTSAudioReady(timeoutMs);
-                    
-                    // Optional delay before starting download (to coordinate with other processes)
+
+                    // Optional delay before download
                     const downloadDelayMs = this.settings.TTS_DOWNLOAD_DELAY_MS ?? AIStudioEnhancer.DEFAULT_SETTINGS.TTS_DOWNLOAD_DELAY_MS;
                     if (downloadDelayMs > 0) {
                         Logger.debug(`⏳ Waiting ${downloadDelayMs}ms before downloading TTS audio for chunk ${index + 1}`);
-                        // Check shouldStopTTS during delay (split into chunks)
-                        const delayChunks = Math.ceil(downloadDelayMs / 100);
-                        for (let i = 0; i < delayChunks; i++) {
-                            if (this.shouldStopTTS) {
-                                throw new Error('TTS queue stopped by user');
-                            }
-                            await this.delay(100); // 100ms at a time, checking stop flag
-                        }
+                        await this.delayWithStopCheck(downloadDelayMs, stopCheck, stopError);
                     }
-                    
-                    // Download the audio (non-blocking - don't wait for download to complete)
+
+                    // Download the audio (non-blocking)
                     if (audioData) {
-                        // Calculate chunk number (1-indexed within episode or globally)
-                        const chunkNum = episodeNum !== null ? (index + 1) : (index + 1);
-                        // Start download but don't await it - continue to next chunk
+                        const chunkNum = index + 1;
                         this.downloadTTSAudio(audioData, chunkNum, episodeNum, episodeChunkCount).catch(error => {
                             Logger.error(`Error downloading audio chunk ${chunkNum}:`, error);
                         });
                     } else {
                         throw new Error('Audio data not found');
                     }
-                    
-                    const chunkNum = episodeNum !== null ? (index + 1) : (index + 1);
-                    Logger.success(`✅ TTS chunk ${chunkNum} completed, download started`);
-                    return; // Success, exit retry loop
-                    } catch (error) {
+
+                    Logger.success(`✅ TTS chunk ${index + 1} completed, download started`);
+                    return;
+                } catch (error) {
                     lastError = error;
-                    
-                    // If quota error, don't retry - stop immediately
-                    if (error.message && error.message.includes('Quota exceeded')) {
-                        Logger.error(`🚨 Quota exceeded detected, stopping TTS queue immediately`);
-                        throw error; // Re-throw to stop processing
+
+                    // If quota error or stopped by user, don't retry
+                    if (error.message && (error.message.includes('Quota exceeded') || error.message.includes('stopped by user'))) {
+                        throw error;
                     }
-                    
-                    // If stopped by user, don't retry - stop immediately
-                    if (error.message && error.message.includes('stopped by user')) {
-                        Logger.info(`🛑 TTS queue stopped by user, aborting chunk processing`);
-                        throw error; // Re-throw to stop processing
-                    }
-                    
+
                     Logger.warn(`⚠️ Attempt ${attempt + 1}/${retryCount} failed for chunk ${index + 1}:`, error.message);
-                    
-                    // If it's the last attempt, throw the error
+
                     if (attempt === retryCount - 1) {
                         Logger.error(`🚨 All ${retryCount} attempts failed for TTS chunk ${index + 1}`);
                         throw error;
                     }
                 }
             }
-            
-            // Should never reach here, but just in case
+
             throw lastError || new Error('Unknown error processing TTS chunk');
         }
 
@@ -12126,26 +12314,10 @@ Third prompt`;
          */
         async typeTTSText(text) {
             try {
-                let textarea = null;
-                
-                // Try to find TTS textarea using DOMObserver.waitForElements
-                try {
-                    const elements = await DOMObserver.waitForElements(AIStudioEnhancer.SELECTORS.TTS_TEXTAREA, 5000);
-                    // Find the first visible element
-                    for (const element of Array.from(elements)) {
-                        if (element && element.offsetParent !== null) {
-                            textarea = element;
-                            break;
-                        }
-                    }
-                } catch (error) {
-                    // Fall through to check if textarea was found
-                }
-                
+                const textarea = await this.findFirstVisibleElement(AIStudioEnhancer.SELECTORS.TTS_TEXTAREA, 5000);
                 if (!textarea) {
                     throw new Error("TTS textarea not found");
                 }
-                
                 return await this.typeIntoElement(textarea, text);
             } catch (error) {
                 throw new Error("❌ Typing TTS text failed: " + error.message);
@@ -12176,20 +12348,13 @@ Third prompt`;
          */
         async setTTSStylePrompt(text) {
             const selectors = AIStudioEnhancer.SELECTORS.TTS_STYLE_TEXTAREA || [];
-            try {
-                const elements = await DOMObserver.waitForElements(selectors, 5000);
-                // Find the first visible element
-                for (const element of Array.from(elements)) {
-                    if (element && element.offsetParent !== null) {
-                        await this.typeIntoElement(element, text);
-                        Logger.debug('✅ Applied TTS style prompt');
-                        return;
-                    }
-                }
-            } catch (error) {
-                Logger.debug('TTS style textarea not found');
+            const element = await this.findFirstVisibleElement(selectors, 5000);
+            if (element) {
+                await this.typeIntoElement(element, text);
+                Logger.debug('✅ Applied TTS style prompt');
+            } else {
+                Logger.warn('TTS style prompt textarea not found');
             }
-            Logger.warn('TTS style prompt textarea not found');
         }
 
         /**
@@ -12197,28 +12362,19 @@ Third prompt`;
          */
         async expandTemperatureAccordion() {
             try {
-                // Find the accordion header by aria-label
                 const accordionSelectors = [
                     'div.settings-item.settings-group-header button[aria-label*="Model settings"]',
                     'div.settings-group-header button[aria-label*="Model settings"]',
                     'button[aria-label*="Expand or collapse Model settings"]'
                 ];
 
-                let accordionButton = null;
-                try {
-                    const elements = await DOMObserver.waitForElements(accordionSelectors, 2000);
-                    accordionButton = elements[0];
-                } catch (error) {
-                    Logger.debug('Temperature accordion button not found (may already be expanded or not present)');
-                    return;
-                }
-
+                const accordionButton = await this.findFirstVisibleElement(accordionSelectors, 2000);
                 if (!accordionButton) {
                     Logger.debug('Temperature accordion button not found (may already be expanded or not present)');
                     return;
                 }
 
-                // Check if accordion is already expanded by looking at parent header
+                // Check if accordion is already expanded
                 const header = accordionButton.closest('.settings-group-header');
                 if (header && header.classList.contains('expanded')) {
                     Logger.debug('Temperature accordion is already expanded');
@@ -12231,36 +12387,9 @@ Third prompt`;
 
                 // Wait for accordion to expand (wait for input to become visible)
                 const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
-                let expanded = false;
-                try {
-                    const elements = await DOMObserver.waitForElements(numberSelectors, 2000);
-                    // Check if any element is visible
-                    for (const el of Array.from(elements)) {
-                        if (el && el.offsetParent !== null) {
-                            expanded = true;
-                            break;
-                        }
-                    }
-                } catch (error) {
-                    // Accordion might not expand, continue
-                }
-                
-                if (!expanded) {
-                    // Fallback: try checking manually for a few attempts
-                    for (let attempt = 0; attempt < 20; attempt++) {
-                        for (const selector of numberSelectors) {
-                            const el = document.querySelector(selector);
-                            if (el && el.offsetParent !== null) {
-                                expanded = true;
-                                break;
-                            }
-                        }
-                        if (expanded) break;
-                        await this.delay(100);
-                    }
-                }
+                const expandedInput = await this.findFirstVisibleElement(numberSelectors, 2000);
 
-                if (expanded) {
+                if (expandedInput) {
                     Logger.debug('Temperature accordion expanded successfully');
                 } else {
                     Logger.warn('Temperature accordion expansion may have failed - input not visible after wait');
@@ -12278,42 +12407,15 @@ Third prompt`;
             await this.expandTemperatureAccordion();
 
             const clamped = Math.min(2, Math.max(0, value));
-            let applied = false;
+            const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
+            const el = await this.findFirstVisibleElement(numberSelectors, 2000);
 
-            const setValueAndDispatch = (el) => {
-                // Prevent LastPass and other password managers from interfering
+            if (el) {
                 el.setAttribute('autocomplete', 'off');
                 el.setAttribute('data-lpignore', 'true');
                 el.value = clamped;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
-            };
-
-            // Prefer the numeric input control for temperature instead of the range slider
-            const numberSelectors = AIStudioEnhancer.SELECTORS.TTS_TEMPERATURE_NUMBER || [];
-            try {
-                const elements = await DOMObserver.waitForElements(numberSelectors, 2000);
-                // Find the first visible element
-                for (const el of Array.from(elements)) {
-                    if (el && el.offsetParent !== null) {
-                        setValueAndDispatch(el);
-                        applied = true;
-                        break;
-                    }
-                }
-            } catch (error) {
-                // Fallback to direct querySelector if waitForElements fails
-                for (const selector of numberSelectors) {
-                    const el = document.querySelector(selector);
-                    if (el && el.offsetParent !== null) {
-                        setValueAndDispatch(el);
-                        applied = true;
-                        break;
-                    }
-                }
-            }
-
-            if (applied) {
                 Logger.debug(`✅ Applied TTS temperature via number input: ${clamped}`);
             } else {
                 Logger.warn('TTS temperature number input not found');
@@ -12325,27 +12427,7 @@ Third prompt`;
          */
         async setTTSVoice(voiceName) {
             const selectors = AIStudioEnhancer.SELECTORS.TTS_VOICE_SELECT || [];
-            let trigger = null;
-
-            try {
-                const elements = await DOMObserver.waitForElements(selectors, 2000);
-                // Find the first visible element
-                for (const el of Array.from(elements)) {
-                    if (el && el.offsetParent !== null) {
-                        trigger = el;
-                        break;
-                    }
-                }
-            } catch (error) {
-                // Fallback to direct querySelector
-                for (const selector of selectors) {
-                    const el = document.querySelector(selector);
-                    if (el && el.offsetParent !== null) {
-                        trigger = el;
-                        break;
-                    }
-                }
-            }
+            const trigger = await this.findFirstVisibleElement(selectors, 2000);
 
             if (!trigger) {
                 Logger.warn('TTS voice select trigger not found');
@@ -12356,12 +12438,13 @@ Third prompt`;
             trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
             await this.delay(200);
 
+            // Wait for options to appear
             let options = [];
             try {
                 const elements = await DOMObserver.waitForElements(['mat-option'], 2000);
                 options = Array.from(elements);
             } catch (error) {
-                // Fallback: try checking manually for a few attempts
+                // Fallback: poll for options
                 for (let attempt = 0; attempt < 10; attempt++) {
                     options = Array.from(document.querySelectorAll('mat-option'));
                     if (options.length > 0) break;
@@ -12374,7 +12457,6 @@ Third prompt`;
 
             if (!target) {
                 Logger.warn(`TTS voice option not found for "${voiceName}"`);
-                // Close dropdown by clicking trigger again
                 trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                 return;
             }
@@ -12394,32 +12476,7 @@ Third prompt`;
                 'button[type="submit"][aria-label="Run"][aria-disabled="false"]:not([disabled])',
                 'button[aria-label="Run"][aria-disabled="false"]:not([disabled]):not([type="button"])'
             ];
-
-            for (let attempt = 0; attempt < retries; attempt++) {
-                for (const selector of selectors) {
-                    const button = document.querySelector(selector);
-                    if (button && button.offsetParent !== null) {
-                        const isDisabled = button.hasAttribute('disabled') || 
-                                         button.getAttribute('aria-disabled') === 'true';
-                        const isTypeSubmit = button.getAttribute('type') === 'submit';
-                        const hasStopText = button.textContent?.trim().includes('Stop');
-                        const hasSpinner = button.querySelector('.material-symbols-outlined.spin') ||
-                                         button.querySelector('span.spin');
-                        
-                        if (!isDisabled && isTypeSubmit && !hasStopText && !hasSpinner) {
-                            button.click();
-                            Logger.debug(`📤 Clicked TTS Run button using selector: ${selector}`);
-                            await this.delay(100);
-                            return;
-                        }
-                    }
-                }
-                
-                Logger.debug(`⏱ Waiting for TTS Run button to be ready... (attempt ${attempt + 1}/${retries})`);
-                await this.delay(500);
-            }
-            
-            throw new Error("❌ TTS Run button not found or never became ready");
+            return this.clickButtonWithRetry(selectors, retries, 'TTS Run');
         }
 
         /**
@@ -12614,14 +12671,7 @@ Third prompt`;
                     }
                     
                     // Add additional delay to ensure audio is fully generated and ready
-                    // This is important because the audio might still be processing even after the button is ready
-                    // Check shouldStopTTS during delay (split into smaller chunks)
-                    for (let i = 0; i < 30; i++) {
-                        if (this.shouldStopTTS) {
-                            throw new Error("TTS queue stopped by user");
-                        }
-                        await this.delay(100); // 100ms at a time, checking stop flag
-                    }
+                    await this.delayWithStopCheck(3000, () => this.shouldStopTTS, "TTS queue stopped by user");
                     
                     // Store this audio src as the last one for next chunk
                     this.lastTTSAudioSrc = audioDataUrl;
@@ -12647,35 +12697,7 @@ Third prompt`;
          * Check if TTS button is in loading state
          */
         isTTSButtonLoading() {
-            const runButton = document.querySelector('button[aria-label="Run"]');
-            if (!runButton || runButton.offsetParent === null) {
-                return false;
-            }
-            
-            if (runButton.getAttribute('type') === 'button') {
-                return true;
-            }
-            
-            const buttonText = runButton.textContent?.trim() || '';
-            if (buttonText.includes('Stop')) {
-                return true;
-            }
-            
-            const hasSpinner = runButton.querySelector('.material-symbols-outlined.spin') ||
-                              runButton.querySelector('.material-symbols-outlined[class*="progress_activity"]') ||
-                              runButton.querySelector('span.spin');
-            if (hasSpinner) {
-                return true;
-            }
-            
-            const readyButton = document.querySelector(AIStudioEnhancer.SELECTORS.TTS_RUN_BUTTON.READY);
-            if (!readyButton || readyButton.offsetParent === null) {
-                if (runButton && runButton.getAttribute('type') !== 'submit') {
-                    return true;
-                }
-            }
-            
-            return false;
+            return this.isRunButtonLoading(AIStudioEnhancer.SELECTORS.TTS_RUN_BUTTON.READY);
         }
 
         /**
@@ -12791,15 +12813,7 @@ Third prompt`;
          * Update TTS button state
          */
         updateTTSButtonState() {
-            if (this.ttsToggleButton) {
-                if (this.isTTSRunning) {
-                    this.ttsToggleButton.setText('Stop TTS Queue');
-                    this.ttsToggleButton.setTheme('danger');
-                } else {
-                    this.ttsToggleButton.setText('Start TTS Queue');
-                    this.ttsToggleButton.setTheme('primary');
-                }
-            }
+            this.updateToggleButtonState(this.ttsToggleButton, this.isTTSRunning, 'Start TTS Queue', 'Stop TTS Queue');
         }
 
         /**
@@ -12808,19 +12822,16 @@ Third prompt`;
         updateTTSInputVisibility() {
             try {
                 const mode = this.settings.TTS_MODE || 'single';
-                
+
                 if (!this.ttsSingleTextContainer || !this.ttsEpisodesContainer) {
                     Logger.debug('TTS UI elements not yet created');
                     return;
                 }
-                
-                if (mode === 'single') {
-                    this.ttsSingleTextContainer.style.display = 'block';
-                    this.ttsEpisodesContainer.style.display = 'none';
-                } else if (mode === 'episodes') {
-                    this.ttsSingleTextContainer.style.display = 'none';
-                    this.ttsEpisodesContainer.style.display = 'block';
-                }
+
+                this.showContainerByMode(mode, {
+                    'single': this.ttsSingleTextContainer,
+                    'episodes': this.ttsEpisodesContainer
+                });
             } catch (error) {
                 Logger.error('Error in updateTTSInputVisibility:', error);
             }

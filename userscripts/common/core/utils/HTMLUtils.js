@@ -2,6 +2,8 @@
  * HTMLUtils - Utilities for HTML manipulation
  * Provides functions for escaping HTML, encoding/decoding entities, etc.
  */
+import DOMObserver from '../ui/DOMObserver.js';
+
 class HTMLUtils {
     static #policy;
 
@@ -200,6 +202,34 @@ class HTMLUtils {
             check(); // Initial check
         });
     }
+
+    /**
+     * Find first visible element from array of selectors
+     * Extends waitForElement() with visibility check
+     * @param {string[]} selectors - Array of CSS selectors to try
+     * @param {number} timeout - Timeout in milliseconds
+     * @returns {Promise<Element|null>} First visible element found or null
+     */
+    static async findFirstVisibleElement(selectors, timeout = 5000) {
+        try {
+            const elements = await DOMObserver.waitForElements(selectors, timeout);
+            for (const element of Array.from(elements)) {
+                if (element && element.offsetParent !== null) {
+                    return element;
+                }
+            }
+        } catch (error) {
+            // Fallback to direct querySelector
+            for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (el && el.offsetParent !== null) {
+                    return el;
+                }
+            }
+        }
+        return null;
+    }
+
 }
 
 /**

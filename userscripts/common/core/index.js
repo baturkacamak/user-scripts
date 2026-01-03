@@ -21,6 +21,7 @@ import MarkdownConverter from './utils/MarkdownConverter.js';
 import ViewportStabilizer from './utils/ViewportStabilizer.js';
 import ContentFormatter from './utils/ContentFormatter.js';
 import TextChunker from './utils/TextChunker.js';
+import InputValidators from './utils/InputValidators.js';
 
 // Services
 import ThrottleService from './services/ThrottleService.js';
@@ -66,6 +67,7 @@ export {
   ViewportStabilizer,
   ContentFormatter,
   TextChunker,
+  InputValidators,
 
   // Services
   ThrottleService,
@@ -110,6 +112,7 @@ export default {
   ViewportStabilizer,
   ContentFormatter,
   TextChunker,
+  InputValidators,
   ThrottleService,
   AsyncQueueService,
   ClipboardService,

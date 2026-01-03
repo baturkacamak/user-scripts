@@ -10,6 +10,7 @@ import {
     HTMLUtils,
     InfoBox,
     Input,
+    InputValidators,
     Logger,
     Notification,
     PollingStrategy,
@@ -181,6 +182,9 @@ class AIStudioEnhancer {
         this.isInitialLoad = true;
         this.enhancerId = 'ai-studio-enhancer-container';
         
+        // Initialize ThrottleService for delay utilities
+        this.throttleService = new ThrottleService();
+        
         // TTS state
         this.isTTSRunning = false;
         this.shouldStopTTS = false;
@@ -273,7 +277,7 @@ class AIStudioEnhancer {
      * Simple delay function
      */
     delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return this.throttleService.delay(ms);
     }
 
     /**
@@ -284,13 +288,7 @@ class AIStudioEnhancer {
      * @param {number} checkIntervalMs - Interval to check stop flag (default 100ms)
      */
     async delayWithStopCheck(totalMs, shouldStopGetter, errorMessage = 'Operation stopped by user', checkIntervalMs = 100) {
-        const iterations = Math.ceil(totalMs / checkIntervalMs);
-        for (let i = 0; i < iterations; i++) {
-            if (shouldStopGetter()) {
-                throw new Error(errorMessage);
-            }
-            await this.delay(checkIntervalMs);
-        }
+        return this.throttleService.delayWithStopCheck(totalMs, shouldStopGetter, errorMessage, checkIntervalMs);
     }
 
     /**
@@ -300,23 +298,7 @@ class AIStudioEnhancer {
      * @returns {Promise<Element|null>} First visible element found or null
      */
     async findFirstVisibleElement(selectors, timeout = 5000) {
-        try {
-            const elements = await DOMObserver.waitForElements(selectors, timeout);
-            for (const element of Array.from(elements)) {
-                if (element && element.offsetParent !== null) {
-                    return element;
-                }
-            }
-        } catch (error) {
-            // Fallback to direct querySelector
-            for (const selector of selectors) {
-                const el = document.querySelector(selector);
-                if (el && el.offsetParent !== null) {
-                    return el;
-                }
-            }
-        }
-        return null;
+        return HTMLUtils.findFirstVisibleElement(selectors, timeout);
     }
 
     /**
@@ -364,6 +346,7 @@ class AIStudioEnhancer {
 
     /**
      * Click a button with retry logic
+     * Project-specific method for Google AI Studio button interactions
      * @param {string[]} selectors - Array of selectors to try
      * @param {number} retries - Number of retry attempts
      * @param {string} logPrefix - Prefix for log messages (e.g., 'Run' or 'TTS Run')
@@ -450,27 +433,6 @@ class AIStudioEnhancer {
         }
     }
 
-    /**
-     * Create a number validator function
-     * @param {number} min - Minimum allowed value
-     * @param {number} max - Maximum allowed value
-     * @param {string} minMessage - Message for values below min
-     * @param {string} maxMessage - Message for values above max
-     * @param {boolean} isFloat - Whether to parse as float (default false, parse as int)
-     * @returns {Function} Validator function
-     */
-    static createNumberValidator(min, max, minMessage = null, maxMessage = null, isFloat = false) {
-        return (value) => {
-            const num = isFloat ? parseFloat(value) : parseInt(value, 10);
-            if (isNaN(num) || num < min) {
-                return minMessage || `Please enter a number >= ${min}`;
-            }
-            if (num > max) {
-                return maxMessage || `Maximum ${max}`;
-            }
-            return true;
-        };
-    }
 
     /**
      * Handle quota error if present - checks and handles quota exceeded errors
