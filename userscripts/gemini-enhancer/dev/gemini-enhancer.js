@@ -679,14 +679,15 @@ class GeminiEnhancer {
             // Initialize TextChunker
             const chunker = new TextChunker();
             const wordsPerChunk = this.settings.CHUNKED_WORDS_PER_CHUNK || 500;
-            const strategy = this.settings.CHUNKED_STRATEGY === 'hard' 
-                ? TextChunker.STRATEGY.HARD_LIMIT 
+            const strategy = this.settings.CHUNKED_STRATEGY === 'hard'
+                ? TextChunker.STRATEGY.HARD_LIMIT
                 : TextChunker.STRATEGY.SOFT_LIMIT;
 
             // Chunk the text
+            // For hard strategy, disable sentence boundaries to get true hard cut at exact word count
             const chunks = chunker.splitByWords(text, wordsPerChunk, {
                 strategy: strategy,
-                respectSentenceBoundaries: true
+                respectSentenceBoundaries: this.settings.CHUNKED_STRATEGY !== 'hard'
             });
 
             if (chunks.length === 0) {
