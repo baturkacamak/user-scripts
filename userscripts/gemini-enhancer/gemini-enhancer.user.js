@@ -2,7 +2,7 @@
 // @name        Gemini Enhancer
 // @description Queue system for prompts with support for text, image, and video generation on Gemini
 // @namespace   https://github.com/baturkacamak/userscripts
-// @version     1.0.0
+// @version     1.0.1
 // @author      Batur Kacamak
 // @license     MIT
 // @homepage    https://github.com/baturkacamak/userscripts/tree/master/userscripts/gemini-enhancer#readme
